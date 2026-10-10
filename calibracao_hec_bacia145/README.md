@@ -124,6 +124,52 @@ do valor (mai/2024 +46%, jul/2020 +39%).
 
 Análises: `_analise_perda/` (não versionada).
 
+## Atraso do pico e recessão das cheias grandes (branch `cursor/hec-bacia145-propagacao`, 10/10/2026)
+
+Diagnóstico do pc-f8-c025 (cal + val, medianas; porte pela cota máx. de Muçum: pequeno < 9 m, médio 9–13 m, grande ≥ 13 m):
+
+| porte | atraso do pico (h) TAI / CA / MC / LJJ / MUC / ENC | K da recessão obs → sim (h) CA / MC / LJJ / MUC / ENC |
+|---|---|---|
+| pequeno | −1 / −2 / −5 / 0 / 0 / +1 | — / — / — / 32 → 31 / — |
+| médio | −1 / +1 / −1 / −2,5 / −1 / −4 | — / — / — / 34 → 33 / — |
+| grande | 0 / +4 / +4 / +4 / +4 / +0,5 | 17 → 31 / 21 → 30 / 19 → 32 / 25 → 31 / 18 → 29 |
+
+- O atraso das grandes nasce na geração, entre Tainhas (0 h) e Castro Alves (+4 h). A calha não o aumenta: os tempos de
+  viagem simulados CA→MC→LJJ→MUC são iguais aos observados (1/3/3 h contra 0/3/2 h), e MUC→ENC é até mais rápido.
+  LJJ tem o mesmo +4 h que as barragens, então o atraso não vem da operação das UHE.
+- A recessão lenta vem da base. O K simulado fica em ~30 h em todo porte, igual ao k1 do GW-1 (28,5 h), e a maior parte do
+  evento passa por ele (com perc no limite, quase toda a chuva infiltra; fb·p1 = 0,55 dela vai para o GW-1). O K observado cai de ~32 h (pequenas) para 17–25 h (grandes).
+  Clark R (mr × 0,5) e a calha (Manning) não mudam o K.
+
+Objetivo novo `J_t = J_pico + T`, em que T é a média ponderada por pico, nas médias/grandes de calibração, de
+|atraso|/3 h + |ln(K_sim/K_obs)|/ln 1,5 (`codigo/tempo.py`; `nuvem_agregar.py` grava `J_t`, `T` e `tempo`;
+`rodada_dc.py --objetivo J_t`). Família nova `lrdcfv` = `lrdcf` + Clark variável (`ie`, `atc`, `ar`).
+
+Comparação justa (forcamento_v3b, J_t; g0 = 48 + 6 gerações de ES por linha; escolha só na calibração):
+
+| Linha (melhor da cal.) | J cal | J_pico cal | J_t cal | J val | J_pico val | J_t val | passa val |
+|---|---|---|---|---|---|---|---|
+| pc-f8-c025 (referência) | 5,92 | 5,12 | 7,13 | 5,68 | 5,91 | 8,53 | 17/144 |
+| controle `lrdcf` a partir do f8 (pp-f6-c006) | 5,99 | 5,12 | 7,00 | 5,79 | 5,78 | 8,28 | 19/144 |
+| duas velocidades `lrdcf` (pp-d6-c002; perc 7,1, mr 1,25, k1 37) | 6,02 | 4,85 | 6,38 | 5,56 | **5,47** | **7,98** | 17/144 |
+| + Clark variável `lrdcfv` (pp-v6-c014; ar 0,44) | **5,78** | **4,81** | **6,31** | **5,42** | 5,63 | 8,13 | 16/144 |
+
+O ponto de partida das linhas d e v (gr-c008: perc 8, mr 1,5) saiu de uma grade de 12 pontos só na calibração, o que dá
+12 avaliações a mais para essas linhas.
+
+- Escolhido pela calibração: pp-v6-c014. Na validação, J_t melhora 0,40 sobre o f8, mas 0,25 disso o controle já
+  consegue só trocando o objetivo.
+- Nas grandes de validação, o atraso cai pouco: MUC +3 → +2 h, CA +4 → +3 h, LJJ +4 → +3,5 h. A recessão piora
+  (K sim/obs em CA 1,52 → 1,75, em ENC 1,48 → 1,58). O pico grande fica igual (MUC −23%).
+- A linha de duas velocidades leva MUC a +0,5 h, mas também deixa a recessão mais lenta. Nenhuma linha resolve.
+- Limite estrutural: base em reservatório linear, com fb e p1 fixos, dá um único K para todo porte. Na grade 2
+  (`_analise_prop/grade2.py`), k1 = 20 acerta o K das grandes (sim/obs 1,0–1,1), mas o J da calibração sobe para
+  7,3–8,4 porque as pequenas recedem rápido demais. Para corrigir, é preciso que a fração rápida cresça com o evento.
+- X75/X76 (NÃO INDEPENDENTES, só leitura). Em X75, as linhas d e v zeram o atraso em MUC/ENC (+6/+5 → 0 h) e
+  levam o NSE de ENC de 0,61 para 0,91–0,98. Em X76 nada muda (MC +8–9 h, MUC +5 h, picos −27 a −38%).
+
+Análises: `_analise_prop/` (não versionada).
+
 ## Janelas derivadas com chuva prevista (09/10/2026)
 
 `<mãe>__<t0 AAAAMMDDHH>__<modelo>` (ex.: `S2023_09__2023090313__gfs`) é uma emissão de previsão: mesmo período,
