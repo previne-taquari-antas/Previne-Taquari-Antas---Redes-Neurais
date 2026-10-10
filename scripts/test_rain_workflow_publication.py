@@ -126,7 +126,36 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("/.github/workflows/basin-station-forecast.yml", sparse)
         self.assertIn("/.github/workflows/chuvas-horarias.yml", sparse)
         self.assertNotIn("/index.html", sparse)
-        self.assertEqual((ROOT / ".gitattributes").read_text(encoding="utf-8").strip(), CSV + " -text")
+        # Other artifacts legitimately have their own binary/CRLF contracts.
+        # Check both this rule's presence and Git's effective indexed result;
+        # a later/deeper override must not silently normalize observed bytes.
+        self.assertIn(CSV + " -text", (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines())
+        self.assertEqual(self.csv_text_attribute(ROOT), CSV + ": text: unset")
+
+    @staticmethod
+    def csv_text_attribute(root: Path) -> str:
+        result = subprocess.run(
+            ["git", "-c", "safe.directory=" + root.resolve().as_posix(),
+             "check-attr", "--cached", "text", "--", CSV],
+            cwd=root, capture_output=True, check=True, timeout=30,
+        )
+        return result.stdout.decode("utf-8").strip()
+
+    def test_effective_csv_rule_detects_later_and_deeper_overrides(self):
+        for later, deeper, expected in ((False, False, "unset"), (True, False, "set"), (False, True, "set")):
+            with self.subTest(later=later, deeper=deeper), tempfile.TemporaryDirectory(prefix="rain-attrs-test-") as temporary:
+                root = Path(temporary)
+                subprocess.run(["git", "init", str(root)], capture_output=True, check=True, timeout=30)
+                content = CSV + " -text\nassets/models/stz_user_shadow/** binary\n"
+                if later:
+                    content += CSV + " text\n"
+                (root / ".gitattributes").write_text(content, encoding="utf-8")
+                if deeper:
+                    directory = root / "assets/data"
+                    directory.mkdir(parents=True)
+                    (directory / ".gitattributes").write_text("chuvas_horarias.csv text\n", encoding="utf-8")
+                subprocess.run(["git", "add", "."], cwd=root, capture_output=True, check=True, timeout=30)
+                self.assertEqual(self.csv_text_attribute(root), CSV + ": text: " + expected)
 
     def test_both_writers_gate_worktree_and_commit_and_never_rebase(self):
         for writer in ("chuvas-horarias", "basin-station-forecast"):
