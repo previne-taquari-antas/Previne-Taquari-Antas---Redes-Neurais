@@ -25,7 +25,8 @@ Uso:
   python rodada_dc.py es   --rodada dc-g1 --resultados pasta [pasta ...] --lam 24 --mu 6 --sigma 0.15 --saida ...
   python rodada_dc.py top  --rodada dc-av --resultados pasta [pasta ...] --n 3 --janelas todas --saida ...
   python rodada_dc.py teste --rodada dc-teste --semente 1 --saida ...   (2 candidatos x 2 janelas: confere a sintaxe)
---rota mc|mc8st|mc8 (calha trapezoidal ou seções de 8 pontos); es/top só leem resultados da mesma rota.
+--rota mc|mc8st|mc8|lidl|lid|lidc|lid3 (calha trapezoidal, seções de 8 pontos do MDT/SRTM ou do LiDAR 1 m;
+estrutura_v3.ROTAS_LIDAR); es/top só leem resultados da mesma rota. Família lrdcf8 = lrdcf + nob (rotas LiDAR).
 --objetivo J|J_pico: chave de ordenação de es/top (J_pico = J ponderado pelo tamanho da cheia observada; o J padrão
 continua no resultado para comparar).
 """
@@ -140,7 +141,7 @@ def main():
     ap.add_argument("--mu", type=int, default=6)
     ap.add_argument("--sigma", type=float, default=0.15)
     ap.add_argument("--janelas", default=JANELAS_CAL)
-    ap.add_argument("--rota", default="mc", choices=("mc", *e3.ROTAS_8PT))
+    ap.add_argument("--rota", default="mc", choices=("mc", *e3.ROTAS_8PT, *e3.ROTAS_LIDAR))
     ap.add_argument("--objetivo", default="J", choices=("J", "J_pico"))
     ap.add_argument("--centro", default="", help="resultado.json:id (modo viz)")
     ap.add_argument("--raio", type=float, default=0.15)

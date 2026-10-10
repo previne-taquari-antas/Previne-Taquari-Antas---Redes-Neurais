@@ -130,9 +130,11 @@ PARAMS_LRSMAR = dict(PARAMS_LRSMAF, **{f"x{k}_{g}": (lo, hi, "log") for g in ("T
                                        for k, lo, hi in (("dmax", 1 / 3, 3.0), ("sup", 1 / 3, 3.0),
                                                          ("finf", 0.2, 5.0), ("psoil", 0.2, 5.0))})
 SOLO_MAX_SMA = 1499.0   # HEC: camada <= 1500 mm (ERROR 42001); vale para dmax + sup depois dos multiplicadores
+#   lrdcf8 lrdcf + nob (n das planícies da seção de 8 pontos = nob x n da calha); para as rotas LiDAR (lid*)
+PARAMS_LRDCF8 = dict(PARAMS_LRDCF, nob=PARAMS_LRDC8["nob"])
 FAMILIAS = {"dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcv": PARAMS_LRDCV, "lrdc8": PARAMS_LRDC8,
             "lrdcv8": PARAMS_LRDCV8, "lrdcr": PARAMS_LRDCR, "lrdcf": PARAMS_LRDCF, "lrscsf": PARAMS_LRSCSF,
-            "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR}
+            "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR, "lrdcf8": PARAMS_LRDCF8}
 
 
 def p_regional(p, reg):
@@ -149,7 +151,17 @@ def p_regional(p, reg):
         out["dmax"], out["sup"] = out["dmax"] * f, out["sup"] * f
     return out
 ROTAS_8PT = {"mc8st": ("R_208", "R_256", "R_201"), "mc8": None}
+# Seções de 8 pontos do LiDAR 1 m do RS (10/10, _analise_lidar; dados/secoes_lidar.json): seção, declividade e
+# comprimento do eixo LiDAR nos trechos cobertos. lidl: trechos livres (R_208, R_256, R_201) + R_258 (40% coberto);
+# lid: + R_236 (59%) e os do lago de 14 de Julho (R_203, R_213, como rio natural); lidc: lid + Carreiro (R_223, hoje
+# Muskingum) em Muskingum-Cunge; lid3: lid com 3 m de fundo abaixo da lâmina do voo (sensibilidade da calha submersa).
+_LID_LIVRES = ("R_208", "R_256", "R_201", "R_258")
+_LID_TODOS = ("R_236", "R_203", "R_213", *_LID_LIVRES)
+ROTAS_LIDAR = {"lidl": (_LID_LIVRES, "pontos"), "lid": (_LID_TODOS, "pontos"),
+               "lidc": ((*_LID_TODOS, "R_223"), "pontos"), "lid3": (_LID_TODOS, "pontos_d3")}
+QIDX_TRIB = {"R_223": 1500}
 _SECOES = None
+_SECOES_LID = None
 
 
 def secoes():
@@ -159,8 +171,26 @@ def secoes():
     return _SECOES
 
 
+def secoes_lidar():
+    global _SECOES_LID
+    if _SECOES_LID is None:
+        _SECOES_LID = json.loads((MDT.parent / "secoes_lidar.json").read_text(encoding="utf-8"))["trechos"]
+    return _SECOES_LID
+
+
 def usa_8pt(r, rota):
+    if rota in ROTAS_LIDAR:
+        return r in ROTAS_LIDAR[rota][0]
     return rota in ROTAS_8PT and r in MC_REACHES and (ROTAS_8PT[rota] is None or r in ROTAS_8PT[rota])
+
+
+def secao_8pt(r, rota):
+    """(pontos, declividade m/m ou None, comprimento m ou None) da seção de 8 pontos do trecho r na rota."""
+    if rota in ROTAS_LIDAR:
+        s = secoes_lidar()[r]
+        return s[ROTAS_LIDAR[rota][1]], s["decl_m_km"] / 1000, s.get("L_m")
+    s = secoes()[r]
+    return s["pontos"], (s["decl_m_km"] / 1000 if s.get("decl_m_km") else None), None
 
 
 def curva_vc(a):
@@ -170,10 +200,10 @@ def curva_vc(a):
 def tabelas_v3(p, rota="mc"):
     """Tabelas (paired data) que a bacia do candidato usa: seções de 8 pontos e curvas do Clark variável."""
     tab = {}
-    if rota in ROTAS_8PT:
-        for r in MC_REACHES:
+    if rota in ROTAS_8PT or rota in ROTAS_LIDAR:
+        for r in (ROTAS_LIDAR[rota][0] if rota in ROTAS_LIDAR else MC_REACHES):
             if usa_8pt(r, rota):
-                pts = secoes()[r]["pontos"]
+                pts = secao_8pt(r, rota)[0]
                 tab["XS_" + r] = dict(hec.TIPO_SECAO, x=[q[0] for q in pts], y=[q[1] for q in pts])
     if "ie" in p:
         tab["VC_TC"] = dict(hec.TIPO_PERCENTUAL, x=VC_X, y=curva_vc(p["atc"]))
@@ -309,18 +339,19 @@ def bloco_mc(r, mn):
             f"     Index Flow: {QIDX[reg]}\n     Space-Time Method: Automatic DX and DT\n     Channel Loss: None\n")
 
 
-def bloco_mc8(r, p):
+def bloco_mc8(r, p, rota="mc8"):
     reg = bi.REG[r]
-    L_m = float(ATT[r]["length_km"]) * 1000 / 1.10
-    sec = secoes()[r]
-    S = sec["decl_m_km"] / 1000 if sec.get("decl_m_km") else max(float(ATT[r]["slope_m_per_km"]) / 1000, S_MIN[reg])
+    _, S, L_m = secao_8pt(r, rota)
+    L_m = L_m or float(ATT[r]["length_km"]) * 1000 / 1.10
+    S = S or max(float(ATT[r]["slope_m_per_km"]) / 1000, S_MIN[reg])
     n = N_BASE * p["mn"]
     nob = n * p.get("nob", 1.0)
     return ("     Route: Muskingum Cunge\n     Initial Variable: Combined Inflow\n     Channel: 8-point\n"
             f"     Length: {L_m:.1f}\n     Energy Slope: {S:.6f}\n     Mannings n: {n:.4f}\n"
             f"     Left Mannings n: {nob:.4f}\n     Right Mannings n: {nob:.4f}\n     Cross Section Name: XS_{r}\n"
             "     Index Parameter Type: Index Flow\n"
-            f"     Index Flow: {QIDX[reg]}\n     Space-Time Method: Automatic DX and DT\n     Channel Loss: None\n")
+            f"     Index Flow: {QIDX_TRIB.get(r, QIDX[reg])}\n     Space-Time Method: Automatic DX and DT\n"
+            "     Channel Loss: None\n")
 
 
 def bacia_v3(p, sim, rota="mc"):
@@ -390,8 +421,8 @@ def bacia_v3(p, sim, rota="mc"):
 
     def rea(m):
         nome, corpo = m[1].strip(), m[2]
-        if rota in ("mc", *ROTAS_8PT) and nome in MC_REACHES:
-            bloco = bloco_mc8(nome, p) if usa_8pt(nome, rota) else bloco_mc(nome, p["mn"])
+        if rota in ("mc", *ROTAS_8PT, *ROTAS_LIDAR) and (nome in MC_REACHES or usa_8pt(nome, rota)):
+            bloco = bloco_mc8(nome, p, rota) if usa_8pt(nome, rota) else bloco_mc(nome, p["mn"])
             corpo = re.sub(r"(?ms)^\s*Route: Muskingum\n.*?^\s*Channel Loss: None\n", lambda mm: bloco, corpo)
             assert "Muskingum Cunge" in corpo, nome
             return f"Reach: {m[1]}\n{corpo}End:"
