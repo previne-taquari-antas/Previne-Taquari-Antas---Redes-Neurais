@@ -124,6 +124,28 @@ do valor (mai/2024 +46%, jul/2020 +39%).
 
 Análises: `_analise_perda/` (não versionada).
 
+## Seções do LiDAR 1 m do RS (branch `cursor/hec-bacia145-lidar`, 10/10/2026)
+
+`dados/secoes_lidar.json`: seção de 8 pontos por trecho (mediana dos transectos a cada 200 m, perpendiculares ao
+eixo da água do LiDAR), declividade da lâmina e comprimento. Cobre a calha de Monte Claro a Encantado (R_236 59%,
+R_203, R_213, R_208, R_256 100%, R_201 96%, R_258 40%) e o baixo Carreiro (R_223); Guaporé e Forqueta ficam fora.
+O LiDAR não vê abaixo da água: a calha submersa é um trapézio de 0,5–0,75 m (ajuste da curva-chave de LJJ e Muçum;
+`pontos_d3` = 3 m, sensibilidade). R_203/R_213 são os lagos de 14 de Julho e Monte Claro, tratados como rio natural.
+Rotas `lidl` (trechos livres), `lid` (R_236..R_258), `lidc` (+ Carreiro em MC), `lid3` (lid com 3 m de fundo);
+família `lrdcf8` = `lrdcf` + `nob`.
+
+| Candidato | J cal | J_pico cal | J val | J_pico val |
+|---|---|---|---|---|
+| pc-f8-c025, trapézio (ld-a0-c000) | 5,92 | 5,12 | 5,68 | 5,91 |
+| pc-f8-c025, LiDAR `lidc` sem recalibrar (ld-a0-c003) | 5,94 | 5,13 | 5,68 | 5,88 |
+| controle recalibrado `lrdcf`/mc (ld-t3-c043) | 5,94 | **5,07** | 5,53 | 5,64 |
+| LiDAR recalibrado `lrdcf8`/lidc (ld-l3-c035) | 5,74 | 5,09 | 5,56 | 5,89 |
+
+Recalibração justa: g0 = 48 vizinhos do pc-f8-c025 (raio 0,1; n livre) + 3 gerações de ES iguais em cada linha
+(forcamento_v3b, J_pico). A geometria LiDAR não melhora a calibração e não tira o atraso das cheias grandes: o atraso
+de X75/X76 já está em Castro Alves e Monte Claro, a montante do LiDAR, e o tempo de viagem entre controles já sai
+certo (±1–2 h). Fica o trapézio. Análises: `_analise_lidar/` (não versionada).
+
 ## Janelas derivadas com chuva prevista (09/10/2026)
 
 `<mãe>__<t0 AAAAMMDDHH>__<modelo>` (ex.: `S2023_09__2023090313__gfs`) é uma emissão de previsão: mesmo período,
