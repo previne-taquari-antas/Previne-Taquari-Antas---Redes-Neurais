@@ -130,9 +130,13 @@ PARAMS_LRSMAR = dict(PARAMS_LRSMAF, **{f"x{k}_{g}": (lo, hi, "log") for g in ("T
                                        for k, lo, hi in (("dmax", 1 / 3, 3.0), ("sup", 1 / 3, 3.0),
                                                          ("finf", 0.2, 5.0), ("psoil", 0.2, 5.0))})
 SOLO_MAX_SMA = 1499.0   # HEC: camada <= 1500 mm (ERROR 42001); vale para dmax + sup depois dos multiplicadores
+# Propagação (10/10, _analise_prop): a recessão das cheias é a do GW-1 (k1 ~28 h), linear, enquanto a observada acelera
+# com o porte. lrdcfv = lrdcf + Clark variável: com perc baixo, a chuva intensa vira escoamento direto e o R do Clark
+# cai com a intensidade do excesso (duas velocidades: GW-1 lento nas cheias pequenas, Clark rápido nas grandes).
+PARAMS_LRDCFV = dict(PARAMS_LRDCF, ie=PARAMS_LRDCV["ie"], atc=PARAMS_LRDCV["atc"], ar=PARAMS_LRDCV["ar"])
 FAMILIAS = {"dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcv": PARAMS_LRDCV, "lrdc8": PARAMS_LRDC8,
             "lrdcv8": PARAMS_LRDCV8, "lrdcr": PARAMS_LRDCR, "lrdcf": PARAMS_LRDCF, "lrscsf": PARAMS_LRSCSF,
-            "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR}
+            "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR, "lrdcfv": PARAMS_LRDCFV}
 
 
 def p_regional(p, reg):

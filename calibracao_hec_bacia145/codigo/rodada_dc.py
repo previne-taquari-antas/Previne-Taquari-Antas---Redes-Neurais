@@ -10,6 +10,7 @@
   lrscsf SCS Curve Number + reservatório linear + xfb_T/xfb_B
   lrsmaf Soil Moisture Accounting + reservatório linear + multiplicadores regionais da perda profunda
   lrsmar lrsmaf + multiplicadores regionais (T, B) de zona de tensão, zona gravitacional, infiltração e percolação do solo
+  lrdcfv lrdcf + Clark variável (ie, atc, ar)
 
 Mesmas janelas e papéis das famílias g1/g2/g4/g6 (todos os eventos de calibração), para o J ser comparável com
 lib-A (Initial+Constant) e scs-A (SCS).
@@ -26,8 +27,8 @@ Uso:
   python rodada_dc.py top  --rodada dc-av --resultados pasta [pasta ...] --n 3 --janelas todas --saida ...
   python rodada_dc.py teste --rodada dc-teste --semente 1 --saida ...   (2 candidatos x 2 janelas: confere a sintaxe)
 --rota mc|mc8st|mc8 (calha trapezoidal ou seções de 8 pontos); es/top só leem resultados da mesma rota.
---objetivo J|J_pico: chave de ordenação de es/top (J_pico = J ponderado pelo tamanho da cheia observada; o J padrão
-continua no resultado para comparar).
+--objetivo J|J_pico|J_t: chave de ordenação de es/top (J_pico = J ponderado pelo tamanho da cheia observada; J_t =
+J_pico + atraso e recessão das cheias médias e grandes, tempo.py; o J padrão continua no resultado para comparar).
 """
 import argparse
 import json
@@ -141,7 +142,7 @@ def main():
     ap.add_argument("--sigma", type=float, default=0.15)
     ap.add_argument("--janelas", default=JANELAS_CAL)
     ap.add_argument("--rota", default="mc", choices=("mc", *e3.ROTAS_8PT))
-    ap.add_argument("--objetivo", default="J", choices=("J", "J_pico"))
+    ap.add_argument("--objetivo", default="J", choices=("J", "J_pico", "J_t"))
     ap.add_argument("--centro", default="", help="resultado.json:id (modo viz)")
     ap.add_argument("--raio", type=float, default=0.15)
     ap.add_argument("--raio-novos", type=float, default=0.0,
