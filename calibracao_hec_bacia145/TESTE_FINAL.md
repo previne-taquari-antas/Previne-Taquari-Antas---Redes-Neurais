@@ -121,3 +121,131 @@ Métrica principal: |erro de pico| médio de Muçum e Encantado, ECMWF, observad
 ## Resultado
 
 (preenchido depois da rodada, sem alterar nada acima)
+
+### Execução
+
+- Pré-registro: commit `655bc699a` (enviado antes de qualquer leitura da janela). Pedido da rodada: commit `5e3613327`.
+- Rodada `tf-r1`: [run 38075082265](https://github.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/actions/runs/38075082265)
+  — 75 janelas × 4 candidatos = 300 simulações, 0 falhas.
+- Reprodução em X20260827: c008, f8 e po-r4-c008 da `tf-r1` iguais aos lotes locais `vo-valb-c008`, `pc-valx-c000` e
+  `po-valr-c002` (máx |dif| = 0,0000 m³/s). O código `-sistema` com `forcamento_v3b` reproduz as frentes.
+- Emissões: X75 14 (19/09 10h … 22/09 16h), X76 16 (26/09 17h … 30/09 11h). As 60 rodadas ECMWF/GFS foram achadas sem
+  recuo de ciclo; nenhuma emissão ficou fora. `ecmwfrg` mudou a chuva em 13 das 30 emissões. A regra por porte
+  (S ≥ 83,4 mm) disparou em 8 emissões (X75 21/09 16h–22/09 04h; X76 28/09 11h–29/09 11h).
+- Picos observados: X75 Muçum 1871 cm / 8664 m³/s (acima de 15 m: vazão extrapolada), Encantado 1643 cm / 10995 m³/s,
+  LJJ 2015 cm (acima de 18 m); X76 Muçum 1538 cm / 6310 m³/s (acima), Encantado 1352 cm / 8033 m³/s, LJJ 1588 cm.
+  Curva da janela de teste em Muçum: 10 m = 3246 m³/s, 15 m = 6064 m³/s.
+- A chuva prevista ficou muito abaixo da observada antes dos dois picos. Total de 72 h na bacia de Muçum:
+  - X75, de 20/09 04h a 21/09 04h: observado 98–99 mm, ECMWF 36–42 mm, GFS 24–36 mm;
+  - X76, de 26/09 17h a 27/09 23h: observado 113–131 mm, ECMWF 42–46 mm, GFS 59–75 mm.
+
+### (a) Janela X20260918 com chuva perfeita (modelo base, sem pós)
+
+| modelo | J X75 | J X76 | J | J_pico (pesos 1,17/0,83) |
+|---|---|---|---|---|
+| c002 (md-val2) | 7,64 | 7,02 | 7,33 | 7,38 |
+| c008 (vo-val) | 8,09 | 5,20 | 6,65 | 6,89 |
+| f8 (pc-f8-c025, titular) | 8,47 | 4,92 | 6,69 | 7,00 |
+| po-r4-c008 (só informação) | 7,81 | 4,47 | 6,14 | 6,43 |
+
+Volume / erro de pico / NSE / atraso do f8 (os outros estão em `_analise_teste/resultado.md`, fora do git). Erro de
+pico de Muçum e LJJ em X75, e de Muçum em X76, não é calculado, porque o pico está acima da curva:
+
+| evento | Tainhas | Castro Alves | Monte Claro | LJJ | Muçum | Encantado |
+|---|---|---|---|---|---|---|
+| X75 | −42 % / −58 % / 0,27 / +3 h | −27 % / −62 % / 0,34 / +7 h | −32 % / −58 % / 0,33 / +6 h | +7 % / — / 0,43 / +6 h | +15 % / — / 0,39 / +6 h | −12 % / −36 % / 0,61 / +5 h |
+| X76 | +30 % / +14 % / 0,59 / +0 h | −4 % / −29 % / 0,84 / +5 h | −17 % / −36 % / 0,76 / +9 h | −9 % / −29 % / 0,82 / +7 h | −4 % / — / 0,93 / +5 h | −6 % / −26 % / 0,90 / +3 h |
+
+### (b) Emissões X75/X76 — regra de leitura (ECMWF, observado "com")
+
+A métrica principal é o |erro de pico| médio de Muçum e Encantado, nas faixas 1–6, 7–12 e 13–24 h. As colunas de alarme
+mostram acertos/falsos/perdidos.
+
+| opção | principal ECMWF | principal GFS | principal chuva perfeita | MAE +24 h Muçum / Encantado (m³/s) | alarme 15 m | alarme 10 m |
+|---|---|---|---|---|---|---|
+| 1 antigo (c002 + aditiva) | 16,7 % | 18,0 % | 13,7 % | 1567 / 1896 | 1/0/7 | 3/0/5 |
+| 2a c008 + d_piv so_curva | 13,5 % | 15,7 % | 10,3 % | 1483 / 1806 | 1/0/7 | 3/0/5 |
+| 2b c008 + d_piv todos_picos | 11,2 % | 13,3 % | 6,2 % | 1513 / 1837 | 2/0/6 | 3/0/5 |
+| **3 TITULAR** f8 + so_curva | **14,8 %** | 16,9 % | 11,9 % | 1484 / 1814 | 1/0/7 | 3/0/5 |
+| 4 f8 + todos_picos | 10,5 % | 12,9 % | 6,3 % | 1516 / 1850 | 2/0/6 | 3/0/5 |
+| 5 porte | 10,1 % | 12,4 % | — | 1518 / 1851 | 1/0/7 | 3/0/5 |
+| 6 ECMWF × regime | 14,2 % | — | — | 1492 / 1832 | 1/0/7 | 3/0/5 |
+| 7 mx (mais chuvosa) | 14,6 % | — | — | 1454 / 1775 | 1/0/7 | 3/0/5 |
+| HEC f8 bruto (ref.) | 29,5 % | 31,5 % | 26,5 % | 1385 / 1627 | 1/0/7 | 3/0/5 |
+
+Erro de pico por antecedência. Cada célula é a mediana por evento e depois a média dos 2 eventos; chuva ECMWF,
+observado "com":
+
+| opção | Muçum 1–6 | 7–12 | 13–24 | 25–47 | Encantado 1–6 | 7–12 | 13–24 | 25–47 | LJJ 1–6 | 7–12 | 13–24 | 25–47 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 antigo | −1 % | −12 % | −44 % | −59 % | +3 % | −6 % | −33 % | −60 % | −1 % | −23 % | −55 % | −69 % |
+| 2a | −4 % | −9 % | −42 % | −56 % | +2 % | −5 % | −19 % | −53 % | +3 % | −7 % | −45 % | −64 % |
+| 2b | +4 % | +3 % | −38 % | −54 % | +6 % | +4 % | −12 % | −53 % | +11 % | +6 % | −45 % | −65 % |
+| **3 titular** | −7 % | −11 % | −42 % | −55 % | +3 % | −7 % | −20 % | −52 % | +1 % | −7 % | −44 % | −64 % |
+| 4 | +2 % | +1 % | −38 % | −52 % | +9 % | +1 % | −13 % | −52 % | +10 % | +5 % | −44 % | −64 % |
+| 5 porte | +0 % | +2 % | −40 % | −52 % | +4 % | +1 % | −14 % | −52 % | +9 % | +6 % | −44 % | −63 % |
+| 6 regime | −7 % | −11 % | −40 % | −54 % | +3 % | −7 % | −18 % | −51 % | +1 % | −7 % | −42 % | −60 % |
+| 7 mx | −7 % | −11 % | −41 % | −54 % | +3 % | −7 % | −19 % | −51 % | +1 % | −7 % | −44 % | −60 % |
+| titular, chuva perfeita | −7 % | −17 % | −21 % | −23 % | +3 % | −7 % | −17 % | −17 % | +1 % | −12 % | −17 % | −17 % |
+
+O titular varia bastante entre os eventos: X75 Muçum −5/−5/−59/−78 % e X76 Muçum −8/−16/−25/−32 %; X75 Encantado
++7/−2/−24/−80 % e X76 Encantado −2/−12/−16/−25 %.
+
+Observado "sem":
+- Muçum não tem nenhum evento, porque os dois picos estão acima de 15 m.
+- Em Encantado, "sem" é igual a "com", porque os dois picos estão dentro da curva.
+- LJJ tem só X76; titular ECMWF +2/−9/−26/−44 %.
+
+Os controles de montante (HEC bruto do titular, ECMWF) subestimam muito o pico. Erro nas faixas 1–6/7–12/13–24/25–47 h:
+
+| controle | 1–6 h | 7–12 h | 13–24 h | 25–47 h |
+|---|---|---|---|---|
+| Tainhas | −29 % | −38 % | −52 % | −64 % |
+| Castro Alves | −44 % | −50 % | −65 % | −71 % |
+| Monte Claro | −44 % | −57 % | −69 % | −79 % |
+
+MAE do titular em Muçum, chuva ECMWF, observado "com" (m³/s; HEC bruto entre parênteses):
+
+| horizonte | +6 h | +12 h | +24 h | +48 h |
+|---|---|---|---|---|
+| titular (HEC bruto) | 572 (719) | 887 (825) | 1484 (1385) | 1990 (1947) |
+
+Alarmes de Muçum com chuva ECMWF:
+- 15 m: todas as opções avisaram X75 na emissão de 21/09 16h, 12 h antes do pico. Nenhuma avisou antes do cruzamento
+  nas emissões de 18 h antes do pico ou mais. Em X76, só 2b e 4 avisaram (29/09 17h, 6 h antes do pico).
+- 10 m: todas as opções acertaram as mesmas 3 emissões.
+- Não houve falso alarme em nenhuma opção. Com 2 cheias grandes, quase não havia chance de falso alarme.
+
+### Leitura (pela regra pré-registrada; nada foi ajustado)
+
+1. **O titular se confirma.** Na métrica principal ele tem 14,8 %, contra 16,7 % do antigo; o critério exigia não ser
+   pior que o antigo mais 5 p.p. No alarme de 15 m, titular e antigo empatam em 1/0/7. A vantagem sobre o antigo é
+   pequena (1,9 p.p.). Ela vem de Encantado em 13–24 h (−20 % contra −33 %), não de Muçum.
+2. **Nenhuma sombra "teria sido melhor" pelo critério de ≥ 5 p.p.** Mas as variantes que puxam o pico para cima
+   chegaram perto:
+   - porte: 10,1 % (−4,7 p.p.);
+   - f8 + todos_picos: 10,5 % (−4,3 p.p.);
+   - c008 + todos_picos: 11,2 % (−3,6 p.p.).
+
+   As três passam nos critérios de falsos e de MAE. As duas `todos_picos` avisaram 15 m em X76, e o titular não. O
+   GFS e a chuva perfeita mostram o mesmo sentido: com chuva perfeita, todos_picos fica em 6 % e o titular em 12 %. É
+   o resultado esperado para dois eventos acima de 15 m, o regime para o qual `todos_picos` foi ajustado. O
+   pré-registro já dizia que, com 2 eventos, isso não é base para trocar o padrão.
+3. **As correções de chuva (6 regime, 7 mx) quase não mudaram o erro de pico** (−0,6 e −0,2 p.p.). O erro de 13–24 h
+   é dominado pela chuva prevista: ECMWF e GFS previram de 25 % a 55 % da chuva das 72 h. Com chuva perfeita, o
+   titular de Muçum em 13–24 h cai de −42 % para −21 %. O mx teve o menor MAE em +24 h e +48 h (Muçum 1454 e 1736,
+   contra 1484 e 1990 do titular).
+4. **Confiança nos números da validação.**
+   - Em 1–6 h e 7–12 h, os números se mantêm: o titular dá −7/−11 % em Muçum (validação −5/−7 %) e +3/−7 % em Encantado
+     (validação −1/−7 %). Todos ficam dentro de 15 p.p. da validação.
+   - Em 13–24 h, Encantado é coerente (−20 % contra −14 %), mas Muçum fica **fora** (−42 % contra −17 %), puxado por
+     X75 (−59 %), em que a chuva prevista falhou.
+   - O número de 13–24 h da validação deve ser lido como otimista quando a previsão de chuva erra muito.
+   - O pós-processamento com d_piv acerta o pico a 1–12 h, mas piora o MAE a partir de +12 h. Em +24 h, o HEC bruto
+     tem MAE de 1385 m³/s em Muçum, contra 1484 do titular. Os hidrogramas mostram por quê: a recessão simulada é mais
+     lenta que a observada.
+   - Os controles de montante subestimam o pico em 58–62 % em X75 mesmo com chuva perfeita, o que limita qualquer
+     pós-processamento a jusante.
+5. Tudo isto vem de **2 eventos, ambos grandes e com a vazão de pico de Muçum extrapolada acima de 15 m**. Nada é
+   estatisticamente conclusivo. O padrão do sistema (pc-f8-c025 + d_piv so_curva) **não muda**. Depois deste commit, a
+   janela X20260918 e os eventos X75/X76 deixam de ser teste independente.
