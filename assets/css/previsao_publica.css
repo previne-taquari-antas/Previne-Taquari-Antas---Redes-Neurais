@@ -34,7 +34,7 @@ body.public-forecast {
 .public-forecast .forecast-city-switch a[aria-current="page"] { background: #12654f; color: #fff; box-shadow: 0 2px 5px #12654f24; }
 body.public-forecast.has-gestor-chrome.gestor-fill-layout > main {
   display: grid; grid-template-columns: minmax(0, 1fr) 338px;
-  grid-template-rows: auto auto; grid-template-areas: "overview aside" "map aside";
+  grid-template-rows: auto auto; grid-template-areas: "overview aside" "map map";
   gap: 22px; align-items: start; width: 100%; max-width: 1588px;
   height: auto !important; min-height: 0; margin: 0 auto; padding: 26px 24px 36px;
 }
@@ -49,7 +49,7 @@ body.public-forecast.has-gestor-chrome.gestor-fill-layout > main {
 .public-map-footer i { width: 10px; height: 10px; border-radius: 3px; background: #4a7bdb; }
 .public-map-footer .forecast i { background: #f39735; }
 .public-forecast aside.public-sidebar {
-  grid-area: aside; position: sticky; top: calc(var(--forecast-header-height, 105px) + 20px);
+  grid-area: aside; position: static;
   max-height: none; overflow: visible; border: 1px solid var(--line); border-radius: 20px;
   padding: 23px 21px 17px; background: #fff; box-shadow: 0 6px 24px #254a3806;
 }
@@ -109,7 +109,7 @@ body.public-forecast.has-gestor-chrome.gestor-fill-layout > main {
 .public-forecast .leaflet-control-attribution { font-size: 9px; }
 .public-forecast .forecast-map-hint { display: none; }
 .public-forecast .forecast-city-label { box-shadow: 0 3px 13px #102e2628; border-radius: 11px; }
-.public-forecast :focus-visible { outline: 3px solid #d7932e; outline-offset: 3px; }
+body.public-forecast :focus-visible { outline: 3px solid #80500b; outline-offset: 3px; }
 /* Nunca mostrar os valores ou a mancha de um replay enquanto o feed carrega. */
 .public-forecast:not(.live) .public-number, .public-forecast:not(.live) #s-hz { visibility: hidden; }
 .public-forecast:not(.live) .leaflet-pane[class*="prediction"],
@@ -124,11 +124,47 @@ body.public-forecast.has-gestor-chrome.gestor-fill-layout > main {
   .public-forecast .overview-head { flex-wrap: wrap; }
 }
 @media (max-width: 900px) {
-  body.public-forecast.has-gestor-chrome.gestor-fill-layout > main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "overview" "map" "aside"; grid-template-rows: auto; padding: 16px; }
+  body.public-forecast.has-gestor-chrome.gestor-fill-layout > main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "overview" "aside" "map"; grid-template-rows: auto; padding: 16px; }
   .public-forecast > header { padding: 16px 18px; }
   .public-forecast aside.public-sidebar { position: static; padding: 22px; }
   .public-forecast #map { height: 430px; min-height: 430px; }
   .public-current { padding-top: 13px; }
+}
+/* Informações essenciais próximas do gráfico; explicações ficam junto ao mapa. */
+.public-research-label { color: #476054 !important; font-size: 12px !important; margin: 5px 0 9px !important; }
+.public-forecast .overview-eyebrow { color: #50675a; }
+.public-forecast .overview-head p, .public-forecast .overview-legend,
+.public-time, .public-forecast .live-horizon-status { font-size: 12px; }
+.public-time { color: #50675b; }
+.public-forecast .public-disclaimer { margin: 0; padding: 0 20px 18px; color: #52675b; font-size: 12px; }
+.public-forecast .public-details { margin: 0 20px 16px; padding-top: 12px; }
+.public-details summary, .public-details .public-detail-body { font-size: 12px; color: #4b6356; }
+.public-map-tools { padding: 0 20px 14px; }
+.public-map-tools .forecast-map-actions { margin: 0; max-width: 410px; }
+.public-map-tools .forecast-map-actions button { min-height: 44px; font-size: 12px; }
+.public-map-limits { margin: 0; padding: 0 20px 16px; color: #4e665b; font-size: 12px; line-height: 1.6; }
+.public-map-limits strong { font-weight: 650; }
+.public-spatial-status { margin: 0 20px 15px; padding: 11px 13px; background: #f1f5f2; border-radius: 10px; color: #4b6255; font-size: 12px; line-height: 1.6; }
+.public-spatial-status.warn { background: #fff3df; color: #795015; border: 1px solid #e2c591; }
+.public-spatial-status button { margin: 8px 0 0; display: block; min-height: 44px; padding: 8px 12px; border: 1px solid #a87526; border-radius: 7px; background: white; color: #6c4712; font: inherit; cursor: pointer; }
+.public-forecast .live-hz button { min-height: 74px; font-size: 13px; }
+.public-forecast .live-hz.two-horizons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.public-forecast .live-hz button small { font-size: 11px; }
+.public-forecast .live-hz .forecast-attention { border-color: #9b660d; border-width: 2px; }
+.public-forecast .live-hz .horizon-warning { color: #6f4608; background: #ffedc9; border-radius: 4px; padding: 2px 4px; font-weight: 700; font-size: 10px; }
+.public-forecast .public-status { font-size: 11px; }
+.public-forecast .public-service-note { font-size: 12px; }
+.public-forecast .trend-badge { color: #315348; font-size: 11px; }
+@media (max-width: 600px) {
+  .public-forecast aside.public-sidebar { padding: 16px; }
+  .public-current { padding: 10px 0 15px; }
+  .public-forecast .public-number { font-size: 32px; }
+  .public-forecast .public-prediction { padding: 14px 12px; }
+  .public-map-tools { padding: 0 14px 12px; }
+  .public-forecast .public-details { margin: 0 14px 14px; }
+  .public-map-limits { padding: 0 14px 14px; }
+  .public-spatial-status { margin: 0 14px 12px; }
+  .public-forecast .public-disclaimer { padding: 0 14px 16px; }
 }
 @media (max-width: 600px) {
   .public-forecast > header { gap: 10px; padding: 15px 16px 12px; }
@@ -143,10 +179,10 @@ body.public-forecast.has-gestor-chrome.gestor-fill-layout > main {
   .public-map-panel, .public-forecast aside.public-sidebar, .public-forecast #river-overview { border-radius: 16px; }
   .public-map-heading { padding: 14px; }
   .public-map-heading h2 { font-size: 14px; }
-  .public-map-heading p { font-size: 10px; }
+  .public-map-heading p { font-size: 12px; }
   .public-forecast #map { height: 360px; min-height: 360px; }
-  .public-map-footer { padding: 11px 14px; gap: 10px 14px; font-size: 10px; }
-  .public-forecast aside.public-sidebar { padding: 20px; }
+  .public-map-footer { padding: 11px 14px; gap: 10px 14px; font-size: 12px; }
+  .public-forecast aside.public-sidebar { padding: 16px; }
   .public-forecast #river-overview { padding: 18px 14px; }
   .public-forecast .overview-head h2 { font-size: 17px; }
   .public-forecast .overview-chart-shell, .public-forecast #river-level-chart { min-height: 180px; }
