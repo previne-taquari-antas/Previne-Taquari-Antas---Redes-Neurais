@@ -136,7 +136,8 @@ Diagnóstico do pc-f8-c025 (cal + val, medianas; porte pela cota máx. de Muçum
 
 - O atraso das grandes nasce na geração, entre Tainhas (0 h) e Castro Alves (+4 h). A calha não o aumenta: os tempos de
   viagem simulados CA→MC→LJJ→MUC são iguais aos observados (1/3/3 h contra 0/3/2 h), e MUC→ENC é até mais rápido.
-  LJJ tem o mesmo +4 h que as barragens, então o atraso não vem da operação das UHE.
+  O atraso já está inteiro em Castro Alves e não cresce de barragem em barragem. Em X75, ele some só mudando a
+  geração, sem tocar nos reservatórios. Logo, não há sinal de que venha da operação das UHE.
 - A recessão lenta vem da base. O K simulado fica em ~30 h em todo porte, igual ao k1 do GW-1 (28,5 h), e a maior parte do
   evento passa por ele (com perc no limite, quase toda a chuva infiltra; fb·p1 = 0,55 dela vai para o GW-1). O K observado cai de ~32 h (pequenas) para 17–25 h (grandes).
   Clark R (mr × 0,5) e a calha (Manning) não mudam o K.
