@@ -32,6 +32,7 @@ sys.path.insert(0, AQUI)
 sys.path.insert(0, os.path.join(AQUI, "..", "02_mdt_hand_mancha"))
 from gerar_mancha_mosaico import CIDADES as MOSAICO, le, talvegue_anadem, talvegue_mosaico  # noqa: E402
 import gerar_rota_fuga_ruas as rf_mod  # noqa: E402
+from stz_street_legacy_guard import require_supported_street_pipeline  # noqa: E402
 
 NIVEL_MAX_DM = 250
 NAO_ALAGA = 65535
@@ -49,6 +50,7 @@ def gera_de_contornos(slug):
     Para cidade cujo zero da régua foi calibrado sobre outra superfície HAND
     (Santa Tereza: LiDAR), que não está no repositório como raster.
     """
+    require_supported_street_pipeline(slug)
     cfg = rf_mod.CIDADES[slug]
     t0 = time.time()
     feats = json.load(open(cfg["contornos"], encoding="utf-8"))["features"]
@@ -71,6 +73,7 @@ def gera_de_contornos(slug):
 
 
 def gera(slug):
+    require_supported_street_pipeline(slug)
     if rf_mod.CIDADES[slug].get("cota_de_contornos"):
         return gera_de_contornos(slug)
     cfg, mos = rf_mod.CIDADES[slug], MOSAICO[slug]

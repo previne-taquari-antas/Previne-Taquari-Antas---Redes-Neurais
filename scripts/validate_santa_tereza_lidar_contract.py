@@ -181,6 +181,18 @@ if 'LEGACY_AUDIT_FLAG = "--legacy-audit-only"' not in legacy_refiner:
 if "Execução bloqueada: este refinamento drone + ANADEM é legado" not in legacy_refiner:
     fail("refinador drone+ANADEM legado não está bloqueado por padrão")
 
+house_page = read(ROOT / "santa_tereza_painel_casas.html")
+if 'data-stz-street-contract="blocked_unvalidated"' not in house_page:
+    fail("casas: exercício sem cobertura/MDT validados não está bloqueado")
+if 'type="application/x-stz-legacy-blocked"' not in house_page:
+    fail("casas: simulação antiga não está inerte")
+for generic in ("gerar_rota_fuga_ruas.py", "gerar_cota_alaga.py", "gerar_painel.py", "rede_casas.py"):
+    text = read(ROOT / "codigo_python/09_rota_fuga" / generic)
+    if "require_supported_street_pipeline(" not in text:
+        fail(f"{generic}: pipeline de casas/ruas ainda aceita Santa Tereza não validada")
+if not (ROOT / "codigo_python/09_rota_fuga/stz_street_legacy_guard.py").is_file():
+    fail("casas/ruas: guard de Santa Tereza ausente do checkout")
+
 print(
     "OK contrato LiDAR Santa Tereza: "
     f"{live['cols']}x{live['rows']}, HAND0={live['hand_zero_cm']} cm, "
