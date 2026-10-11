@@ -22,21 +22,65 @@
  .rota{background:#eaf5ef;border:1px solid #bfe0cd;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px}
  .big{font-size:12px;color:#7a5b00;margin-top:6px}
  .hide{display:none}
+
+/* Mobile map-first interface: the panel is a collapsible bottom sheet. */
+.mobile-sheet .sheet-toggle,.mobile-sheet .sheet-summary{display:none}
+.mobile-sheet .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.technical-note{font-size:12px;color:#6c591e;margin:7px 0 10px;border:1px solid #e7ddbd;border-radius:8px;background:#fffdf4}
+.technical-note summary{cursor:pointer;padding:8px 10px;font-weight:650}
+.technical-note p{padding:0 10px 9px;margin:0;line-height:1.5}
+@media (max-width:700px){
+ body{overflow:hidden}
+ .hud.mobile-sheet,body[data-previne-map-signature] > .hud.mobile-sheet{
+   box-sizing:border-box;position:fixed;inset:auto 12px calc(12px + env(safe-area-inset-bottom,0px)) 12px;
+   width:auto;max-width:none;max-height:min(64dvh,calc(100dvh - 118px - env(safe-area-inset-bottom,0px)));
+   display:flex;flex-direction:column;padding:0;margin:0;overflow:hidden;
+   border-radius:17px;background:#fff;box-shadow:0 7px 28px rgba(7,30,22,.3);
+ }
+ .mobile-sheet .sheet-head{flex:0 0 auto;padding:9px 14px 4px}
+ .mobile-sheet .sheet-head h1{margin:0;padding:0;font:600 17px/1.35 Georgia,serif}
+ .mobile-sheet .sheet-toggle{display:inline-flex;align-items:center;justify-content:center;min-height:38px;
+   border:1px solid #bcd6c7;border-radius:9px;background:#edf7f1;color:#0f6745;
+   font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:8px 12px;cursor:pointer}
+ .mobile-sheet .sheet-toggle:focus-visible,.mobile-sheet .tabs button:focus-visible{outline:3px solid #0f8b46;outline-offset:2px}
+ .mobile-sheet .sheet-summary{display:block;padding:3px 14px 7px;font-size:12.5px;color:#485c52;line-height:1.45}
+ .mobile-sheet .sheet-summary strong{color:#0d704c;font-variant-numeric:tabular-nums}
+ .mobile-sheet .sheet-alert{display:block;color:#78591b;font-size:11px}
+ .mobile-sheet:not(.mobile-collapsed) .sheet-summary{display:none}
+ .mobile-sheet.mobile-collapsed .bd{display:none}
+ .mobile-sheet .tabs{margin:0;flex:0 0 auto}
+ .mobile-sheet .tabs button{min-height:46px;font-size:14px;padding:10px 3px}
+ .mobile-sheet .bd{padding:10px 14px 16px;overflow-y:auto;overscroll-behavior:contain;
+   -webkit-overflow-scrolling:touch;min-height:0}
+ .mobile-sheet input[type=range]{min-height:35px;margin:0 0 4px;accent-color:#0f8b46}
+ .mobile-sheet .sub{font-size:13px;line-height:1.45}
+ .mobile-sheet .row{font-size:13px;line-height:1.4;gap:10px;padding:3px 0;align-items:flex-start}
+ .mobile-sheet .row span{min-width:0;flex:1}
+ .mobile-sheet .row b{flex:0 0 auto}
+ #map .leaflet-bottom{bottom:calc(var(--evac-sheet-height,135px) + 16px + env(safe-area-inset-bottom,0px))}
+}
 </style></head><body>
 <div id="map"></div>
-<div class="hud">
-  <h1>Evacuação · <span id="cid"></span></h1>
+<div class="hud mobile-sheet mobile-collapsed">
+  <div class="sheet-head">
+    <h1>Evacuação · <span id="cid"></span></h1>
+    <button type="button" id="sheetToggle" class="sheet-toggle" aria-controls="sheetContent" aria-expanded="false">Detalhes</button>
+  </div>
+  <div class="sheet-summary" id="sheetSummary">
+    Régua <strong id="sheetLevel">1,6 m</strong> · subida <strong id="sheetRate">40 cm/h</strong>
+    <span class="sheet-alert">Simulação de pesquisa — não é alerta ou ordem de evacuação.</span>
+  </div>
   <p class="sub" style="padding:0 14px"><a href="estudo-caso-territorio.html">Estudo de caso · RNA, quadradinhos IBGE e ruas</a></p>
   <div class="tabs">
     <button data-m="rotas" class="on">Rotas</button>
     <button data-m="margem">Margem</button>
     <button data-m="impacto">Impacto</button>
   </div>
-  <div class="bd">
+  <div class="bd" id="sheetContent">
     <div id="sliders" class="hide">
       <div class="sub">Nível na régua: <span class="lv" id="nvtxt"></span></div>
       <input type="range" id="sld" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível da régua de 1,60 a 26,60 metros">
-      <div class="sub" style="font-size:11px;color:#7a5b00;margin-top:4px"><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> A mancha e os limiares da grade foram recalculados com o HAND LiDAR atual: HAND = régua − 1,60 m. É uma triagem de pesquisa; não é água observada, rota liberada, alerta ou ordem de evacuação.</div>
+      <details class="technical-note"><summary>Sobre o cálculo e suas limitações</summary><p><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> A mancha e os limiares da grade foram recalculados com o HAND LiDAR atual: HAND = régua − 1,60 m. É uma triagem de pesquisa; não é água observada, rota liberada, alerta ou ordem de evacuação.</p></details>
       <div class="sub">Velocidade: <span class="lv" id="taxatxt"></span> cm/h <span id="taxacen" style="color:#7a5b00;font-size:11px"></span></div>
       <input type="range" id="sldTaxa" min="10" max="200" value="40" step="5">
     </div>
@@ -160,7 +204,7 @@ function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M)
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('')+
     `<div class="big"><b>${risco.toLocaleString('pt-BR')}</b> pessoas a priorizar para saída neste cenário, considerando célula inteira como limite superior de triagem.</div>`;
 }
-function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;
+function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;updateSheetStatus();
   document.getElementById('taxacen').textContent=taxaCmH<=25?'(lenta)':taxaCmH>100?'(subida rápida · cenário)':'';
   atualizaMancha(nivelAtual());
   if(modo==='margem')renderMargem(); else if(modo==='impacto')renderImpacto(); else if(modo==='rotas')renderRotas();}
@@ -221,6 +265,7 @@ map.on('click',e=>{ if(modo!=='rotas')return;
     saidaTxt='<span style="color:#0f8b46"><b>Até trecho seco contínuo da rota:</b> '+fmtDist((saida.dist_m||0)+snapM)+'</span>';
   } else saidaTxt='<span style="color:#b3382c"><b>Trecho seco contínuo:</b> não foi identificado antes do fim desta rota neste cenário.</span>';
   const tempoAbrigo=Number.isFinite(dm)?Math.round(dm/vel/60):null;
+  if(window.matchMedia('(max-width:700px)').matches)setSheetExpanded(true);
   document.getElementById('rota').innerHTML=
     '<b>Do ponto clicado</b><br>'+
     'Até abrigo <b>'+(ab?ab.nome:'')+': '+fmtDist(dm)+'</b>'+(tempoAbrigo!=null?' · ~'+tempoAbrigo+' min a pé':'')+'<br>'+'<span style="color:#66736d">Encaixe no nó viário mais próximo: '+fmtDist(snapM)+'.</span><br>'+
@@ -239,10 +284,43 @@ function setModo(m){modo=m;
   if(m==='impacto'){map.getContainer().style.cursor='';cellsLayer.addTo(map);renderImpacto();setTimeout(aj,0);}
   else{ruasLayer.addTo(map); if(m==='margem'){map.getContainer().style.cursor='';renderMargem();} else {map.getContainer().style.cursor='crosshair';renderRotas();}setTimeout(aj,0);}
 }
-document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>setModo(x.dataset.m));
+document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
+
+function updateSheetStatus(){
+  document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';
+  document.getElementById('sheetRate').textContent=taxaCmH+' cm/h';
+}
+function updateSheetFootprint(){
+  if(!window.matchMedia('(max-width:700px)').matches)return;
+  const hud=document.querySelector('.hud.mobile-sheet');
+  document.documentElement.style.setProperty('--evac-sheet-height',Math.ceil(hud.getBoundingClientRect().height)+'px');
+}
+function setSheetExpanded(expanded){
+  const hud=document.querySelector('.hud.mobile-sheet');
+  const mobile=window.matchMedia('(max-width:700px)').matches;
+  const collapsed=mobile&&!expanded;
+  hud.classList.toggle('mobile-collapsed',collapsed);
+  const button=document.getElementById('sheetToggle');
+  button.textContent=collapsed?'Detalhes':'Recolher';
+  button.setAttribute('aria-expanded',String(!collapsed));
+  requestAnimationFrame(updateSheetFootprint);
+}
+document.getElementById('sheetToggle').addEventListener('click',()=>{
+  setSheetExpanded(document.querySelector('.hud.mobile-sheet').classList.contains('mobile-collapsed'));
+});
+if('ResizeObserver' in window){
+  new ResizeObserver(updateSheetFootprint).observe(document.querySelector('.hud.mobile-sheet'));
+}
+window.addEventListener('resize',()=>{
+  if(!window.matchMedia('(max-width:700px)').matches){
+    document.documentElement.style.removeProperty('--evac-sheet-height');
+  }else{updateSheetFootprint();}
+});
+
 const sld=document.getElementById('sld'),sldTaxa=document.getElementById('sldTaxa');
 sld.oninput=redraw;sld.onchange=redraw;sldTaxa.oninput=redraw;sldTaxa.onchange=redraw;
 document.getElementById('taxatxt').textContent=taxaCmH;
+updateSheetStatus();setSheetExpanded(false);
 setModo('rotas'); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
 Promise.allSettled([
   fetch('../assets/data/santa_tereza_inundacao/contornos_mancha.json').then(r=>{if(!r.ok)throw new Error('contornos '+r.status);return r.json();})
