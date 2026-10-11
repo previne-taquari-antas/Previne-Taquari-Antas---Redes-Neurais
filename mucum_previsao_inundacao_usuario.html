@@ -791,7 +791,7 @@ function liveHorizonReady(key,D){
   if(/sem hora valida|sem hora válida|sem previsao|sem previsão|inputs incompletos|indisponivel|indisponível/.test(status)) return false;
   if(String(D.modo||'').toLowerCase()==='replay') return true;
   const base=parseLocalWhen(D.hora_modelo), alvo=parseLocalWhen(D.hora_alvo);
-  return !!(base&&alvo);
+  return !!(base&&alvo&&alvo.getTime()>Date.now());
 }
 function horizonUnavailableReason(D){
   if(!D) return 'sem registro';
@@ -1242,7 +1242,9 @@ async function init(){
       const horizons=liveData&&liveData.horizontes||{};
       const floodSimple=(key)=>{
         const row=horizons[key];
-        if(!liveMode||!liveHorizonReady(key,row)||pointHandM==null) return 'Indisponível';
+        if(!liveMode||!liveHorizonReady(key,row)||pointHandM==null||String((row&&row.modo)||'').toLowerCase()==='replay') return 'Indisponível';
+        const target=parseLocalWhen(row.hora_alvo);
+        if(!target||target.getTime()<=Date.now()) return 'Indisponível';
         if(pointHandM<=0) return 'Leito do rio';
         const forecast=firstNumber(row.nivel_previsto_cm);
         if(forecast==null) return 'Indisponível';
