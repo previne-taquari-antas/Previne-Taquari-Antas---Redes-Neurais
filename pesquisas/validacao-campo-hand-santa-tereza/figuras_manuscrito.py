@@ -75,8 +75,12 @@ def desenha_poligonos(ax, geom, **kw):
     ax.add_patch(PathPatch(MplPath(verts, codes), **kw))
 
 
-def _desenha_mapa(ax, xlsx: Path, estados: Path):
-    """Desenha relevo, mancha, pontos, escala, norte e inserto em ax; devolve os itens da legenda."""
+def _desenha_mapa(ax, xlsx: Path, estados: Path, rotulos: dict | None = None):
+    """Desenha relevo, mancha, pontos, escala, norte e inserto em ax; devolve os itens da legenda.
+
+    rotulos: {id: (dx, dy)} em pontos tipográficos; o padrão rotula V010, V011, H003, H004 e H007.
+    """
+    rotulos = rotulos or {k: (4, 3) for k in ("V010", "V011", "H003", "H004", "H007")}
     rtk, linhas = ler_planilha(xlsx)
     d = pd.read_csv(FIG_DIR.parent / "erros_campo_santa_tereza.csv")
     d = d[d.rtk_valido == True]  # noqa: E712
@@ -120,8 +124,8 @@ def _desenha_mapa(ax, xlsx: Path, estados: Path):
         fc = COR_EVENTO[e] if tipo == "marca" else "white"
         ax.plot(lon, lat, marker=mk, ms=4.8 if tipo == "marca" else 4.3, mfc=fc, mec=COR_EVENTO[e],
                 mew=0.6 if tipo == "marca" else 1.1, ls="none", zorder=5)
-        if pid in {"V010", "V011", "H003", "H004", "H007"}:
-            ax.annotate(pid, (lon, lat), xytext=(4, 3), textcoords="offset points", fontsize=6.5, zorder=6,
+        if pid in rotulos:
+            ax.annotate(pid, (lon, lat), xytext=rotulos[pid], textcoords="offset points", fontsize=6.5, zorder=6,
                         bbox=dict(boxstyle="square,pad=0.1", fc="white", ec="none", alpha=0.75))
     ax.plot(*GAUGE_LONLAT, marker="*", ms=8.5, mfc="#ffd23f", mec="black", mew=0.6, ls="none", zorder=6)
     h3 = [p for p in pts if p[0] == "H004"][0]
@@ -178,7 +182,7 @@ def _desenha_mapa(ax, xlsx: Path, estados: Path):
          for e, c in COR_EVENTO.items()] + [
         Line2D([], [], marker="*", ms=8, mfc="#ffd23f", mec="black", ls="none", label="Estação 86472600"),
         Patch(fc="#6aa6d9", ec="#2f6fa8", alpha=0.55, label="Mancha HAND, set/2023"),
-        Patch(fc="#1f4e85", label="Leito (HAND = 0)"),
+        Patch(fc="#1f4e85", label="Drenagem (HAND = 0)"),
     ]
 
 

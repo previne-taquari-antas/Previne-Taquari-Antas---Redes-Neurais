@@ -15,6 +15,8 @@ A análise sustenta o trabalho para o SBSR 2027 e o artigo em preparação.
 | `estatisticas_manuscrito.py` / `.json` | IC 95% (bootstrap e t), z0 por evento, sensibilidade à fonte do pico (telemetria × SGB), Δz celular × RTK, plano horizontal como modelo nulo. |
 | `figuras_manuscrito.py` | Gera as figuras do manuscrito (precisa da planilha e de um GeoJSON de UFs). |
 | `figuras_separadas.py` | Gráficos do manuscrito um por arquivo (`figuras/fig_sep_*.png`), com largura de uma coluna do SBSR: profundidade nas marcas V, cota da água com RTK, distância dos limites H à borda e colunas originais da `TABELA_ARTIGOS`. |
+| `revisao_v6.py` / `.json` | Análises pedidas pelos pareceres da v5: e_s como métrica principal, fração em ±0,5 m com IC de Wilson, sensibilidade de z0 (só V, só H, V+H, e_s), diagnóstico da premissa do HAND com V+H (n = 15) e só V (n = 7), distância dos limites com sinal (sinal de e_s), decomposição de Δz com o LiDAR de 10 m e tamanho da barreira hidráulica. |
+| `figuras_v6.py` | Figuras da v6 em tamanho de impressão: mapa em uma coluna, profundidade e e_d → e_s nas marcas, e diagnóstico com n = 15. |
 | `estatisticas_v_h.py` / `.json` | Números da versão que avalia a profundidade só nas marcas (V) e a borda só nos limites (H): Tabela 1, classes de perigo, diagnóstico da referência de drenagem (n = 7) e distâncias à borda, celular × RTK. Lê só o CSV. |
 | `analises_adicionais.py` / `.json` | Concordância (NSE, KGE), classes de perigo com kappa, teste da premissa de linha d'água paralela (cota observada × cota do trecho de drenagem), validação cruzada HAND × plano horizontal, erro horizontal da borda, MDTs nos vértices RTK, orçamento de erros e sensibilidade aos pontos excluídos. Gera `figuras/fig_adicional_cheia_vs_drenagem.png`. |
 
@@ -83,3 +85,7 @@ O LiDAR de 10 m e o HAND web de 5 m foram amostrados nas coordenadas RTK
 (colunas `z_lidar10_no_rtk_m`, `hand_web_no_rtk_m`). Eles servem só como
 diagnóstico: em margens íngremes, células de 5–10 m geram erros de vários
 metros. Para publicar, extraiam o HAND e o LiDAR de 1 m nas coordenadas RTK.
+
+## Distâncias dos limites à borda
+
+As distâncias usadas no manuscrito são as da planilha de campo (`erro_h_cel_m`, `erro_h_rtk_m`). As distâncias recalculadas a partir dos contornos publicados (`analises_adicionais.json`) divergem ponto a ponto e têm correlação negativa com a distância implícita |e_s|/declividade (ρ = −0,73), enquanto as da planilha (RTK) acompanham |e_s| (ρ = 0,93). Por isso o recálculo pelos contornos não é usado; o sinal (dentro/fora da mancha) vem do sinal de e_s. O método de medição da planilha precisa ser descrito no texto.
