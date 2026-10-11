@@ -1,14 +1,12 @@
 {
   "schema_version": "hec_twin_ifs_spatial_forcing_v1",
-  "generated_at_utc": "2026-10-10T22:40:20.491543Z",
+  "generated_at_utc": "2026-10-11T01:15:46.710947Z",
   "model": "ecmwf_ifs025_full_field",
   "source_spatial_artifact": "assets/data/estudo_bacia_taquari_antas/spatial_ifs_mucum/spatial_ifs_mucum_latest.json",
   "zone_artifact": "assets/data/estudo_bacia_taquari_antas/mucum_twin_subbasin_zones.geojson",
   "artifact_name": "hec_twin_ifs_spatial_forcing_5d_latest.json",
   "horizon_hours": 120,
   "times_utc": [
-    "2026-10-10T22:00:00Z",
-    "2026-10-10T23:00:00Z",
     "2026-10-11T00:00:00Z",
     "2026-10-11T01:00:00Z",
     "2026-10-11T02:00:00Z",
@@ -126,13 +124,13 @@
     "2026-10-15T18:00:00Z",
     "2026-10-15T19:00:00Z",
     "2026-10-15T20:00:00Z",
-    "2026-10-15T21:00:00Z"
+    "2026-10-15T21:00:00Z",
+    "2026-10-15T22:00:00Z",
+    "2026-10-15T23:00:00Z"
   ],
   "precip_mm_by_subbasin": {
     "SB_PRATA_7868": [
       0.0512,
-      0.0512,
-      0.0512,
       0.0,
       0.0,
       0.0,
@@ -249,12 +247,12 @@
       0.7217,
       0.7198,
       0.7198,
-      0.7198
+      0.7198,
+      1.2416,
+      1.2416
     ],
     "SB_ANTAS_RESIDUAL": [
       0.0316,
-      0.0316,
-      0.0316,
       0.0004,
       0.0004,
       0.0004,
@@ -371,12 +369,12 @@
       0.7998,
       0.6524,
       0.6524,
-      0.6524
+      0.6524,
+      1.579,
+      1.579
     ],
     "SB_CARREIRO_7866": [
       0.0505,
-      0.0505,
-      0.0505,
       0.0,
       0.0,
       0.0,
@@ -493,12 +491,12 @@
       0.3972,
       0.6581,
       0.6581,
-      0.6581
+      0.6581,
+      1.6812,
+      1.6812
     ],
     "SB_STZ_RESIDUAL": [
       0.0022,
-      0.0022,
-      0.0022,
       0.0,
       0.0,
       0.0,
@@ -615,7 +613,9 @@
       0.1698,
       0.4028,
       0.4028,
-      0.4028
+      0.4028,
+      1.7204,
+      1.7204
     ],
     "SB_INC_MUCUM": [
       0.0,
@@ -628,8 +628,6 @@
       0.0,
       0.0,
       0.0,
-      0.0,
-      0.0,
       0.0417,
       0.0417,
       0.0417,
@@ -737,14 +735,14 @@
       0.1789,
       0.3167,
       0.3167,
-      0.3167
+      0.3167,
+      1.6826,
+      1.6826
     ]
   },
   "area_weighted_mean_mm": {
     "hourly": [
       0.0384,
-      0.0384,
-      0.0384,
       0.0002,
       0.0002,
       0.0002,
@@ -861,15 +859,17 @@
       0.6977,
       0.6607,
       0.6607,
-      0.6607
+      0.6607,
+      1.5194,
+      1.5194
     ],
-    "total_mm": 51.707,
-    "past_mm": 33.728,
+    "total_mm": 54.669,
+    "past_mm": null,
     "note": "audit summary only; model forcing remains distinct by subbasin"
   },
   "window": {
-    "start_utc": "2026-10-10T22:00:00Z",
-    "end_utc": "2026-10-15T21:00:00Z",
+    "start_utc": "2026-10-11T00:00:00Z",
+    "end_utc": "2026-10-15T23:00:00Z",
     "hours": 120,
     "past_hours": 0
   },
@@ -878,15 +878,20 @@
     "window_hours": 72,
     "min_representative_gauges_per_hour": 20,
     "required_representative_hours": 72,
-    "status": "representative",
-    "representative": true,
-    "past_mm": 33.728,
+    "status": "incomplete_observed_coverage",
+    "representative": false,
+    "past_mm": null,
     "partial_sum_mm": 33.728,
-    "representative_hours": 72,
-    "missing_or_sparse_hours": 0,
-    "observation_generated_at_utc": "2026-10-10T22:40:17.052410Z",
-    "sparse_hour_examples": [],
-    "reason": null
+    "representative_hours": 71,
+    "missing_or_sparse_hours": 1,
+    "observation_generated_at_utc": "2026-10-11T01:15:43.791207Z",
+    "sparse_hour_examples": [
+      {
+        "hour_local": "2026-10-10T20:00",
+        "gauges": 16
+      }
+    ],
+    "reason": "Some antecedent hours lack representative upstream rain gauges; dry state cannot be inferred"
   },
   "point_proxy_not_areal_mask": false,
   "spatial_field_full": true,
@@ -896,7 +901,7 @@
       "zone_geometry_km2": 3769.174,
       "ifs_overlap_km2": 3769.174,
       "ifs_cells_used": 13,
-      "total_mm": 47.005,
+      "total_mm": 49.385,
       "min_hourly_mm": 0.0,
       "max_hourly_mm": 2.4303
     },
@@ -904,15 +909,15 @@
       "zone_geometry_km2": 8979.495,
       "ifs_overlap_km2": 8979.495,
       "ifs_cells_used": 33,
-      "total_mm": 55.598,
+      "total_mm": 58.693,
       "min_hourly_mm": 0.0,
-      "max_hourly_mm": 1.5322
+      "max_hourly_mm": 1.579
     },
     "SB_CARREIRO_7866": {
       "zone_geometry_km2": 2420.199,
       "ifs_overlap_km2": 2420.199,
       "ifs_cells_used": 12,
-      "total_mm": 50.818,
+      "total_mm": 54.079,
       "min_hourly_mm": 0.0,
       "max_hourly_mm": 2.4979
     },
@@ -920,15 +925,15 @@
       "zone_geometry_km2": 327.597,
       "ifs_overlap_km2": 327.597,
       "ifs_cells_used": 14,
-      "total_mm": 17.834,
+      "total_mm": 21.271,
       "min_hourly_mm": 0.0,
-      "max_hourly_mm": 1.6444
+      "max_hourly_mm": 1.7204
     },
     "SB_INC_MUCUM": {
       "zone_geometry_km2": 194.141,
       "ifs_overlap_km2": 194.141,
       "ifs_cells_used": 4,
-      "total_mm": 22.069,
+      "total_mm": 25.434,
       "min_hourly_mm": 0.0,
       "max_hourly_mm": 3.3682
     }
