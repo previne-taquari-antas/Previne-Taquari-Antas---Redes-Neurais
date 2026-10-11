@@ -1430,7 +1430,7 @@ async function init(){
       if(hd==null&&elev==null) return;
 
       const floodSimple=(row)=>{
-        if(!row||!row.ready||!hd) return 'Indisponível';
+        if(!liveMode||!row||!row.ready||!hd||String((row.D&&row.D.modo)||'').toLowerCase()==='replay') return 'Indisponível';
         const forecast=firstNumber(row.D&&row.D.nivel_previsto_cm);
         if(forecast==null) return 'Indisponível';
         const pointHand=hd.dm/10;
