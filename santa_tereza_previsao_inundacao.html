@@ -288,7 +288,7 @@
       <div class="live-hz" id="live-hz" aria-label="Horário da previsão">
         <button type="button" data-live-hz="2h" aria-pressed="false" disabled><span>+2 h</span><small>carregando</small></button>
         <button type="button" data-live-hz="4h" aria-pressed="false" disabled><span>+4 h</span><small>carregando</small></button>
-        <button type="button" data-live-hz="8h" aria-pressed="false" disabled><span>+8 h</span><small>carregando</small></button>
+        <button type="button" data-live-hz="8h" style="display:none" aria-pressed="false" disabled><span>+8 h</span><small>carregando</small></button>
       </div>
       <div class="q">Nível previsto · <span id="s-hz">—</span></div>
       <span id="s-fore" class="public-number">—</span>
@@ -1445,7 +1445,9 @@ async function init(){
 
       const horizons=new Map(mapForecastHorizons().map(row=>[row.key,row]));
       const statusClass=value=>value==='SIM'?'color:#b42318':(value==='NÃO'?'color:#087f5b':'color:#6b7280');
-      const rows=['2h','4h','8h'].map(key=>{
+      const keys=['2h','4h'];
+      if(liveMode&&liveHorizonReady('8h',(liveData&&liveData.horizontes||{})['8h'])) keys.push('8h');
+      const rows=keys.map(key=>{
         const value=floodSimple(horizons.get(key));
         return '<div style="display:flex;justify-content:space-between;gap:18px;padding:5px 0;border-top:1px solid #edf1ee"><span>Água em +'+key.replace('h',' h')+'</span><b style="'+statusClass(value)+'">'+value+'</b></div>';
       }).join('');
@@ -1453,18 +1455,13 @@ async function init(){
       const popupZeroM=handZeroCm(activeLiveData()||liveData)/100;
       const pointHandM=hd?hd.dm/10:null;
       const gaugeNeededM=pointHandM==null?null:pointHandM+popupZeroM;
-      const handTxt=pointHandM==null
-        ?'indisponível'
-        :(hd.saturated?'≥ '+nf1.format(pointHandM)+' m <span style="font-weight:400;color:#6b7280">(limite do produto)</span>':nf1.format(pointHandM)+' m');
       const gaugeTxt=gaugeNeededM==null
         ?'indisponível'
         :(hd.saturated?'pelo menos '+nf1.format(gaugeNeededM)+' m':'≈ '+nf1.format(gaugeNeededM)+' m');
 
       let html='<div class="pt-pop" style="min-width:220px;line-height:1.35">';
       html+='<b>Neste ponto</b>';
-      html+='<div style="margin-top:7px"><b>MDT:</b> '+(elev!=null?nf1.format(elev)+' m':'indisponível')+'</div>';
-      html+='<div><b>HAND:</b> '+handTxt+'</div>';
-      html+='<div><b>Régua para a água chegar aqui:</b> '+gaugeTxt+'</div>';
+      html+='<div style="margin-top:7px"><b>Nível da régua para a água chegar aqui:</b> '+gaugeTxt+'</div>';
       html+='<div><b>Latitude:</b> '+e.latlng.lat.toFixed(5)+'</div>';
       html+='<div><b>Longitude:</b> '+e.latlng.lng.toFixed(5)+'</div>';
       html+='<div style="margin-top:8px">'+rows+'</div>';
