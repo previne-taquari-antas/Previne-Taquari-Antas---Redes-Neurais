@@ -188,6 +188,40 @@ def main():
         "metodo_agregacao": g["flowdir_coarse_method"]}
     out["mdt_nos_vertices_rtk"] = aa["mdt_nos_vertices_rtk"]
 
+    # 8. Segunda rodada de pareceres (v7)
+    seg = {}
+    # RMSE de cada linha da Tabela 1
+    seg["tabela1_rmse_m"] = {
+        "V_ed_13": r3(np.sqrt(np.mean(v.erro_lamina_m ** 2))),
+        "V_ed_set2023_9": r3(np.sqrt(np.mean(cal_v.erro_lamina_m ** 2))),
+        "V_rtk_ed_10": r3(np.sqrt(np.mean(vr.erro_lamina_m ** 2))),
+        "V_rtk_es_10": r3(np.sqrt(np.mean(vr.erro_cota_rtk_m ** 2))),
+        "V_rtk_dz_10": r3(np.sqrt(np.mean(vr.dz_lidar_rtk_m ** 2))),
+        **{f"outros_{k}": r3(np.sqrt(np.mean((o.erro_lamina_m - (z0 - ZERO_REGUA_M)) ** 2))) for k, z0 in cen.items()},
+    }
+    # diagnóstico sem os três limites do vale do afluente
+    afl = ["H003", "H004", "H007"]
+    zd2, wo2, _ = pontos(s_es[~s_es.id.isin(afl)])
+    sup2 = zd2 > 53.2
+    seg["diagnostico_sem_afluente_12"] = {**regressao(zd2, wo2),
+                                          "diferenca_obs_grupos_m": r3(wo2[sup2].mean() - wo2[~sup2].mean())}
+    seg["diagnostico_grupos_medias"] = {"diferenca_drenagem_m": r3(zd[sup].mean() - zd[~sup].mean()),
+                                        "diferenca_obs_m": r3(wo[sup].mean() - wo[~sup].mean()),
+                                        "amplitude_obs_m": r3(wo.max() - wo.min()), "dp_obs_m": r3(wo.std(ddof=1))}
+    # limites H com o terreno RTK
+    seg["limites_H_es"] = {"vies_es_m": r3(h.erro_cota_rtk_m.mean()), "vies_ed_m": r3(h.erro_lamina_m.mean()),
+                           "dz_medio_m": r3(h.dz_lidar_rtk_m.mean())}
+    # z0 por evento sem V011 e z0 ajustado por e_s
+    nov = d[d.evento == "2023-11"]
+    seg["z0_nov2023"] = {"todos": r3(ZERO_REGUA_M + nov.erro_lamina_m.mean()),
+                         "sem_V011": r3(ZERO_REGUA_M + nov[nov.id != "V011"].erro_lamina_m.mean())}
+    # V008: drenagem implícita na posição do celular (modelo) e na posição RTK (HAND de 5 m pelos contornos)
+    v8 = d[d.id == "V008"].iloc[0]
+    seg["V008_drenagem_implicita_m"] = {
+        "celular": r3(v8.z_lidar_m + v8.lamina_hand_m - LIMIAR_HAND["2023-09"]),
+        "rtk_hand_5m": r3(v8.z_rtk_m - v8.hand_web_no_rtk_m)}
+    out["segunda_rodada"] = seg
+
     dest = AQUI / "revisao_v6.json"
     dest.write_text(json.dumps(out, ensure_ascii=False, indent=1))
     return dest

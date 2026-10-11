@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Figuras da v6 do manuscrito (SBSR 2027), refeitas após os dois pareceres da v5.
+"""Figuras da v7 do manuscrito (SBSR 2027): as da v6, refeitas após os pareceres da v5, com os ajustes da segunda rodada (afluente destacado e eixo renomeado no diagnóstico; rótulo H001 no mapa).
 
-  fig_v6_1_mapa.png         mapa em uma coluna, com a legenda embaixo
-  fig_v6_2_vertical.png     (a) profundidade observada × estimada, V (n = 13), faixa de ±0,5 m;
+  fig_v7_1_mapa.png         mapa em uma coluna, com a legenda embaixo
+  fig_v7_2_vertical.png     (a) profundidade observada × estimada, V (n = 13), faixa de ±0,5 m;
                             (b) erro de cada marca V com RTK: e_d (terreno do celular) → e_s (terreno RTK)
-  fig_v6_3_diagnostico.png  cota observada da cheia de set/2023 × cota do trecho de drenagem de referência,
+  fig_v7_3_diagnostico.png  cota observada da cheia de set/2023 × cota do trecho de drenagem de referência,
                             V e H com RTK (n = 15), com a premissa do HAND, o plano horizontal e o ajuste
 
 Mesmo estilo em todas: fonte serifada do corpo do texto e as cores de evento do mapa.
 
 Uso:
-  python pesquisas/validacao-campo-hand-santa-tereza/figuras_v6.py \
+  python pesquisas/validacao-campo-hand-santa-tereza/figuras_v7.py \
       caminho/sumario_erros_hand.xlsx caminho/brazil-states.geojson
 """
 from __future__ import annotations
@@ -37,6 +37,7 @@ COL = 7.0 * CM          # largura impressa na coluna do SBSR (fontes em tamanho 
 DUAS = 15.5 * CM        # largura impressa nas duas colunas
 LARANJA, CINZA = "#d9531e", "#555555"
 MK = {"marca": "^", "limite": "o"}
+AFLUENTE = ("H003", "H004", "H007")  # limites no vale do afluente, fora da mancha
 
 
 def virgula(ax, eixos="xy"):
@@ -54,25 +55,25 @@ def limpa(ax):
 
 
 def figura_mapa(xlsx: Path, estados: Path):
-    fig = plt.figure(figsize=(COL, 11.4 * CM))
+    fig = plt.figure(figsize=(8.4 * CM, 13.2 * CM))
     ax = fig.add_axes([0.15, 0.20, 0.84, 0.79])
     ax.set_anchor("S")
     rot = {"V010": (4, 3), "V011": (-27, -3), "V005": (5, -7), "V009": (-27, 4), "H003": (4, 3), "H004": (4, 3),
-           "H007": (3, -9), "H001": (5, 2)}
+           "H007": (3, -9), "H001": (-9, 6)}
     leg = _desenha_mapa(ax, xlsx, estados, rotulos=rot)
     leg[2].set_label("Evento set/2023 (calibração)")
     fig.canvas.draw()
     pos = ax.get_position()
     fig.legend(handles=leg, loc="upper center", bbox_to_anchor=((pos.x0 + pos.x1) / 2 - 0.04, pos.y0 - 0.05), ncol=2,
                fontsize=6, handlelength=1.1, labelspacing=0.3, columnspacing=0.6, handletextpad=0.35)
-    out = FIG_DIR / "fig_v6_1_mapa.png"
+    out = FIG_DIR / "fig_v7_1_mapa.png"
     fig.savefig(out, bbox_inches="tight", pad_inches=0.03)
     plt.close(fig)
     return out
 
 
 def figura_vertical(d: pd.DataFrame):
-    fig, (a, b) = plt.subplots(1, 2, figsize=(DUAS, 6.2 * CM), gridspec_kw={"width_ratios": [1, 1.25]})
+    fig, (a, b) = plt.subplots(1, 2, figsize=(DUAS, 5.7 * CM), gridspec_kw={"width_ratios": [1, 1.25]})
 
     # (a) profundidade observada × estimada nas 13 observações V
     v = d[d.tipo == "marca"]
@@ -121,7 +122,7 @@ def figura_vertical(d: pd.DataFrame):
     virgula(b, "x")
     limpa(b)
     fig.subplots_adjust(left=0.07, right=0.99, bottom=0.17, top=0.93, wspace=0.28)
-    out = FIG_DIR / "fig_v6_2_vertical.png"
+    out = FIG_DIR / "fig_v7_2_vertical.png"
     fig.savefig(out, bbox_inches="tight", pad_inches=0.03)
     plt.close(fig)
     return out
@@ -130,20 +131,24 @@ def figura_vertical(d: pd.DataFrame):
 def figura_diagnostico(rev: dict):
     p = pd.DataFrame(rev["diagnostico"]["pontos"])
     lim = 22.05
-    fig, ax = plt.subplots(figsize=(COL, 6.4 * CM))
+    fig, ax = plt.subplots(figsize=(8.2 * CM, 6.8 * CM))
     xx = np.array([p.cota_drenagem_m.min() - 0.15, p.cota_drenagem_m.max() + 0.15])
     ax.plot(xx, xx + lim, color=LARANJA, ls="--", lw=1.2, zorder=2)
     ax.axhline(p.cota_obs_m.mean(), color="#9a9a9a", ls=":", lw=1.2, zorder=1)
     lr = np.polyfit(p.cota_drenagem_m, p.cota_obs_m, 1)
     ax.plot(xx, np.polyval(lr, xx), color=CINZA, lw=1.0, zorder=2)
+    afl = p.id.isin(AFLUENTE)
     for tipo, mk in MK.items():
-        s = p[p.tipo == tipo]
+        s = p[(p.tipo == tipo) & ~afl]
         ax.plot(s.cota_drenagem_m, s.cota_obs_m, ls="none", marker=mk, ms=5.2 if tipo == "marca" else 4.6,
                 mfc="#1a1a1a" if tipo == "marca" else "white", mec="#1a1a1a", mew=0.6 if tipo == "marca" else 1.0,
                 zorder=4)
+    s = p[afl]
+    ax.plot(s.cota_drenagem_m, s.cota_obs_m, ls="none", marker="o", ms=4.6, mfc="#bdbdbd", mec="#6b6b6b", mew=1.0,
+            zorder=4)
     r = p[p.id == "V010"].iloc[0]
     ax.annotate("V010", (r.cota_drenagem_m, r.cota_obs_m), textcoords="offset points", xytext=(5, -3), fontsize=6.5)
-    ax.set_xlabel("Cota do trecho de drenagem de referência (m)")
+    ax.set_xlabel("Cota de drenagem reconstruída (m)")
     ax.set_ylabel("Cota da cheia observada, RTK (m)")
     ax.xaxis.set_major_locator(MultipleLocator(0.5))
     ax.yaxis.set_major_locator(MultipleLocator(0.5))
@@ -152,6 +157,8 @@ def figura_diagnostico(rev: dict):
     reg = rev["diagnostico"]["V_e_H_15"]
     leg = [Line2D([], [], ls="none", marker="^", ms=5, mfc="#1a1a1a", mec="#1a1a1a", label="Marca (V)"),
            Line2D([], [], ls="none", marker="o", ms=4.6, mfc="white", mec="#1a1a1a", mew=1.0, label="Limite (H)"),
+           Line2D([], [], ls="none", marker="o", ms=4.6, mfc="#bdbdbd", mec="#6b6b6b", mew=1.0,
+                  label="Limite no vale do afluente"),
            Line2D([], [], color=LARANJA, ls="--", lw=1.2, label="Premissa do HAND (inclinação 1)"),
            Line2D([], [], color="#9a9a9a", ls=":", lw=1.2, label="Plano horizontal (média)"),
            Line2D([], [], color=CINZA, lw=1.0,
@@ -159,7 +166,7 @@ def figura_diagnostico(rev: dict):
     ax.legend(handles=leg, loc="upper center", bbox_to_anchor=(0.42, -0.22), ncol=2, fontsize=6,
               handlelength=1.6, columnspacing=0.7, labelspacing=0.25, frameon=False)
     fig.subplots_adjust(left=0.15, right=0.98, top=0.97, bottom=0.36)
-    out = FIG_DIR / "fig_v6_3_diagnostico.png"
+    out = FIG_DIR / "fig_v7_3_diagnostico.png"
     fig.savefig(out, bbox_inches="tight", pad_inches=0.03)
     plt.close(fig)
     return out
