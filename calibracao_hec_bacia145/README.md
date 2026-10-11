@@ -171,6 +171,32 @@ O ponto de partida das linhas d e v (gr-c008: perc 8, mr 1,5) saiu de uma grade 
 
 Análises: `_analise_prop/` (não versionada).
 
+## Auditoria de horário da chuva e da vazão (branch `cursor/hec-bacia145-horario`, 10/10/2026)
+
+Hipótese testada: o atraso de ~+4 h das cheias grandes em CA/MC/LJJ/Muçum seria erro de horário (fuso UTC/BRT,
+convenção do acumulado, parse HHMM, horário de verão, desagregação, relógio de usina) na chuva do forcamento_v3b ou na
+vazão observada. **Não é.** Medido nos dados, sem usar o ajuste do modelo:
+
+- Convenções: ANA telemetria em BRT sem conversão (Muçum -105 min em 2023-10..2024-11), INMET HHMM UTC → BRT (v3b),
+  CEMADEN UTC → BRT; hora H = (H-60, H]; nenhum pluviômetro diário ou de 2-3 h entra. O HEC-HMS 4.13 aplica o valor
+  PER-CUM de H em (H-1, H], e `Time Zone ID: America/Sao_Paulo` não desloca nada nem aplica horário de verão
+  (teste com pulso).
+- Posto × vizinhos de outra fonte, por evento: defasagem mediana entre -0,11 e +0,11 h em todas as fontes e portes,
+  com correlação agrupada máxima em 0 h. Nas 13 grandes de cal+val, o deslocamento areal efetivo fica em +0,03 h (TAI),
+  +0,08 h (TAI→CA) e +0,16 h (Carreiro), sempre dentro de -0,6..+0,5 h.
+- Relógio dos registradores fluviométricos, medido pela chuva do próprio posto: TAI, CA, MC, LJJ, PC, Muçum e
+  Encantado ficam entre -0,1 e +0,3 h nas grandes.
+- Resposta observada (centro de massa da chuva → pico), em 2023-2026, com as mesmas fontes: em TAI, 21 h (pequenas)
+  contra 19 h (grandes) observado e 21 / 19 h simulado. Em CA, 27 → 20 h observado e 30 → 26 h simulado; em Muçum,
+  35 → 26 h observado e 33 → 30 h simulado. A frente observada TAI → Cavalinhos I → CA RS-122 → CA (quatro
+  registradores independentes) leva +3,8/+8,6/+13 h nas pequenas e +0,8/+2,8/+3,5 h nas grandes.
+
+Conclusão: a área entre Tainhas e Castro Alves responde 7-10 h mais rápido nas cheias grandes, e o modelo, com Clark e
+reservatório linear fixos, não. Isso é física (resposta não linear e fração rápida que cresce com o evento), não
+relógio. Não houve forcamento_v3c nem rodada. Próximo passo sugerido: extrair o simulado em Cavalinhos I, Palanquinho e
+RS-122 para separar geração lateral e calha, e testar Tc/R ou fração rápida dependentes do evento na região TAI→CA.
+Análises: `_analise_horario/` (não versionada).
+
 ## Janelas derivadas com chuva prevista (09/10/2026)
 
 `<mãe>__<t0 AAAAMMDDHH>__<modelo>` (ex.: `S2023_09__2023090313__gfs`) é uma emissão de previsão: mesmo período,
