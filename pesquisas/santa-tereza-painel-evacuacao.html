@@ -29,6 +29,11 @@
 .technical-note{font-size:12px;color:#6c591e;margin:7px 0 10px;border:1px solid #e7ddbd;border-radius:8px;background:#fffdf4}
 .technical-note summary{cursor:pointer;padding:8px 10px;font-weight:650}
 .technical-note p{padding:0 10px 9px;margin:0;line-height:1.5}
+
+.quick-stage{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
+.quick-stage input[type=range]{min-width:0;flex:1;accent-color:#0f8b46;touch-action:pan-x}
+.quick-stage button{height:42px;min-width:42px;border:1px solid #bad0c3;border-radius:9px;background:#f2f8f4;color:#126746;font:700 22px/1 sans-serif}
+@media(max-width:700px){.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
 @media (max-width:700px){
  body{overflow:hidden}
  .hud.mobile-sheet,body[data-previne-map-signature] > .hud.mobile-sheet{
@@ -69,6 +74,11 @@
   <div class="sheet-summary" id="sheetSummary">
     Régua <strong id="sheetLevel">1,6 m</strong> · subida <strong id="sheetRate">40 cm/h</strong>
     <span class="sheet-alert">Simulação de pesquisa — não é alerta ou ordem de evacuação.</span>
+    <div class="quick-stage" role="group" aria-label="Controle rápido do nível da régua">
+      <button type="button" id="quickMinus" aria-label="Diminuir 10 centímetros">−</button>
+      <input id="quickSld" type="range" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível na régua em metros">
+      <button type="button" id="quickPlus" aria-label="Aumentar 10 centímetros">+</button>
+    </div>
   </div>
   <p class="sub" style="padding:0 14px"><a href="estudo-caso-territorio.html">Estudo de caso · RNA, quadradinhos IBGE e ruas</a></p>
   <div class="tabs">
@@ -97,7 +107,7 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9}).addTo(map);
 const CORES={alagada:'#1e5fbf',rota_comprometida:'#6b2f5b',critica:'#b3382c',apertada:'#e8730c',atencao:'#e3b100',confortavel:'#1b7a5a',alto:'#7a8a84',sem_dado:'#9aa3a0'};
 const CLASSES_SAIDA=new Set(['alagada','rota_comprometida','critica','apertada','atencao']);
-const ROT={alagada:'local atingido no cenário HAND',rota_comprometida:'gargalo da rota já atingido',critica:'margem negativa',apertada:'margem <15 min',atencao:'margem <1 h',confortavel:'margem >1 h no modelo',alto:'ponto alto',sem_dado:'sem cobertura HAND no intervalo'};
+const ROT={referencia:'nível de referência — sem impacto classificado',alagada:'interseção com a mancha HAND simulada',rota_comprometida:'gargalo da rota já atingido',critica:'margem negativa',apertada:'margem <15 min',atencao:'margem <1 h',confortavel:'margem >1 h no modelo',alto:'ponto alto',sem_dado:'sem cobertura HAND no intervalo'};
 const ordem=['alagada','rota_comprometida','critica','apertada','atencao','sem_dado','confortavel'];
 let contornosGeo=null, contornosOrdenados=[];
 
@@ -136,7 +146,7 @@ const cellNode=cellCenters.map(c=>noMaisProximo(c[0],c[1]));
 
 // Mancha HAND atual: é a área física do cenário. A grade IBGE NÃO é mancha.
 const manchaLayer=L.layerGroup();
-function featureCenario(nivelRegua){if(!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=contornosOrdenados[0],bd=Infinity;contornosOrdenados.forEach(x=>{const d=Math.abs(x.nivel-hand);if(d<bd){bd=d;best=x;}});return best&&best.feature;}
+function featureCenario(nivelRegua){if(nivelRegua<=BANKFULL_M+1e-9||!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=null;for(const x of contornosOrdenados){if(x.nivel>hand+1e-9)break;best=x;}return best&&best.feature;}
 function atualizaMancha(nivelRegua){manchaLayer.clearLayers();const f=featureCenario(nivelRegua);if(!f)return;L.geoJSON(f,{interactive:false,style:{color:'#1e5fbf',weight:.8,fillColor:'#1e5fbf',fillOpacity:.14}}).eachLayer(l=>manchaLayer.addLayer(l));}
 
 const b=L.latLngBounds();
@@ -145,8 +155,8 @@ const ruasLayer=L.layerGroup(ruas.map(r=>r.pl));
 
 // Grade IBGE: contorno discreto + ponto no centro. Não pintar o quadrado inteiro,
 // porque em área rural a célula pode ter ~1 km e a população não está localizada casa a casa.
-const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.75,color:'#26332e',opacity:.78,fillColor:CORES.sem_dado,fillOpacity:.72})
-  .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),geral=classe(lc,ri.cota,c.dist_m,nivel),saida=CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${saida?'Até '+c.pop+' pessoas a priorizar para saída neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
+const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.65,color:'#a7b9b0',opacity:.22,fillColor:'#a7b9b0',fillOpacity:.025})
+  .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9,geral=referencia?'referencia':classe(lc,ri.cota,c.dist_m,nivel),saida=!referencia&&CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${referencia?'Nível de referência: sem impacto de inundação classificado':saida?'Até '+c.pop+' pessoas em triagem prioritária neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
 const cellLabels=D.cells.map((c,idx)=>L.marker(cellCenters[idx],{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[36,22],iconAnchor:[18,11],html:`<div id="poplbl-${idx}" style="min-width:24px;color:#fff;text-align:center;font:900 12px/1.1 Arial,sans-serif;text-shadow:0 1px 3px #000,0 0 2px #000">?</div>`})}));
 const cellsLayer=L.layerGroup([...cellBoxes,...cellLabels]);
 const abrigos=L.layerGroup(D.abrigos.map(a=>L.marker([a.lat,a.lon]).bindPopup('<b>'+a.nome+'</b><br>abrigo / ponto de encontro')));
@@ -181,15 +191,23 @@ function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   document.getElementById('painel').innerHTML='<div class="sub"><b>Clique em qualquer ponto visível do mapa.</b> As linhas foram afinadas para não atrapalhar o clique. Azul = trecho alcançado pelo HAND atual; ao clicar eu mostro a distância até o abrigo e até o primeiro trecho que permanece seco pelo restante da rota.</div><div class="rota" id="rota">Clique no mapa para calcular.</div>';
 }
-function renderMargem(){const nivel=nivelAtual();const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
+function renderMargem(){const nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9;const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
   const cl=D.nos.map((_,i)=>classe(cotaNosAtuais[i],rotaInfo[i]&&rotaInfo[i].cota,D.dist_m[i],nivel));cl.forEach(k=>cnt[k]++);
-  ruas.forEach(r=>r.pl.setStyle({color:CORES[pior(cl[r.a],cl[r.c])],weight:2.5,opacity:.85}));
+  ruas.forEach(r=>r.pl.setStyle(referencia?{color:'#8fa7a0',weight:1.25,opacity:.36}:{color:CORES[pior(cl[r.a],cl[r.c])],weight:2.5,opacity:.85}));
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Margem calculada com as cotas extraídas dos contornos HAND atualmente publicados.</b> O cálculo percorre a rota inteira: um ponto alto pode perder saída antes de ser inundado localmente.</div>'+
+  document.getElementById('painel').innerHTML='<div class="sub"><b>Margem projetada usando a velocidade de subida escolhida.</b> As cores indicam tempo estimado, não água observada. No nível de referência (1,60 m), as ruas permanecem neutras para não aparentar inundação.</div>'+
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k]}</b></div>`).join('');
 }
-function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
+function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),nivelReferencia=nivel<=BANKFULL_M+1e-9;const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
   D.cells.forEach((c,i)=>{
+
+    if(nivelReferencia){
+      cellBoxes[i].setStyle({fillColor:'#a7b9b0',fillOpacity:.025,color:'#a7b9b0',opacity:.22,weight:.65});
+      const svg=cellBoxes[i].getElement();
+      if(svg){svg.style.fill='#a7b9b0';svg.style.fillOpacity='.025';}
+      const lbl=document.getElementById('poplbl-'+i);if(lbl)lbl.textContent='';
+      return;
+    }
     const ri=rotaInfo[cellNode[i]]||{}, local=classeLocal(cotaCellsAtuais[i],c.dist_m,nivel), geral=classe(cotaCellsAtuais[i],ri.cota,c.dist_m,nivel);cnt[geral]+=c.pop;
     const rotaAtingida=ri.cota!=null&&ri.cota<=h;
     const borda=rotaAtingida?CORES.rota_comprometida:(geral==='critica'?CORES.critica:geral==='apertada'?CORES.apertada:'#ffffff');
@@ -200,7 +218,8 @@ function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M)
   });
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   const risco=cnt.alagada+cnt.rota_comprometida+cnt.critica+cnt.apertada+cnt.atencao;
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Quadradinhos coloridos = células da Grade IBGE, como antes.</b> <b>Todo o quadradinho fica preenchido pela cor da classe</b> e o número mostra quantas pessoas entram na prioridade de saída; <b>0</b> = sem prioridade e <b>?</b> = sem dado. A cor é uma visualização de triagem da célula, não quer dizer que toda a superfície esteja fisicamente inundada.</div>'+
+  if(nivelReferencia){document.getElementById('painel').innerHTML='<div class="sub"><b>Régua 1,60 m = HAND 0 (referência do rio).</b> Nenhuma quadrícula aparece como atingida neste nível. A interseção com o canal não comprova inundação das moradias. Arraste a régua para simular outros níveis. A ausência de cor não certifica segurança.</div>';return;}
+  document.getElementById('painel').innerHTML='<div class="sub"><b>Cores = triagem hipotética de células IBGE.</b> Uma célula colorida pode cruzar o rio sem que todas as moradias estejam inundadas. A contagem é um limite superior da população considerada; <b>0</b> = sem prioridade e <b>?</b> = sem dado. A cor é uma visualização de triagem da célula, não quer dizer que toda a superfície esteja fisicamente inundada.</div>'+
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('')+
     `<div class="big"><b>${risco.toLocaleString('pt-BR')}</b> pessoas a priorizar para saída neste cenário, considerando célula inteira como limite superior de triagem.</div>`;
 }
@@ -289,6 +308,7 @@ document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.da
 function updateSheetStatus(){
   document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';
   document.getElementById('sheetRate').textContent=taxaCmH+' cm/h';
+  const q=document.getElementById('quickSld');if(q)q.value=sld.value;
 }
 function updateSheetFootprint(){
   if(!window.matchMedia('(max-width:700px)').matches)return;
@@ -318,6 +338,17 @@ window.addEventListener('resize',()=>{
 });
 
 const sld=document.getElementById('sld'),sldTaxa=document.getElementById('sldTaxa');
+
+const quickSld=document.getElementById('quickSld');
+function mudarNivelRapido(v){
+  sld.value=String(Math.max(BANKFULL_M,Math.min(NVMAX,Math.round(Number(v)*10)/10)));
+  quickSld.value=sld.value;
+  redraw();
+}
+quickSld.addEventListener('input',()=>mudarNivelRapido(quickSld.value));
+quickSld.addEventListener('change',()=>mudarNivelRapido(quickSld.value));
+document.getElementById('quickMinus').addEventListener('click',()=>mudarNivelRapido(+sld.value-.1));
+document.getElementById('quickPlus').addEventListener('click',()=>mudarNivelRapido(+sld.value+.1));
 sld.oninput=redraw;sld.onchange=redraw;sldTaxa.oninput=redraw;sldTaxa.onchange=redraw;
 document.getElementById('taxatxt').textContent=taxaCmH;
 updateSheetStatus();setSheetExpanded(false);
