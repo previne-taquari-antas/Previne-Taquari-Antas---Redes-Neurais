@@ -17,6 +17,11 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def sha_lf(path):
+    """Checkout Windows CRLF versus runner Linux LF; preserve all other bytes."""
+    return hashlib.sha256(Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def serie(path):
     values = {}
     duplicates = 0
@@ -94,14 +99,17 @@ def main():
             assert meta["chuva_json_sha256"] == out["chuva"][sim]["conteudo_sha256"]
             assert meta["vazao_sha256"] == sha(files[0])
             assert meta["origem"]["pedido"] == p
-            assert meta["origem"]["catalogo_sha256"] == sha(a.root / "dados/catalogo_ampliado.json")
+            catalogo = a.root / "dados/catalogo_ampliado.json"
+            assert meta["origem"]["catalogo_sha256"] == sha_lf(catalogo), "Catálogo difere além de CRLF/LF"
             for old in ("bacia_inteira.py", "estrutura_v3.py", "comum.py"):
                 assert (a.root / "codigo" / old).exists()
             out["comparacoes"].append({"sim": sim, "pares_controle": len(expected),
                                        "duplicatas_identicas_referencia": dup_b,
                                        "max_abs_diff_m3s": delta, "nos_extra_presentes": extras_presentes,
                                        "series_metadata": metadata,
-                                       "manifesto": meta, "referencia_sha256": sha(baselines[0])})
+                                       "manifesto": meta, "referencia_sha256": sha(baselines[0]),
+                                       "catalogo_local_sha256": sha(catalogo),
+                                       "catalogo_lf_sha256": sha_lf(catalogo)})
     if a.resultados:
         out["status"] = "reproducao_controles_confirmada"
     a.saida.parent.mkdir(parents=True, exist_ok=True)
