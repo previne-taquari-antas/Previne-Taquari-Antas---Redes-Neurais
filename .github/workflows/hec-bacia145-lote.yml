@@ -62,6 +62,8 @@ jobs:
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os, re
+          if os.environ["EVENT"] != "push":
+              raise SystemExit("Branch diagnóstica: usar exclusivamente PEDIDO.json via push (v3b/papéis/nós explícitos)")
           ped = {}
           p = "calibracao_hec_bacia145/rodadas/PEDIDO.json"
           if os.environ["EVENT"] == "push" and os.path.exists(p):
@@ -96,6 +98,9 @@ jobs:
           python-version: "3.11"
       - name: Dependências
         run: pip install --disable-pip-version-check numpy scipy
+      - name: Testar contrato de extração
+        working-directory: calibracao_hec_bacia145/codigo
+        run: python -B -m unittest teste_contrato_extracao -v
       - name: Cache HEC-HMS 4.13
         id: cache-hec
         uses: actions/cache@v4
@@ -136,6 +141,11 @@ jobs:
           else:
               cands = json.load(open("calibracao_hec_bacia145/dados/smoke/cands.json", encoding="utf-8"))
           json.dump(cands, open(W + "/cands.json", "w"))
+          json.dump(ped.get("nos_extra", []), open(W + "/nos_extra.json", "w"))
+          import hashlib
+          origem = {"pedido": ped, "codigo_commit": os.environ.get("GITHUB_SHA"),
+                    "catalogo_sha256": hashlib.sha256(open(W + "/catalogo_ampliado.json", "rb").read()).hexdigest()}
+          json.dump(origem, open(W + "/origem_extracao.json", "w"), indent=2)
           if ped.get("papeis"):
               json.dump(ped["papeis"], open(W + "/papeis.json", "w"))
           print(len(cands), "candidatos;", "papeis:", ped.get("papeis"))
@@ -153,7 +163,7 @@ jobs:
           export HEC_CATALOGO=catalogo_ampliado.json HEC_FORC=forcamento_v3 HEC_RUNS="$RUNNER_TEMP/runs"
           [ -f "$W/papeis.json" ] && export HEC_PAPEIS=papeis.json
           cd "$W"
-          python -B nuvem_lote.py --candidatos cands.json --janelas "$JANELAS" --shard ${{ matrix.shard }} --shards ${{ needs.preparar.outputs.n }} --saida "$RUNNER_TEMP/saida" --paralelo 4
+          python -B nuvem_lote.py --candidatos cands.json --janelas "$JANELAS" --shard ${{ matrix.shard }} --shards ${{ needs.preparar.outputs.n }} --saida "$RUNNER_TEMP/saida" --paralelo 4 --nos-extra-json nos_extra.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

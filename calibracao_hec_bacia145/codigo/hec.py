@@ -301,11 +301,12 @@ def escrever_projeto(d: Path, sim: str, basin_text: str, tabelas: dict | None = 
 
 def _lote_jvm(dirs: list[Path], script: Path):
     lst = repr([d.as_posix() for d in dirs])
-    nodes = repr([n for n, _ in CONTROLES.values()] + list(NOS_EXTRA))
+    nodes = repr(sorted(set([n for n, _ in CONTROLES.values()] + list(NOS_EXTRA))))
     script.write_text(f"""from hms.model.JythonHms import *
 from hec.heclib.dss import HecDss
 from hec.io import PairedDataContainer
 import os
+import json
 def gravar_tabelas(d):
     dss = HecDss.open(d + '/tabelas.dss')
     for linha in open(d + '/tabelas.txt').read().splitlines():
@@ -336,13 +337,19 @@ for d in {lst}:
         paths = list(dss.getCatalogedPathnames())
         f = open(d + '/vazao.csv', 'w')
         f.write('node,time_value,flow\\n')
+        metadata = []
         for node in {nodes}:
             for p in paths:
                 if p.startswith('//' + node + '/FLOW/'):
                     ts = dss.get(p)
+                    metadata.append(dict(node=node, pathname=str(p), units=str(ts.units),
+                                         type=str(ts.type), interval=int(ts.interval), count=int(ts.numberValues)))
                     for i in range(ts.numberValues):
                         f.write('%s,%d,%.6f\\n' % (node, int(ts.times[i]), float(ts.values[i])))
         f.close()
+        mf = open(d + '/series_metadata.json', 'w')
+        json.dump(metadata, mf)
+        mf.close()
         dss.close()
         open(d + '/ok.txt', 'w').write('OK')
     except Exception, e:
