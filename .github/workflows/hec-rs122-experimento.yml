@@ -1,0 +1,58 @@
+name: HEC RS122 - segmentacao experimental
+on:
+  push:
+    branches: [cursor/hec-bacia145-diagnostico-lateral]
+    paths:
+      - 'calibracao_hec_bacia145/**'
+      - '.github/workflows/hec-rs122-experimento.yml'
+permissions:
+  contents: read
+jobs:
+  pares:
+    if: contains(github.event.head_commit.message, '[rs122]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        janela: [S2023_07, S2023_11]
+        passo: [10, 5, 1]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: calibracao_hec_bacia145
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --disable-pip-version-check numpy scipy
+      - name: Testar adaptador e contrato
+        working-directory: calibracao_hec_bacia145/codigo
+        run: python -B -m unittest teste_variante_rs122 teste_contrato_runner_rs122 teste_contrato_extracao -v
+      - uses: actions/cache@v4
+        id: cache-hec
+        with:
+          path: .hec
+          key: hec-hms-4.13-linux64-v1
+      - name: Baixar HEC-HMS
+        if: steps.cache-hec.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .hec
+          curl -L --fail --retry 3 -o /tmp/HEC-HMS-4.13-linux64.tar.gz https://github.com/HydrologicEngineeringCenter/hec-downloads/releases/download/1.0.38/HEC-HMS-4.13-linux64.tar.gz
+          tar -xzf /tmp/HEC-HMS-4.13-linux64.tar.gz -C .hec
+      - name: Executar A B0 B1 sem selecionar parametros
+        env:
+          JANELA: ${{ matrix.janela }}
+          PASSO: ${{ matrix.passo }}
+        run: |
+          HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
+          test -n "$HEC_SH"
+          chmod +x "$HEC_SH"
+          export HEC_HMS_CMD="$HEC_SH"
+          python -B calibracao_hec_bacia145/codigo/executar_rs122.py --raiz calibracao_hec_bacia145 --saida "$RUNNER_TEMP/rs122" --janela "$JANELA" --passo "$PASSO"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rs122-${{ matrix.janela }}-${{ matrix.passo }}min
+          path: ${{ runner.temp }}/rs122
+          retention-days: 14
+          if-no-files-found: error
