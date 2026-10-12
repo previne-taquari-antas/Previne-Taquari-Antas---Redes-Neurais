@@ -126,7 +126,11 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("/.github/workflows/basin-station-forecast.yml", sparse)
         self.assertIn("/.github/workflows/chuvas-horarias.yml", sparse)
         self.assertNotIn("/index.html", sparse)
-        self.assertEqual((ROOT / ".gitattributes").read_text(encoding="utf-8").strip(), CSV + " -text")
+        # Other assets may have their own attributes; require only that the
+        # rainfall CSV has exactly one explicit -text declaration.
+        attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        csv_attrs = [line.strip() for line in attrs if line.strip().split(maxsplit=1)[0] == CSV]
+        self.assertEqual(csv_attrs, [CSV + " -text"])
 
     def test_both_writers_gate_worktree_and_commit_and_never_rebase(self):
         for writer in ("chuvas-horarias", "basin-station-forecast"):
