@@ -80,7 +80,7 @@
       <button type="button" id="quickPlus" aria-label="Aumentar 10 centímetros">+</button>
     </div>
   </div>
-  <p class="sub" style="padding:0 14px"><a href="estudo-caso-territorio.html">Estudo de caso · RNA, quadradinhos IBGE e ruas</a></p>
+  <p class="sub" style="padding:0 14px"><a href="estudo-caso-territorio.html">Estudo de caso · RNA, edificações e ruas</a></p>
   <div class="tabs">
     <button data-m="rotas" class="on">Rotas</button>
     <button data-m="margem">Margem</button>
@@ -90,7 +90,7 @@
     <div id="sliders" class="hide">
       <div class="sub">Nível na régua: <span class="lv" id="nvtxt"></span></div>
       <input type="range" id="sld" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível da régua de 1,60 a 26,60 metros">
-      <details class="technical-note"><summary>Sobre o cálculo e suas limitações</summary><p><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> A mancha e os limiares da grade foram recalculados com o HAND LiDAR atual: HAND = régua − 1,60 m. A classificação depende da cobertura dos contornos e da validação das cotas.</p></details>
+      <details class="technical-note"><summary>Sobre o cálculo e suas limitações</summary><p><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> A mancha e seus contornos foram recalculados com o HAND LiDAR atual: HAND = régua − 1,60 m. A classificação depende da cobertura dos contornos e da validação das cotas.</p></details>
       <div class="sub">Velocidade: <span class="lv" id="taxatxt"></span> cm/h <span id="taxacen" style="color:#7a5b00;font-size:11px"></span></div>
       <input type="range" id="sldTaxa" min="10" max="200" value="40" step="5">
     </div>
@@ -159,24 +159,29 @@ const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.65,color:'#a7b9b0
   .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9,geral=referencia?'referencia':classe(lc,ri.cota,c.dist_m,nivel),saida=!referencia&&CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${referencia?'Nível de referência: sem impacto de inundação classificado':saida?'Até '+c.pop+' pessoas em triagem prioritária neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
 const cellLabels=D.cells.map((c,idx)=>L.marker(cellCenters[idx],{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[36,22],iconAnchor:[18,11],html:`<div id="poplbl-${idx}" style="min-width:24px;color:#fff;text-align:center;font:900 12px/1.1 Arial,sans-serif;text-shadow:0 1px 3px #000,0 0 2px #000">?</div>`})}));
 const cellsLayer=L.layerGroup([...cellBoxes,...cellLabels]);
+
 const casasLayer=L.layerGroup(), BBcasas=L.latLngBounds();
 let casas=[], estadoCasas='carregando';
-const CORES_CASAS={atingida:'#1765b6',nao_atingida:'#dc9a22',fora:'#8c979b',referencia:'#778997'};
+const CORES_CASAS={atingida:'#1765b6',iminente:'#cb3535',atencao:'#e88921',distante:'#85959d'};
+const DIST_VERMELHO_M=30, DIST_LARANJA_M=100;
+const TELA_M=160, LAT_M=110540, LON_M=111320*Math.cos(-29.17*Math.PI/180);
+let indiceAtual=null;
+function projetarCasa(lon,lat){return [lon*LON_M,lat*LAT_M];}
 function carregarPontosCasas(payload){
-  if(!payload||!Array.isArray(payload.pontos)||!payload.pontos.length)throw new Error('Sem pontos de edificações');
+  if(!payload||!Array.isArray(payload.pontos)||!payload.pontos.length)throw Error('Sem pontos de edificações');
   casasLayer.clearLayers();casas=[];
   payload.pontos.forEach((coord,i)=>{
     if(!Array.isArray(coord)||coord.length<2||!Number.isFinite(coord[0])||!Number.isFinite(coord[1]))return;
-    const casa={lat:coord[0],lon:coord[1],ordem:i+1,cota:null,classe:'referencia',marcador:null};
-    casa.marcador=L.circleMarker([casa.lat,casa.lon],{radius:4,weight:1,color:'#fff',fillColor:CORES_CASAS.referencia,fillOpacity:.92})
+    const xy=projetarCasa(coord[1],coord[0]);
+    const casa={lat:coord[0],lon:coord[1],x:xy[0],y:xy[1],ordem:i+1,cota:null,classe:'distante',distancia:null,marcador:null};
+    casa.marcador=L.circleMarker([casa.lat,casa.lon],{radius:3.6,weight:1,color:'#fff',fillColor:CORES_CASAS.distante,fillOpacity:.9})
       .bindPopup(()=>{
-        const limiar=casa.cota===null?'Fora dos contornos publicados; não significa ausência de risco.':
-          'Primeira interseção simulada: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
-        const situacao=casa.classe==='atingida'?'Ponto dentro da mancha neste cenário.':
-          casa.classe==='nao_atingida'?'Ponto ainda não alcançado neste cenário.':
-          casa.classe==='referencia'?'Nível de referência: sem impacto classificado.':'Sem interseção identificada.';
-        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+situacao+'<br>'+limiar+
-          '<br><small>Posição aproximada: ocupação e exposição exigem validação local.</small>';
+        const legenda={atingida:'A mancha simulada alcançou este ponto.',iminente:'Água muito próxima deste ponto (até 30 m).',atencao:'Água próxima deste ponto (até 100 m).',distante:'Fora da faixa de proximidade de 100 m neste cenário.'};
+        const dist=casa.distancia===null?'':'<br>Distância até a borda da mancha: ~'+Math.round(casa.distancia)+' m.';
+        const limiar=casa.cota===null?'Sem limiar de alagamento identificado nos contornos publicados.':
+          'Primeira interseção: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
+        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+legenda[casa.classe]+dist+'<br>'+limiar+
+          '<br><small>Distância planimétrica aproximada, baseada no contorno modelado; ponto OSM não é domicílio validado.</small>';
       });
     casas.push(casa);casasLayer.addLayer(casa.marcador);BBcasas.extend([casa.lat,casa.lon]);
   });
@@ -189,7 +194,55 @@ function recalcularCotasCasas(){
     for(const item of contornosOrdenados){if(itemContem(item,casa.lat,casa.lon)){casa.cota=item.nivel;break;}}
   });
 }
-
+// Índice espacial da BORDA da mancha, em metros, para o nível ativo.
+// Ele evita calcular distâncias sobre todos os vértices em cada casa.
+function indiceBordaNivel(nivelRegua){
+  if(nivelRegua<=BANKFULL_M+1e-9)return null;
+  const h=Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M);
+  let item=null;
+  for(const candidato of contornosOrdenados){if(candidato.nivel>h+1e-9)break;item=candidato;}
+  if(!item)return null;
+  if(indiceAtual&&indiceAtual.item===item)return indiceAtual;
+  const grade=new Map(),margem=DIST_LARANJA_M+1;
+  function registrarSegmento(a,b){
+    const x1=a[0]*LON_M,y1=a[1]*LAT_M,x2=b[0]*LON_M,y2=b[1]*LAT_M;
+    if(![x1,y1,x2,y2].every(Number.isFinite))return;
+    const segmento=[x1,y1,x2,y2];
+    const ix0=Math.floor((Math.min(x1,x2)-margem)/TELA_M),ix1=Math.floor((Math.max(x1,x2)+margem)/TELA_M);
+    const iy0=Math.floor((Math.min(y1,y2)-margem)/TELA_M),iy1=Math.floor((Math.max(y1,y2)+margem)/TELA_M);
+    for(let ix=ix0;ix<=ix1;ix++)for(let iy=iy0;iy<=iy1;iy++){
+      const chave=ix+','+iy,lista=grade.get(chave);
+      if(lista)lista.push(segmento);else grade.set(chave,[segmento]);
+    }
+  }
+  function anel(linha){
+    for(let i=1;i<linha.length;i++)registrarSegmento(linha[i-1],linha[i]);
+    if(linha.length>2&&(linha[0][0]!==linha[linha.length-1][0]||linha[0][1]!==linha[linha.length-1][1]))
+      registrarSegmento(linha[linha.length-1],linha[0]);
+  }
+  const g=item.geom;
+  if(g.type==='Polygon')g.coordinates.forEach(anel);
+  else if(g.type==='MultiPolygon')g.coordinates.forEach(poly=>poly.forEach(anel));
+  indiceAtual={item,grade};
+  return indiceAtual;
+}
+function distanciaAteMancha(casa,indice){
+  if(!indice)return Infinity;
+  if(itemContem(indice.item,casa.lat,casa.lon))return 0;
+  const lista=indice.grade.get(Math.floor(casa.x/TELA_M)+','+Math.floor(casa.y/TELA_M));
+  if(!lista)return Infinity;
+  let menor2=Infinity;
+  for(const [x1,y1,x2,y2] of lista){
+    const dx=x2-x1,dy=y2-y1;
+    const t=Math.max(0,Math.min(1,((casa.x-x1)*dx+(casa.y-y1)*dy)/(dx*dx+dy*dy||1)));
+    const ex=casa.x-x1-t*dx,ey=casa.y-y1-t*dy,dist2=ex*ex+ey*ey;
+    if(dist2<menor2)menor2=dist2;
+  }
+  return Math.sqrt(menor2);
+}
+function classePorDistancia(d){
+  return d===0?'atingida':d<=DIST_VERMELHO_M?'iminente':d<=DIST_LARANJA_M?'atencao':'distante';
+}
 const abrigos=L.layerGroup(D.abrigos.map(a=>L.marker([a.lat,a.lon]).bindPopup('<b>'+a.nome+'</b><br>abrigo / ponto de encontro')));
 const BB=b.pad(0.06);
 const bc=L.latLngBounds();D.cells.forEach(c=>c.poly.forEach(p=>bc.extend(p)));
@@ -230,28 +283,30 @@ function renderMargem(){const nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k]}</b></div>`).join('');
 }
 function renderImpacto(){
-  const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),referencia=nivel<=BANKFULL_M+1e-9;
+  const nivel=nivelAtual();
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   if(estadoCasas!=='ok'||!contornosOrdenados.length){
-    casas.forEach(c=>{c.classe='fora';c.marcador.setStyle({fillColor:CORES_CASAS.fora});});
-    document.getElementById('painel').innerHTML='<div class="sub"><b>Pontos ou contornos espaciais indisponíveis.</b> Não é possível classificar quais edificações seriam alcançadas pela água. Nenhuma contagem de impacto será apresentada até o carregamento.</div>';
+    casas.forEach(c=>{c.classe='distante';c.marcador.setStyle({fillColor:CORES_CASAS.distante});});
+    document.getElementById('painel').innerHTML='<div class="sub"><b>Pontos ou contornos não carregados.</b> A classificação de proximidade está indisponível neste momento.</div>';
     return;
   }
-  const cnt={atingida:0,nao_atingida:0,fora:0};
+  const indice=indiceBordaNivel(nivel);
+  const cnt={atingida:0,iminente:0,atencao:0,distante:0};
   casas.forEach(c=>{
-    const classe=c.cota===null?'fora':c.cota<=h&&!referencia?'atingida':'nao_atingida';
-    c.classe=referencia?'referencia':classe;cnt[classe]++;
-    c.marcador.setStyle({fillColor:CORES_CASAS[c.classe],radius:classe==='atingida'?5:3.7,weight:classe==='atingida'?1.5:1,fillOpacity:.93});
+    const d=distanciaAteMancha(c,indice),classe=classePorDistancia(d);
+    c.distancia=Number.isFinite(d)?d:null;c.classe=classe;cnt[classe]++;
+    c.marcador.setStyle({fillColor:CORES_CASAS[classe],radius:classe==='atingida'?5.2:classe==='iminente'?5:classe==='atencao'?4.3:3.4,
+      weight:classe==='distante'?1:1.6,fillOpacity:.95});
   });
-  const fmt=n=>n.toLocaleString('pt-BR');
+  const fmt=n=>n.toLocaleString('pt-BR'),destacadas=cnt.atingida+cnt.iminente+cnt.atencao;
   document.getElementById('painel').innerHTML=
-    '<div class="sub"><b>Edificações mapeadas individualmente (OpenStreetMap).</b> A água avança sobre os pontos conforme a régua e os contornos LiDAR simulados. Pontos alcançados ficam azuis e continuam contabilizados.</div>'+
-    '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Alcançadas pela mancha simulada</span><b>'+fmt(cnt.atingida)+'</b></div>'+
-    '<div class="row"><span><i style="background:'+CORES_CASAS.nao_atingida+'"></i>Ainda não alcançadas no cenário (segurança não confirmada)</span><b>'+fmt(cnt.nao_atingida)+'</b></div>'+
-    '<div class="row"><span><i style="background:'+CORES_CASAS.fora+'"></i>Fora dos contornos publicados</span><b>'+fmt(cnt.fora)+'</b></div>'+
-    '<div class="big"><b>'+fmt(cnt.atingida)+'</b> de '+fmt(casas.length)+' pontos com interseção simulada neste nível.</div>'+
-    '<div class="sub">'+(referencia?'<b>Régua 1,60 m = referência HAND 0; nenhuma edificação é marcada como atingida nesse nível.</b> ':'')+
-    'Não são domicílios confirmados nem pessoas evacuadas. O mapa é cenário de pesquisa, não substitui observação, validação local, análise de acessos ou Defesa Civil. A taxa de subida é usada na aba Margem, não nesta contagem.</div>';
+    '<div class="sub"><b>Proximidade individual das edificações à mancha simulada.</b> Cada ponto muda de cor conforme o nível da régua. A distância é medida do ponto OSM até a borda do contorno LiDAR, e não por quadrículas do IBGE.</div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.atencao+'"></i>Laranja · água até 100 m</span><b>'+fmt(cnt.atencao)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.iminente+'"></i>Vermelho · água até 30 m</span><b>'+fmt(cnt.iminente)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Azul · ponto dentro da mancha</span><b>'+fmt(cnt.atingida)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.distante+'"></i>Cinza · fora da faixa de 100 m</span><b>'+fmt(cnt.distante)+'</b></div>'+
+    '<div class="big"><b>'+fmt(destacadas)+'</b> edificações próximas ou atingidas, de '+fmt(casas.length)+' pontos mapeados.</div>'+
+    '<div class="sub">Distâncias planimétricas aproximadas: proximidade não determina profundidade, tempo de chegada ou segurança das rotas. Pontos OSM podem incluir edificações não residenciais; abrigos e ocupação exigem validação local.</div>';
 }
 function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;updateSheetStatus();
   document.getElementById('taxacen').textContent=taxaCmH<=25?'(lenta)':taxaCmH>100?'(subida rápida · cenário)':'';
