@@ -83,7 +83,7 @@
   <div class="tabs">
     <button data-m="rotas" class="on">Rotas</button>
     <button data-m="margem">Margem</button>
-    <button data-m="impacto">Quem sai</button>
+    <button data-m="impacto">Casas em risco</button>
   </div>
   <div class="bd" id="sheetContent">
     <div id="sliders" class="hide">
@@ -158,11 +158,42 @@ const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.65,color:'#a7b9b0
   .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9,geral=referencia?'referencia':classe(lc,ri.cota,c.dist_m,nivel),saida=!referencia&&CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${referencia?'Nível de referência: sem impacto de inundação classificado':saida?'Até '+c.pop+' pessoas em triagem prioritária neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
 const cellLabels=D.cells.map((c,idx)=>L.marker(cellCenters[idx],{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[36,22],iconAnchor:[18,11],html:`<div id="poplbl-${idx}" style="min-width:24px;color:#fff;text-align:center;font:900 12px/1.1 Arial,sans-serif;text-shadow:0 1px 3px #000,0 0 2px #000">?</div>`})}));
 const cellsLayer=L.layerGroup([...cellBoxes,...cellLabels]);
+const casasLayer=L.layerGroup(), BBcasas=L.latLngBounds();
+let casas=[], estadoCasas='carregando';
+const CORES_CASAS={atingida:'#1765b6',nao_atingida:'#20a16c',fora:'#8c979b',referencia:'#778997'};
+function carregarPontosCasas(payload){
+  if(!payload||!Array.isArray(payload.pontos)||!payload.pontos.length)throw new Error('Sem pontos de edificações');
+  casasLayer.clearLayers();casas=[];
+  payload.pontos.forEach((coord,i)=>{
+    if(!Array.isArray(coord)||coord.length<2||!Number.isFinite(coord[0])||!Number.isFinite(coord[1]))return;
+    const casa={lat:coord[0],lon:coord[1],ordem:i+1,cota:null,classe:'referencia',marcador:null};
+    casa.marcador=L.circleMarker([casa.lat,casa.lon],{radius:4,weight:1,color:'#fff',fillColor:CORES_CASAS.referencia,fillOpacity:.92})
+      .bindPopup(()=>{
+        const limiar=casa.cota===null?'Fora dos contornos publicados; não significa ausência de risco.':
+          'Primeira interseção simulada: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
+        const situacao=casa.classe==='atingida'?'Ponto dentro da mancha neste cenário.':
+          casa.classe==='nao_atingida'?'Ponto ainda não alcançado neste cenário.':
+          casa.classe==='referencia'?'Nível de referência: sem impacto classificado.':'Sem interseção identificada.';
+        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+situacao+'<br>'+limiar+
+          '<br><small>Posição aproximada: ocupação e exposição exigem validação local.</small>';
+      });
+    casas.push(casa);casasLayer.addLayer(casa.marcador);BBcasas.extend([casa.lat,casa.lon]);
+  });
+  estadoCasas=casas.length?'ok':'indisponivel';
+}
+function recalcularCotasCasas(){
+  if(!contornosOrdenados.length)return;
+  casas.forEach(casa=>{
+    casa.cota=null;
+    for(const item of contornosOrdenados){if(itemContem(item,casa.lat,casa.lon)){casa.cota=item.nivel;break;}}
+  });
+}
+
 const abrigos=L.layerGroup(D.abrigos.map(a=>L.marker([a.lat,a.lon]).bindPopup('<b>'+a.nome+'</b><br>abrigo / ponto de encontro')));
 const BB=b.pad(0.06);
 const bc=L.latLngBounds();D.cells.forEach(c=>c.poly.forEach(p=>bc.extend(p)));
 const BBcells=bc.pad(0.03);
-function aj(){map.invalidateSize();map.fitBounds(modo==='impacto'?BBcells:BB);}
+function aj(){map.invalidateSize();map.fitBounds(modo==='impacto'&&BBcasas.isValid()?BBcasas.pad(0.08):BB);}
 
 function classeLocal(cotaLocal,dist,nivelRegua){
   const nivelHand=Math.max(0,nivelRegua-BANKFULL_M);
@@ -197,30 +228,29 @@ function renderMargem(){const nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e
   document.getElementById('painel').innerHTML='<div class="sub"><b>Margem projetada usando a velocidade de subida escolhida.</b> As cores indicam tempo estimado, não água observada. No nível de referência (1,60 m), as ruas permanecem neutras para não aparentar inundação.</div>'+
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k]}</b></div>`).join('');
 }
-function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),nivelReferencia=nivel<=BANKFULL_M+1e-9;const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
-  D.cells.forEach((c,i)=>{
-
-    if(nivelReferencia){
-      cellBoxes[i].setStyle({fillColor:'#a7b9b0',fillOpacity:.025,color:'#a7b9b0',opacity:.22,weight:.65});
-      const svg=cellBoxes[i].getElement();
-      if(svg){svg.style.fill='#a7b9b0';svg.style.fillOpacity='.025';}
-      const lbl=document.getElementById('poplbl-'+i);if(lbl)lbl.textContent='';
-      return;
-    }
-    const ri=rotaInfo[cellNode[i]]||{}, local=classeLocal(cotaCellsAtuais[i],c.dist_m,nivel), geral=classe(cotaCellsAtuais[i],ri.cota,c.dist_m,nivel);cnt[geral]+=c.pop;
-    const rotaAtingida=ri.cota!=null&&ri.cota<=h;
-    const borda=rotaAtingida?CORES.rota_comprometida:(geral==='critica'?CORES.critica:geral==='apertada'?CORES.apertada:'#ffffff');
-    const cor=CORES[geral]||CORES.sem_dado,op=geral==='sem_dado'?.40:.76;
-    cellBoxes[i].setStyle({fillColor:cor,fillOpacity:op,color:'#26332e',opacity:.78,weight:.75});
-    const svg=cellBoxes[i].getElement(); if(svg){svg.setAttribute('fill',cor);svg.style.fill=cor;svg.style.fillOpacity=String(op);}
-    const lbl=document.getElementById('poplbl-'+i); if(lbl) lbl.textContent=geral==='sem_dado'?'?':(CLASSES_SAIDA.has(geral)?c.pop:'0');
-  });
+function renderImpacto(){
+  const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),referencia=nivel<=BANKFULL_M+1e-9;
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
-  const risco=cnt.alagada+cnt.rota_comprometida+cnt.critica+cnt.apertada+cnt.atencao;
-  if(nivelReferencia){document.getElementById('painel').innerHTML='<div class="sub"><b>Régua 1,60 m = HAND 0 (referência do rio).</b> Nenhuma quadrícula aparece como atingida neste nível. A interseção com o canal não comprova inundação das moradias. Arraste a régua para simular outros níveis. A ausência de cor não certifica segurança.</div>';return;}
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Cores = triagem hipotética de células IBGE.</b> Uma célula colorida pode cruzar o rio sem que todas as moradias estejam inundadas. A contagem é um limite superior da população considerada; <b>0</b> = sem prioridade e <b>?</b> = sem dado. A cor é uma visualização de triagem da célula, não quer dizer que toda a superfície esteja fisicamente inundada.</div>'+
-    ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('')+
-    `<div class="big"><b>${risco.toLocaleString('pt-BR')}</b> pessoas a priorizar para saída neste cenário, considerando célula inteira como limite superior de triagem.</div>`;
+  if(estadoCasas!=='ok'||!contornosOrdenados.length){
+    casas.forEach(c=>{c.classe='fora';c.marcador.setStyle({fillColor:CORES_CASAS.fora});});
+    document.getElementById('painel').innerHTML='<div class="sub"><b>Pontos ou contornos espaciais indisponíveis.</b> Não é possível classificar quais edificações seriam alcançadas pela água. Nenhuma contagem de impacto será apresentada até o carregamento.</div>';
+    return;
+  }
+  const cnt={atingida:0,nao_atingida:0,fora:0};
+  casas.forEach(c=>{
+    const classe=c.cota===null?'fora':c.cota<=h&&!referencia?'atingida':'nao_atingida';
+    c.classe=referencia?'referencia':classe;cnt[classe]++;
+    c.marcador.setStyle({fillColor:CORES_CASAS[c.classe],radius:classe==='atingida'?5:3.7,weight:classe==='atingida'?1.5:1,fillOpacity:.93});
+  });
+  const fmt=n=>n.toLocaleString('pt-BR');
+  document.getElementById('painel').innerHTML=
+    '<div class="sub"><b>Edificações mapeadas individualmente (OpenStreetMap).</b> A água avança sobre os pontos conforme a régua e os contornos LiDAR simulados. Pontos alcançados ficam azuis e continuam contabilizados.</div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Alcançadas pela mancha simulada</span><b>'+fmt(cnt.atingida)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.nao_atingida+'"></i>Ainda não alcançadas na faixa modelada</span><b>'+fmt(cnt.nao_atingida)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.fora+'"></i>Fora dos contornos publicados</span><b>'+fmt(cnt.fora)+'</b></div>'+
+    '<div class="big"><b>'+fmt(cnt.atingida)+'</b> de '+fmt(casas.length)+' pontos com interseção simulada neste nível.</div>'+
+    '<div class="sub">'+(referencia?'<b>Régua 1,60 m = referência HAND 0; nenhuma edificação é marcada como atingida nesse nível.</b> ':'')+
+    'Não são domicílios confirmados nem pessoas evacuadas. O mapa é cenário de pesquisa, não substitui observação, validação local, análise de acessos ou Defesa Civil. A taxa de subida é usada na aba Margem, não nesta contagem.</div>';
 }
 function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;updateSheetStatus();
   document.getElementById('taxacen').textContent=taxaCmH<=25?'(lenta)':taxaCmH>100?'(subida rápida · cenário)':'';
@@ -296,10 +326,10 @@ map.on('click',e=>{ if(modo!=='rotas')return;
 function setModo(m){modo=m;
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));
   document.getElementById('sliders').classList.remove('hide');
-  [manchaLayer,ruasLayer,cellsLayer].forEach(l=>map.removeLayer(l));
+  [manchaLayer,ruasLayer,cellsLayer,casasLayer].forEach(l=>map.removeLayer(l));
   if(cam){map.removeLayer(cam);cam=null;} if(orig){map.removeLayer(orig);orig=null;} if(safeMark){map.removeLayer(safeMark);safeMark=null;} if(snapLine){map.removeLayer(snapLine);snapLine=null;}
   manchaLayer.addTo(map); abrigos.addTo(map);
-  if(m==='impacto'){map.getContainer().style.cursor='';cellsLayer.addTo(map);renderImpacto();setTimeout(aj,0);}
+  if(m==='impacto'){map.getContainer().style.cursor='';casasLayer.addTo(map);renderImpacto();setTimeout(aj,0);}
   else{ruasLayer.addTo(map); if(m==='margem'){map.getContainer().style.cursor='';renderMargem();} else {map.getContainer().style.cursor='crosshair';renderRotas();}setTimeout(aj,0);}
 }
 document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
@@ -353,10 +383,15 @@ document.getElementById('taxatxt').textContent=taxaCmH;
 updateSheetStatus();setSheetExpanded(false);
 setModo('impacto'); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
 Promise.allSettled([
-  fetch('assets/data/santa_tereza_inundacao/contornos_mancha.json').then(r=>{if(!r.ok)throw new Error('contornos '+r.status);return r.json();})
+  fetch('assets/data/santa_tereza_inundacao/contornos_mancha.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Contornos '+r.status);return r.json();}),
+  fetch('assets/data/rota_fuga/pontos_edificacoes_santa_tereza.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('Pontos '+r.status);return r.json();})
 ]).then(res=>{
   if(res[0].status==='fulfilled'){contornosGeo=res[0].value;preparaContornos(contornosGeo);recalculaTerrenoAtual();}
   else {contornosGeo=null;contornosOrdenados=[];}
+  if(res[1].status==='fulfilled'){try{carregarPontosCasas(res[1].value);}catch(e){estadoCasas='indisponivel';console.error(e);}}
+  else {estadoCasas='indisponivel';}
+  recalcularCotasCasas();
   redraw();
+  if(modo==='impacto'&&BBcasas.isValid())aj();
 });
 </script></body></html>
