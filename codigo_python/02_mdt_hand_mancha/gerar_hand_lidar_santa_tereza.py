@@ -693,6 +693,8 @@ def main() -> None:
         "N": round(float(north), 6),
         "E": round(float(east), 6),
         "station": {"lat": -29.1781, "lon": -51.7322, "code": "86472600"},
+        "river_reference_method": "eixo_dominante_taquari_D8",
+        "marrecao_regime": "remanso_do_Taquari; hidrodinamica_nao_validada",
         "ponte": {"lat": -29.0908727, "lon": -51.713269, "label": "Ponte Santa Barbara"},
         "hand_zero_cm": HAND_ZERO_CM,
         "nodata": 255,
