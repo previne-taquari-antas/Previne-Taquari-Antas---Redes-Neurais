@@ -160,7 +160,7 @@ const cellLabels=D.cells.map((c,idx)=>L.marker(cellCenters[idx],{interactive:fal
 const cellsLayer=L.layerGroup([...cellBoxes,...cellLabels]);
 const casasLayer=L.layerGroup(), BBcasas=L.latLngBounds();
 let casas=[], estadoCasas='carregando';
-const CORES_CASAS={atingida:'#1765b6',nao_atingida:'#20a16c',fora:'#8c979b',referencia:'#778997'};
+const CORES_CASAS={atingida:'#1765b6',nao_atingida:'#dc9a22',fora:'#8c979b',referencia:'#778997'};
 function carregarPontosCasas(payload){
   if(!payload||!Array.isArray(payload.pontos)||!payload.pontos.length)throw new Error('Sem pontos de edificações');
   casasLayer.clearLayers();casas=[];
@@ -246,7 +246,7 @@ function renderImpacto(){
   document.getElementById('painel').innerHTML=
     '<div class="sub"><b>Edificações mapeadas individualmente (OpenStreetMap).</b> A água avança sobre os pontos conforme a régua e os contornos LiDAR simulados. Pontos alcançados ficam azuis e continuam contabilizados.</div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Alcançadas pela mancha simulada</span><b>'+fmt(cnt.atingida)+'</b></div>'+
-    '<div class="row"><span><i style="background:'+CORES_CASAS.nao_atingida+'"></i>Ainda não alcançadas na faixa modelada</span><b>'+fmt(cnt.nao_atingida)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.nao_atingida+'"></i>Ainda não alcançadas no cenário (segurança não confirmada)</span><b>'+fmt(cnt.nao_atingida)+'</b></div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.fora+'"></i>Fora dos contornos publicados</span><b>'+fmt(cnt.fora)+'</b></div>'+
     '<div class="big"><b>'+fmt(cnt.atingida)+'</b> de '+fmt(casas.length)+' pontos com interseção simulada neste nível.</div>'+
     '<div class="sub">'+(referencia?'<b>Régua 1,60 m = referência HAND 0; nenhuma edificação é marcada como atingida nesse nível.</b> ':'')+
