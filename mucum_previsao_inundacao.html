@@ -274,7 +274,7 @@
       <div class="live-hz" id="live-hz" aria-label="Horário da previsão">
         <button type="button" data-live-hz="2h" aria-pressed="false" disabled><span>+2 h</span><small>carregando</small></button>
         <button type="button" data-live-hz="4h" aria-pressed="false" disabled><span>+4 h</span><small>carregando</small></button>
-        <button type="button" data-live-hz="8h" aria-pressed="false" disabled><span>+8 h</span><small>carregando</small></button>
+        <button type="button" data-live-hz="8h" style="display:none" aria-pressed="false" disabled><span>+8 h</span><small>carregando</small></button>
       </div>
       <div class="q">Nível previsto · <span id="s-hz">—</span></div>
       <span id="s-fore" class="public-number">—</span>
@@ -423,7 +423,7 @@
   </aside>
 
 </main>
-<script src="assets/js/previsao_publica.js?v=20261007-publico-1"></script>
+<script src="assets/js/previsao_publica.js?v=20261010-popup-1"></script>
 <script src="assets/js/previsao_cidades.js?v=20261007-cidades-1"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/js/fmt_quando.js?v=20260916-hora-0h4"></script>
@@ -1242,31 +1242,42 @@ async function init(){
     };
     stationControl.addTo(map);
     if(pt) L.circleMarker([pt.lat,pt.lon],{radius:6,color:'#fff',weight:2,fillColor:'#b04538',fillOpacity:.95}).addTo(map).bindPopup('<b>'+pt.label+'</b>');
-    // clique no mapa -> altitude do MDT e profundidade de água no ponto
+    // Clique no terreno: apenas régua, coordenadas e horizontes válidos.
     map.on('click', e=>{
       const hd=handAt(e.latlng.lat,e.latlng.lng), elev=elevationAt(e.latlng.lat,e.latlng.lng);
       if(hd==null&&elev==null) return;
-      let html='<div class="pt-pop"><b>Neste ponto</b>';
-      html+='<br><b>Altitude do terreno (MDT): '+(elev!=null?nf1.format(elev)+' m':'indisponível')+'</b>';
-      const pointHand=hd==null?null:hd/10;
-      if(curS&&pointHand!=null){
-        const ev=EVENTS[curEv];
-        if(pointHand<=0){
-          html+='<br>Mancha: dentro do contorno-base do leito; não classificado como inundação.';
-        }else{
-          const dNow=stageToHand(curS[1])-pointHand, dFore=curS[3]!=null?stageToHand(curS[3])-pointHand:null;
-          const fmt=d=>d>0.03?('<b class="pf">'+nf1.format(d*100)+' cm</b>'):'sem inundação prevista';
-          const hz=ev.horizonte==='—'?'':' (+'+ev.horizonte+')';
-          html+='<br>Agora: '+(dNow>0.03?nf1.format(dNow*100)+' cm de água fora do leito':'sem inundação estimada');
-          if(dFore!=null) html+='<br>RNA'+hz+': '+fmt(dFore);
-        }
-      }
-      html+='<br><small>Coordenadas: '+e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5)+'</small>';
-      html+='<br><small><b>Nível da régua para a água chegar aqui: '+
-        (pointHand==null?'indisponível':pointHand<=0?'não se aplica ao leito do rio':nf1.format(bankfull/100+pointHand)+' m (estimado)')+
-        '</b></small>';
+      const pointHandM=hd==null?null:hd/10;
+      const gaugeNeededM=pointHandM==null?null:bankfull/100+pointHandM;
+      const gaugeTxt=gaugeNeededM==null?'indisponível'
+        :(pointHandM<=0?'não se aplica ao leito do rio':'≈ '+nf1.format(gaugeNeededM)+' m (estimado)');
+      const horizons=liveData&&liveData.horizontes||{};
+      const floodSimple=(key)=>{
+        const row=horizons[key];
+        if(!liveMode||!liveHorizonReady(key,row)||pointHandM==null||String((row&&row.modo)||'').toLowerCase()==='replay') return 'Indisponível';
+        const target=parseLocalWhen(row.hora_alvo);
+        if(!target||target.getTime()<=Date.now()) return 'Indisponível';
+        if(pointHandM<=0) return 'Leito do rio';
+        const forecast=firstNumber(row.nivel_previsto_cm);
+        if(forecast==null) return 'Indisponível';
+        const zeroCm=firstNumber(row.bankfull_cm,liveData.bankfull_cm,bankfull);
+        const spatialHand=(forecast-zeroCm)/100;
+        return spatialHand>pointHandM+0.03?'SIM':'NÃO';
+      };
+      const keys=['2h','4h'];
+      if(liveMode&&liveHorizonReady('8h',horizons['8h'])) keys.push('8h');
+      const statusClass=value=>value==='SIM'?'color:#b42318':(value==='NÃO'?'color:#087f5b':'color:#6b7280');
+      const rows=keys.map(key=>{
+        const value=floodSimple(key);
+        return '<div style="display:flex;justify-content:space-between;gap:18px;padding:5px 0;border-top:1px solid #edf1ee"><span>Água em +'+key.replace('h',' h')+'</span><b style="'+statusClass(value)+'">'+value+'</b></div>';
+      }).join('');
+      let html='<div class="pt-pop" style="min-width:220px;line-height:1.35">';
+      html+='<b>Neste ponto</b>';
+      html+='<div style="margin-top:7px"><b>Nível da régua para a água chegar aqui:</b> '+gaugeTxt+'</div>';
+      html+='<div><b>Latitude:</b> '+e.latlng.lat.toFixed(5)+'</div>';
+      html+='<div><b>Longitude:</b> '+e.latlng.lng.toFixed(5)+'</div>';
+      html+='<div style="margin-top:8px">'+rows+'</div>';
       html+='</div>';
-      L.popup({closeButton:true}).setLatLng(e.latlng).setContent(html).openOn(map);
+      L.popup({closeButton:true,maxWidth:280}).setLatLng(e.latlng).setContent(html).openOn(map);
     });
   } else {
     const box=document.getElementById('map');
