@@ -188,6 +188,7 @@ function carregarPontosCasas(payload){
   estadoCasas=casas.length?'ok':'indisponivel';
 }
 function recalcularCotasCasas(){
+  if(!contornosGeo||contornosGeo.metadata?.river_reference_method!=='eixo_dominante_taquari_D8')return;
   if(!contornosOrdenados.length)return;
   casas.forEach(casa=>{
     casa.cota=null;
