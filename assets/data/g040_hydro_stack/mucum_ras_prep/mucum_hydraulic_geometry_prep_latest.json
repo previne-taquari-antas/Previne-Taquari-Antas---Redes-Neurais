@@ -1,6 +1,6 @@
 {
   "schema_version": "mucum_ras_geometry_prep_v1",
-  "generated_at_utc": "2026-10-12T08:00:08.050291Z",
+  "generated_at_utc": "2026-10-12T17:48:45.588770Z",
   "research_only": true,
   "official_alert": false,
   "status": "TERRAIN_SECTIONS_PREPARED_HYDRAULIC_COMPUTE_BLOCKED",
@@ -377,13 +377,13 @@
     "available": true,
     "path": "assets/data/g040_hydro_stack/mucum_ras_prep/stz_to_mucum_hydrograph_candidate.csv",
     "status": "DIAGNOSTIC_ONLY_NOT_HYDRAULIC_BOUNDARY_VALIDATED",
-    "source_generated_at_utc": "2026-10-12T08:00:06Z",
+    "source_generated_at_utc": "2026-10-12T17:48:44Z",
     "forcing": {
       "artifact": "hec_twin_ifs_spatial_forcing_5d_latest.json",
       "model": "ecmwf_ifs025_full_field",
       "horizon_hours": 120,
-      "area_weighted_total_mm": 68.544,
-      "generated_at_utc": "2026-10-12T08:00:04.575599Z",
+      "area_weighted_total_mm": 37.877,
+      "generated_at_utc": "2026-10-12T17:48:42.631742Z",
       "point_proxy_not_areal_mask": false,
       "spatial_field_full": true,
       "zone_artifact": "assets/data/estudo_bacia_taquari_antas/mucum_twin_subbasin_zones.geojson",
@@ -392,41 +392,41 @@
           "zone_geometry_km2": 3769.174,
           "ifs_overlap_km2": 3769.174,
           "ifs_cells_used": 13,
-          "total_mm": 70.846,
+          "total_mm": 36.754,
           "min_hourly_mm": 0.0,
-          "max_hourly_mm": 2.1393
+          "max_hourly_mm": 2.0286
         },
         "SB_ANTAS_RESIDUAL": {
           "zone_geometry_km2": 8979.495,
           "ifs_overlap_km2": 8979.495,
           "ifs_cells_used": 33,
-          "total_mm": 70.391,
+          "total_mm": 37.288,
           "min_hourly_mm": 0.0,
-          "max_hourly_mm": 3.2771
+          "max_hourly_mm": 1.7907
         },
         "SB_CARREIRO_7866": {
           "zone_geometry_km2": 2420.199,
           "ifs_overlap_km2": 2420.199,
           "ifs_cells_used": 12,
-          "total_mm": 57.737,
+          "total_mm": 41.432,
           "min_hourly_mm": 0.0,
-          "max_hourly_mm": 2.0422
+          "max_hourly_mm": 2.2262
         },
         "SB_STZ_RESIDUAL": {
           "zone_geometry_km2": 327.597,
           "ifs_overlap_km2": 327.597,
           "ifs_cells_used": 14,
-          "total_mm": 73.502,
+          "total_mm": 37.188,
           "min_hourly_mm": 0.0,
-          "max_hourly_mm": 4.084
+          "max_hourly_mm": 2.9479
         },
         "SB_INC_MUCUM": {
           "zone_geometry_km2": 194.141,
           "ifs_overlap_km2": 194.141,
           "ifs_cells_used": 4,
-          "total_mm": 72.189,
+          "total_mm": 41.603,
           "min_hourly_mm": 0.0,
-          "max_hourly_mm": 4.0406
+          "max_hourly_mm": 4.6952
         }
       },
       "antecedent_rain": {
@@ -434,30 +434,35 @@
         "window_hours": 72,
         "min_representative_gauges_per_hour": 20,
         "required_representative_hours": 72,
-        "status": "representative",
-        "representative": true,
-        "past_mm": 11.412,
-        "partial_sum_mm": 11.412,
-        "representative_hours": 72,
-        "missing_or_sparse_hours": 0,
-        "observation_generated_at_utc": "2026-10-12T07:59:59.913102Z",
-        "sparse_hour_examples": [],
-        "reason": null
+        "status": "incomplete_observed_coverage",
+        "representative": false,
+        "past_mm": null,
+        "partial_sum_mm": 15.069,
+        "representative_hours": 71,
+        "missing_or_sparse_hours": 1,
+        "observation_generated_at_utc": "2026-10-12T17:48:37.353040Z",
+        "sparse_hour_examples": [
+          {
+            "hour_local": "2026-10-12T05:00",
+            "gauges": 4
+          }
+        ],
+        "reason": "Some antecedent hours lack representative upstream rain gauges; dry state cannot be inferred"
       },
-      "warning": null
+      "warning": "Antecedent rainfall is not complete enough to classify basin wetness or validate this simulation."
     },
     "wetness": {
-      "is_wet": true,
-      "past_aw_mm": 11.412,
-      "stage_cm": 466.0,
-      "stage_rising": true,
+      "is_wet": false,
+      "past_aw_mm": null,
+      "stage_cm": 347.0,
+      "stage_rising": null,
       "wet_by_rain": false,
-      "wet_by_stage": true,
-      "forecast_aw_mm": 68.544,
-      "antecedent_quality": "representative",
-      "antecedent_representative_hours": 72,
+      "wet_by_stage": false,
+      "forecast_aw_mm": 37.877,
+      "antecedent_quality": "incomplete_observed_coverage",
+      "antecedent_representative_hours": 71,
       "antecedent_expected_hours": 72,
-      "antecedent_status": "wet_supported_by_rain_or_stage"
+      "antecedent_status": "dry_not_confirmed"
     },
     "santa_tereza_source_status": "diagnostic_only_not_calibrated",
     "note": "Use only as candidate upstream hydrograph for hydraulic sensitivity; Santa Tereza Q is not independently calibrated."
