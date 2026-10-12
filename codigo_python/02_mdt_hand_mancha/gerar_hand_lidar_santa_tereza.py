@@ -577,6 +577,8 @@ def write_contours(hand: np.ndarray, main_river: np.ndarray, transform, crs, out
             "fonte": "HAND 5 m derivado dos rasters novos de campo",
             "rio": "eixo dominante Taquari; Marrecão tributário sujeito a remanso",
             "backwater_hydrodynamic_calibration": "not_validated",
+            "river_reference_method": "eixo_dominante_taquari_D8",
+            "marrecao_regime": "remanso_dependente_nivel_taquari; sem_rio_local_25m",
             "flowacc_threshold_fine_cells": FLOWACC_THRESHOLD_FINE_CELLS,
             "hand_zero_cm": HAND_ZERO_CM,
             "resolucao_vetor_aprox_m": 10.0,
