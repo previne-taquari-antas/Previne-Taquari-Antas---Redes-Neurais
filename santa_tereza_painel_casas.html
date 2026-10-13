@@ -97,7 +97,77 @@ function classeCel(c,A){
   else k=faixa(Math.min(c.cota==null?Infinity:(c.cota-A.h)/A.taxa,A.f[no]-A.T[no]/60));
   return {[k]:1};}
 // ---------- camadas ----------
+// A aba Rotas mantém a mancha do cenário de referência. Quem sai usa a mancha correspondente ao slider.
 const manchaLayer=L.layerGroup(D.mancha.map(p=>L.polygon(p,{color:'#1f4e9c',weight:1,fillColor:'#1f4e9c',fillOpacity:.18})));
+const manchaNivelLayer=L.layerGroup();
+const URL_CONTORNOS=M.municipio==='Santa Tereza'?'assets/data/santa_tereza_inundacao/contornos_mancha.json':null;
+let contornosNiveis=null, nivelManchaDesenhado=null, manchaErro=null, timerMancha=null;
+const rendererMancha=L.canvas({padding:.3});
+function poligonoAgua(p){
+  return L.polygon(p,{renderer:rendererMancha,interactive:false,color:'#1467b5',weight:1.2,
+    fillColor:'#1d76d2',fillOpacity:.30});
+}
+function atualizarManchaNivel(){
+  if(modo!=='impacto')return;
+  const h=nivelAtual();
+  if(!URL_CONTORNOS){
+    if(nivelManchaDesenhado==='referencia')return;
+    manchaNivelLayer.clearLayers();
+    D.mancha.forEach(p=>manchaNivelLayer.addLayer(poligonoAgua(p)));
+    nivelManchaDesenhado='referencia';
+    return;
+  }
+  if(!contornosNiveis){
+    // Durante o carregamento: somente a mancha de referência, sem fingir que foi recalculada.
+    const chave=h>=M.nivel_projeto_m?'aguardando-referencia':'aguardando-seco';
+    if(nivelManchaDesenhado===chave)return;
+    manchaNivelLayer.clearLayers();
+    if(chave==='aguardando-referencia')D.mancha.forEach(p=>manchaNivelLayer.addLayer(poligonoAgua(p)));
+    nivelManchaDesenhado=chave;
+    return;
+  }
+  const nivel=contornosNiveis.niveis.filter(v=>v<=h+1e-6).at(-1);
+  if(nivelManchaDesenhado===nivel)return;
+  if(timerMancha!==null)clearTimeout(timerMancha);
+  const nivelSolicitado=nivel;
+  timerMancha=setTimeout(()=>{
+    timerMancha=null;
+    if(modo!=='impacto'||Math.abs(nivelAtual()-h)>.01)return;
+    manchaNivelLayer.clearLayers();
+    if(nivelSolicitado!==undefined){
+      const fs=contornosNiveis.porNivel.get(nivelSolicitado)||[];
+      L.geoJSON({type:'FeatureCollection',features:fs},{renderer:rendererMancha,interactive:false,
+        style:{color:'#1467b5',weight:1,fillColor:'#1d76d2',fillOpacity:.30}})
+        .eachLayer(layer=>manchaNivelLayer.addLayer(layer));
+    }
+    nivelManchaDesenhado=nivelSolicitado;
+  },90);
+}
+function carregarManchaPorNivel(){
+  if(!URL_CONTORNOS)return;
+  fetch(URL_CONTORNOS,{cache:'force-cache'}).then(r=>{
+    if(!r.ok)throw Error('HTTP '+r.status);
+    return r.json();
+  }).then(geo=>{
+    if(!Array.isArray(geo.features)||!geo.features.length)throw Error('Contornos vazios');
+    const porNivel=new Map();
+    for(const f of geo.features){
+      const n=Number(f?.properties?.nivel_m);
+      if(!Number.isFinite(n)||!f.geometry)continue;
+      if(!porNivel.has(n))porNivel.set(n,[]);
+      porNivel.get(n).push(f);
+    }
+    if(!porNivel.size)throw Error('Contornos sem níveis');
+    contornosNiveis={niveis:[...porNivel.keys()].sort((a,b)=>a-b),porNivel,
+      referencialValidado:geo.metadata?.river_reference_method==='eixo_dominante_taquari_D8'};
+    nivelManchaDesenhado=null;
+    atualizarManchaNivel();
+    if(modo==='impacto')renderImpacto();
+  }).catch(e=>{
+    manchaErro=e.message;
+    if(modo==='impacto')renderImpacto();
+  });
+}
 const b=L.latLngBounds();
 const ruas=D.edges.map(e=>{const A=D.nos[e[0]],C=D.nos[e[1]];
   return {pl:L.polyline([A,C],{weight:2,opacity:.85}),a:e[0],c:e[1],ag:e[2],pe:e[3],cz:e[4]};});
@@ -160,7 +230,13 @@ function renderImpacto(){const A=avalia(nivelAtual());const cnt={};
   document.getElementById('painel').innerHTML=legenda(cnt,v=>Math.round(v).toLocaleString('pt-BR'))+
     `<div class="big"><b>${Math.round(risco).toLocaleString('pt-BR')}</b> pessoas precisam sair ou de apoio · de <b>${M.pop_total.toLocaleString('pt-BR')}</b>`+
     ` (<b>${casasRisco.toLocaleString('pt-BR')}</b> de ${D.casas.length.toLocaleString('pt-BR')} casas mapeadas)</div>`+
-    '<div class="nota">Cada ponto representa uma edificação do OpenStreetMap, colorida pela situação estimada; toque para ver as pessoas atribuídas. A população IBGE continua nos totais, inclusive em células sem casas mapeadas, mas a grade não é desenhada. Os pontos não são domicílios verificados.</div>';
+    '<div class="nota"><b>Água azul:</b> mancha simulada no nível selecionado da régua. '+
+    (!URL_CONTORNOS?'Mancha do cenário de referência (sem atualização por nível). ':
+      !contornosNiveis?(manchaErro?'Contornos por nível indisponíveis ('+manchaErro+'); referência fixa quando exibida. ':
+        'Carregando contornos por nível; referência fixa provisória quando exibida. '):
+      '')+
+    (URL_CONTORNOS?'Os contornos do remanso do Marrecão ainda precisam de reprocessamento e validação hidráulica; a representação é exploratória. ':'')+
+    'Cada ponto representa uma edificação do OpenStreetMap. As células IBGE permanecem nos cálculos populacionais, mas não são desenhadas. Pontos não são domicílios verificados.</div>';
 }
 function cenTaxa(t){return t<=25?'(cheia lenta)':t>=90?'(ritmo de recorde)':'';}
 function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h);
@@ -171,7 +247,7 @@ function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h)
     `<div class="aviso">Acima de ${txtNivel(M.nivel_max_m)} o modelo não tem mancha: a área que alaga fica subestimada.</div>`);}
 function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;
   document.getElementById('taxacen').textContent=cenTaxa(taxaCmH);
-  if(modo==='margem')renderMargem();else if(modo==='impacto')renderImpacto();alertaNivel();}
+  if(modo==='margem')renderMargem();else if(modo==='impacto'){atualizarManchaNivel();renderImpacto();}alertaNivel();}
 // ---------- rotas: clique ----------
 let cam=null,camC=null,orig=null;
 function m2(la1,lo1,la2,lo2){const dy=(la1-la2)*110540,dx=(lo1-lo2)*111320*Math.cos(la1*Math.PI/180);return dy*dy+dx*dx;}
@@ -204,10 +280,10 @@ if(M.modos.length>1)tabs.innerHTML=M.modos.map(m=>`<button data-m="${m}">${NOMES
 function setModo(m){modo=m;
   tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));
   document.getElementById('sliders').classList.toggle('hide',m==='rotas');
-  [manchaLayer,ruasLayer,casasLayer,casasImpLayer,candLayer].forEach(l=>map.removeLayer(l));
+  [manchaLayer,manchaNivelLayer,ruasLayer,casasLayer,casasImpLayer,candLayer].forEach(l=>map.removeLayer(l));
   [cam,camC,orig].forEach(l=>{if(l)map.removeLayer(l);});cam=camC=orig=null;
   abrigos.addTo(map);
-  if(m==='impacto'){casasImpLayer.addTo(map);renderImpacto();alertaNivel();}
+  if(m==='impacto'){manchaNivelLayer.addTo(map);casasImpLayer.addTo(map);atualizarManchaNivel();renderImpacto();alertaNivel();}
   else if(m==='margem'){ruasLayer.addTo(map);renderMargem();alertaNivel();}
   else{manchaLayer.addTo(map);ruasLayer.addTo(map);casasLayer.addTo(map);candLayer.addTo(map);renderRotas();}
 }
@@ -216,6 +292,6 @@ sld.oninput=redraw;sldTaxa.oninput=redraw;
 document.getElementById('taxatxt').textContent=taxaCmH;
 if(M.abrigos_alagados.length){const e=document.getElementById('alertas');e.classList.remove('hide');
   e.textContent='No cenário, alaga(m): '+M.abrigos_alagados.join(', ')+'. Nos níveis em que um abrigo alaga, ele sai das rotas.';}
-setModo(M.modos.includes('impacto')?'impacto':M.modos[0]); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
+setModo(M.modos.includes('impacto')?'impacto':M.modos[0]); carregarManchaPorNivel(); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
 if(innerWidth<600)document.getElementById('hud').classList.add('min');
 </script></body></html>
