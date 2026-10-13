@@ -19,6 +19,7 @@ A análise sustenta o trabalho para o SBSR 2027 e o artigo em preparação.
 | `figuras_v7.py` | Figuras da v7 em tamanho de impressão (`figuras/fig_v7_*`): mapa em uma coluna, profundidade e e_d → e_s nas marcas, e diagnóstico com n = 15 e os limites do vale do afluente destacados. As `fig_v6_*` são as da versão anterior. |
 | `estatisticas_v_h.py` / `.json` | Números da versão que avalia a profundidade só nas marcas (V) e a borda só nos limites (H): Tabela 1, classes de perigo, diagnóstico da referência de drenagem (n = 7) e distâncias à borda, celular × RTK. Lê só o CSV. |
 | `analises_adicionais.py` / `.json` | Concordância (NSE, KGE), classes de perigo com kappa, teste da premissa de linha d'água paralela (cota observada × cota do trecho de drenagem), validação cruzada HAND × plano horizontal, erro horizontal da borda, MDTs nos vértices RTK, orçamento de erros e sensibilidade aos pontos excluídos. Gera `figuras/fig_adicional_cheia_vs_drenagem.png`. |
+| `extrair_rasters_rtk.py` | Amostra o LiDAR bruto de 1 m, o HAND 5 m convencional e com barreira (mesmo código do gerador), a cota de drenagem `z_dren` e o HAND krigado da planilha (`INUND_HAND_2165` + 21,65 m) nas posições RTK (e do celular, se houver CSV `--cel`); grava `rasters_1m_nas_posicoes.csv` (+ `_resumo.json`) sem coordenadas e `metadados_lidar.json` (CRS, resolução, tags, datas e linhagem do LiDAR). |
 
 A planilha original (`sumario_erros_hand.xlsx`) não é versionada porque traz as
 coordenadas exatas dos pontos de campo. Para reproduzir:
