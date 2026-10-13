@@ -15,9 +15,10 @@ celular (`_cel`) e do RTK (`_rtk`):
 3. `z_dren`: cota (LiDAR 5 m) da célula do rio principal onde termina o
    caminho D8 do ponto (= z_5m − hand_conv; quando hand_conv = 0 o valor pode
    ter sido truncado em zero pelo gerador e a coluna `z_dren_truncado` avisa);
-4. `hand_krig2165`: HAND da versão da planilha ("HAND 2165"), lido de
-   `D:\PREVINE\FAPERGS\INUND_HAND_2165.tif` (LiDAR 1 m − superfície krigada a
-   partir das cotas do rio em STREAM_TAQUARI_ANTAS_pts_elev, + 21,65 m);
+4. `hand_krig` (T_H do HAND krigado = INUND_HAND_2165 + 21,65 m) e
+   `z_dren_krig = z_lidar1m − hand_krig` (cota do rio krigada no ponto): HAND da
+   versão da planilha ("HAND 2165"), de `D:\PREVINE\FAPERGS\INUND_HAND_2165.tif`
+   (ver `metadados_hand_krigado.json`);
 5. `th_planilha_m`: T_H implícito na planilha, (H_r − 1,60) − lamina_hand_m, e
    a coluna `th_planilha_corresponde` dizendo se ele bate com o HAND
    convencional, com o com barreira ou com o HAND krigado (2165).
@@ -338,13 +339,14 @@ def main():
             "hand_conv_rtk_m": r3(hcr), "hand_barreira_rtk_m": r3(hbr),
             "z_dren_cel_m": r3(zdc), "z_dren_rtk_m": r3(zdr),
             "z_dren_truncado": bool((not math.isnan(hcr) and hcr == 0) or (not math.isnan(hcc) and hcc == 0)),
-            "hand_krig2165_cel_m": r3(hkc), "hand_krig2165_rtk_m": r3(hkr),
-            "z_rio_krig_rtk_m": r3(z1r - hkr) if not math.isnan(hkr) else None,
+            "hand_krig_cel": r3(hkc), "hand_krig_rtk": r3(hkr),
+            "z_dren_krig_cel": r3(z1["cel"].get(base, math.nan) - hkc) if not math.isnan(hkc) else None,
+            "z_dren_krig_rtk": r3(z1r - hkr) if not math.isnan(hkr) else None,
             "lamina_hand_m": r["lamina_hand_m"],
             "th_planilha_m": r3(th),
             "hand_conv_cel_estimado_m": r3(hc_cel_est),
             "hand_barreira_cel_estimado_m": r3(hb_cel_est),
-            "hand_krig2165_cel_estimado_m": r3(hk_cel_est),
+            "hand_krig_cel_estimado": r3(hk_cel_est),
             "th_planilha_corresponde": corresp,
             "base_comparacao_th": base_comp,
             "nota": r.get("nota", ""),
@@ -377,7 +379,7 @@ def main():
         "th_planilha_menos": {
             "hand_conv_cel_estimado": dif("hand_conv_cel_estimado_m"),
             "hand_barreira_cel_estimado": dif("hand_barreira_cel_estimado_m"),
-            "hand_krig2165_cel_estimado": dif("hand_krig2165_cel_estimado_m"),
+            "hand_krig_cel_estimado": dif("hand_krig_cel_estimado"),
         },
         "th_planilha_corresponde": {k: sum(1 for o in out if o["th_planilha_corresponde"] == k)
                                     for k in sorted({o["th_planilha_corresponde"] for o in out})},
