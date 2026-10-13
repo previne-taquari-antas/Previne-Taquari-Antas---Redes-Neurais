@@ -3,7 +3,8 @@
 """Gráficos do manuscrito separados, um por arquivo, para escolher quais ficam.
 
 Cada gráfico tem largura de uma coluna do SBSR (8,6 cm) e o mesmo estilo da Figura 2
-da versão no Google Docs (DejaVu Serif, cores por evento, linha 1:1 tracejada).
+da versão no Google Docs (cores por evento, linha 1:1 tracejada), com a mesma fonte serifada (Liberation Serif,
+métrica igual à Times New Roman) das figuras do mapa e do diagnóstico.
 
   fig_sep_2_profundidade_v.png      profundidade observada × estimada, V (n = 13)
   fig_sep_3_cota_agua_v_rtk.png     cota da água observada (RTK) × reconstruída, V com RTK (n = 10)
@@ -44,11 +45,11 @@ EVENTOS = {
     "2024-05": dict(rot="mai/2024", cor=VERDE, mk="^"),
 }
 plt.rcParams.update({
-    "font.family": "DejaVu Serif", "font.size": 8, "axes.labelsize": 8.5, "xtick.labelsize": 7.5,
+    "font.family": "Liberation Serif", "font.size": 8, "axes.labelsize": 8.5, "xtick.labelsize": 7.5,
     "ytick.labelsize": 7.5, "legend.fontsize": 7.5, "legend.frameon": False, "axes.linewidth": 0.8,
     "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True, "grid.color": "#e6e6e6",
     "grid.linewidth": 0.6, "axes.axisbelow": True, "savefig.dpi": 400, "savefig.bbox": "tight",
-    "savefig.pad_inches": 0.03, "axes.formatter.use_locale": False, "mathtext.fontset": "dejavuserif",
+    "savefig.pad_inches": 0.03, "axes.formatter.use_locale": False, "mathtext.fontset": "stix",
 })
 
 
@@ -126,15 +127,20 @@ def fig_borda_h(d):
     h = d[d.tipo == "limite"].sort_values("id")
     y = np.arange(len(h))[::-1]
     fig, ax = plt.subplots(figsize=(LARG, LARG * 0.72))
+    fora = (h.erro_cota_rtk_m < 0).to_numpy()  # pelo sinal de e_s: abaixo da superfície d'água do HAND
     for yi, (_, r) in zip(y, h.iterrows()):
         ax.plot([r.erro_h_cel_m, r.erro_h_rtk_m], [yi, yi], color="#a6a6a6", lw=1, zorder=1)
+    ax.axvline(2.5, color=CINZA, ls=":", lw=0.9, zorder=0)
+    ax.text(2.6, len(h) - 0.75, "meia célula", fontsize=6.5, color=CINZA, style="italic", va="bottom")
     ax.scatter(h.erro_h_cel_m, y, s=30, color=AZUL, edgecolor="white", linewidth=0.5, zorder=3, label="Celular")
-    ax.scatter(h.erro_h_rtk_m, y, s=26, marker="s", facecolor="white", edgecolor=VERMELHAO, linewidth=1.1,
-               zorder=3, label="RTK")
+    ax.scatter(h.erro_h_rtk_m[~fora], y[~fora], s=26, marker="s", facecolor="white", edgecolor=VERMELHAO,
+               linewidth=1.1, zorder=3, label="RTK, dentro da mancha")
+    ax.scatter(h.erro_h_rtk_m[fora], y[fora], s=26, marker="s", color=VERMELHAO, edgecolor=VERMELHAO,
+               linewidth=1.1, zorder=3, label="RTK, fora da mancha")
     ax.set_yticks(y, h.id)
-    ax.set(xlim=(0, 10), ylim=(-0.6, len(h) - 0.4), xlabel="Distância à borda da mancha (m)")
+    ax.set(xlim=(0, 10), ylim=(-0.6, len(h) + 0.1), xlabel="Distância à borda da mancha (m)")
     ax.grid(axis="y", visible=False)
-    ax.legend(loc="lower right", handletextpad=0.2)
+    ax.legend(loc="lower right", handletextpad=0.2, labelspacing=0.3)
     return salvar(fig, "fig_sep_4_borda_h.png")
 
 
@@ -151,9 +157,9 @@ def fig_erro_celular_rtk_v(d):
         ponto(ax, s.ed, s.es, ev)
     for _, r in v[v.id.isin(["V010", "V011"])].iterrows():
         ax.annotate(r.id, (r.ed, r.es), xytext=(5, -2), textcoords="offset points", fontsize=7)
-    ax.text(0.2, 1.95, "o RTK aumenta o erro", fontsize=7, color=CINZA, style="italic")
-    ax.text(1.7, 0.95, "o RTK reduz o erro", fontsize=7, color=CINZA, style="italic")
-    ax.set(xlim=(0, lim), ylim=(0, lim), aspect="equal", xlabel="|$e_d$|, terreno na posição do celular (m)",
+    ax.text(0.15, 1.95, "o terreno RTK aumenta |e|", fontsize=7, color=CINZA, style="italic")
+    ax.text(1.55, 0.95, "o terreno RTK reduz |e|", fontsize=7, color=CINZA, style="italic")
+    ax.set(xlim=(-0.1, lim), ylim=(-0.1, lim), aspect="equal", xlabel="|$e_d$|, terreno na posição do celular (m)",
            ylabel="|$e_s$|, terreno RTK (m)")
     virgula(ax)
     legenda_eventos(ax, EVENTOS, loc="upper left", handletextpad=0.3, labelspacing=0.35)
