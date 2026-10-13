@@ -199,12 +199,8 @@ const b=L.latLngBounds();
 const ruas=D.edges.map(e=>{const A=D.nos[e[0]],C=D.nos[e[1]];
   return {pl:L.polyline([A,C],{weight:2,opacity:.85}),a:e[0],c:e[1],ag:e[2],pe:e[3],cz:e[4]};});
 const ruasLayer=L.layerGroup(ruas.map(r=>r.pl));
-let celInfo=[];
-const cellsPl=D.cells.map((c,i)=>{c.poly.forEach(p=>b.extend(p));return L.polygon(c.poly,{weight:.8,color:'#2b3a34',fillOpacity:.72})
-  .bindPopup(()=>{const inf=celInfo[i]||{};const tot=Object.values(inf).reduce((s,v)=>s+v,0)||1;
-    return `<b>${c.pop} pessoas</b>${c.casas.length?' · '+c.casas.length+' casas mapeadas':' · sem casa mapeada'}<br>`+
-      ORDEM.filter(k=>inf[k]).map(k=>`<span class="sw" style="background:${CORES[k]}"></span>${ROT[k]}: ${Math.round(c.pop*inf[k]/tot)}`).join('<br>');});});
-const cellsLayer=L.layerGroup(cellsPl);
+// Células IBGE: somente base estatística. Não desenhar polígonos/quadrados.
+D.cells.forEach(c=>c.poly.forEach(p=>b.extend(p)));
 const cv=L.canvas({padding:.3});
 let casaCl=[];
 const casasImp=D.casas.map((c,ci)=>L.circleMarker([c[CF.lat],c[CF.lon]],{renderer:cv,radius:3.6,weight:1,color:'#1b2620',fillOpacity:.95})
@@ -254,16 +250,14 @@ const RISCO=['alagada','ilhada','critica','apertada','atencao'];
 function renderImpacto(){const A=avalia(nivelAtual());const cnt={};
   casaCl=D.casas.map((_,ci)=>classeCasa(ci,A));
   casasImp.forEach((m,ci)=>m.setStyle({fillColor:CORES[casaCl[ci]],radius:RISCO.includes(casaCl[ci])?4.2:3}));
-  celInfo=D.cells.map((c,i)=>{const inf=classeCel(c,A);const tot=Object.values(inf).reduce((s,v)=>s+v,0);
-    let maior=null;ORDEM.forEach(k=>{if(inf[k]&&(maior===null||inf[k]>inf[maior]))maior=k;});
-    for(const k in inf)cnt[k]=(cnt[k]||0)+c.pop*inf[k]/tot;
-    cellsPl[i].setStyle(c.casas.length?{fillColor:CORES[maior],fillOpacity:.14,weight:.5}:{fillColor:CORES[maior],fillOpacity:.6,weight:.8});return inf;});
+  D.cells.forEach(c=>{const inf=classeCel(c,A);const tot=Object.values(inf).reduce((s,v)=>s+v,0);
+    if(tot>0)for(const k in inf)cnt[k]=(cnt[k]||0)+c.pop*inf[k]/tot;});
   document.getElementById('nvtxt').textContent=txtNivel(A.h);
   const risco=RISCO.reduce((s,k)=>s+(cnt[k]||0),0),casasRisco=casaCl.filter(k=>RISCO.includes(k)).length;
   document.getElementById('painel').innerHTML=legenda(cnt,v=>Math.round(v).toLocaleString('pt-BR'))+
     `<div class="big"><b>${Math.round(risco).toLocaleString('pt-BR')}</b> pessoas precisam sair ou de apoio · de <b>${M.pop_total.toLocaleString('pt-BR')}</b>`+
     ` (<b>${casasRisco.toLocaleString('pt-BR')}</b> de ${D.casas.length.toLocaleString('pt-BR')} casas mapeadas)</div>`+
-    '<div class="nota">Cada ponto é uma casa do OpenStreetMap, colorida pela própria situação; toque nela para ver as pessoas. Células IBGE sem casa mapeada aparecem pintadas pela situação da via mais próxima. População IBGE dividida entre as casas mapeadas de cada célula.</div>';
+    '<div class="nota">Cada ponto representa uma edificação do OpenStreetMap, colorida pela situação estimada; toque para ver as pessoas atribuídas. A população IBGE continua nos totais, inclusive em células sem casas mapeadas, mas a grade não é desenhada. Os pontos não são domicílios verificados.</div>';
 }
 function cenTaxa(t){return t<=25?'(cheia lenta)':t>=90?'(ritmo de recorde)':'';}
 function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h);
@@ -307,10 +301,10 @@ if(M.modos.length>1)tabs.innerHTML=M.modos.map(m=>`<button data-m="${m}">${NOMES
 function setModo(m){modo=m;
   tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));
   document.getElementById('sliders').classList.toggle('hide',m==='rotas');
-  [manchaLayer,ruasLayer,cellsLayer,casasLayer,casasImpLayer,candLayer].forEach(l=>map.removeLayer(l));
+  [manchaLayer,ruasLayer,casasLayer,casasImpLayer,candLayer].forEach(l=>map.removeLayer(l));
   [cam,camC,orig].forEach(l=>{if(l)map.removeLayer(l);});cam=camC=orig=null;
   abrigos.addTo(map);
-  if(m==='impacto'){cellsLayer.addTo(map);casasImpLayer.addTo(map);renderImpacto();alertaNivel();}
+  if(m==='impacto'){casasImpLayer.addTo(map);renderImpacto();alertaNivel();}
   else if(m==='margem'){ruasLayer.addTo(map);renderMargem();alertaNivel();}
   else{manchaLayer.addTo(map);ruasLayer.addTo(map);casasLayer.addTo(map);candLayer.addTo(map);renderRotas();}
 }
