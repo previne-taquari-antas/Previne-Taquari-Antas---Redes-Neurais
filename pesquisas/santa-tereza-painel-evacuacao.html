@@ -30,6 +30,11 @@
 .technical-note summary{cursor:pointer;padding:8px 10px;font-weight:650}
 .technical-note p{padding:0 10px 9px;margin:0;line-height:1.5}
 
+.anim-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:7px 0 9px}
+.anim-controls button{border:1px solid #bad0c3;border-radius:8px;background:#f1f8f4;color:#126746;padding:7px 10px;font:600 12px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.anim-controls button.anim-main{background:#0e7750;border-color:#0e7750;color:#fff}
+.anim-controls button:focus-visible,.quick-stage button:focus-visible{outline:2px solid #0f8b46;outline-offset:2px}
+.anim-time{display:block;width:100%;font-size:11px;color:#52665a;font-variant-numeric:tabular-nums}
 .quick-stage{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
 .quick-stage input[type=range]{min-width:0;flex:1;accent-color:#0f8b46;touch-action:pan-x}
 .quick-stage button{height:42px;min-width:42px;border:1px solid #bad0c3;border-radius:9px;background:#f2f8f4;color:#126746;font:700 22px/1 sans-serif}
@@ -78,6 +83,7 @@
       <button type="button" id="quickMinus" aria-label="Diminuir 10 centímetros">−</button>
       <input id="quickSld" type="range" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível na régua em metros">
       <button type="button" id="quickPlus" aria-label="Aumentar 10 centímetros">+</button>
+      <button type="button" id="quickPlay" aria-label="Iniciar animação" title="Animar nível da régua">▶</button>
     </div>
   </div>
   <p class="sub" style="padding:0 14px"><a href="estudo-caso-territorio.html">Estudo de caso · RNA, edificações e ruas</a></p>
@@ -90,6 +96,11 @@
     <div id="sliders" class="hide">
       <div class="sub">Nível na régua: <span class="lv" id="nvtxt"></span></div>
       <input type="range" id="sld" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível da régua de 1,60 a 26,60 metros">
+      <div class="anim-controls" role="group" aria-label="Animação do cenário de subida do nível">
+        <button type="button" id="animToggle" class="anim-main" aria-pressed="false">▶ Animar subida</button>
+        <button type="button" id="animReset">↺ Reiniciar</button>
+        <span class="anim-time" id="animClock">Tempo simulado desde 1,60 m: 0 min</span>
+      </div>
       <details class="technical-note"><summary>Sobre o cálculo e suas limitações</summary><p><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> O Marrecão é sujeito ao remanso do Taquari; os 25 m são o intervalo de modelagem HAND, não uma subida local no arroio. Os contornos publicados ainda precisam de reprocessamento com o eixo Taquari e validação hidráulica.</p></details>
       <div class="sub">Velocidade: <span class="lv" id="taxatxt"></span> cm/h <span id="taxacen" style="color:#7a5b00;font-size:11px"></span></div>
       <input type="range" id="sldTaxa" min="10" max="200" value="40" step="5">
@@ -407,6 +418,7 @@ function updateSheetStatus(){
   document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';
   document.getElementById('sheetRate').textContent=taxaCmH+' cm/h';
   const q=document.getElementById('quickSld');if(q)q.value=sld.value;
+  const clock=document.getElementById('animClock');if(clock){const mins=(nivelAtual()-BANKFULL_M)/Math.max(0.1,taxaCmH/100)*60;const horas=Math.floor(mins/60),resto=Math.round(mins%60);clock.textContent='Tempo simulado desde 1,60 m: '+(horas?horas+' h ':'')+resto+' min';}
 }
 function updateSheetFootprint(){
   if(!window.matchMedia('(max-width:700px)').matches)return;
@@ -443,11 +455,46 @@ function mudarNivelRapido(v){
   quickSld.value=sld.value;
   redraw();
 }
-quickSld.addEventListener('input',()=>mudarNivelRapido(quickSld.value));
-quickSld.addEventListener('change',()=>mudarNivelRapido(quickSld.value));
-document.getElementById('quickMinus').addEventListener('click',()=>mudarNivelRapido(+sld.value-.1));
-document.getElementById('quickPlus').addEventListener('click',()=>mudarNivelRapido(+sld.value+.1));
-sld.oninput=redraw;sld.onchange=redraw;sldTaxa.oninput=redraw;sldTaxa.onchange=redraw;
+const animToggle=document.getElementById('animToggle'),animReset=document.getElementById('animReset'),quickPlay=document.getElementById('quickPlay');
+let animTimer=null;
+const ANIM_INTERVAL_MS=350,ANIM_STEP_M=0.5;
+function atualizarBotoesAnimacao(){
+  const rodando=animTimer!==null;
+  animToggle.textContent=rodando?'❚❚ Pausar':'▶ Animar subida';
+  animToggle.setAttribute('aria-pressed',String(rodando));
+  quickPlay.textContent=rodando?'❚❚':'▶';
+  quickPlay.setAttribute('aria-label',rodando?'Pausar animação':'Iniciar animação');
+  quickPlay.setAttribute('aria-pressed',String(rodando));
+}
+function pausarAnimacao(){
+  if(animTimer!==null){clearInterval(animTimer);animTimer=null;}
+  atualizarBotoesAnimacao();
+}
+function nivelManual(v){pausarAnimacao();mudarNivelRapido(v);}
+function quadroAnimacao(){
+  if(nivelAtual()>=NVMAX-1e-9){pausarAnimacao();return;}
+  mudarNivelRapido(Math.min(NVMAX,Math.round((nivelAtual()+ANIM_STEP_M)*10)/10));
+  if(nivelAtual()>=NVMAX-1e-9)pausarAnimacao();
+}
+function alternarAnimacao(){
+  if(animTimer!==null){pausarAnimacao();return;}
+  if(nivelAtual()>=NVMAX-1e-9)mudarNivelRapido(BANKFULL_M);
+  animTimer=setInterval(quadroAnimacao,ANIM_INTERVAL_MS);
+  atualizarBotoesAnimacao();
+  quadroAnimacao();
+}
+animToggle.addEventListener('click',alternarAnimacao);
+quickPlay.addEventListener('click',alternarAnimacao);
+animReset.addEventListener('click',()=>nivelManual(BANKFULL_M));
+quickSld.addEventListener('input',()=>nivelManual(quickSld.value));
+quickSld.addEventListener('change',()=>nivelManual(quickSld.value));
+document.getElementById('quickMinus').addEventListener('click',()=>nivelManual(+sld.value-.1));
+document.getElementById('quickPlus').addEventListener('click',()=>nivelManual(+sld.value+.1));
+sld.oninput=()=>{pausarAnimacao();redraw();};
+sld.onchange=()=>{pausarAnimacao();redraw();};
+sldTaxa.oninput=redraw;sldTaxa.onchange=redraw;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pausarAnimacao();});
+atualizarBotoesAnimacao();
 document.getElementById('taxatxt').textContent=taxaCmH;
 updateSheetStatus();setSheetExpanded(false);
 setModo('rotas'); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
