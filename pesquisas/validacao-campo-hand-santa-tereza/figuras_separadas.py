@@ -9,6 +9,9 @@ da versão no Google Docs (DejaVu Serif, cores por evento, linha 1:1 tracejada).
   fig_sep_3_cota_agua_v_rtk.png     cota da água observada (RTK) × reconstruída, V com RTK (n = 10)
   fig_sep_4_borda_h.png             distância dos limites H à borda, celular × RTK (n = 9)
   fig_sep_5_colunas_originais.png   colunas de erro vertical absoluto da TABELA_ARTIGOS, celular × RTK
+                                    (a coluna RTK é, em 16 dos 20 pares, Δz = LiDAR − RTK do terreno, não erro da
+                                    estimativa; V001a, V005, V009 e V011 não batem com nenhuma grandeza calculada)
+  fig_sep_6_erro_celular_rtk_v.png  |e_d| (terreno na posição do celular) × |e_s| (terreno RTK), V com RTK (n = 10)
 
 O mapa (fig_manuscrito_1_mapa.png) e o diagnóstico (fig_manuscrito_2_diagnostico_v.png) já são
 figuras separadas.
@@ -45,7 +48,7 @@ plt.rcParams.update({
     "ytick.labelsize": 7.5, "legend.fontsize": 7.5, "legend.frameon": False, "axes.linewidth": 0.8,
     "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True, "grid.color": "#e6e6e6",
     "grid.linewidth": 0.6, "axes.axisbelow": True, "savefig.dpi": 400, "savefig.bbox": "tight",
-    "savefig.pad_inches": 0.03, "axes.formatter.use_locale": False,
+    "savefig.pad_inches": 0.03, "axes.formatter.use_locale": False, "mathtext.fontset": "dejavuserif",
 })
 
 
@@ -135,6 +138,29 @@ def fig_borda_h(d):
     return salvar(fig, "fig_sep_4_borda_h.png")
 
 
+def fig_erro_celular_rtk_v(d):
+    """Erro absoluto com o terreno na posição do celular (|e_d|) e com o terreno RTK (|e_s|), V com RTK."""
+    v = d[(d.tipo == "marca") & (d.rtk_valido == True)].copy()  # noqa: E712
+    v["ed"] = v.erro_lamina_m.abs()
+    v["es"] = v.erro_cota_rtk_m.abs()
+    lim = 3.5
+    fig, ax = plt.subplots(figsize=(LARG, LARG * 0.9))
+    ax.plot([0, lim], [0, lim], ls="--", color=CINZA, lw=1, zorder=2)
+    for ev in EVENTOS:
+        s = v[v.evento == ev]
+        ponto(ax, s.ed, s.es, ev)
+    for _, r in v[v.id.isin(["V010", "V011"])].iterrows():
+        ax.annotate(r.id, (r.ed, r.es), xytext=(5, -2), textcoords="offset points", fontsize=7)
+    ax.text(0.2, 1.95, "o RTK aumenta o erro", fontsize=7, color=CINZA, style="italic")
+    ax.text(1.7, 0.95, "o RTK reduz o erro", fontsize=7, color=CINZA, style="italic")
+    ax.set(xlim=(0, lim), ylim=(0, lim), aspect="equal", xlabel="|$e_d$|, terreno na posição do celular (m)",
+           ylabel="|$e_s$|, terreno RTK (m)")
+    virgula(ax)
+    legenda_eventos(ax, EVENTOS, loc="upper left", handletextpad=0.3, labelspacing=0.35)
+    print(f"V com RTK: {len(v)}; RTK aumenta o erro em {(v.es > v.ed).sum()}, reduz em {(v.es < v.ed).sum()}")
+    return salvar(fig, "fig_sep_6_erro_celular_rtk_v.png")
+
+
 def colunas_originais(xlsx):
     """Erro vertical absoluto das colunas celular e RTK da aba TABELA_ARTIGOS (pares completos)."""
     ws = openpyxl.load_workbook(xlsx, data_only=True, read_only=True)["TABELA_ARTIGOS"]
@@ -178,5 +204,5 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     dados = pd.read_csv(AQUI / "erros_campo_santa_tereza.csv")
     for f in (fig_profundidade_v(dados), fig_cota_agua_v_rtk(dados), fig_borda_h(dados),
-              fig_colunas_originais(Path(sys.argv[1]))):
+              fig_colunas_originais(Path(sys.argv[1])), fig_erro_celular_rtk_v(dados)):
         print(f)
