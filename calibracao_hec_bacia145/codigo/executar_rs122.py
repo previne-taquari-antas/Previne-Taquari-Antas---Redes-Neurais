@@ -15,7 +15,7 @@ from pathlib import Path
 
 from variante_rs122 import adaptar, chuva_transferida, blocos, conferir_transferencia
 from contrato_extracao import conferir_csv
-from contrato_rs122 import conferir_fontes, conferir_horas, conferir_metadata
+from contrato_rs122 import conferir_fontes, conferir_horas, conferir_metadata, conferir_extensao
 
 
 def digest(path):
@@ -27,7 +27,8 @@ def main():
     ap.add_argument("--raiz", type=Path, required=True)
     ap.add_argument("--saida", type=Path, required=True)
     ap.add_argument("--janela", choices=["S2023_07", "S2023_11"], required=True)
-    ap.add_argument("--passo", type=int, choices=[10, 5, 1], required=True)
+    ap.add_argument("--passo", type=int, choices=[10, 5, 2, 1], required=True)
+    ap.add_argument("--extensao-2min", action="store_true")
     ap.add_argument("--preparar", action="store_true")
     a = ap.parse_args()
     a.raiz, a.saida = a.raiz.resolve(), a.saida.resolve()
@@ -36,7 +37,8 @@ def main():
     contrato_path = a.raiz / "experimentos/rs122/contrato.json"
     config = json.loads(contrato_path.read_text(encoding="utf-8"))
     snapshot_hash = conferir_fontes(a.raiz, config)
-    if a.janela not in config["janelas"] or a.passo not in config["passos_min"]:
+    extension = conferir_extensao(a.raiz, config, a.passo) if a.extensao_2min else None
+    if a.janela not in config["janelas"] or (extension is None and a.passo not in config["passos_min"]):
         raise ValueError("Janela/passo fora do contrato")
     pedido_path = a.raiz / config["parametros_origem"]
     if hashlib.sha256(pedido_path.read_bytes().replace(b"\r\n", b"\n")).hexdigest() != config["pedido_sha256_lf"]:
@@ -75,6 +77,9 @@ def main():
     cfg_sim = comum.SIMULACOES[a.janela]
     conferir_horas(forcing["horas"], cfg_sim["ini"], cfg_sim["fim"])
     base = e3.bacia_v3(candidate["p"], a.janela, "mc")
+    min_tc = min(float(v) * 60 for v in re.findall(r"(?m)^\s*Time of Concentration: ([^\n]+)", base))
+    if extension is not None and min_tc <= a.passo:
+        raise ValueError("Extensão exige todos os Tc maiores que o passo")
     # Gerar sempre o titular a 10 min: não mudar pisos de K junto com o passo.
     # O argumento dt_h da função original captura 10 min; passar explicitamente.
     from variante_rs122 import discretizar
@@ -89,6 +94,9 @@ def main():
                "chuva_fonte_sha256": digest(source), "observados_fontes": obs_sources,
                "codigo_commit": os.environ.get("GITHUB_SHA"), "run_id": os.environ.get("GITHUB_RUN_ID"),
                "bracos": {}}
+    if extension is not None:
+        summary.update(extensao=extension, extensao_sha256=digest(a.raiz / "experimentos/rs122/extensao_2min.json"),
+                       min_tc_escrito_min=min_tc)
     report = a.saida / "execucao.json"
     report.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     jobs = []
@@ -139,6 +147,11 @@ def main():
         (folder / "stderr.txt").write_text(result.stderr, encoding="utf-8")
         if not (project / "ok.txt").exists():
             raise RuntimeError("HEC sem saída confirmada: " + str(project))
+        if extension is not None:
+            from comparar_rs122 import auditar_log
+            metadata["log_calculo"] = auditar_log(project / "Rodada.log")
+            if metadata["log_calculo"]["tc_elevado_ao_passo"]:
+                raise ValueError("HEC alterou Tc na extensão; comparação bloqueada")
         cfg = comum.SIMULACOES[a.janela]
         epoch = datetime(1899, 12, 31)
         bounds = [int((cfg[k] - epoch).total_seconds() / 60) for k in ("ini", "fim")]

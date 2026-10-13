@@ -82,6 +82,10 @@ class VarianteTest(unittest.TestCase):
         self.assertIn("Muskingum K: 0.2", out)
         self.assertIn("Muskingum Steps: 2", out)
         self.assertEqual(discretizar(text, 10, calc)[0], text)
+        calls.clear()
+        out, _ = discretizar(text, 2, calc)
+        self.assertEqual(calls, [(.2, .2, 2/60)])
+        self.assertIn("Muskingum K: 0.2", out)
 
 
 if __name__ == "__main__":

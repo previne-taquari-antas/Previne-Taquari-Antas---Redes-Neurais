@@ -164,7 +164,7 @@ def conferir_transferencia(base, text, original, rain, arm):
 
 def discretizar(text, passo_min, calcular):
     """Refina somente Steps; K/x físicos ficam congelados no titular 10 min."""
-    if passo_min not in (10, 5, 1):
+    if passo_min not in (10, 5, 2, 1):
         raise ValueError("Passo não previsto")
     changes = {}
     def replace(m):

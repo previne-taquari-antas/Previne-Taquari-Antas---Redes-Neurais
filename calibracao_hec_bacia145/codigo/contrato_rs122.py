@@ -30,6 +30,23 @@ def conferir_horas(horas, ini, fim):
         raise ValueError("Chuva não é grade horária local contínua e ordenada")
 
 
+def conferir_extensao(root, cfg, passo):
+    ex = json.loads((root / "experimentos/rs122/extensao_2min.json").read_text(encoding="utf-8"))
+    if (ex["contrato_base_sha256_lf"] != fingerprint(root / "experimentos/rs122/contrato.json")["sha256"] or
+        ex["snapshot_fontes_sha256_lf"] != fingerprint(root / "experimentos/rs122/fontes.json")["sha256"] or
+        ex["passo_novo_min"] != 2 or passo != 2 or ex["passo_referencia_min"] != 1 or
+        ex["janelas"] != cfg["janelas"] or ex["bracos"] != cfg["bracos"] or
+        ex["triagem"] != {"pico_pct_max": 1, "volume_pct_max": 1, "instante_min_max": 10} or
+        ex["exigir_ausencia_tc_floor_42403"] is not True):
+        raise ValueError("Extensão não corresponde ao pré-registro/base congelada")
+    if ex["referencia"]["run_id"] != "38284983152" or ex["referencia"]["codigo_commit"] != "84401448f203ae6f29ff6e3f66a9c0120e4c742d":
+        raise ValueError("Referência da extensão mudou")
+    for sim in cfg["janelas"]:
+        if set(ex["referencia"]["vazao_sha256"][sim]) != set(cfg["bracos"]) or any(not re.fullmatch(r"[0-9a-f]{64}", v) for v in ex["referencia"]["vazao_sha256"][sim].values()):
+            raise ValueError("Hashes de referência incompletos/inválidos")
+    return ex
+
+
 def conferir_metadata(path, requeridos, passo, total):
     rows = json.loads(path.read_text(encoding="utf-8"))
     groups = {n: [] for n in requeridos}

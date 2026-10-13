@@ -5,11 +5,36 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from contrato_rs122 import conferir_fontes, conferir_horas, conferir_metadata
+from contrato_rs122 import conferir_fontes, conferir_horas, conferir_metadata, conferir_extensao
 from congelar_fontes_rs122 import fingerprint
 
 
 class RunnerContratoTest(unittest.TestCase):
+    def test_extension_separate_and_pinned(self):
+        actual = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "experimentos/rs122"
+            folder.mkdir(parents=True)
+            for name in ("contrato.json", "fontes.json", "extensao_2min.json"):
+                (folder / name).write_bytes((actual / "experimentos/rs122" / name).read_bytes())
+            cfg = json.loads((folder / "contrato.json").read_text(encoding="utf-8"))
+            valid = conferir_extensao(root, cfg, 2)
+            for dt in (1, 5, 10):
+                with self.assertRaises(ValueError):
+                    conferir_extensao(root, cfg, dt)
+            for field, value in (("passo_novo_min", 1), ("exigir_ausencia_tc_floor_42403", False),
+                                 ("snapshot_fontes_sha256_lf", "0"*64)):
+                changed = copy.deepcopy(valid)
+                changed[field] = value
+                (folder / "extensao_2min.json").write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    conferir_extensao(root, cfg, 2)
+            (folder / "extensao_2min.json").write_text(json.dumps(valid), encoding="utf-8")
+            (folder / "contrato.json").write_text(json.dumps(dict(cfg, passos_min=[2, 1])), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                conferir_extensao(root, cfg, 2)
+
     def test_hours(self):
         ini, fim = datetime(2023, 7, 4, 18), datetime(2023, 7, 4, 20)
         valid = [f"2023-07-04T{h}:00:00" for h in (18, 19, 20)]
