@@ -75,10 +75,12 @@ def desenha_poligonos(ax, geom, **kw):
     ax.add_patch(PathPatch(MplPath(verts, codes), **kw))
 
 
-def _desenha_mapa(ax, xlsx: Path, estados: Path, rotulos: dict | None = None):
+def _desenha_mapa(ax, xlsx: Path, estados: Path, rotulos: dict | None = None, mancha: dict | None = None,
+                  rotulo_mancha: str = "Mancha HAND, set/2023"):
     """Desenha relevo, mancha, pontos, escala, norte e inserto em ax; devolve os itens da legenda.
 
     rotulos: {id: (dx, dy)} em pontos tipográficos; o padrão rotula V010, V011, H003, H004 e H007.
+    mancha: geometria GeoJSON a desenhar no lugar do contorno de 22,0 m do HAND de 5 m (sem a camada HAND = 0).
     """
     rotulos = rotulos or {k: (4, 3) for k in ("V010", "V011", "H003", "H004", "H007")}
     rtk, linhas = ler_planilha(xlsx)
@@ -117,8 +119,11 @@ def _desenha_mapa(ax, xlsx: Path, estados: Path, rotulos: dict | None = None):
     geo = {round(f["properties"]["nivel_m"], 1): f["geometry"] for f in cont["features"]}
 
     ax.imshow(hs, extent=ext, cmap="gray", vmin=0.15, vmax=1.0, origin="upper", interpolation="bilinear")
-    desenha_poligonos(ax, geo[22.0], facecolor="#6aa6d9", edgecolor="#2f6fa8", linewidth=0.4, alpha=0.55)
-    desenha_poligonos(ax, geo[0.0], facecolor="#1f4e85", edgecolor="none", alpha=0.9)
+    if mancha is None:
+        desenha_poligonos(ax, geo[22.0], facecolor="#6aa6d9", edgecolor="#2f6fa8", linewidth=0.4, alpha=0.55)
+        desenha_poligonos(ax, geo[0.0], facecolor="#1f4e85", edgecolor="none", alpha=0.9)
+    else:
+        desenha_poligonos(ax, mancha, facecolor="#6aa6d9", edgecolor="#2f6fa8", linewidth=0.4, alpha=0.55)
     for pid, tipo, e, lon, lat in pts:
         mk = "^" if tipo == "marca" else "o"
         fc = COR_EVENTO[e] if tipo == "marca" else "white"
@@ -181,9 +186,8 @@ def _desenha_mapa(ax, xlsx: Path, estados: Path, rotulos: dict | None = None):
     ] + [Line2D([], [], marker="s", ms=5, mfc=c, mec=c, ls="none", label=f"Evento {ROT_EVENTO[e]}")
          for e, c in COR_EVENTO.items()] + [
         Line2D([], [], marker="*", ms=8, mfc="#ffd23f", mec="black", ls="none", label="Estação 86472600"),
-        Patch(fc="#6aa6d9", ec="#2f6fa8", alpha=0.55, label="Mancha HAND, set/2023"),
-        Patch(fc="#1f4e85", label="Drenagem (HAND = 0)"),
-    ]
+        Patch(fc="#6aa6d9", ec="#2f6fa8", alpha=0.55, label=rotulo_mancha),
+    ] + ([Patch(fc="#1f4e85", label="Drenagem (HAND = 0)")] if mancha is None else [])
 
 
 def figura_mapa(xlsx: Path, estados: Path):
