@@ -15,6 +15,8 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -180,6 +182,47 @@ class PagesRouteBuildTests(unittest.TestCase):
             self.assertGreaterEqual(workflow.count(path), 2)
         self.assertIn('- "Rota de fuga - Santa Tereza"', workflow)
         self.assertLess(workflow.index("--validate-product"), workflow.index("      - name: Prepare static research site"))
+
+    def test_actual_pages_sparse_checkout_can_build_and_validate_without_test_fixtures(self):
+        workflow = (ROOT / ".github/workflows/deploy-pages.yml").read_text(encoding="utf-8")
+        block = re.search(r"          sparse-checkout: \|\n(.*?)          sparse-checkout-cone-mode:", workflow, re.S)
+        self.assertIsNotNone(block)
+        patterns = [line.strip() for line in block[1].splitlines()
+                    if line.strip() and not line.strip().startswith("#")]
+        with tempfile.TemporaryDirectory(prefix="stz-pages-sparse-") as folder:
+            root = Path(folder)
+
+            def git(*args):
+                result = subprocess.run(["git", "-c", "core.autocrlf=false", *args], cwd=root,
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                return result.stdout
+
+            for name in ("scripts/test_stz_pages_route_build.py", "scripts/santa_tereza_hand_field_contract.py",
+                         "codigo_python/09_rota_fuga/gerar_rota_fuga_santa_tereza.py",
+                         "santa_tereza_previsao_inundacao.html", "previsao_ao_vivo.json"):
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / name).read_bytes())
+            (root / "scripts/test_rota_fuga_santa_tereza_field.py").write_text("must not be imported", encoding="utf-8")
+            # Generated products are tracked by the real repository; the Pages
+            # packager uses git ls-files, so exercise that same requirement.
+            (root / "assets/data").mkdir(parents=True)
+            (root / "assets/data/rota_fuga_santa_tereza.json").write_text("old product", encoding="utf-8")
+            (root / "santa_tereza_rota_fuga.html").write_text("old product", encoding="utf-8")
+            git("init", "-q")
+            git("add", ".")
+            git("-c", "user.name=offline-fixture", "-c", "user.email=offline@example.invalid",
+                "commit", "-qm", "offline sparse contract")
+            git("sparse-checkout", "set", "--no-cone", *patterns)
+            self.assertFalse((root / "scripts/test_rota_fuga_santa_tereza_field.py").exists())
+            for args in (("codigo_python/09_rota_fuga/gerar_rota_fuga_santa_tereza.py", "--cenario", "ao_vivo"),
+                         ("scripts/test_stz_pages_route_build.py", "--validate-product")):
+                result = subprocess.run([sys.executable, "-B", *args], cwd=root,
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(set(git("diff", "--name-only").splitlines()),
+                             {"assets/data/rota_fuga_santa_tereza.json", "santa_tereza_rota_fuga.html"})
 
 
 if __name__ == "__main__":
