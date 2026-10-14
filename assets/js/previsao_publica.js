@@ -25,6 +25,8 @@
     document.querySelectorAll('#live-hz [data-live-hz]').forEach(button => {
       const key = button.dataset.liveHz, data = horizons[key];
       const ok = ready(key, data);
+      // 8 h só aparece quando a própria validação do feed a habilitar.
+      button.style.display = (key === '8h' && !ok) ? 'none' : '';
       button.disabled = !ok;
       button.classList.toggle('on', ok && key === active);
       button.setAttribute('aria-pressed', ok && key === active ? 'true' : 'false');
@@ -32,7 +34,7 @@
       const when = document.createElement('small'); when.textContent = ok ? fmt().fmtClock(data.hora_alvo) : 'indisponível';
       button.replaceChildren(label, when);
       button.title = ok ? 'Previsão para ' + fmt().fmtClockDate(data.hora_alvo) : 'Previsão de ' + key.replace('h', ' horas') + ' indisponível';
-      if (!ok) missing.push(key.replace('h', ' h'));
+      if (!ok && key !== '8h') missing.push(key.replace('h', ' h'));
     });
     const status = document.getElementById('live-horizon-status');
     if (status) {

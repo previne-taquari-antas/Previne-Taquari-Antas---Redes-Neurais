@@ -84,15 +84,41 @@
     return newest;
   }
 
+  // Um único modelo +4h para Muçum (versão B), nas interfaces pública e do usuário.
+  // Feeds legados ainda possuem ambas as RNAs: normalizar sem reativar a antiga.
+  function selectPublicMucum4h(feed, isMucum) {
+    if (!isMucum || !feed || !feed.horizontes) return feed;
+    const versionB = feed.horizontes['4h_versao_b'];
+    if (!versionB) return feed; // O feed novo já traz a versão B na chave 4h.
+    const horizons = Object.assign({}, feed.horizontes);
+    horizons['4h'] = Object.assign({}, versionB, {
+      horizonte: '4h',
+      rotulo: '4h · versão B',
+      modelo_papel: 'principal',
+      selection_rank: 1,
+      origem_horizonte: '4h_versao_b'
+    });
+    delete horizons['4h_versao_b'];
+    // Se B estiver sem previsão, manter indisponível: nunca voltar à RNA 006.
+    return Object.assign({}, feed, { horizontes: horizons });
+  }
+
+  function isPublicMucumPage(path) {
+    // Ambas as páginas consomem este feed; nenhuma deve mostrar a RNA 006.
+    return fileName(path) === 'previsao_ao_vivo_mucum.json';
+  }
+
   async function fetchLive(path) {
     const sources = sourcesFor(path);
+    let feed;
     try {
-      return await fetchNewest(primarySources(sources));
+      feed = await fetchNewest(primarySources(sources));
     } catch (primaryError) {
       const fallback = apiSources(sources);
       if (!fallback.length) throw primaryError;
-      return fetchNewest(fallback);
+      feed = await fetchNewest(fallback);
     }
+    return selectPublicMucum4h(feed, isPublicMucumPage(path));
   }
 
   return {
@@ -103,6 +129,7 @@
     apiSources: apiSources,
     withCacheBust: withCacheBust,
     fetchNewest: fetchNewest,
-    fetchLive: fetchLive
+    fetchLive: fetchLive,
+    selectPublicMucum4h: selectPublicMucum4h
   };
 });

@@ -116,6 +116,9 @@ def gerar(cidade: str, origem: Path, destino: Path) -> None:
         "features": saida,
         "metadata": {
             "cidade": cidade,
+            "river_reference_method": (dados.get("metadata") or {}).get("river_reference_method"),
+            "backwater_hydrodynamic_calibration": (dados.get("metadata") or {}).get("backwater_hydrodynamic_calibration"),
+            "marrecao_regime": (dados.get("metadata") or {}).get("marrecao_regime"),
             "fonte": str(origem.relative_to(RAIZ)).replace("\\", "/"),
             "metodo": "diferenca vetorial entre o contorno HAND do nivel e a base de extravasamento",
             "nivel_base_hand_m": round(float(base_key), 1),

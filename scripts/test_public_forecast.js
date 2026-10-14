@@ -40,3 +40,31 @@ for (const city of ['santa_tereza', 'mucum']) {
   console.log('OK público '+city+': indisponibilidade preservada e seleção sem comparativas');
 }
 console.log('OK público: alvo futuro, zero válido, falta de dados, replay e modelos comparativos');
+
+
+// A versão B é a única RNA de 4h em ambas as páginas de Muçum.
+const normalize4h = require('../assets/js/live_feed.js').selectPublicMucum4h;
+const old = {modelo:'006', horizonte:'4h', disponivel:true, nivel_previsto_cm:472};
+const versionB = {modelo:'015', horizonte:'4h_versao_b', disponivel:true,
+  nivel_previsto_cm:423, qualidade_ao_vivo:{status:'NORMAL', mae_24h_cm:23}};
+const previous = {local:'Muçum', horizontes:{
+  '2h':{modelo:'2h'}, '4h':old, '4h_versao_b':versionB, '8h':{modelo:'8h'}
+}};
+const bothPages = normalize4h(previous, true);
+assert.equal(bothPages.horizontes['4h'].modelo, '015');
+assert.equal(bothPages.horizontes['4h'].nivel_previsto_cm, 423);
+assert.equal(bothPages.horizontes['4h'].modelo_papel, 'principal');
+assert.equal(bothPages.horizontes['4h'].horizonte, '4h');
+assert.equal(bothPages.horizontes['4h_versao_b'], undefined);
+assert.equal(bothPages.horizontes['2h'].modelo, '2h');
+assert.equal(bothPages.horizontes['8h'].modelo, '8h');
+assert.equal(previous.horizontes['4h'].modelo, '006', 'feed original imutável');
+const unavailable = normalize4h({horizontes:{'4h':old,'4h_versao_b':{
+  ...versionB, disponivel:false, nivel_previsto_cm:null, status:'indisponivel'
+}}}, true);
+assert.equal(unavailable.horizontes['4h'].modelo,'015');
+assert.equal(unavailable.horizontes['4h'].disponivel,false,'nunca reativar 006');
+assert.strictEqual(normalize4h(previous,false),previous,'outras cidades não alteradas');
+const current = {horizontes:{'4h':{modelo:'015',horizonte:'4h'}}};
+assert.strictEqual(normalize4h(current,true),current,'feed novo não precisa de cópia');
+console.log('OK Muçum público e usuário: somente 4h versão B, inclusive com feed legado.');
