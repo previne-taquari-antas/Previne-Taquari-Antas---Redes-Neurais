@@ -23,6 +23,9 @@ const names = [
   'basinFreshnessClass', 'basinStateSummary', 'basinById',
   'basinUpdateStatus', 'basinRefreshFreshness', 'basinMetricStatusLabel',
   'basinMetricCard', 'basinTimelinePeriod', 'basinTimelineObservationNote',
+  'basinFeedIsStale', 'basinForecastIndex', 'basinTimelineForecastRows',
+  'basinTemporalForecastKey', 'basinRefreshTemporalForecasts',
+  'basinForecastAvailability',
 ];
 const source = names.map(declaration).join('\n');
 let now = Date.parse('2026-10-08T17:00:00Z');
@@ -226,6 +229,7 @@ test('refresh updates observation text, preserves controls, chart and raw data',
   const refresh=declaration('basinRefreshFreshness');
   for(const prohibited of ['basinRenderDetail(', 'basinRenderChart(', 'basinRenderMarkers(', 'basinRenderStationList(', '.focus(', '.innerHTML=', 'fetch('])
     assert.ok(!refresh.includes(prohibited),'clock refresh must not '+prohibited);
+  assert.ok(refresh.includes('basinRefreshTemporalForecasts();'));
 });
 test('same, older and failed fetches refresh ages without replacing selection', () => {
   const load=declaration('basinLoadFeed');
@@ -239,6 +243,78 @@ test('clock updates have a separate one-minute timer and do not accelerate netwo
   assert.ok(html.includes("BASIN_MAP.on('popupopen',basinRefreshFreshness);"));
   assert.ok(html.includes('if(!document.hidden){basinRefreshFreshness();basinLoadFeed();}'));
 });
+test('temporal keys change when forecast hours pass, RNA reaches now and the feed expires', () => {
+  const context=freshContext();
+  context.BASIN_FEED.generated_at_utc='2026-10-08T17:00:00Z';
+  const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z','2026-10-08T18:00:00Z']},
+    level:level({forecasts:[{time:'2026-10-08T17:15:00Z',cm:385}]})});
+  const key=()=>JSON.parse(context.api.basinTemporalForecastKey(selected));
+  assert.deepEqual(key(),[false,0,['2026-10-08T17:15:00.000Z']]);
+  now=Date.parse('2026-10-08T17:05:00Z')+1;
+  assert.deepEqual(key(),[false,1,['2026-10-08T17:15:00.000Z']]);
+  now=Date.parse('2026-10-08T17:15:00Z');
+  assert.deepEqual(key(),[false,1,[]]);
+  now=Date.parse('2026-10-08T17:30:00Z');
+  assert.deepEqual(key(),[false,1,[]]);
+  now+=1;
+  assert.deepEqual(key(),[true,-1,[]]);
+});
+
+test('temporal refresh requests partial rendering only on a relevant transition', () => {
+  const context=freshContext();
+  context.BASIN_FEED.generated_at_utc='2026-10-08T17:00:00Z';
+  const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z','2026-10-08T18:00:00Z']},
+    level:level({forecasts:[{time:'2026-10-08T17:15:00Z',cm:385}]})});
+  context.BASIN_SELECTED=selected;
+  context.BASIN_DETAIL_TEMPORAL_KEY=context.api.basinTemporalForecastKey(selected);
+  context.document.getElementById=id=>id==='station-detail'?{}:null;
+  const calls=[];
+  context.basinRenderDetail=(value,partial)=>{
+    calls.push([value,partial]);
+    context.BASIN_DETAIL_TEMPORAL_KEY=context.api.basinTemporalForecastKey(value);
+  };
+  const original=JSON.stringify(selected);
+  context.api.basinRefreshTemporalForecasts();
+  now+=60000;
+  context.api.basinRefreshTemporalForecasts();
+  assert.equal(calls.length,0);
+  for(const time of ['2026-10-08T17:06:00Z','2026-10-08T17:15:00Z','2026-10-08T17:30:01Z']){
+    now=Date.parse(time);
+    context.api.basinRefreshTemporalForecasts();
+    context.api.basinRefreshTemporalForecasts();
+  }
+  assert.equal(calls.length,3);
+  calls.forEach(([value,partial])=>{assert.equal(value,selected);assert.equal(partial,true);});
+  assert.equal(JSON.stringify(selected),original);
+});
+
+test('list and popup availability distinguish expired, exhausted and missing forecasts', () => {
+  const context=freshContext();
+  context.BASIN_FEED.generated_at_utc='2026-10-08T17:00:00Z';
+  const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z'],models:{ifs:{}}}});
+  assert.equal(context.api.basinForecastAvailability(selected),'previsão disponível');
+  assert.match(context.api.basinStateSummary(selected),/previsão: 1 modelos/);
+  now=Date.parse('2026-10-08T17:05:01Z');
+  assert.equal(context.api.basinForecastAvailability(selected),'previsão sem horário futuro no arquivo');
+  assert.match(context.api.basinStateSummary(selected),/previsão sem horário futuro no arquivo/);
+  now=Date.parse('2026-10-08T17:30:01Z');
+  assert.match(context.api.basinForecastAvailability(selected),/previsão expirada/);
+  assert.match(context.api.basinStateSummary(selected),/previsão expirada/);
+  for(const value of [null,{},station({forecast:{state:'unavailable'}})])
+    assert.equal(context.api.basinForecastAvailability(value),'previsão indisponível');
+  assert.ok(declaration('basinPopup').includes('const forecast=basinForecastAvailability(st);'));
+});
+
+test('expired-feed status labels snapshot coverage rather than current forecast availability', () => {
+  const context=freshContext(),status={innerHTML:''};
+  context.document.getElementById=id=>id==='map-status'?status:null;
+  context.BASIN_FEED.scope={station_count:2,forecast_station_count:2};
+  context.api.basinUpdateStatus();
+  assert.match(status.innerHTML,/Previsão no arquivo 2\/2/);
+  assert.match(status.innerHTML,/previsão meteorológica expirada/);
+  assert.ok(!status.innerHTML.includes('Previsto 2/2'));
+});
+
 test('observation note bindings are explicit and escaped', () => {
   const {api}=freshContext();
   assert.match(api.basinMetricCard('Fixture','0 cm','<note>','complete','level'),/data-basin-observed-note="level"[^>]*>&lt;note&gt;/);
