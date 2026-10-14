@@ -2519,9 +2519,13 @@
       });
     }
   }
+  // The RNA card can consume the top forecast even without horizon rows.
+  // Share its validity predicate with the clock-driven invalidation key.
+  const basinRnaTopForecastCurrent=level=>!!(level&&basinLevelNumber(level.forecast_cm)!==null&&Date.parse(level.forecast_at_utc)>Date.now());
   const basinTemporalForecastKey=st=>JSON.stringify([
     basinFeedIsStale(),basinForecastIndex(st),
-    basinTimelineForecastRows(st,'level_cm',Number.MAX_SAFE_INTEGER).map(row=>row.time)
+    basinTimelineForecastRows(st,'level_cm',Number.MAX_SAFE_INTEGER).map(row=>row.time),
+    basinRnaTopForecastCurrent(st&&st.level)
   ]);
   function basinPatchTemporalDetail(panel,html){
     const staged=document.createElement('div');
@@ -2601,7 +2605,7 @@
     const rnaApplicable=level&&typeof level.forecast_applicable==='boolean'?level.forecast_applicable:rnaFallbackApplicable;
     const rnaForecasts=level&&Array.isArray(level.forecasts)?level.forecasts:[];
     const rnaFallback=rnaForecasts.filter(item=>item&&basinLevelNumber(item.cm)!==null&&Date.parse(item.time)>Date.now()).sort((a,b)=>Date.parse(a.time)-Date.parse(b.time))[0]||null;
-    const topRnaCurrent=level&&basinLevelNumber(level.forecast_cm)!==null&&Date.parse(level.forecast_at_utc)>Date.now();
+    const topRnaCurrent=basinRnaTopForecastCurrent(level);
     const rnaValue=topRnaCurrent?basinLevelNumber(level.forecast_cm):(rnaFallback?basinLevelNumber(rnaFallback.cm):null);
     const rnaTime=topRnaCurrent?level.forecast_at_utc:(rnaFallback&&rnaFallback.time||null);
     const rnaAvailable=rnaValue!==null;

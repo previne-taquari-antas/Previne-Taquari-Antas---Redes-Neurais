@@ -24,7 +24,7 @@ const names = [
   'basinUpdateStatus', 'basinRefreshFreshness', 'basinMetricStatusLabel',
   'basinMetricCard', 'basinTimelinePeriod', 'basinTimelineObservationNote',
   'basinFeedIsStale', 'basinForecastIndex', 'basinTimelineForecastRows',
-  'basinTemporalForecastKey', 'basinRefreshTemporalForecasts',
+  'basinRnaTopForecastCurrent', 'basinTemporalForecastKey', 'basinRefreshTemporalForecasts',
   'basinForecastAvailability',
 ];
 const source = names.map(declaration).join('\n');
@@ -249,15 +249,15 @@ test('temporal keys change when forecast hours pass, RNA reaches now and the fee
   const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z','2026-10-08T18:00:00Z']},
     level:level({forecasts:[{time:'2026-10-08T17:15:00Z',cm:385}]})});
   const key=()=>JSON.parse(context.api.basinTemporalForecastKey(selected));
-  assert.deepEqual(key(),[false,0,['2026-10-08T17:15:00.000Z']]);
+  assert.deepEqual(key(),[false,0,['2026-10-08T17:15:00.000Z'],false]);
   now=Date.parse('2026-10-08T17:05:00Z')+1;
-  assert.deepEqual(key(),[false,1,['2026-10-08T17:15:00.000Z']]);
+  assert.deepEqual(key(),[false,1,['2026-10-08T17:15:00.000Z'],false]);
   now=Date.parse('2026-10-08T17:15:00Z');
-  assert.deepEqual(key(),[false,1,[]]);
+  assert.deepEqual(key(),[false,1,[],false]);
   now=Date.parse('2026-10-08T17:30:00Z');
-  assert.deepEqual(key(),[false,1,[]]);
+  assert.deepEqual(key(),[false,1,[],false]);
   now+=1;
-  assert.deepEqual(key(),[true,-1,[]]);
+  assert.deepEqual(key(),[true,-1,[],false]);
 });
 
 test('temporal refresh requests partial rendering only on a relevant transition', () => {
@@ -286,6 +286,64 @@ test('temporal refresh requests partial rendering only on a relevant transition'
   assert.equal(calls.length,3);
   calls.forEach(([value,partial])=>{assert.equal(value,selected);assert.equal(partial,true);});
   assert.equal(JSON.stringify(selected),original);
+});
+
+test('top RNA expiry changes the key even when its target is absent from the horizon list', () => {
+  for(const forecasts of [[],[{time:'2026-10-08T17:25:00Z',cm:390}]]){
+    const context=freshContext();
+    context.BASIN_FEED.generated_at_utc='2026-10-08T17:00:00Z';
+    const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z','2026-10-08T18:00:00Z']},
+      level:level({forecast_cm:385,forecast_at_utc:'2026-10-08T17:15:00Z',forecasts})});
+    const original=JSON.stringify(selected);
+    now=Date.parse('2026-10-08T17:06:00Z');
+    const before=context.api.basinTemporalForecastKey(selected);
+    now=Date.parse('2026-10-08T17:15:00Z');
+    const atTarget=context.api.basinTemporalForecastKey(selected);
+    assert.notEqual(atTarget,before,'top RNA reaching now must invalidate the card');
+    assert.deepEqual(JSON.parse(atTarget).slice(0,3),JSON.parse(before).slice(0,3),
+      'the weather index, feed validity and horizon rows must remain unchanged');
+    now+=60000;
+    assert.equal(context.api.basinTemporalForecastKey(selected),atTarget);
+    assert.equal(JSON.stringify(selected),original);
+  }
+});
+
+test('top-only RNA reaching now triggers one partial render without a weather transition', () => {
+  const context=freshContext();
+  context.BASIN_FEED.generated_at_utc='2026-10-08T17:00:00Z';
+  const selected=station({forecast:{state:'available',times:['2026-10-08T17:05:00Z','2026-10-08T18:00:00Z']},
+    level:level({forecast_cm:385,forecast_at_utc:'2026-10-08T17:15:00Z',forecasts:[]})});
+  now=Date.parse('2026-10-08T17:06:00Z');
+  context.BASIN_SELECTED=selected;
+  context.BASIN_DETAIL_TEMPORAL_KEY=context.api.basinTemporalForecastKey(selected);
+  context.document.getElementById=id=>id==='station-detail'?{}:null;
+  const calls=[];
+  context.basinRenderDetail=(value,partial)=>{
+    calls.push([value,partial]);
+    context.BASIN_DETAIL_TEMPORAL_KEY=context.api.basinTemporalForecastKey(value);
+  };
+  context.api.basinRefreshTemporalForecasts();
+  assert.equal(calls.length,0);
+  now=Date.parse('2026-10-08T17:15:00Z');
+  context.api.basinRefreshTemporalForecasts();
+  context.api.basinRefreshTemporalForecasts();
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][0],selected);
+  assert.equal(calls[0][1],true);
+});
+
+test('the card and temporal key share top-RNA validity, including zero and invalid targets', () => {
+  const {api}=freshContext();
+  const top={forecast_cm:0,forecast_at_utc:'2026-10-08T17:15:00Z'};
+  assert.equal(api.basinRnaTopForecastCurrent(top),true);
+  for(const value of [null,undefined,{}, {...top,forecast_cm:null}, {...top,forecast_cm:''},
+    {...top,forecast_cm:99999}, {...top,forecast_at_utc:'bad'},
+    {...top,forecast_at_utc:'2026-10-08T17:00:00Z'}])
+    assert.equal(api.basinRnaTopForecastCurrent(value),false);
+  now=Date.parse(top.forecast_at_utc);
+  assert.equal(api.basinRnaTopForecastCurrent(top),false);
+  assert.ok(declaration('basinRenderDetail').includes('const topRnaCurrent=basinRnaTopForecastCurrent(level);'));
+  assert.ok(declaration('basinTemporalForecastKey').includes('basinRnaTopForecastCurrent(st&&st.level)'));
 });
 
 test('list and popup availability distinguish expired, exhausted and missing forecasts', () => {
