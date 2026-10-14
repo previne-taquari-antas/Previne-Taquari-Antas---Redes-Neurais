@@ -442,10 +442,22 @@ function updateSheetStatus(){
   const q=document.getElementById('quickSld');if(q)q.value=sld.value;
   const clock=document.getElementById('animClock');if(clock){const mins=(nivelAtual()-BANKFULL_M)/Math.max(0.1,taxaCmH/100)*60;const horas=Math.floor(mins/60),resto=Math.round(mins%60);clock.textContent='Tempo simulado desde 1,60 m: '+(horas?horas+' h ':'')+resto+' min';}
 }
+function ajustarPopupAoPainel(popup){
+  if(!popup)return;
+  const hud=document.querySelector('.hud.mobile-sheet');
+  const mobile=window.matchMedia('(max-width:700px)').matches;
+  const margem=mobile&&hud?Math.max(12,Math.ceil(map.getContainer().getBoundingClientRect().bottom-hud.getBoundingClientRect().top)+36):12;
+  if(Array.isArray(popup.options.autoPanPaddingBottomRight)&&popup.options.autoPanPaddingBottomRight[1]===margem)return;
+  popup.options.autoPanPaddingTopLeft=[12,12];
+  popup.options.autoPanPaddingBottomRight=[12,margem];
+  popup.update();
+}
+map.on('popupopen',event=>ajustarPopupAoPainel(event.popup));
 function updateSheetFootprint(){
   if(!window.matchMedia('(max-width:700px)').matches)return;
   const hud=document.querySelector('.hud.mobile-sheet');
   document.documentElement.style.setProperty('--evac-sheet-height',Math.ceil(hud.getBoundingClientRect().height)+'px');
+  ajustarPopupAoPainel(map._popup);
 }
 function setSheetExpanded(expanded){
   const hud=document.querySelector('.hud.mobile-sheet');

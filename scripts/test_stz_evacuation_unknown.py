@@ -99,6 +99,34 @@ console.log(JSON.stringify({cases,selected,above,
                     self.assertIn("comparação de proximidade não realizada", popup)
                     self.assertNotIn("Fora da faixa", popup)
 
+    def test_popup_padding_accounts_for_open_sheet_and_does_not_loop_updates(self):
+        for page in PAGES:
+            with self.subTest(page=page):
+                source = (ROOT / page).read_text(encoding="utf-8")
+                function = function_code(source, "ajustarPopupAoPainel")
+                self.assertIn("map.on('popupopen',event=>ajustarPopupAoPainel(event.popup))", source)
+                self.assertIn("ajustarPopupAoPainel(map._popup)", source)
+                code = r"""
+const vm=require('node:vm');let mobile=true,updates=0;
+const popup={options:{},update(){updates++;}},ctx={
+ window:{matchMedia:()=>({matches:mobile})},
+ document:{querySelector:()=>({getBoundingClientRect:()=>({top:495})})},
+ map:{getContainer:()=>({getBoundingClientRect:()=>({bottom:1000})})}};
+vm.createContext(ctx);vm.runInContext(FUNCTION,ctx);
+ctx.ajustarPopupAoPainel(popup);const first=JSON.stringify(popup.options);
+ctx.ajustarPopupAoPainel(popup);const sameUpdates=updates;
+mobile=false;ctx.ajustarPopupAoPainel(popup);
+console.log(JSON.stringify({first:JSON.parse(first),sameUpdates,desktop:popup.options,updates}));
+""".replace("FUNCTION", json.dumps(function))
+                result = subprocess.run([shutil.which("node") or "node", "-e", code], cwd=ROOT,
+                                        capture_output=True, text=True, encoding="utf-8", timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                data = json.loads(result.stdout)
+                self.assertEqual(data["first"]["autoPanPaddingBottomRight"], [12, 541])
+                self.assertEqual(data["sameUpdates"], 1)
+                self.assertEqual(data["desktop"]["autoPanPaddingBottomRight"], [12, 12])
+                self.assertEqual(data["updates"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
