@@ -1680,6 +1680,52 @@
     }
     return loadJson(url);
   }
+  // Level/RNA robots publish independently of the 530-station weather snapshot.
+  // A failed basin publication must not pin the two target gauges to yesterday's
+  // readings. Every adopted measurement carries its original observation time.
+  function mergeRecentTargetLevels(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.stations)) return snapshot;
+    Object.entries(stations).forEach(([key, cfg]) => {
+      const live = state.feeds[key] && state.feeds[key].live;
+      if (!live || typeof live !== 'object') return;
+      const cm = num(live.telemetria_ultima_nivel_cm);
+      const observedAt = parseDate(live.telemetria_ultima_em_utc || live.telemetria_ultima_em);
+      if (cm == null || cm < 0 || cm > 5000 || !observedAt ||
+          observedAt.getTime() > Date.now() + 5 * 60000) return;
+      const row = snapshot.stations.find((item) => item && String(item.code) === cfg.code &&
+        (item.source_networks || []).some((source) => source === 'ANA/HidroWeb' || source === 'SGB/SACE'));
+      if (!row) return;
+      const previousAt = parseDate(row.level && row.level.observed_at_utc);
+      if (previousAt && previousAt.getTime() >= observedAt.getTime()) return;
+      // Future valid horizons only. No extrapolation from a stale or unavailable
+      // network, and an unavailable horizon never inherits yesterday's forecast.
+      const forecasts = Object.entries(live.horizontes || {}).flatMap(([id, value]) => {
+        if (!value || value.disponivel !== true) return [];
+        const futureCm = num(value.nivel_previsto_cm);
+        const target = parseDate(value.hora_alvo_utc || value.hora_alvo);
+        if (futureCm == null || futureCm < 0 || futureCm > 5000 ||
+            !target || target.getTime() <= Date.now()) return [];
+        return [{ id, label: 'RNA ' + id.replace(/_/g, ' '),
+          cm: futureCm, time: target.toISOString() }];
+      });
+      row.level = {
+        ...(row.level || {}),
+        state: 'available',
+        current_cm: cm,
+        raw_current_cm: cm,
+        measurement_classification: 'nivel_observado',
+        observed_at_utc: observedAt.toISOString(),
+        observed_age_minutes: Math.max(0, (Date.now() - observedAt.getTime()) / 60000),
+        source: 'ANA/SGB · robô independente da estação',
+        forecast_applicable: true,
+        forecasts,
+        forecast_cm: forecasts.length ? forecasts[0].cm : null,
+        forecast_at_utc: forecasts.length ? forecasts[0].time : null,
+      };
+    });
+    return snapshot;
+  }
+
   async function loadFeeds() {
     if (state.loading) return;
     state.loading = true;
@@ -1698,7 +1744,7 @@
       state.research = research;
       state.rainSummary = rainSummary;
       state.basinGeometry = basin;
-      state.networkStatus = networkStatus;
+      state.networkStatus = mergeRecentTargetLevels(networkStatus);
       populateNetworkUpgFilter();
       populateNetworkStationSearch();
       if (!state.selectedNetworkStationId && networkStatus && Array.isArray(networkStatus.stations)) {

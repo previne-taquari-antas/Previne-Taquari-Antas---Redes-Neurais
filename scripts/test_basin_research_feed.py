@@ -108,7 +108,15 @@ class BasinResearchFeedTests(unittest.TestCase):
         else:
             self.assertEqual(santa_4h["input_audit_status"], "ATENCAO")
             self.assertGreater(santa_4h["inputs_missing"], 0)
-        self.assertIn(santa_by_key["8h"]["quality_status"], {"NORMAL", "ATENCAO", "FALLBACK_OPERACIONAL", "BASE_DESATUALIZADA"})
+        # A suspensão da RNA de 8h por telemetria inválida é intencional:
+        # o feed deve registrar o bloqueio, sem liberar previsão numérica.
+        santa_8h = santa_by_key["8h"]
+        if santa_8h["quality_status"] == "SUSPENSO_TELEMETRIA_INVALIDA":
+            self.assertFalse(santa_8h["available"])
+            self.assertIsNone(santa_8h["level_forecast_cm"])
+            self.assertEqual(santa_8h["input_audit_status"], "INVALIDO")
+        else:
+            self.assertIn(santa_8h["quality_status"], {"NORMAL", "ATENCAO", "FALLBACK_OPERACIONAL", "BASE_DESATUALIZADA"})
 
     def test_gates_are_explicit(self):
         gate_ids = {gate["id"] for gate in self.feed["gates"]}

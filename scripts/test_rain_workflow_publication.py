@@ -129,7 +129,9 @@ class WorkflowContractTests(unittest.TestCase):
         # Other artifacts legitimately have their own binary/CRLF contracts.
         # Check both this rule's presence and Git's effective indexed result;
         # a later/deeper override must not silently normalize observed bytes.
-        self.assertIn(CSV + " -text", (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines())
+        attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        csv_attrs = [line.strip() for line in attrs if line.strip() and line.strip().split(maxsplit=1)[0] == CSV]
+        self.assertEqual(csv_attrs, [CSV + " -text"])
         self.assertEqual(self.csv_text_attribute(ROOT), CSV + ": text: unset")
 
     @staticmethod
