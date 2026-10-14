@@ -589,7 +589,7 @@ def write_contours(hand: np.ndarray, main_river: np.ndarray, transform, crs, out
             "source_id": FIELD_SOURCE_ID,
             "cidade": "santa_tereza",
             "fonte": "HAND 5 m derivado dos rasters novos de campo",
-            "rio": "eixo dominante Taquari; Marrecão tributário sujeito a remanso",
+            "rio": FIELD_SCOPE,
             "backwater_hydrodynamic_calibration": "not_validated",
             "river_reference_method": "eixo_dominante_taquari_D8",
             "marrecao_regime": "remanso_dependente_nivel_taquari; sem_rio_local_25m",
