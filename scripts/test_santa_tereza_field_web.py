@@ -240,7 +240,7 @@ const vm=require('node:vm');
 const rgba=Uint8Array.from([0,0,0,255,250,250,250,255,255,255,255,255]);
 let context,html='';
 const decodedImage=class{set src(value){this.onload();}};
-context={COLS:3,ROWS:1,HAND:{W:0,E:3,N:1,S:0,max_hand_m:25,saturated_value:250,hand_png_b64:'fixture'},
+context={liveMode:true,COLS:3,ROWS:1,HAND:{W:0,E:3,N:1,S:0,max_hand_m:25,saturated_value:250,hand_png_b64:'fixture'},
  HAND_ZERO_CM:160,HAND_ZERO_DEFAULT_CM:160,HAND_SATURATED:250,bankfull:160,
  handArr:null,handLoadPromise:null,curS:null,curEv:'fixture',EVENTS:{fixture:{horizonte:'2h'}},
  nf1:new Intl.NumberFormat('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}),

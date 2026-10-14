@@ -453,8 +453,8 @@ def escreve_json(quadras, meta, SAIDA_JSON):
     os.makedirs(os.path.dirname(SAIDA_JSON), exist_ok=True)
     resumo = {c: sum(1 for q in quadras if q["classe"] == c) for c in CORES}
     doc = {"meta": meta, "resumo": resumo, "quadras": quadras}
-    json.dump(doc, open(SAIDA_JSON, "w", encoding="utf-8"),
-              ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    with open(SAIDA_JSON, "w", encoding="utf-8") as stream:
+        json.dump(doc, stream, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     return resumo
 
 
