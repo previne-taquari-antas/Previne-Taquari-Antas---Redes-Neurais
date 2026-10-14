@@ -179,6 +179,14 @@
     L.control.zoom({zoomInTitle: 'Ampliar mapa', zoomOutTitle: 'Reduzir mapa'}).addTo(map);
     const toggle = document.querySelector('.leaflet-control-layers-toggle');
     if (toggle) { toggle.title = 'Camadas do mapa'; toggle.setAttribute('aria-label', 'Camadas do mapa'); }
+    map.on('popupopen', event => {
+      const popup = event.popup && event.popup.getElement();
+      const close = popup && popup.querySelector('.leaflet-popup-close-button');
+      if (close) {
+        close.title = 'Fechar informações';
+        close.setAttribute('aria-label', 'Fechar informações');
+      }
+    });
     const extent = L.rectangle(bounds, {color:'#49675d',weight:1.5,dashArray:'6 5',fill:false,interactive:false}).addTo(map);
     layerControl.addOverlay(extent, 'Recorte do terreno (pode ter lacunas)');
     let failures = 0, switched = false;
