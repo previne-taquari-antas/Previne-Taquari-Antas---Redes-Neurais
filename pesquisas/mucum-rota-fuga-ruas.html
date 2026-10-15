@@ -119,7 +119,7 @@
   <h1>Rota de fuga · <span id="cid"></span></h1>
   <div class="sub">Imagem de satélite · ruas do OpenStreetMap · hipótese de caminho</div>
   <div class="sub" id="meta"></div>
-  <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Não é alerta, rota liberada, autorização de evacuação ou despacho. A captura hidrológica precisa ser atualizada antes de qualquer conclusão.</span></div>
+  <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Registro histórico · confira os horários dos dados e as condições de acesso.</span></div>
   <div class="location">
     <span class="location-kicker">No celular · consentimento</span>
     <strong class="location-title">Encontrar ponto de referência próximo</strong>
@@ -196,7 +196,7 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
  t=`STALE · captura histórica: rio ${at} m · referência ${nv.telemetria_em||D.meta.gerado_em}`+(nv.transbordando?` · mancha HAND ${D.meta.nivel_projeto_m} m`:` · registro histórico abaixo da referência de transbordamento (${nv.bankfull_m} m); não é condição atual`)+alTxt;
  document.getElementById('meta').textContent=t+` · ${D.meta.n_nos} pontos da rede de estudo · mapa gerado ${D.meta.gerado_em}`;
  document.getElementById('freshnessBadge').textContent='STALE · SNAPSHOT';
- document.getElementById('freshnessNote').textContent=`Não é alerta, rota liberada, autorização de evacuação ou despacho. Registro do sensor: ${nv.telemetria_em||'data não informada'} · confirmação institucional não informada neste protótipo · atualize a captura antes de qualquer conclusão.`;
+ document.getElementById('freshnessNote').textContent=`Registro histórico do sensor: ${nv.telemetria_em||'data não informada'} · confirmação institucional não informada neste protótipo · atualize a captura antes de qualquer conclusão.`;
 })();
 D.mancha.forEach(p=>L.polygon(p,{color:'#1e5fbf',weight:1,fillColor:'#1e5fbf',fillOpacity:.18}).addTo(map));
 const b=L.latLngBounds(),shelterLayer=L.layerGroup().addTo(map),bridgeLayer=L.layerGroup().addTo(map),roadLayer=L.layerGroup();
