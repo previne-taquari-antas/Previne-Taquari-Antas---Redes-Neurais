@@ -9,32 +9,77 @@
     "longitude": -51.8686
   },
   "official_flood_threshold_cm": 1800,
-  "generated_at_utc": "2026-10-15T16:02:16Z",
+  "generated_at_utc": "2026-10-15T16:33:58Z",
   "forecast_kind": "prospective_point_forecast",
   "forecast_provider": "ECMWF IFS via Open-Meteo",
   "forecast_model": "ECMWF IFS 0.25° (ecmwf_ifs025)",
   "forecast_source_url": "https://api.open-meteo.com/v1/forecast?latitude=-29.1672&longitude=-51.8686&models=ecmwf_ifs025&hourly=precipitation%2Csoil_moisture_0_to_7cm%2Ctemperature_2m&forecast_days=8&timezone=UTC",
   "ecmwf_direct": {
-    "status": "unavailable",
+    "status": "available",
     "provider": "ECMWF Open Data",
     "model": "IFS",
+    "resolution": "0.25°",
+    "cycle_time_utc": "2026-10-15T06:00:00Z",
     "source_root": "https://data.ecmwf.int/forecasts",
+    "parameter": "tp",
+    "unit": "mm",
     "target": {
       "name": "Muçum",
       "latitude": -29.1672,
       "longitude": -51.8686
     },
-    "horizons": [],
-    "message": "ECMWF direto indisponível nesta rodada: HTTP Error 429: Too Many Requests"
+    "horizons": [
+      {
+        "hours": 24,
+        "rain_point_mm": 2.72,
+        "grid_latitude": -29.25,
+        "grid_longitude": -51.75,
+        "source_file": "20261015060000-24h-oper-fc.grib2",
+        "source_index": "https://data.ecmwf.int/forecasts/20261015/06z/ifs/0p25/oper/20261015060000-24h-oper-fc.index",
+        "source_offset": 0,
+        "source_length": 823384
+      },
+      {
+        "hours": 48,
+        "rain_point_mm": 5.33,
+        "grid_latitude": -29.25,
+        "grid_longitude": -51.75,
+        "source_file": "20261015060000-48h-oper-fc.grib2",
+        "source_index": "https://data.ecmwf.int/forecasts/20261015/06z/ifs/0p25/oper/20261015060000-48h-oper-fc.index",
+        "source_offset": 0,
+        "source_length": 943099
+      },
+      {
+        "hours": 72,
+        "rain_point_mm": 6.82,
+        "grid_latitude": -29.25,
+        "grid_longitude": -51.75,
+        "source_file": "20261015060000-72h-oper-fc.grib2",
+        "source_index": "https://data.ecmwf.int/forecasts/20261015/06z/ifs/0p25/oper/20261015060000-72h-oper-fc.index",
+        "source_offset": 0,
+        "source_length": 1016840
+      },
+      {
+        "hours": 120,
+        "rain_point_mm": 9.12,
+        "grid_latitude": -29.25,
+        "grid_longitude": -51.75,
+        "source_file": "20261015060000-120h-oper-fc.grib2",
+        "source_index": "https://data.ecmwf.int/forecasts/20261015/06z/ifs/0p25/oper/20261015060000-120h-oper-fc.index",
+        "source_offset": 0,
+        "source_length": 982841
+      }
+    ],
+    "message": "Saída direta do IFS; usada como fonte de auditoria do ponto."
   },
   "availability_is_exact_historical_timestamp": false,
   "current_forecast_state": "available",
   "current_forecast_message": "Chuva prevista no ponto da estação. O ECMWF Open Data direto é mantido como auditoria; a estimativa experimental, quando presente, não é alerta oficial.",
   "observation": {
     "state": "fresh",
-    "level_cm": 349,
-    "observed_at_utc": "2026-10-15T15:30:00Z",
-    "age_minutes": 32.3,
+    "level_cm": 348,
+    "observed_at_utc": "2026-10-15T16:00:00Z",
+    "age_minutes": 34.0,
     "source": "robô ao vivo Muçum / estação ANA 86510000",
     "message": "Leitura recente do robô ao vivo."
   },
@@ -58,8 +103,8 @@
     {
       "hours": 24,
       "rain_point_mm": 3.2,
-      "rain_ecmwf_direct_mm": null,
-      "rain_ecmwf_direct_minus_openmeteo_mm": null,
+      "rain_ecmwf_direct_mm": 2.72,
+      "rain_ecmwf_direct_minus_openmeteo_mm": -0.48,
       "rain_hours_available": 24,
       "soil_moisture_model_mean_m3m3": 0.488,
       "temperature_model_mean_c": 19.1,
@@ -72,8 +117,8 @@
     {
       "hours": 48,
       "rain_point_mm": 4.8,
-      "rain_ecmwf_direct_mm": null,
-      "rain_ecmwf_direct_minus_openmeteo_mm": null,
+      "rain_ecmwf_direct_mm": 5.33,
+      "rain_ecmwf_direct_minus_openmeteo_mm": 0.53,
       "rain_hours_available": 48,
       "soil_moisture_model_mean_m3m3": 0.486,
       "temperature_model_mean_c": 17.9,
@@ -86,8 +131,8 @@
     {
       "hours": 72,
       "rain_point_mm": 7.1,
-      "rain_ecmwf_direct_mm": null,
-      "rain_ecmwf_direct_minus_openmeteo_mm": null,
+      "rain_ecmwf_direct_mm": 6.82,
+      "rain_ecmwf_direct_minus_openmeteo_mm": -0.28,
       "rain_hours_available": 72,
       "soil_moisture_model_mean_m3m3": 0.483,
       "temperature_model_mean_c": 17.0,
@@ -100,8 +145,8 @@
     {
       "hours": 120,
       "rain_point_mm": 7.8,
-      "rain_ecmwf_direct_mm": null,
-      "rain_ecmwf_direct_minus_openmeteo_mm": null,
+      "rain_ecmwf_direct_mm": 9.12,
+      "rain_ecmwf_direct_minus_openmeteo_mm": 1.32,
       "rain_hours_available": 120,
       "soil_moisture_model_mean_m3m3": 0.476,
       "temperature_model_mean_c": 15.9,
