@@ -1086,7 +1086,7 @@ function legenda(brk, ctx){
   const extrasPrint=[];
   if(typeof perigoLayer!=="undefined" && perigoLayer && map.hasLayer(perigoLayer)) extrasPrint.push("SGB: risco setorizado em Santa Tereza (2025), não é mancha contínua");
   if(typeof svcLayers!=="undefined" && Object.values(svcLayers).some(x=>x && x!=="carregando" && map.hasLayer(x))) extrasPrint.push("IEDE: pontos cadastrados; ausência não prova ausência");
-  const pm=document.getElementById("printMeta"); if(pm) pm.textContent=`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco; não é alerta.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`;
+  const pm=document.getElementById("printMeta"); if(pm) pm.textContent=`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`;
   brk.forEach((v,i)=>{ document.getElementById("fx"+i).value = Math.round(v*100)/100; });
 }
 function totaliza(props){
