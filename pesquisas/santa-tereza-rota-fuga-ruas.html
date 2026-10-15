@@ -95,7 +95,7 @@
   <h1>Rota de fuga · <span id="cid"></span></h1>
    <div class="sub">Imagem aérea · ruas do OpenStreetMap · hipótese de caminho</div>
    <div class="sub" id="meta"></div>
-   <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Não é alerta, rota liberada, autorização de evacuação ou despacho. A captura hidrológica e os acessos precisam ser atualizados antes de qualquer conclusão.</span></div>
+   <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Registro histórico · confira a data dos dados e as condições de acesso.</span></div>
    <section class="decision-board" aria-label="Sequência do estudo de resposta">
      <div class="decision-kicker">Painel de resposta · antes do evento</div>
      <strong>Organizar antes para decidir melhor quando a água subir.</strong>
@@ -178,7 +178,7 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
  (function(){const nv=D.meta.nivel||{};const at=Number(nv.nivel_atual_cm);const atTxt=Number.isFinite(at)?(at/100).toFixed(2)+' m':'nível não informado';
   document.getElementById('meta').textContent=`STALE · ${nv.rotulo||'captura histórica'} · rio ${atTxt} · sensor ${nv.telemetria_em||'data não informada'} · ${D.meta.n_nos} pontos da rede · mapa gerado ${D.meta.gerado_em}`;
   byId('freshnessBadge').textContent='STALE · SNAPSHOT';
-  byId('freshnessNote').textContent=`Não é alerta, rota liberada, autorização de evacuação ou despacho. Registro de pesquisa: ${nv.telemetria_em||'data não informada'} · confirme a fonte atual antes de qualquer decisão.`;
+  byId('freshnessNote').textContent=`Registro histórico da pesquisa: ${nv.telemetria_em||'data não informada'} · confirme a fonte atual antes de qualquer decisão.`;
  })();
   const b=L.latLngBounds(),routeLayer=L.layerGroup(),handLayerGroup=L.layerGroup().addTo(map),priorityLayer=L.layerGroup().addTo(map);
  const routeLines=[];
@@ -218,7 +218,7 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
  function renderKnownSummary(){
    if(!scenarioData){byId('scenarioSummary').innerHTML='<div class="scenario-metric"><b>—</b><span>prioridade espacial não integrada</span></div>';byId('scenarioStatus').innerHTML='<strong>Prioridade legada bloqueada no HAND atual.</strong><br>'+esc(scenarioBlocked)+' <a href="../santa_tereza_rota_fuga_cenario.html">Consultar o exercício histórico separado</a>.';return;}
    const c=scenarioData&&scenarioData.resumo||{};byId('scenarioSummary').innerHTML='<div class="scenario-metric"><b>'+esc(c.alagada||0)+'</b><span>quadras alagadas no exercício</span></div><div class="scenario-metric"><b>'+esc(c.critica||0)+'</b><span>quadras críticas</span></div><div class="scenario-metric"><b>'+esc(c.apertada||0)+'</b><span>com margem apertada</span></div><div class="scenario-metric"><b>'+esc((scenarioData&&scenarioData.quadras||[]).length)+'</b><span>quadras na grade de 30 m</span></div>';
-   byId('scenarioStatus').innerHTML='<strong>Cenário conhecido · '+esc(scenarioData.meta.cenario_rotulo||'22/07')+'</strong><br>Referência de cheia com nível no arquivo: <b>'+esc(scenarioData.meta.nivel_txt||'não informado')+'</b>. A lista organiza a ordem de conferência do exercício; não é ordem de evacuação nem estimativa de moradores.';
+   byId('scenarioStatus').innerHTML='<strong>Cenário conhecido · '+esc(scenarioData.meta.cenario_rotulo||'22/07')+'</strong><br>Referência de cheia com nível no arquivo: <b>'+esc(scenarioData.meta.nivel_txt||'não informado')+'</b>. A lista organiza a ordem de conferência do exercício; quantitativos dependem de verificação local. Não é ordem de evacuação nem estimativa de moradores.';
  }
  const RNA_REFERENCE={rna8:{label:'RNA 8h',model:'C0217',nash:'0,951',val:'0,940',pers:'0,786',e95:'121,8',note:'MAT com série temporal, métricas e partições; sem coordenadas por quadra.'},rna12:{label:'RNA 12h',model:'C0065',nash:'0,939',val:'0,888',pers:'0,840',e95:'132,0',note:'MAT com série temporal, métricas e partições; sem coordenadas por quadra.'}};
  function setScenario(kind){

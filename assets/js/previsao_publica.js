@@ -73,7 +73,7 @@
     put('s-fore', hasForecast ? level(options.forecastCm) : '—');
     put('public-forecast-when', hasForecast ? 'Para ' + fmt().fmtClockDate(selected.hora_alvo) : 'Aguardando uma nova previsão');
     put('public-map-caption', 'Água estimada em ' + document.body.dataset.cityName + (hasForecast ? ' · previsão para ' + fmt().fmtClock(selected.hora_alvo) : ' · sem previsão disponível'));
-    put('map-accessible-summary', document.body.dataset.cityName + ': último nível observado ' + level(options.nowCm) + '. ' + (hasForecast ? 'Previsão de ' + options.horizon.replace('h', ' horas') + ': ' + level(options.forecastCm) + ', para ' + fmt().fmtClockDate(selected.hora_alvo) + '. ' : 'Sem previsão disponível. ') + 'A mancha é uma estimativa de pesquisa. Não é alerta oficial.');
+    put('map-accessible-summary', document.body.dataset.cityName + ': último nível observado ' + level(options.nowCm) + '. ' + (hasForecast ? 'Previsão de ' + options.horizon.replace('h', ' horas') + ': ' + level(options.forecastCm) + ', para ' + fmt().fmtClockDate(selected.hora_alvo) + '. ' : 'Sem previsão disponível. ') + 'A mancha representa uma estimativa espacial em estudo.');
     const note = document.getElementById('public-service-note');
     note.textContent = notes.join(' ');
     note.hidden = !notes.length;

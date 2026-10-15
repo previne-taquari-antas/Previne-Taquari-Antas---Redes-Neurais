@@ -900,7 +900,7 @@
     else if(state.live) summaryText='A rodada ao vivo foi carregada, mas ainda não há um horizonte utilizável para resumir. ';
     summaryText+=snapshot.n?`Na janela de ${windowLabel}, há ${nf0.format(snapshot.n)} previsões conferidas, MAE de ${metricText(snapshot.mae)} e viés de ${snapshot.bias>0?'+':''}${metricText(snapshot.bias)}.`:`Na janela de ${windowLabel}, ainda não há amostra conferida suficiente para calcular erro.`;
     summary.textContent=summaryText;
-    if(footnote) footnote.textContent=`Pesquisa científica · ${windowLabel} selecionados para os erros · ausência ou atraso permanece visível · não é alerta oficial, ordem de evacuação ou autorização de rota.`;
+    if(footnote) footnote.textContent=`Pesquisa científica · ${windowLabel} selecionados para os erros · ausência ou atraso permanece visível`;
   }
 
   function renderWindowComparison(rows,loading,error){
@@ -1095,12 +1095,12 @@
     const staleText=staleHorizons.length
       ?` ${staleHorizons.map(p=>`+${p.hours} h`).join(' e ')} ficou fora do panorama porque o horário-alvo já passou; permanece no histórico para auditoria.`
       :'';
-    detail.innerHTML=`${timingRowsHtml(selected)}<span class="live-timing-meta">${ageText}${liveFresh.stale?' · publicação marcada como atrasada':''}${telemetryText?` · ${telemetryText}`:''}. O robô tenta atualizar a cada 5 minutos, mas o painel mede e mostra o atraso real da execução. A linha azul usa a série observada ANA/SGB; a auditoria da RNA fica separada. A ANA pode chegar em :15/:30/:45, enquanto a RNA usa somente bases de hora cheia. O robô publica previsões experimentais de ${escapeHtml(liveHorizons||'nenhum horizonte')}.${escapeHtml(staleText)} A pesquisa “vai mudar ou não?” de 24–168 h fica em página separada; este panorama não é alerta oficial.</span>`;
+    detail.innerHTML=`${timingRowsHtml(selected)}<span class="live-timing-meta">${ageText}${liveFresh.stale?' · publicação marcada como atrasada':''}${telemetryText?` · ${telemetryText}`:''}. O robô tenta atualizar a cada 5 minutos, mas o painel mede e mostra o atraso real da execução. A linha azul usa a série observada ANA/SGB; a auditoria da RNA fica separada. A ANA pode chegar em :15/:30/:45, enquanto a RNA usa somente bases de hora cheia. O robô publica previsões experimentais de ${escapeHtml(liveHorizons||'nenhum horizonte')}.${escapeHtml(staleText)} A pesquisa “vai mudar ou não?” de 24–168 h fica em página separada; este painel apresenta resultados de pesquisa.</span>`;
     const mapSummary=document.getElementById('map-accessible-summary');
     if(mapSummary){
       const current=state.live&&(state.live.nivel_rio_agora_cm??state.live.telemetria_ultima_nivel_cm);
       const horizons=state.live&&state.live.horizontes?Object.keys(state.live.horizontes).filter(k=>/^(2h|4h|8h)/.test(k)).join(', '):'nenhum';
-      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota oficial configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e não é alerta oficial.`;
+      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota oficial configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e está em análise.`;
     }
   }
 
@@ -1161,7 +1161,7 @@
         return value===null?'indisponível':nf2.format(value*100)+'%';
       };
       label.textContent='Probabilidade experimental de transbordamento disponível';
-      detail.textContent=`GEFS/NOAA: +24 h ${pText(24)} · +48 h ${pText(48)} · +72 h ${pText(72)} · +120 h ${pText(120)} · +168 h ${pText(168)}. Escala de 0% a 100%; não é alerta oficial. Rodada ${fmtWhenWithZone(feedTimestamp(r.probabilities))}.`;
+      detail.textContent=`GEFS/NOAA: +24 h ${pText(24)} · +48 h ${pText(48)} · +72 h ${pText(72)} · +120 h ${pText(120)} · +168 h ${pText(168)}. Escala de 0% a 100%; dados experimentais. Rodada ${fmtWhenWithZone(feedTimestamp(r.probabilities))}.`;
       return;
     }
     if(r.rna&&r.rna.scores){
