@@ -16,7 +16,7 @@ from shapely.ops import transform
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "assets/data/santa_tereza_inundacao/contornos_mancha.json"
 OUT = ROOT / "assets/data/santa_tereza_inundacao/contornos_previa_visual_leve.json"
-LIMIT_BYTES = 5_500_000
+LIMIT_BYTES = 2_200_000
 
 
 def make_preview(data: dict, step: float, tolerance: float) -> dict:
@@ -77,8 +77,8 @@ def main() -> None:
     if not SRC.exists():
         raise SystemExit(f"Fonte ausente: {SRC}")
     raw = json.loads(SRC.read_text(encoding="utf-8"))
-    settings = [(0.5, 0.00004), (0.5, 0.00008), (1.0, 0.00007),
-                (1.0, 0.00012), (2.0, 0.00015)]
+    settings = [(1.0, 0.00010), (1.0, 0.00016), (1.0, 0.00025),
+                (2.0, 0.00014), (2.0, 0.00025)]
     for step, tol in settings:
         doc = make_preview(raw, step, tol)
         encoded = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
