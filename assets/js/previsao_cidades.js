@@ -14,11 +14,28 @@
 
     const suffix = options.variant === 'usuario' ? '_usuario' : '';
     const cityHref = city => city.id + '_previsao_inundacao' + suffix + '.html';
-    const showCity = () => map.fitBounds(options.bounds, {padding: [28, 28]});
-    const showBoth = () => map.fitBounds(
-      L.latLngBounds(cities.map(city => [city.lat, city.lon])),
-      {paddingTopLeft: [80, 95], paddingBottomRight: [80, 95], maxZoom: 12}
-    );
+    let viewMode = 'both', controlledMove = false, resizeTimer = null;
+    const fit = (bounds, padding) => {
+      controlledMove = true;
+      try { map.fitBounds(bounds, {...padding, animate:false}); }
+      finally { controlledMove = false; }
+    };
+    const showCity = () => { viewMode = 'selected'; fit(options.bounds, {padding: [28, 28]}); };
+    const showBoth = () => {
+      viewMode = 'both';
+      const horizontal = Math.min(85, Math.round(map.getSize().x * .23));
+      fit(L.latLngBounds(cities.map(city => [city.lat, city.lon])),
+        {paddingTopLeft:[horizontal,95],paddingBottomRight:[horizontal,95],maxZoom:12});
+    };
+    map.on('movestart zoomstart', () => { if (!controlledMove) viewMode = 'manual'; });
+    const resize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        map.invalidateSize({pan:false});
+        if (viewMode === 'both') showBoth();
+        else if (viewMode === 'selected') showCity();
+      }, 100);
+    };
 
     document.querySelectorAll('[data-city-view]').forEach(button => {
       button.addEventListener('click', () => {
@@ -77,10 +94,11 @@
       const updateLayout = () => {
         document.documentElement.style.setProperty('--forecast-header-height',
           Math.ceil(header.getBoundingClientRect().height) + 'px');
-        map.invalidateSize({pan: false});
+        resize();
       };
       updateLayout();
       new ResizeObserver(updateLayout).observe(header);
+      new ResizeObserver(resize).observe(map.getContainer());
     }
     showBoth();
   }

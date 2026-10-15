@@ -350,7 +350,7 @@
       if(!target&&baseTime) target=new Date(baseTime.getTime()+hours*60*60*1000);
       if(!target) return;
       const exact=String(key).toLowerCase()===hours+'h';
-      const candidate={hours,cm,time:target,baseTime,baseCm,key,model:obj.modelo||'',exact,alternate:!!obj.alternate,stale:false};
+      const candidate={hours,cm,time:target,baseTime,baseCm,key,model:obj.modelo||'',exact,alternate:!!obj.alternate,stale:false,quality:document.body.classList.contains('public-forecast')?window.PREVINE_PUBLIC.qualityNote(obj):''};
       if(!candidatesByHours.has(hours)) candidatesByHours.set(hours,[]);
       candidatesByHours.get(hours).push(candidate);
     });
@@ -478,14 +478,14 @@
     const edgeY=vertical?(dy>0?box.top:box.bottom):box.cy;
     svg.appendChild(svgNode('line',{
       x1:entry.x,y1:entry.y,x2:edgeX,y2:edgeY,
-      stroke:entry.color,'stroke-width':1.05,opacity:.58,'stroke-linecap':'round'
+      stroke:entry.color,'stroke-width':document.body.classList.contains('public-forecast')?1.7:1.05,opacity:document.body.classList.contains('public-forecast')?.95:.58,'stroke-linecap':'round'
     }));
     svg.appendChild(svgNode('rect',{
       x:box.left,y:box.top,width:box.width,height:box.height,rx:6,
       fill:'var(--panel, #fff)',stroke:entry.color,'stroke-width':1.25
     }));
     svg.appendChild(svgNode('text',{
-      x:box.cx,y:box.cy+3.8,'text-anchor':'middle','font-size':10.5,
+      x:box.cx,y:box.cy+3.8,'text-anchor':'middle','font-size':document.body.classList.contains('public-forecast')?11.5:10.5,
       'font-weight':750,fill:'var(--ink, #1b2c24)'
     },entry.text));
   }
@@ -497,7 +497,7 @@
     else if(shape==='square') mark=svgNode('rect',{x:x-5,y:y-5,width:10,height:10,rx:1,fill:'var(--panel, #fff)',stroke:color,'stroke-width':2.7});
     else if(shape==='triangle') mark=svgNode('polygon',{points:`${x},${y-5.8} ${x+5.5},${y+4.5} ${x-5.5},${y+4.5}`,fill:'var(--panel, #fff)',stroke:color,'stroke-width':2.7,'stroke-linejoin':'round'});
     else mark=svgNode('circle',{cx:x,cy:y,r:5,fill:'var(--panel, #fff)',stroke:color,'stroke-width':2.7});
-    mark.appendChild(svgNode('title',{},`Previsão +${point.hours} h: ${fmtLevel(point.cm)} para ${fmtWhen(point.time)}${point.stale?' · alvo já passou':''}`));
+    mark.appendChild(svgNode('title',{},document.body.classList.contains('public-forecast')?window.PREVINE_PUBLIC.forecastText(point):`Previsão +${point.hours} h: ${fmtLevel(point.cm)} para ${fmtWhen(point.time)}${point.stale?' · alvo já passou':''}`));
     return mark;
   }
 
@@ -658,10 +658,11 @@
             :p.hours===8
               ?[[.50,-44],[.58,-72],[.42,44],[-.46,-44]]
               :[[.46,44],[.56,72],[-.42,44],[.38,-44]];
-        labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
+        labels.push({x,y,color:style.color,text:document.body.classList.contains('public-forecast')?`${fmtClock(p.time)} · ${fmtLevel(p.cm)}${p.quality?' ⚠':''}`:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred:document.body.classList.contains('public-forecast')?[[0,-25],[.4,27],[-.5,-50],[.4,52],[-.4,72]]:preferred});
 
       });
     }
+    if(document.body.classList.contains('public-forecast')) labels.forEach(entry=>occupied.push({left:entry.x-9,right:entry.x+9,top:entry.y-9,bottom:entry.y+9}));
     labels.forEach((entry,index)=>drawPointLabel(svg,entry,index,occupied,{left:m.l+2,right:W-m.r-2,top:m.t+2,bottom:H-m.b-2}));
   }
 
@@ -678,7 +679,7 @@
     if(!box) return;
     box.replaceChildren(legendEntry('Nível observado','observed'));
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
-    items.forEach(point=>box.appendChild(legendEntry(`Previsão +${point.hours} h${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
+    items.forEach(point=>box.appendChild(legendEntry(document.body.classList.contains('public-forecast')?`${point.hours} h · ${fmtClock(point.time)}${point.quality?' · em atenção':''}`:`Previsão +${point.hours} h${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
     box.appendChild(legendEntry('Cota oficial, quando próxima da escala','threshold'));
   }
 
@@ -1255,7 +1256,7 @@
     renderLegend(published,previous24.length>0||previousWeek.length>0);
     if(publicView){
       const badge=document.getElementById('overview-trend-badge');
-      if(badge){badge.textContent=trend.label;badge.className='trend-badge '+(flood.alert?'alert':trend.className);}
+      if(badge){badge.textContent='Nas últimas leituras: '+trend.label.toLowerCase();badge.className='trend-badge '+trend.className;}
     }
     if(!publicView){
     renderWeekCoverage(weekPoints);
@@ -1295,7 +1296,9 @@
     if(accessible){
       const forecastText=published.length?published.map(p=>`mais ${p.hours} horas: ${fmtLevel(p.cm)}${p.stale?' (alvo já passou)':''}`).join('; '):'sem previsão ativa';
       const staleText=state.liveStaleHorizons.length?` ${state.liveStaleHorizons.map(p=>`+${p.hours} h com alvo vencido`).join('; ')}.`:'';
-      accessible.textContent=`Nível atual ${fmtLevel(current?current.cm:null)}. ${forecastText}.${staleText} ${trend.label}. ${flood.label}.`;
+      accessible.textContent=publicView
+        ?`Último nível observado ${fmtLevel(current?current.cm:null)}. ${published.length?published.map(p=>window.PREVINE_PUBLIC.forecastText(p)).join('. '):'Sem previsão ativa'}. Nas últimas leituras: ${trend.label.toLowerCase()}. ${published.length?(published.some(p=>p.cm>=state.config.cotaInundCm)?'Há ponto de previsão na cota de inundação ou acima dela.':'Os pontos de previsão disponíveis estão abaixo da cota de inundação.'):'Não há previsão para avaliar os próximos horários.'} Pesquisa experimental; não é alerta oficial.`
+        :`Nível atual ${fmtLevel(current?current.cm:null)}. ${forecastText}.${staleText} ${trend.label}. ${flood.label}.`;
     }
   }
 
