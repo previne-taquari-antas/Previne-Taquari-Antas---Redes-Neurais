@@ -130,7 +130,7 @@ function setStatusMancha(status,mensagem){
   const aviso=document.getElementById('sheetState');
   aviso.hidden=status==='validado';
   aviso.textContent=status==='validado'?'':mensagem;
-  if(status!=='validado'&&typeof pausarAnimacao==='function')pausarAnimacao();
+  if(status!=='validado'&&status!=='previa'&&typeof pausarAnimacao==='function')pausarAnimacao();
   if(typeof atualizarBotoesAnimacao==='function')atualizarBotoesAnimacao();
 }
 
@@ -170,7 +170,11 @@ const cellNode=cellCenters.map(c=>noMaisProximo(c[0],c[1]));
 
 // Mancha HAND atual: é a área física do cenário. A grade IBGE NÃO é mancha.
 const manchaLayer=L.layerGroup();
-function featureCenario(nivelRegua){if(estadoMancha!=='validado'||!contornosGeo||contornosGeo.metadata?.river_reference_method!=='eixo_dominante_taquari_D8')return null;if(nivelRegua<=BANKFULL_M+1e-9||!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=null;for(const x of contornosOrdenados){if(x.nivel>hand+1e-9)break;best=x;}return best&&best.feature;}
+function featureCenario(nivelRegua){
+  if(!contornosGeo||!contornosOrdenados.length)return null;
+  if(estadoMancha==='validado'&&contornosGeo.metadata?.river_reference_method!=='eixo_dominante_taquari_D8')return null;
+  if(estadoMancha==='previa'&&contornosGeo.metadata?.preview_only!==true)return null;
+  if(!['validado','previa'].includes(estadoMancha))return null;if(nivelRegua<=BANKFULL_M+1e-9||!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=null;for(const x of contornosOrdenados){if(x.nivel>hand+1e-9)break;best=x;}return best&&best.feature;}
 const rendererMancha=L.canvas({padding:.25});
 let ultimaFeatureDesenhada=undefined;
 function atualizaMancha(nivelRegua){
@@ -179,7 +183,11 @@ function atualizaMancha(nivelRegua){
   ultimaFeatureDesenhada=f;
   manchaLayer.clearLayers();
   if(!f)return;
-  L.geoJSON(f,{renderer:rendererMancha,interactive:false,style:{color:'#1e5fbf',weight:.8,fillColor:'#1e5fbf',fillOpacity:.18}})
+  L.geoJSON(f,{renderer:rendererMancha,interactive:false,style:{
+    color:estadoMancha==='previa'?'#2b96d1':'#1e5fbf',weight:1.2,
+    dashArray:estadoMancha==='previa'?'4 3':null,
+    fillColor:'#1782ce',fillOpacity:estadoMancha==='previa'?.36:.23
+  }})
     .eachLayer(l=>manchaLayer.addLayer(l));
 }
 
@@ -323,8 +331,9 @@ function renderImpacto(){
   const nivel=nivelAtual();
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   if(estadoMancha!=='validado'){
-    document.getElementById('painel').innerHTML=
-      '<div class="sub"><b>Mancha de inundação em revisão.</b> A modelagem do remanso do Marrecão e o contorno do Taquari ainda precisam de validação. Por isso, as cores de aproximação da água nas casas e a animação da mancha estão temporariamente suspensas. Os pontos cinzas apenas localizam edificações OSM; não indicam segurança.</div>';
+    document.getElementById('painel').innerHTML=estadoMancha==='previa'
+      ? '<div class="sub"><b>Prévia visual de subida — não validada.</b> O azul representa contornos históricos simplificados ao mover a régua; não é uma previsão confiável da área inundada. Os contornos antigos podem incluir incorretamente o Marrecão. As edificações permanecem neutras e sem classificação de risco. Não usar a prévia para decidir sobre evacuação.</div>'
+      : '<div class="sub"><b>Carregando ou aguardando prévia visual.</b> A mancha hidráulica ainda não foi validada; os pontos das edificações não indicam segurança. Mova a régua apenas como cenário de estudo.</div>';
     return;
   }
   if(estadoCasas!=='ok'||!contornosOrdenados.length){
@@ -480,15 +489,15 @@ function mudarNivelRapido(v){
 }
 const animToggle=document.getElementById('animToggle'),animReset=document.getElementById('animReset'),quickPlay=document.getElementById('quickPlay');
 let animTimer=null;
-const ANIM_INTERVAL_MS=900,ANIM_STEP_M=0.5;
+const ANIM_INTERVAL_MS=700,ANIM_STEP_M=1.0;
 function atualizarBotoesAnimacao(){
-  const disponivel=estadoMancha==='validado';
+  const disponivel=estadoMancha==='validado'||estadoMancha==='previa';
   animToggle.disabled=!disponivel;
   quickPlay.disabled=!disponivel;
-  animToggle.title=disponivel?'Animar a mancha validada':'Aguardando validação da mancha e do remanso';
+  animToggle.title=estadoMancha==='previa'?'Animar prévia visual não validada':disponivel?'Animar mancha validada':'Aguardando dados espaciais para animar';
   quickPlay.title=animToggle.title;
   const rodando=animTimer!==null;
-  animToggle.textContent=rodando?'❚❚ Pausar':'▶ Animar subida';
+  animToggle.textContent=rodando?'❚❚ Pausar':estadoMancha==='previa'?'▶ Prévia da subida':'▶ Animar subida';
   animToggle.setAttribute('aria-pressed',String(rodando));
   quickPlay.textContent=rodando?'❚❚':'▶';
   quickPlay.setAttribute('aria-label',rodando?'Pausar animação':'Iniciar animação');
@@ -505,7 +514,7 @@ function quadroAnimacao(){
   if(nivelAtual()>=NVMAX-1e-9)pausarAnimacao();
 }
 function alternarAnimacao(){
-  if(estadoMancha!=='validado')return;
+  if(estadoMancha!=='validado'&&estadoMancha!=='previa')return;
   if(animTimer!==null){pausarAnimacao();return;}
   if(nivelAtual()>=NVMAX-1e-9)mudarNivelRapido(BANKFULL_M);
   animTimer=setInterval(quadroAnimacao,ANIM_INTERVAL_MS);
@@ -535,46 +544,69 @@ async function obterJson(url){
   if(!r.ok)throw Error('Falha HTTP '+r.status+' em '+url);
   return r.json();
 }
+// Primeiro carrega os pontos pequenos. A mancha completa de 44,9 MB NUNCA é baixada.
 Promise.allSettled([
   obterJson(pastaMancha+'manifesto_painel_evacuacao.json'),
   obterJson(arquivoPontos)
 ]).then(async res=>{
   if(res[1].status==='fulfilled'){
     try{carregarPontosCasas(res[1].value);}catch(e){estadoCasas='indisponivel';console.error(e);}
-  }else{estadoCasas='indisponivel';console.warn('Edificações indisponíveis',res[1].reason);}
-  if(res[0].status!=='fulfilled'){
-    setStatusMancha('erro','Dados de validação indisponíveis. Mancha e classificação suspensas.');
+  }else{estadoCasas='indisponivel';console.warn('Pontos das edificações indisponíveis',res[1].reason);}
+  const m=res[0].status==='fulfilled'?res[0].value:null;
+  const contratoValidado=m&&m.schema_version==='previne_painel_evacuacao_v1'&&
+       m.status==='validado'&&m.validated===true&&m.hydraulic_validation===true&&
+       m.river_reference_method_required==='eixo_dominante_taquari_D8';
+
+  // Uma simulacao visual de contornos LEGADOS nao autoriza classificacao de casas.
+  if(!contratoValidado){
+    setStatusMancha('pendente','Preparando prévia ilustrativa da subida. A mancha do Taquari/Marrecão segue sem validação.');
+    try{
+      const r=await fetch(pastaMancha+'contornos_previa_visual_leve.json',{cache:'no-store'});
+      if(!r.ok)throw Error('Prévia não publicada ('+r.status+')');
+      const tam=Number(r.headers.get('content-length')||0);
+      if(tam>6000000)throw Error('Prévia muito grande');
+      const fc=await r.json();
+      if(fc.metadata?.status!=='previa_visual_legada_nao_validada'||
+         fc.metadata?.preview_only!==true||fc.metadata?.usable_for_building_risk!==false||
+         fc.metadata?.backwater_hydrodynamic_calibration!==false)
+        throw Error('Metadados da prévia inconsistentes');
+      preparaContornos(fc);
+      if(!contornosOrdenados.length)throw Error('Prévia sem geometrias');
+      contornosGeo=fc;
+      ultimaFeatureDesenhada=undefined;
+      setStatusMancha('previa','PRÉVIA VISUAL · NÃO VALIDADA. Azul = contornos históricos ilustrativos, não alcance real da água. Casas sem classificação.');
+    }catch(e){
+      console.warn('Prévia ilustrativa indisponível',e);
+      contornosGeo=null;contornosOrdenados=[];
+      setStatusMancha('pendente','Prévia indisponível. A mancha hidráulica e o remanso ainda aguardam validação.');
+    }
   }else{
-    const m=res[0].value;
-    if(m.schema_version!=='previne_painel_evacuacao_v1'||m.status!=='validado'||m.validated!==true||
-       m.hydraulic_validation!==true||m.river_reference_method_required!=='eixo_dominante_taquari_D8'){
-      setStatusMancha('pendente','Mancha e animação suspensas: validação do Taquari e remanso do Marrecão pendente.');
-    }else{
-      try{
-        const r=await fetch(pastaMancha+'contornos_mancha_web.json',{cache:'no-store'});
-        if(!r.ok)throw Error('Contorno web indisponível ('+r.status+')');
-        if(Number(r.headers.get('content-length')||0)>7000000)throw Error('Contorno web acima de 7 MB');
-        const fc=await r.json();
-        if(fc.metadata?.river_reference_method!=='eixo_dominante_taquari_D8'||
-           fc.metadata?.backwater_hydrodynamic_calibration!==true)throw Error('Procedência ou remanso sem validação');
-        preparaContornos(fc);
-        if(!contornosOrdenados.length)throw Error('Contornos vazios');
-        contornosGeo=fc;
-        recalculaTerrenoAtual();
-        recalcularCotasCasas();
-        setStatusMancha('validado','');
-      }catch(e){
-        console.error('Contorno validado não carregou',e);
-        contornosGeo=null;contornosOrdenados=[];
-        setStatusMancha('erro','Mancha temporariamente indisponível. Não há classificação de casas.');
-      }
+    try{
+      const r=await fetch(pastaMancha+'contornos_mancha_web.json',{cache:'no-store'});
+      if(!r.ok)throw Error('Contornos validados indisponíveis ('+r.status+')');
+      if(Number(r.headers.get('content-length')||0)>7000000)throw Error('Arquivo acima de 7 MB');
+      const fc=await r.json();
+      if(fc.metadata?.river_reference_method!=='eixo_dominante_taquari_D8'||
+         fc.metadata?.backwater_hydrodynamic_calibration!==true||
+         fc.metadata?.preview_only===true)throw Error('Procedência e remanso sem validação');
+      preparaContornos(fc);
+      if(!contornosOrdenados.length)throw Error('Contornos vazios');
+      contornosGeo=fc;
+      ultimaFeatureDesenhada=undefined;
+      recalculaTerrenoAtual();
+      recalcularCotasCasas();
+      setStatusMancha('validado','');
+    }catch(e){
+      console.error('Contorno validado não carregou',e);
+      contornosGeo=null;contornosOrdenados=[];
+      setStatusMancha('erro','Produto validado indisponível. Nenhuma classificação de risco disponível.');
     }
   }
   solicitarRedraw();
   if(modo==='impacto'&&BBcasas.isValid())aj();
 }).catch(e=>{
   console.error('Erro ao inicializar painel de evacuação',e);
-  setStatusMancha('erro','Painel espacial temporariamente indisponível.');
+  setStatusMancha('erro','Painel espacial indisponível.');
 });
 
 </script></body></html>
