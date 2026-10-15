@@ -954,7 +954,7 @@
         <div class="provenance-grid">
           <div class="source-box">
             <h3>Sinal da rede neural</h3>
-            <p>Snapshot local de <code>previsao_ao_vivo.json</code>: 8h V001 publicado como experimental e 8h V002 em sombra/comparativo. O V002 tem menor MAE recente no snapshot, mas não é alerta oficial nem está promovido.</p>
+            <p>Snapshot local de <code>previsao_ao_vivo.json</code>: 8h V001 publicado como experimental e 8h V002 em sombra/comparativo. O V002 tem menor MAE recente no snapshot, e permanece em acompanhamento experimental.</p>
           </div>
           <div class="source-box">
             <h3>Evento espacial</h3>
@@ -1652,7 +1652,7 @@
       }else{
         messageDraft=zone.id+": preparar comunicação, transporte e abrigo. A água está estimada em "+fmtMinutes(remaining)+"; aguardar confirmação do corredor antes de deslocar.";
       }
-      messageDraft="RASCUNHO — NÃO É ALERTA · "+messageDraft;
+      messageDraft="RASCUNHO DE EXERCÍCIO · "+messageDraft;
       setText("phaseBadge",step.phase);
       setText("eventClock",fmtClock(step.hours));
       setText("eventLevel",fmtM(scenarioLevelM()));
@@ -2042,7 +2042,7 @@
 
     function copyMessage(){
       const body=el("messageDraft").textContent.replace(/^RASCUNHO\s+—\s+NÃO É ALERTA\s+·\s*/i,"");
-      const text="RASCUNHO DO EXERCÍCIO — NÃO É ALERTA, ORDEM DE EVACUAÇÃO OU DESPACHO\n\n"+body;
+      const text="RASCUNHO DO EXERCÍCIO — texto para revisão interna\n\n"+body;
       const done=function(){announce("Texto copiado; ainda é um rascunho do exercício.");};
       if(navigator.clipboard && navigator.clipboard.writeText){
         navigator.clipboard.writeText(text).then(done).catch(function(){copyMessageFallback(text);});
