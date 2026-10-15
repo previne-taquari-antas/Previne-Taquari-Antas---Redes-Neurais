@@ -619,7 +619,7 @@
       <b>Vulnerabilidade social &ne; perigo &ne; risco.</b>
       Aqui você vê <b>quem</b> pode sofrer mais (pessoas e domicílios), a <b>exposição</b> (quanto há no lugar) e a <b>capacidade</b> municipal de gestão. Perigo é a ameaça física de cheia; risco só existe ao cruzar vulnerabilidade com uma mancha ou cota validada. O bloco de análise espacial permite sobreposições de pesquisa sem fundir essas dimensões em uma nota única.
     </div>
-    <div class="research-banner" role="note"><b>Modo pesquisa:</b> consulte e compare dados. Esta página não é alerta, classificação de risco nem recomendação operacional.</div>
+    <div class="research-banner" role="note"><b>Vulnerabilidade social:</b> explore indicadores demográficos, infraestrutura e capacidade na bacia.</div>
     <div class="dataset-strip" id="datasetStrip" role="group" aria-label="Resumo do conjunto de dados">
       <div class="dataset-stat"><b id="summaryMunicipios">118</b><span>municípios</span></div>
       <div class="dataset-stat"><b id="summarySetores">3.283</b><span>setores na bacia</span></div>
@@ -934,7 +934,7 @@
 <dialog id="welcomeDialog" class="welcome-dialog" aria-labelledby="welcomeTitle" aria-describedby="welcomeDesc">
   <div class="welcome-inner">
     <h2 id="welcomeTitle">Como começar neste mapa</h2>
-    <p id="welcomeDesc">Este painel mostra vulnerabilidade <b>social</b> na bacia Taquari-Antas (Censo 2022). Não é alerta de cheia nem mancha de inundação.</p>
+    <p id="welcomeDesc">Este painel mostra vulnerabilidade <b>social</b> na bacia Taquari-Antas (Censo 2022). A camada reúne indicadores sociais, não a extensão física da cheia.</p>
     <ol>
       <li>Localize um <b>município</b> pela busca ou pelo clique no mapa.</li>
       <li>Escolha um <b>indicador</b> (ex.: idosos, indígenas, TEA ou capacidade ICM).</li>
@@ -2011,7 +2011,7 @@ function legendaICM(ctx){
     + `<div class="row2" role="listitem"><span class="sw sw-border"></span>geometria fora/na borda da bacia</div>`
     + `<div class="row2" role="listitem"><span class="sw sw-nodata"></span>faixa ICM sem dado publicado</div>`;
   document.getElementById("quantileNote").textContent="ICM é categórico (faixas fixas A–D do MIDR), não usa quantis. Letras, cores e traços da legenda devem ser lidos em conjunto.";
-  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · Capacidade municipal (ICM), ${ctx.replace(/^·\s*/,"")}. Fonte: ${rotuloIcm()}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco; não é alerta.`);
+  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · Capacidade municipal (ICM), ${ctx.replace(/^·\s*/,"")}. Fonte: ${rotuloIcm()}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco.`);
 }
 function totalizaICM(mun){
   const tot = document.getElementById("tot");
@@ -2065,7 +2065,7 @@ function legenda(brk, ctx){
   if(typeof perigoLayer!=="undefined" && perigoLayer && map.hasLayer(perigoLayer)) extrasPrint.push("SGB: risco setorizado em Santa Tereza (2025), não é mancha contínua");
   if(typeof svcLayers!=="undefined" && Object.values(svcLayers).some(x=>x && x!=="carregando" && map.hasLayer(x))) extrasPrint.push("IEDE: pontos cadastrados; ausência não prova ausência");
   if(obitosAtiva) extrasPrint.push("Óbitos: registros pontuais do arquivo fornecido; sem data, causa ou identificação nominal no ativo");
-  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco; não é alerta.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`);
+  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`);
   brk.forEach((v,i)=>{ document.getElementById("fx"+i).value = Math.round(v*100)/100; });
 }
 function defineMetadadosImpressao(texto){
@@ -2094,7 +2094,7 @@ function atualizaPrintMeta(){
   if(typeof perigoLayer!=="undefined" && perigoLayer && map.hasLayer(perigoLayer)) extras.push("SGB: risco setorizado em Santa Tereza (2025), não é mancha contínua");
   if(typeof svcLayers!=="undefined" && Object.values(svcLayers).some(x=>x && x!=="carregando" && map.hasLayer(x))) extras.push("IEDE: pontos cadastrados; ausência não prova ausência");
   if(obitosAtiva) extras.push("Óbitos: registros pontuais do arquivo fornecido; sem data, causa ou identificação nominal no ativo");
-  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco; não é alerta.${extras.length?` ${extras.join("; ")}.`:""}`);
+  defineMetadadosImpressao(`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco.${extras.length?` ${extras.join("; ")}.`:""}`);
 }
 function totaliza(props){
   const d = INDS.find(i=>i.k===ind);
@@ -2450,7 +2450,7 @@ function atualizaLegendaMini(){
   const d=INDS.find(i=>i.k===ind) || INDS[0];
   const modoTxt=unidadeIndicador(d);
   const camadaTxt=munAtual ? (camada === "grade" ? `Grade IBGE · ${munAtual.nome}` : `setores censitários · ${munAtual.nome}`) : "municípios da bacia";
-  const aviso=d.municipalOnly ? "Dado municipal; não é valor do setor ou da grade." : d.svc ? "Taxa municipal; pontos cadastrados aparecem na camada de serviços." : d.cat ? "Índice municipal de capacidade; não é risco nem alerta." : ehResiliencia() ? "Faixas municipais de resiliência; não é alerta." : "Maior valor = maior presença/quantidade; não é automaticamente risco.";
+  const aviso=d.municipalOnly ? "Dado municipal; não é valor do setor ou da grade." : d.svc ? "Taxa municipal; pontos cadastrados aparecem na camada de serviços." : d.cat ? "Índice municipal de capacidade; indicador de capacidade." : ehResiliencia() ? "Faixas municipais de resiliência." : "Maior valor = maior presença/quantidade; interpretação depende da exposição a ameaças.";
   let ramp="";
   if (ehResiliencia()){
     ramp=`<div class="mini-ramp" aria-hidden="true"><i style="background:${IRM_CORES.verde}"></i><i style="background:${IRM_CORES.amarelo}"></i><i style="background:${IRM_CORES.vermelho}"></i></div><div class="mini-scale"><span>maior resiliência</span><span>menor</span></div>`;
