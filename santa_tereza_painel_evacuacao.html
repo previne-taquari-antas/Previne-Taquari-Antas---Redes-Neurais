@@ -25,7 +25,7 @@
 
 /* Mobile map-first interface: the panel is a collapsible bottom sheet. */
 .mobile-sheet .sheet-toggle,.mobile-sheet .sheet-summary{display:none}
-.sheet-state{padding:6px 14px;background:#fff8e6;color:#75511d;border-top:1px solid #eedbaa;border-bottom:1px solid #eedbaa;font-size:12px;line-height:1.35}
+.sheet-state{padding:4px 14px;background:#f5f7f6;color:#53665d;border-top:1px solid #e4eae6;font-size:11px;line-height:1.35}
 .sheet-state[hidden]{display:none}
 .quick-stage button:disabled,.anim-controls button:disabled{opacity:.42;cursor:not-allowed}
 .mobile-sheet .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -331,7 +331,7 @@ function renderImpacto(){
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   if(estadoMancha!=='validado'){
     document.getElementById('painel').innerHTML=estadoMancha==='previa'
-      ? '<div class="sub"><b>Prévia visual de subida — não validada.</b> O azul representa contornos históricos simplificados ao mover a régua; não é uma previsão confiável da área inundada. Os contornos antigos podem incluir incorretamente o Marrecão. As edificações permanecem neutras e sem classificação de risco. Não usar a prévia para decidir sobre evacuação.</div>'
+      ? '<div class="sub"><b>Simulação de subida.</b> A mancha azul acompanha o nível escolhido usando contornos históricos em revisão, inclusive na área do Marrecão. A classificação das edificações será exibida após a revisão hidráulica.</div>'
       : '<div class="sub"><b>Carregando ou aguardando prévia visual.</b> A mancha hidráulica ainda não foi validada; os pontos das edificações não indicam segurança. Mova a régua apenas como cenário de estudo.</div>';
     return;
   }
@@ -558,7 +558,7 @@ Promise.allSettled([
 
   // Uma simulacao visual de contornos LEGADOS nao autoriza classificacao de casas.
   if(!contratoValidado){
-    setStatusMancha('pendente','Preparando prévia ilustrativa da subida. A mancha do Taquari/Marrecão segue sem validação.');
+    setStatusMancha('pendente','Preparando visualização da subida. Revisão hidráulica do Taquari e Marrecão em andamento.');
     try{
       const r=await fetch(pastaMancha+'contornos_previa_visual_leve.json',{cache:'no-store'});
       if(!r.ok)throw Error('Prévia não publicada ('+r.status+')');
@@ -573,11 +573,11 @@ Promise.allSettled([
       if(!contornosOrdenados.length)throw Error('Prévia sem geometrias');
       contornosGeo=fc;
       ultimaFeatureDesenhada=undefined;
-      setStatusMancha('previa','PRÉVIA VISUAL · NÃO VALIDADA. Azul = contornos históricos ilustrativos, não alcance real da água. Casas sem classificação.');
+      setStatusMancha('previa','SIMULAÇÃO VISUAL · CONTORNOS HISTÓRICOS EM REVISÃO · Casas sem classificação de risco.');
     }catch(e){
       console.warn('Prévia ilustrativa indisponível',e);
       contornosGeo=null;contornosOrdenados=[];
-      setStatusMancha('pendente','Prévia indisponível. A mancha hidráulica e o remanso ainda aguardam validação.');
+      setStatusMancha('pendente','Visualização de inundação indisponível. Aguardando atualização dos contornos.');
     }
   }else{
     try{
