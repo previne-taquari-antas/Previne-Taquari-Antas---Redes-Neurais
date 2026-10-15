@@ -43,7 +43,7 @@
       '<a href="' + prefix + 'pesquisas/briefing-gestores.html"' + current('briefing') + '>Briefing</a>' +
       '<a href="' + prefix + 'pesquisas.html"' + current('arquivo') + '>Arquivo</a>' +
     '</div>' +
-    '<div class="gestor-chrome-seal">Pesquisa · não é alerta oficial</div>';
+    '<div class="gestor-chrome-seal">Pesquisa hidrológica</div>';
   var signature = document.getElementById('previne-institutions');
   var insertionPoint = signature && signature.parentNode === document.body
     ? signature.nextSibling : document.body.firstChild;
