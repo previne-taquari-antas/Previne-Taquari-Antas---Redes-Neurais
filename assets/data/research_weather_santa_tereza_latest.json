@@ -11,7 +11,7 @@
     "longitude": -51.7322
   },
   "official_flood_threshold_cm": 1500,
-  "generated_at_utc": "2026-10-17T07:09:46Z",
+  "generated_at_utc": "2026-10-17T07:41:21Z",
   "forecast_kind": "prospective_point_and_upstream_monitoring_grid_proxy",
   "forecast_provider": "ECMWF IFS via Open-Meteo; ECMWF Open Data direto para auditoria",
   "forecast_model": "ECMWF IFS 0.25° (ecmwf_ifs025)",
@@ -24,15 +24,15 @@
     "level_cm": 347.0,
     "observed_at_utc": "2026-10-17T06:45:00Z",
     "timestamp_utc": "2026-10-17T06:45:00Z",
-    "age_minutes": 24.8,
+    "age_minutes": 56.4,
     "source": "robô ao vivo Santa Tereza / estação ANA-SGB 86472600",
     "quality": "telemetria recente",
     "message": "Leitura recente do robô ao vivo."
   },
   "forecast": {
     "source": "ECMWF IFS",
-    "run_time_utc": "2026-10-16T18:00:00Z",
-    "available_at_utc": "2026-10-17T07:09:46Z",
+    "run_time_utc": null,
+    "available_at_utc": "2026-10-17T07:41:21Z",
     "requested_points": 9,
     "unique_upstream_grid_cells": 4,
     "horizons": [
@@ -93,62 +93,17 @@
     ]
   },
   "ecmwf_direct": {
-    "status": "available",
+    "status": "unavailable",
     "provider": "ECMWF Open Data",
     "model": "IFS",
-    "resolution": "0.25°",
-    "cycle_time_utc": "2026-10-16T18:00:00Z",
     "source_root": "https://data.ecmwf.int/forecasts",
-    "parameter": "tp",
-    "unit": "mm",
     "target": {
       "name": "Santa Tereza",
       "latitude": -29.1781,
       "longitude": -51.7322
     },
-    "horizons": [
-      {
-        "hours": 24,
-        "rain_point_mm": 1.59,
-        "grid_latitude": -29.25,
-        "grid_longitude": -51.75,
-        "source_file": "20261016180000-24h-oper-fc.grib2",
-        "source_index": "https://data.ecmwf.int/forecasts/20261016/18z/ifs/0p25/oper/20261016180000-24h-oper-fc.index",
-        "source_offset": 0,
-        "source_length": 813800
-      },
-      {
-        "hours": 48,
-        "rain_point_mm": 3.97,
-        "grid_latitude": -29.25,
-        "grid_longitude": -51.75,
-        "source_file": "20261016180000-48h-oper-fc.grib2",
-        "source_index": "https://data.ecmwf.int/forecasts/20261016/18z/ifs/0p25/oper/20261016180000-48h-oper-fc.index",
-        "source_offset": 0,
-        "source_length": 940794
-      },
-      {
-        "hours": 72,
-        "rain_point_mm": 3.98,
-        "grid_latitude": -29.25,
-        "grid_longitude": -51.75,
-        "source_file": "20261016180000-72h-oper-fc.grib2",
-        "source_index": "https://data.ecmwf.int/forecasts/20261016/18z/ifs/0p25/oper/20261016180000-72h-oper-fc.index",
-        "source_offset": 0,
-        "source_length": 1012125
-      },
-      {
-        "hours": 120,
-        "rain_point_mm": 4.07,
-        "grid_latitude": -29.25,
-        "grid_longitude": -51.75,
-        "source_file": "20261016180000-120h-oper-fc.grib2",
-        "source_index": "https://data.ecmwf.int/forecasts/20261016/18z/ifs/0p25/oper/20261016180000-120h-oper-fc.index",
-        "source_offset": 0,
-        "source_length": 1104015
-      }
-    ],
-    "message": "Saída direta do IFS; usada como fonte de auditoria do ponto."
+    "horizons": [],
+    "message": "ECMWF direto indisponível nesta rodada: HTTP Error 429: Too Many Requests"
   },
   "basin_aggregation": {
     "status": "upstream_monitoring_grid_proxy",
@@ -188,8 +143,8 @@
       "hours": 24,
       "horizon_hours": 24,
       "rain_point_mm": 1.2,
-      "rain_ecmwf_direct_mm": 1.59,
-      "rain_ecmwf_direct_minus_openmeteo_mm": 0.39,
+      "rain_ecmwf_direct_mm": null,
+      "rain_ecmwf_direct_minus_openmeteo_mm": null,
       "rain_ifs_proxy_mm": 0.85,
       "basin_mean_mm": 0.85,
       "basin_max_mm": 1.4,
@@ -207,8 +162,8 @@
       "hours": 48,
       "horizon_hours": 48,
       "rain_point_mm": 2.5,
-      "rain_ecmwf_direct_mm": 3.97,
-      "rain_ecmwf_direct_minus_openmeteo_mm": 1.47,
+      "rain_ecmwf_direct_mm": null,
+      "rain_ecmwf_direct_minus_openmeteo_mm": null,
       "rain_ifs_proxy_mm": 2.3,
       "basin_mean_mm": 2.3,
       "basin_max_mm": 3.5,
@@ -226,8 +181,8 @@
       "hours": 72,
       "horizon_hours": 72,
       "rain_point_mm": 2.5,
-      "rain_ecmwf_direct_mm": 3.98,
-      "rain_ecmwf_direct_minus_openmeteo_mm": 1.48,
+      "rain_ecmwf_direct_mm": null,
+      "rain_ecmwf_direct_minus_openmeteo_mm": null,
       "rain_ifs_proxy_mm": 2.3,
       "basin_mean_mm": 2.3,
       "basin_max_mm": 3.5,
@@ -264,8 +219,8 @@
       "hours": 120,
       "horizon_hours": 120,
       "rain_point_mm": 2.5,
-      "rain_ecmwf_direct_mm": 4.07,
-      "rain_ecmwf_direct_minus_openmeteo_mm": 1.57,
+      "rain_ecmwf_direct_mm": null,
+      "rain_ecmwf_direct_minus_openmeteo_mm": null,
       "rain_ifs_proxy_mm": 2.9,
       "basin_mean_mm": 2.9,
       "basin_max_mm": 4.4,
