@@ -94,6 +94,94 @@ def publication_shell(writer: str) -> str:
     return "\n".join(line[10:] if line.startswith("          ") else line for line in body.splitlines()) + "\n"
 
 
+def validate_rain_git_attributes(root: Path, *, cached: bool = False,
+                                 env: dict[str, str] | None = None) -> None:
+    """Require effective byte-preserving attributes, not a one-line file.
+
+    Git resolves precedence, patterns, nested rules and info/attributes. Check
+    both worktree and index at the workflow gate so unrelated model rules are
+    allowed. check-attr's literal values 'unset'/'unspecified' are ambiguous:
+    require transformation attributes to be ABSENT in --all, then require the
+    canonical -text conversion policy from ls-files --eol. Explicit negative
+    filter/encoding/ident overrides are conservatively refused as ambiguous.
+    These are read-only queries; no clean filter is executed by this gate.
+    """
+    command = ["git", "--no-optional-locks", "check-attr", "-z"]
+    if cached:
+        command.append("--cached")
+    command.extend(["--all", "--", CSV])
+    result = subprocess.run(command, cwd=root, env=env, capture_output=True, timeout=30)
+    if result.returncode:
+        raise ValueError("Não foi possível verificar atributos Git da chuva")
+    fields = result.stdout.split(b"\0")
+    if len(fields) % 3 != 1 or fields[-1] != b"":
+        raise ValueError("Resposta inválida ao verificar atributos Git da chuva")
+    resolved = {}
+    for offset in range(0, len(fields) - 1, 3):
+        path, attribute, value = fields[offset:offset + 3]
+        if path != CSV.encode() or attribute in resolved:
+            raise ValueError("Resposta incompatível de atributos Git da chuva")
+        resolved[attribute] = value
+    if (resolved.get(b"text") != b"unset"
+            or any(attribute in resolved
+                   for attribute in (b"filter", b"working-tree-encoding", b"ident"))):
+        raise ValueError("Atributos Git podem alterar os bytes da chuva; publicação bloqueada")
+
+    def check_conversion(worktree: str | None = None, git_dir: str | None = None) -> None:
+        query = ["git", "--no-optional-locks"]
+        if worktree is not None:
+            query.extend(["--git-dir=" + git_dir, "--work-tree=" + worktree])
+        query.extend(["ls-files", "--eol", "-z", "--error-unmatch", "--", CSV])
+        result = subprocess.run(query, cwd=worktree or root, env=env, capture_output=True, timeout=30)
+        records = result.stdout.split(b"\0")
+        if result.returncode or len(records) != 2 or records[-1] != b"":
+            raise ValueError("Não foi possível confirmar a política de conversão da chuva")
+        parts = records[0].split(b"\t")
+        if (len(parts) != 2 or parts[1] != CSV.encode()
+                or not re.fullmatch(rb"i/\S*\s+w/\S*\s+attr/-text\s*", parts[0])):
+            raise ValueError("A chuva não tem conversão -text inequívoca; publicação bloqueada")
+
+    if cached:
+        # ls-files has no cached-attributes flag. Materialize ONLY the indexed
+        # ancestor attributes in a scratch worktree, using the real Git dir.
+        # Git still resolves its info/global/system rules itself. No checkout,
+        # index mutation, actual CSV write, clean filter or new Git object.
+        git_dir_result = subprocess.run(
+            ["git", "--no-optional-locks", "rev-parse", "--absolute-git-dir"],
+            cwd=root, env=env, capture_output=True, timeout=30)
+        if git_dir_result.returncode:
+            raise ValueError("Não foi possível localizar o índice Git da chuva")
+        git_dir = os.fsdecode(git_dir_result.stdout).strip()
+        ancestors = [".gitattributes", "assets/.gitattributes", "assets/data/.gitattributes"]
+        indexed = subprocess.run(
+            ["git", "--no-optional-locks", "ls-files", "--stage", "-z", "--", *ancestors],
+            cwd=root, env=env, capture_output=True, timeout=30)
+        if indexed.returncode or (indexed.stdout and not indexed.stdout.endswith(b"\0")):
+            raise ValueError("Não foi possível consultar atributos do índice Git")
+        with tempfile.TemporaryDirectory(prefix="previne-attributes-") as directory:
+            copied = set()
+            for entry in indexed.stdout.split(b"\0")[:-1]:
+                parts = entry.split(b"\t")
+                header = parts[0].split() if len(parts) == 2 else []
+                relative = os.fsdecode(parts[1]) if len(parts) == 2 else ""
+                if (len(header) != 3 or header[0] not in (b"100644", b"100755")
+                        or header[2] != b"0" or relative not in ancestors or relative in copied
+                        or not re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", header[1])):
+                    raise ValueError("Atributos do índice Git inválidos ou em conflito")
+                blob = subprocess.run(
+                    ["git", "--no-optional-locks", "cat-file", "blob", os.fsdecode(header[1])],
+                    cwd=root, env=env, capture_output=True, timeout=30)
+                if blob.returncode:
+                    raise ValueError("Não foi possível ler atributos do índice Git")
+                target = Path(directory) / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(blob.stdout)
+                copied.add(relative)
+            check_conversion(directory, git_dir)
+    else:
+        check_conversion()
+
+
 class PairValidationTests(unittest.TestCase):
     def test_valid_exact_bytes(self):
         payload = b"a,b\r\n1,0\r\n"
@@ -126,11 +214,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("/.github/workflows/basin-station-forecast.yml", sparse)
         self.assertIn("/.github/workflows/chuvas-horarias.yml", sparse)
         self.assertNotIn("/index.html", sparse)
-        # Other assets may have their own attributes; require only that the
-        # rainfall CSV has exactly one explicit -text declaration.
-        attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines()
-        csv_attrs = [line.strip() for line in attrs if line.strip().split(maxsplit=1)[0] == CSV]
-        self.assertEqual(csv_attrs, [CSV + " -text"])
+        for cached in (False, True):
+            validate_rain_git_attributes(ROOT, cached=cached)
 
     def test_both_writers_gate_worktree_and_commit_and_never_rebase(self):
         for writer in ("chuvas-horarias", "basin-station-forecast"):
@@ -389,6 +474,80 @@ git() {
         self.git(self.worker, "restore", "--worktree", "--", CSV)
         self.assertEqual((self.worker / CSV).read_bytes(), csv_bytes)
         self.assertEqual(validate_publication(self.worker), metadata["csv_sha256"])
+
+    def test_effective_attributes_accept_unrelated_training_rules(self):
+        self.write(self.worker, ".gitattributes", CSV + " -text\n"
+                   "assets/data/stz_user_models/training_n5*.csv -text\n"
+                   "assets/models/stz_user_shadow/** binary\n"
+                   "assets/data/stz_shadow_archive/**/*.gz binary\n"
+                   "unrelated.csv text=unset filter=unspecified ident\n")
+        self.git(self.worker, "add", ".gitattributes")
+        for cached in (False, True):
+            validate_rain_git_attributes(self.worker, cached=cached, env=self.env)
+
+    def test_effective_attributes_reject_missing_and_later_overrides(self):
+        for rules in ("other.csv -text\n", CSV + " -text\n*.csv text\n",
+                      CSV + " -text\nassets/data/*.csv text=auto\n",
+                      CSV + " -text\n" + CSV + " !text\n"):
+            with self.subTest(rules=rules):
+                self.write(self.worker, ".gitattributes", rules)
+                self.git(self.worker, "add", ".gitattributes")
+                for cached in (False, True):
+                    with self.assertRaises(ValueError):
+                        validate_rain_git_attributes(self.worker, cached=cached, env=self.env)
+
+    def test_effective_attributes_reject_nested_and_info_overrides(self):
+        for relative in ("assets/data/.gitattributes", ".git/info/attributes"):
+            with self.subTest(relative=relative):
+                self.write(self.worker, relative, "chuvas_horarias.csv text\n" if relative.startswith("assets/") else CSV + " text\n")
+                if relative.startswith("assets/"):
+                    self.git(self.worker, "add", "--sparse", relative)
+                for cached in (False, True):
+                    with self.assertRaises(ValueError):
+                        validate_rain_git_attributes(self.worker, cached=cached, env=self.env)
+                self.write(self.worker, relative, "# cleared fixture override\n")
+                if relative.startswith("assets/"):
+                    self.git(self.worker, "add", "--sparse", relative)
+
+    def test_effective_attributes_reject_filters_encoding_and_staged_divergence(self):
+        for transform in ("filter=example", "working-tree-encoding=UTF-16"):
+            with self.subTest(transform=transform):
+                self.write(self.worker, ".gitattributes", CSV + " -text " + transform + "\n")
+                self.git(self.worker, "add", ".gitattributes")
+                for cached in (False, True):
+                    with self.assertRaises(ValueError):
+                        validate_rain_git_attributes(self.worker, cached=cached, env=self.env)
+        # A valid worktree cannot conceal an unsafe already-staged rule.
+        self.write(self.worker, ".gitattributes", CSV + " text\n")
+        self.git(self.worker, "add", ".gitattributes")
+        self.write(self.worker, ".gitattributes", CSV + " -text\n")
+        validate_rain_git_attributes(self.worker, env=self.env)
+        with self.assertRaises(ValueError):
+            validate_rain_git_attributes(self.worker, cached=True, env=self.env)
+
+    def test_effective_attributes_reject_literal_state_names_and_ident(self):
+        # check-attr prints literal values like filter=unset exactly like the
+        # false/unspecified states. Drivers remain restricted to this lab.
+        for name in ("unset", "unspecified"):
+            self.git(self.worker, "config", "filter." + name + ".clean", "git hash-object --stdin")
+            self.git(self.worker, "config", "filter." + name + ".required", "true")
+        self.git(self.worker, "config", "core.autocrlf", "true")
+        for attributes in ("text=unset", "-text filter=unset", "-text filter=unspecified",
+                           "-text working-tree-encoding=unset",
+                           "-text working-tree-encoding=unspecified", "-text ident"):
+            with self.subTest(attributes=attributes):
+                self.write(self.worker, ".gitattributes", CSV + " " + attributes + "\n")
+                self.git(self.worker, "add", ".gitattributes")
+                for cached in (False, True):
+                    with self.assertRaises(ValueError):
+                        validate_rain_git_attributes(self.worker, cached=cached, env=self.env)
+        # A safe worktree must not hide a staged literal text=unset value.
+        self.write(self.worker, ".gitattributes", CSV + " text=unset\n")
+        self.git(self.worker, "add", ".gitattributes")
+        self.write(self.worker, ".gitattributes", CSV + " -text\n")
+        validate_rain_git_attributes(self.worker, env=self.env)
+        with self.assertRaises(ValueError):
+            validate_rain_git_attributes(self.worker, cached=True, env=self.env)
 
     def test_legacy_unchanged_only_and_committed_pair_gate(self):
         self.git(self.worker, "rm", META)
