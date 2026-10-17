@@ -6,12 +6,24 @@ on:
       - "codigo_python/02_mdt_hand_mancha/eixo_principal_taquari.py"
       - "codigo_python/02_mdt_hand_mancha/gerar_hand_lidar_santa_tereza.py"
       - "tests/test_eixo_principal_taquari.py"
+      - "scripts/test_hand_lidar_field_writer.py"
+      - "scripts/santa_tereza_hand_field_contract.py"
+      - "scripts/test_stz_evacuation_unknown.py"
+      - "scripts/test_santa_tereza_field_web.py"
+      - "santa_tereza_painel_evacuacao.html"
+      - "pesquisas/santa-tereza-painel-evacuacao.html"
       - ".github/workflows/testar-eixo-taquari.yml"
   pull_request:
     paths:
       - "codigo_python/02_mdt_hand_mancha/eixo_principal_taquari.py"
       - "codigo_python/02_mdt_hand_mancha/gerar_hand_lidar_santa_tereza.py"
       - "tests/test_eixo_principal_taquari.py"
+      - "scripts/test_hand_lidar_field_writer.py"
+      - "scripts/santa_tereza_hand_field_contract.py"
+      - "scripts/test_stz_evacuation_unknown.py"
+      - "scripts/test_santa_tereza_field_web.py"
+      - "santa_tereza_painel_evacuacao.html"
+      - "pesquisas/santa-tereza-painel-evacuacao.html"
       - ".github/workflows/testar-eixo-taquari.yml"
   workflow_dispatch:
 
@@ -37,3 +49,40 @@ jobs:
         run: python -m py_compile codigo_python/02_mdt_hand_mancha/eixo_principal_taquari.py codigo_python/02_mdt_hand_mancha/gerar_hand_lidar_santa_tereza.py
       - name: Afluente nao pode virar eixo principal
         run: python tests/test_eixo_principal_taquari.py -v
+
+  field-writer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            codigo_python/02_mdt_hand_mancha/eixo_principal_taquari.py
+            codigo_python/02_mdt_hand_mancha/gerar_hand_lidar_santa_tereza.py
+            scripts/santa_tereza_hand_field_contract.py
+            scripts/test_hand_lidar_field_writer.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dependencias da grade sintetica
+        run: python -m pip install numpy pillow scipy rasterio shapely pyproj
+      - name: Produtor real e contrato de campo, sem rasters de producao
+        run: python -B scripts/test_hand_lidar_field_writer.py -v
+
+  panel-unknown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            santa_tereza_painel_evacuacao.html
+            pesquisas/santa-tereza-painel-evacuacao.html
+            scripts/test_santa_tereza_field_web.py
+            scripts/test_stz_evacuation_unknown.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Indisponibilidade nao e distancia ou seguranca
+        run: python -B scripts/test_stz_evacuation_unknown.py -v

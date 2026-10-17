@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 LIVE = ROOT / "santa_tereza_previsao_inundacao.html"
 HIST = ROOT / "santa_tereza_inundacao.html"
+USER = ROOT / "santa_tereza_previsao_inundacao_usuario.html"
 DIAG = ROOT / "assets/data/santa_tereza_inundacao/hand_lidar_5m_diagnostic.json"
 ELEV = ROOT / "assets/data/santa_tereza_inundacao/mdt/altitude_terreno_lidar_10m.json"
 REFRESH = ROOT / ".github/workflows/refresh-spatial-30m.yml"
@@ -75,8 +76,9 @@ def payload(page: Path) -> tuple[str, dict]:
 
 live_html, live = payload(LIVE)
 hist_html, hist = payload(HIST)
+user_html, user = payload(USER)
 
-for page, html, data in ((LIVE, live_html, live), (HIST, hist_html, hist)):
+for page, html, data in ((LIVE, live_html, live), (HIST, hist_html, hist), (USER, user_html, user)):
     source = str(data.get("fonte") or "")
     if "CLIP_MOSAICO_LIDAR_RS.tif" not in source:
         fail(f"{page.name} não confirma o LiDAR bruto na fonte do HAND")
@@ -95,6 +97,8 @@ for page, html, data in ((LIVE, live_html, live), (HIST, hist_html, hist)):
             fail(f"{page.name} voltou a referenciar ativo legado: {token}")
 
 keys = ("cols", "rows", "S", "W", "N", "E", "hand_zero_cm", "max_hand_m", "fonte")
+if user != live:
+    fail("variante de usuário e página completa divergiram no payload HAND")
 for key in keys:
     if live.get(key) != hist.get(key):
         fail(f"página ao vivo e histórica divergiram no campo {key}")
@@ -176,6 +180,18 @@ if 'LEGACY_AUDIT_FLAG = "--legacy-audit-only"' not in legacy_refiner:
     fail("refinador drone+ANADEM legado não exige flag explícita de auditoria")
 if "Execução bloqueada: este refinamento drone + ANADEM é legado" not in legacy_refiner:
     fail("refinador drone+ANADEM legado não está bloqueado por padrão")
+
+house_page = read(ROOT / "santa_tereza_painel_casas.html")
+if 'data-stz-street-contract="blocked_unvalidated"' not in house_page:
+    fail("casas: exercício sem cobertura/MDT validados não está bloqueado")
+if 'type="application/x-stz-legacy-blocked"' not in house_page:
+    fail("casas: simulação antiga não está inerte")
+for generic in ("gerar_rota_fuga_ruas.py", "gerar_cota_alaga.py", "gerar_painel.py", "rede_casas.py"):
+    text = read(ROOT / "codigo_python/09_rota_fuga" / generic)
+    if "require_supported_street_pipeline(" not in text:
+        fail(f"{generic}: pipeline de casas/ruas ainda aceita Santa Tereza não validada")
+if not (ROOT / "codigo_python/09_rota_fuga/stz_street_legacy_guard.py").is_file():
+    fail("casas/ruas: guard de Santa Tereza ausente do checkout")
 
 print(
     "OK contrato LiDAR Santa Tereza: "

@@ -59,6 +59,7 @@ from rasterio.features import shapes
 from shapely.geometry import shape, Point, LineString, Polygon, GeometryCollection
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+from stz_street_legacy_guard import require_supported_street_pipeline
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ABRIGOS = os.path.join(RAIZ, "assets", "data", "servicos", "abrigos.geojson")
@@ -174,6 +175,7 @@ def _idade_min(iso):
 
 def nivel_de_projeto(cfg, fonte, nivel_fixo):
     """Devolve (hand_m, meta) do nivel de inundacao a evitar."""
+    require_supported_street_pipeline(cfg.get("slug"))
     z = cfg["zero_regua_m"]
     extra = {"bankfull_m": z, "alarmes_regua_m": cfg.get("alarmes_regua_m") or {}}
     if fonte == "fixo":
@@ -326,6 +328,7 @@ class Inundacao:
     """
 
     def __init__(self, cfg):
+        require_supported_street_pipeline(cfg.get("slug"))
         caminho = os.path.join(RAIZ, "assets", "data", "rota_fuga", f"cota_alaga_{cfg['slug']}.tif")
         if not os.path.exists(caminho):
             raise SystemExit(f"falta {caminho}: rode gerar_cota_alaga.py {cfg['slug']}")
@@ -769,6 +772,7 @@ def main():
     ap.add_argument("--nivel", type=float, default=None)
     ap.add_argument("--tempo-max", type=float, default=TEMPO_MAX_MIN, help="minutos a pé (idoso) até o abrigo")
     args = ap.parse_args()
+    require_supported_street_pipeline(args.cidade)
     cfg = CIDADES[args.cidade]
     fonte = args.fonte
     if cfg["zero_regua_m"] is None and fonte != "fixo":

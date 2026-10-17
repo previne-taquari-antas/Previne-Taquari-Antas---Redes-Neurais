@@ -41,7 +41,10 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertIn("const COTA_INUND=1500", page)
         self.assertIn("function stageToSpatialHand(cm,zeroCm=HAND_ZERO_DEFAULT_CM)", page)
         self.assertIn("(Number(cm)-Number(zeroCm))/100", page)
-        self.assertIn("contornos_mancha.json", page)
+        # O mapa de previsão exibe somente a extensão além do contorno-base
+        # HAND 0; não a geometria total do rio como se fosse extravasamento.
+        self.assertIn("const CONTORNOS_URL='assets/data/santa_tereza_inundacao/contornos_extravasamento.json'", page)
+        self.assertIn("além do contorno-base HAND 0 do rio principal", page)
         self.assertNotIn("Number(cm)-COTA_INUND", page)
 
     def test_generated_hand_diagnostic_is_main_river_only(self) -> None:
