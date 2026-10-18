@@ -161,7 +161,12 @@ def fingerprint(event_id:str)->dict[str,Any]|None:
           "early_6h_delta_q_m3s":(q[min(6,len(q)-1)]-q[0]) if len(q)>1 else 0.0
         }
     ant_path=ANTECEDENT/f"{event_id}.json"
-    ant=load(ant_path).get("summary") if ant_path.exists() else {}
+    antpkg=load(ant_path) if ant_path.exists() else {}
+    ant_valid=bool(
+        (antpkg.get("window") or {}).get("strictly_pre_event")
+        and (antpkg.get("method") or {}).get("future_event_rain_used") is False
+    )
+    ant=antpkg.get("summary") or {} if ant_valid else {}
     return {
       "event_id":event_id,
       "antecedent":{
@@ -169,8 +174,8 @@ def fingerprint(event_id:str)->dict[str,Any]|None:
         "rain_72h_mm":ant.get("rain_72h_mm"),
         "rain_168h_mm":ant.get("rain_168h_mm"),
         "api_tau_72h_mm":ant.get("api_tau_72h_mm"),
-        "strictly_pre_event":bool(ant_path.exists()),
-        "source":str(ant_path.relative_to(ROOT)) if ant_path.exists() else None,
+        "strictly_pre_event":ant_valid,
+        "source":str(ant_path.relative_to(ROOT)) if ant_valid else None,
       },
       "rain":{
         "basin_total_mm":sum(basin) if basin else None,
