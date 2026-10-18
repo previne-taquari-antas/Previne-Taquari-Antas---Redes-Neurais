@@ -243,13 +243,20 @@ def main()->int:
               "historical_metrics":row.get("metrics"),
               "checkpoint_gate_pass":row.get("checkpoint_gate_pass"),
               "model_family":row.get("model_family"),
+              "observational_quality":row.get("observational_quality"),
+              "independent_transfer_validation_passed":bool(row.get("independent_transfer_validation_passed")),
+              "forecast_selection_eligible":bool(row.get("forecast_selection_eligible")),
+              "historical_fit_warning":"Historical fit is not independent forecast performance",
             })
         scored.sort(key=lambda x:x["distance"])
         chosen=scored[:top_k]
         inv=[1.0/(0.05+x["distance"]) for x in chosen]
         ss=sum(inv)
         for x,v in zip(chosen,inv):
+            # A similarity weight is NOT a predictive probability. Until
+            # cross-event validation exists it cannot be treated as model skill.
             x["analog_weight"]=v/ss if ss else 0.0
+            x["weight_interpretation"]="relative_scenario_similarity_not_forecast_probability"
 
         topd=chosen[0]["distance"] if chosen else None
         gap=(chosen[1]["distance"]-topd) if len(chosen)>1 else None
@@ -261,9 +268,24 @@ def main()->int:
             conf_raw="low"
 
         freshness=lr.get("freshness") or {}
+        # A small analog distance is not enough to assert predictive skill.
+        # We currently have two HEC historical donor events and no
+        # independent target-excluded operational validation.
+        validated=[x for x in chosen if x.get("independent_transfer_validation_passed")
+                   and x.get("forecast_selection_eligible")]
+        hist_wetness=all(
+            bool((fps.get(x["event_id"]) or {}).get("antecedent",{}).get("strictly_pre_event"))
+            for x in chosen
+        )
         if freshness.get("critical_stale"):
             conf="low"
             confidence_cap_reason="critical_input_freshness"
+        elif chosen and not validated:
+            conf="low"
+            confidence_cap_reason="historical_fit_only_no_independent_forecast_validation"
+        elif chosen and not hist_wetness:
+            conf="low"
+            confidence_cap_reason="missing_verified_antecedent_wetness_for_historical_analogs"
         elif freshness.get("exact_ecmwf_cycle_id_available") is False and conf_raw=="high":
             conf="medium"
             confidence_cap_reason="ecmwf_cycle_id_unverified"
@@ -273,20 +295,53 @@ def main()->int:
 
         fallback=fallbacks.get(code)
         use_fallback=not chosen or conf=="low"
+        # This is an auditable shortlist of experiments, NOT a dispatch of
+        # forecasts. Include fallback as a comparator, not as a default answer.
+        roster=[{
+            "candidate_id":x["candidate_id"],
+            "donor_event_id":x["event_id"],
+            "model_family":x["model_family"],
+            "reason":"similarity_to_current_basin_state",
+            "similarity_distance":x["distance"],
+            "historical_fit_only":not x.get("independent_transfer_validation_passed"),
+            "quality_blockers":(x.get("observational_quality") or {}).get("blockers",[]),
+            "parameters":x["parameters"],
+        } for x in chosen if x.get("parameters")]
+        if fallback and fallback.get("parameters"):
+            params=fallback["parameters"]
+            if not any(x.get("parameters")==params for x in roster):
+                roster.append({
+                    "candidate_id":fallback.get("candidate_id"),
+                    "donor_event_id":None,
+                    "model_family":fallback.get("model_family"),
+                    "reason":"multi_event_comparator_not_universal_choice",
+                    "similarity_distance":None,
+                    "historical_fit_only":True,
+                    "quality_blockers":["independent_forecast_validation_not_completed"],
+                    "parameters":params,
+                })
         target_results.append({
           "target_code":code,"target_name":target.get("name"),
           "library_status":target.get("status"),
           "confidence":conf,
           "confidence_before_data_quality_cap":conf_raw,
+          "confidence_scope":"historical_scenario_similarity_only_not_forecast_skill",
+          "verified_antecedent_in_historical_analogs":hist_wetness,
+          "independently_validated_analogs":len(validated),
+          "research_comparison_roster":roster,
+          "roster_status":"suggested_candidates_not_executed",
+          "operational_selection_approved":False,
           "confidence_cap_reason":confidence_cap_reason,
           "top_analogs":chosen,
           "fallback":fallback,
           "selection_mode":"robust_fallback" if use_fallback else "analog_ensemble",
           "hard_parameter_pick":False,
           "note":(
-             "No sufficiently supported target/event analog; retain robust fallback."
+             "Evidence insufficient for operational selection; compare the "
+             "historical analogs and common comparator in research only."
              if use_fallback else
-             "Run/compare the weighted analog members; do not collapse to one set before benchmark gates."
+             "Compare multiple historically compatible models; independent replay "
+             "required before live decision use."
           )
         })
 
@@ -305,6 +360,10 @@ def main()->int:
         "target_event_full_fit_is_not_forecast_validation":True,
         "pseudo_operational_validation_required":True,
         "observations_after_t0_forbidden_for_selection":True,
+        "scenario_similarity_not_probability":True,
+        "historical_full_event_fit_is_not_transfer_skill":True,
+        "model_roster_is_diagnostic_not_dispatched":True,
+        "different_flood_regimes_require_multiple_parameterizations":True,
       }
     }
     OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
