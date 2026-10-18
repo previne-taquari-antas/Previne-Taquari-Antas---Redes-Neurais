@@ -242,9 +242,13 @@ def main()->int:
                     # Refinement was target-specific by construction. Prefer it
                     # when it passes the gate or improves target-specific fit.
                     if (
-                        refined_choice["checkpoint_gate_pass"]
-                        or not best["checkpoint_gate_pass"]
-                        or refined_choice["penalty"] < best["penalty"]
+                        (refined_choice["checkpoint_gate_pass"]
+                         and not best["checkpoint_gate_pass"])
+                        or (
+                            refined_choice["checkpoint_gate_pass"]
+                            ==best["checkpoint_gate_pass"]
+                            and refined_choice["penalty"] < best["penalty"]
+                        )
                     ):
                         best=refined_choice
                         source="target_event_refinement"
