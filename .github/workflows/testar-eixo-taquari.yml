@@ -9,9 +9,11 @@ on:
       - "scripts/test_hand_lidar_field_writer.py"
       - "scripts/santa_tereza_hand_field_contract.py"
       - "scripts/test_stz_evacuation_unknown.py"
+      - "scripts/test_stz_v002_copy.py"
       - "scripts/test_santa_tereza_field_web.py"
       - "santa_tereza_painel_evacuacao.html"
       - "pesquisas/santa-tereza-painel-evacuacao.html"
+      - "pesquisas/estudo-caso-resposta-santa-tereza.html"
       - ".github/workflows/testar-eixo-taquari.yml"
   pull_request:
     paths:
@@ -21,9 +23,11 @@ on:
       - "scripts/test_hand_lidar_field_writer.py"
       - "scripts/santa_tereza_hand_field_contract.py"
       - "scripts/test_stz_evacuation_unknown.py"
+      - "scripts/test_stz_v002_copy.py"
       - "scripts/test_santa_tereza_field_web.py"
       - "santa_tereza_painel_evacuacao.html"
       - "pesquisas/santa-tereza-painel-evacuacao.html"
+      - "pesquisas/estudo-caso-resposta-santa-tereza.html"
       - ".github/workflows/testar-eixo-taquari.yml"
   workflow_dispatch:
 
@@ -78,11 +82,15 @@ jobs:
             pesquisas/santa-tereza-painel-evacuacao.html
             scripts/test_santa_tereza_field_web.py
             scripts/test_stz_evacuation_unknown.py
+            pesquisas/estudo-caso-resposta-santa-tereza.html
+            scripts/test_stz_v002_copy.py
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Indisponibilidade nao e distancia ou seguranca
-        run: python -B scripts/test_stz_evacuation_unknown.py -v
+      - name: Indisponibilidade e mensagem exportada nao viram seguranca ou alerta
+        run: |
+          python -B scripts/test_stz_evacuation_unknown.py -v
+          python -B scripts/test_stz_v002_copy.py -v

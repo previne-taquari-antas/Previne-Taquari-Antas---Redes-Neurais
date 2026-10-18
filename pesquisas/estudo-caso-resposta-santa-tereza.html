@@ -727,7 +727,7 @@
               <div class="field"><label for="messageValidity">validade do rascunho</label><input id="messageValidity" type="text" placeholder="até reavaliar"></div>
               <div class="field"><label for="messageVersion">versão da mensagem</label><input id="messageVersion" type="text" placeholder="v1 · exercício"></div>
             </div>
-            <p>Preencha os metadados antes de copiar. O texto copiado recebe o prefixo “RASCUNHO DO EXERCÍCIO”; continua sendo rascunho até aprovação formal e confirmação de entrega.</p>
+            <p>Preencha os metadados antes de copiar. O texto copiado recebe o prefixo “RASCUNHO DO EXERCÍCIO — NÃO É ALERTA, ORDEM DE EVACUAÇÃO OU DESPACHO”; continua sendo rascunho até aprovação formal e confirmação de entrega.</p>
             <button id="copyMessage" class="secondary-button" type="button">Copiar texto do exercício</button>
           </details>
           <div id="liveRegion" class="sr-only" role="status" aria-live="polite"></div>
@@ -959,7 +959,7 @@
         <div class="provenance-grid">
           <div class="source-box">
             <h3>Sinal da rede neural</h3>
-            <p>Snapshot local de <code>previsao_ao_vivo.json</code>: 8h V001 publicado como experimental e 8h V002 em sombra/comparativo. O V002 tem menor MAE recente no snapshot, e permanece em acompanhamento experimental.</p>
+            <p>Snapshot local de <code>previsao_ao_vivo.json</code>: 8h V001 publicado como experimental e 8h V002 em sombra/comparativo. O V002 tem menor MAE recente no snapshot, mas não é alerta oficial nem está promovido.</p>
           </div>
           <div class="source-box">
             <h3>Evento espacial</h3>
@@ -1657,7 +1657,7 @@
       }else{
         messageDraft=zone.id+": janela simulada de "+fmtMinutes(remaining)+" no cenário histórico. Comunicação, transporte, abrigo e corredor são hipóteses do exercício, sem deslocamento real.";
       }
-      messageDraft="RASCUNHO DE EXERCÍCIO · "+messageDraft;
+      messageDraft="RASCUNHO — NÃO É ALERTA · "+messageDraft;
       setText("phaseBadge",step.phase);
       setText("eventClock",fmtClock(step.hours));
       setText("eventLevel",fmtM(scenarioLevelM()));
@@ -2046,8 +2046,8 @@
     }
 
     function copyMessage(){
-      const body=el("messageDraft").textContent.replace(/^RASCUNHO DE EXERCÍCIO\s*·\s*/i,"");
-      const text="RASCUNHO DO EXERCÍCIO — texto para revisão interna\n\n"+body;
+      const body=el("messageDraft").textContent.replace(/^RASCUNHO\s+—\s+NÃO É ALERTA\s+·\s*/i,"");
+      const text="RASCUNHO DO EXERCÍCIO — NÃO É ALERTA, ORDEM DE EVACUAÇÃO OU DESPACHO\n\n"+body;
       const done=function(){announce("Texto copiado; ainda é um rascunho do exercício.");};
       if(navigator.clipboard && navigator.clipboard.writeText){
         navigator.clipboard.writeText(text).then(done).catch(function(){copyMessageFallback(text);});
