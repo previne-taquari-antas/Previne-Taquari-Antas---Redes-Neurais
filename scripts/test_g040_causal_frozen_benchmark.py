@@ -40,7 +40,9 @@ class TestCausalFrozenBenchmark(unittest.TestCase):
         self.assertNotIn('wet_hist=hr.get("first_24h_mm")',src)
         lib=(ROOT/"scripts/build_g040_target_event_parameter_library.py").read_text(encoding="utf-8")
         self.assertIn('ANTECEDENT=BASE/"historical_antecedent_wetness"',lib)
-        self.assertIn('"strictly_pre_event":bool(ant_path.exists())',lib)
+        self.assertIn('"strictly_pre_event":ant_valid',lib)
+        self.assertIn('"future_event_rain_used") is False',lib)
+        self.assertIn('antpkg=load(ant_path) if ant_path.exists() else {}',lib)
 
     def test_runner_separates_forcing_from_verification(self):
         src=(ROOT/"scripts/run_hec_hms_g040_e1_hindcast.py").read_text(encoding="utf-8")
