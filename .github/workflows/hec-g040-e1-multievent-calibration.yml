@@ -160,7 +160,7 @@ jobs:
     # No commits/push to main; outputs stay as GitHub Actions artifacts.
     if: github.event_name == 'pull_request' && github.head_ref == 'research/mucum-balanced-hydrographs-20261018'
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
@@ -244,6 +244,30 @@ jobs:
           cat hec_overbank_sensitivity_stdout.txt
           echo "$RC" > hec_overbank_sensitivity_exit_code.txt
           test -f assets/data/hec_hms_g040_full_basin/g040_mucum_overbank_sensitivity_latest.json
+      - name: Build 2024 independent validation rainfall forcing
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B scripts/build_g040_historical_calibration_forcing.py \
+            --events E27_MAY2024,E28_JUN2024 --max-workers 12 \
+            > hec_2024_forcing_stdout.txt 2>&1
+          cat hec_2024_forcing_stdout.txt
+      - name: Apply frozen 2023 models to 2024 without recalibration
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
+          test -n "$HEC_SH"
+          set +e
+          python -B scripts/validate_g040_frozen_2024_transfer.py "$HEC_SH" \
+            > hec_2024_transfer_stdout.txt 2>&1
+          RC=$?
+          set -e
+          cat hec_2024_transfer_stdout.txt
+          echo "$RC" > hec_2024_transfer_exit_code.txt
+          test -f assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_latest.json
       - name: Export full observed vs simulated hydrographs
         if: always()
         continue-on-error: true
@@ -271,3 +295,12 @@ jobs:
             assets/data/hec_hms_g040_full_basin/g040_mucum_overbank_sensitivity_candidates.csv
             assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/*.csv
             assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/manifest.json
+            hec_2024_forcing_stdout.txt
+            hec_2024_transfer_stdout.txt
+            hec_2024_transfer_exit_code.txt
+            assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_latest.json
+            assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_scores.csv
+            assets/data/hec_hms_g040_full_basin/g040_frozen_2024_validation_inputs/*.log
+            assets/data/hec_hms_g040_full_basin/g040_frozen_2024_validation_inputs/hec_runs/*/project/hec_output_values.csv
+            assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/E27_MAY2024/scenario.json
+            assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/E28_JUN2024/scenario.json
