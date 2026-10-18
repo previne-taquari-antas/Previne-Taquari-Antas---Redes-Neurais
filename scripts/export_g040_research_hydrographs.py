@@ -5,8 +5,10 @@ Includes missing observations as empty cells rather than interpolating them.
 Saved only as isolated GitHub Actions artifacts, never to the public forecast.
 """
 from __future__ import annotations
-import csv, json
+import csv, json, sys
 from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
 from scripts import calibrate_hec_hms_g040_e1_multievent as cal
 from scripts import run_hec_hms_g040_e1_hindcast as runner
 
