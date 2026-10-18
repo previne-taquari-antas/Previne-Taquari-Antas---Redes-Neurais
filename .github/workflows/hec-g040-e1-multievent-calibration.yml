@@ -269,6 +269,11 @@ jobs:
           cat hec_2024_transfer_stdout.txt
           echo "$RC" > hec_2024_transfer_exit_code.txt
           test -f assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_latest.json
+      - name: Diagnose frozen 2024 peak timing and evidence quality
+        if: always()
+        continue-on-error: true
+        run: |
+          python -B scripts/diagnose_g040_frozen_2024_timing.py
       - name: Export full observed vs simulated hydrographs
         if: always()
         continue-on-error: true
@@ -301,6 +306,7 @@ jobs:
             hec_2024_transfer_exit_code.txt
             assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_latest.json
             assets/data/hec_hms_g040_full_basin/g040_frozen_2024_transfer_validation_scores.csv
+            assets/data/hec_hms_g040_full_basin/g040_frozen_2024_timing_quality_diagnostic.csv
             assets/data/hec_hms_g040_full_basin/g040_frozen_2024_validation_inputs/*.log
             assets/data/hec_hms_g040_full_basin/g040_frozen_2024_validation_inputs/hec_runs/*/project/hec_output_values.csv
             assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/E27_MAY2024/scenario.json
