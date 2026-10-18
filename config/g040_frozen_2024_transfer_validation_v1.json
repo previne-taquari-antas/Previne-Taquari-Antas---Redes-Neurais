@@ -1,0 +1,68 @@
+{
+  "schema_version": "g040_frozen_2024_transfer_validation_v1",
+  "research_only": true,
+  "frozen_before_validation": true,
+  "calibration_events": [
+    "E22_SEP2023",
+    "E24_NOV2023"
+  ],
+  "validation_events": [
+    "E27_MAY2024",
+    "E28_JUN2024"
+  ],
+  "allowed_future_observed_discharge_as_forcing": false,
+  "weather_mode": "retrospective_observed_rain_not_operational_forecast",
+  "upstream_boundary": "Frozen 2023-calibrated Prata + Antas model, no 2024 observed Q in forcing",
+  "upstream_frozen_model": "assets/data/hec_hms_g040_full_basin/g040_upper_antas_model_frozen_latest.json",
+  "source_artifact": {
+    "workflow_run": 39151079297,
+    "artifact_id": 12145333513,
+    "name": "g040-research-balanced-hydrographs",
+    "generated_at_utc": "2026-10-18T17:59:11Z"
+  },
+  "parameters": {
+    "cn": 34.11993525,
+    "lag_min": 71.18895694218449,
+    "k_g1": 5,
+    "k_g2": 1.9285714285714284,
+    "k_g3": 3.9545454545454546,
+    "k_g4": 4.038461538461538,
+    "x": 0.14705882352941177
+  },
+  "candidate_members": [
+    {
+      "id": "QMC_04",
+      "type": "reference",
+      "storage": null
+    },
+    {
+      "id": "OVERBANK_02",
+      "type": "conceptual_storage_hypothesis",
+      "storage": {
+        "threshold_m3s": 5000,
+        "diverted_fraction": 0.35,
+        "release_tau_h": 12
+      }
+    },
+    {
+      "id": "OVERBANK_06",
+      "type": "conceptual_storage_hypothesis",
+      "storage": {
+        "threshold_m3s": 7000,
+        "diverted_fraction": 0.35,
+        "release_tau_h": 12
+      }
+    }
+  ],
+  "verification_quality": {
+    "min_target_observed_coverage": 0.7,
+    "max_internal_missing_observed_hours": 6,
+    "min_median_rain_gauges_per_hour": 4,
+    "min_score_pairs": 24,
+    "min_simulated_window_hours": 72
+  },
+  "full_event_policy": "Never pass verification when the modeled interval fails to cover >=70% of event or misses crest; report partial metrics separately",
+  "selection_policy": "Never choose parameters using E27 or E28 metrics, even if comparison improves",
+  "all_results_research_only": true,
+  "promotion_allowed": false
+}
