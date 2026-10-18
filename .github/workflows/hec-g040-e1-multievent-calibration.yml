@@ -154,3 +154,75 @@ jobs:
             sleep $((attempt * 2))
           done
           exit 1
+
+  research-pr-hec:
+    # Isolated full HEC-HMS experiment for this research PR only.
+    # No commits/push to main; outputs stay as GitHub Actions artifacts.
+    if: github.event_name == 'pull_request' && github.head_ref == 'research/mucum-balanced-hydrographs-20261018'
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install research dependencies
+        run: pip install --disable-pip-version-check numpy shapely pyproj
+      - name: Run calibration unit and numerical tests
+        run: |
+          python -B scripts/test_g040_multievent_calibration_contract.py
+          python -B scripts/test_g040_e1_numerical_stability.py
+      - name: Download official HEC-HMS 4.13 for isolated research run
+        run: |
+          set -euo pipefail
+          mkdir -p .hec
+          curl -L --fail --retry 3 --retry-delay 4 -o /tmp/HEC-HMS-4.13-linux64.tar.gz \
+            https://github.com/HydrologicEngineeringCenter/hec-downloads/releases/download/1.0.38/HEC-HMS-4.13-linux64.tar.gz
+          tar -xzf /tmp/HEC-HMS-4.13-linux64.tar.gz -C .hec
+      - name: Build observed historical G040 rainfall and hydrometric forcing
+        run: |
+          python -B scripts/build_g040_historical_calibration_forcing.py \
+            --events E22_SEP2023,E24_NOV2023 --max-workers 12
+      - name: Verify observation coverage for research
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path("assets/data/hec_hms_g040_full_basin/historical_calibration_forcing")
+          for event in ("E22_SEP2023","E24_NOV2023"):
+              rain=json.loads((base/event/"rain.json").read_text(encoding="utf-8"))
+              d=rain["rain_diagnostics"]
+              print(event, "median stations/h:",d["median_valid_station_count"],
+                    "minimum:",d["minimum_valid_station_count"],
+                    "valid hours:",d["hours_with_any_station"])
+              if d["hours_with_any_station"] == 0:
+                  raise RuntimeError(event+" has no observed rainfall")
+          PY
+      - name: Run 12 QMC plus anchor multi-event HEC-HMS simulations
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
+          test -n "$HEC_SH"
+          set +e
+          python -B scripts/calibrate_hec_hms_g040_e1_multievent.py "$HEC_SH" --qmc 12 \
+            > hec_research_stdout.txt 2>&1
+          RC=$?
+          set -e
+          cat hec_research_stdout.txt
+          echo "$RC" > hec_research_exit_code.txt
+          test -f assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_latest.json
+      - name: Preserve research evidence without publishing to main
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g040-research-balanced-hydrographs
+          if-no-files-found: warn
+          path: |
+            hec_research_stdout.txt
+            hec_research_exit_code.txt
+            assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_latest.json
+            assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_candidates.csv
+            assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/manifest_latest.json
