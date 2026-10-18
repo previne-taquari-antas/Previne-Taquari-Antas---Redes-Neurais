@@ -33,6 +33,9 @@ DSS_EPOCH=datetime(1899,12,31)
 # Fixed across calibration candidates so ranking is not contaminated by changing numerical resolution.
 # 3 min satisfies HEC-HMS SCS UH guidance dt <= 0.29*lag even at the current minimum lag bound (~15.85 min).
 COMPUTE_INTERVAL_MIN=3
+# Observed stage/discharge may be resampled to the model's hourly axis only
+# between nearby telemetry records. Never bridge multi-hour outages.
+MAX_OBS_INTERPOLATION_GAP_MIN=60
 # HEC-HMS 4.13 rejects larger Muskingum subreach counts in the generated basin model.
 # Keep the numerical search inside the accepted range; candidates without a stable
 # solution inside this range are rejected instead of run with unstable routing.
@@ -110,6 +113,9 @@ def interp(rows,t):
         elif a>t:
             hi=(a,b); break
     if lo is None or hi is None: return None
+    gap_minutes=(hi[0]-lo[0]).total_seconds()/60.0
+    if gap_minutes<=0 or gap_minutes>MAX_OBS_INTERPOLATION_GAP_MIN:
+        return None
     f=(t-lo[0]).total_seconds()/(hi[0]-lo[0]).total_seconds()
     return lo[1]*(1-f)+hi[1]*f
 
@@ -657,18 +663,36 @@ def score_outputs(out_by,hydro,times,boundary_source_code=None):
         peak_obs=obs[oi]; peak_sim=ss[si]
         peak_err=100*(peak_sim-peak_obs)/peak_obs if peak_obs else None
         peak_lag=(tt[si]-tt[oi]).total_seconds()/3600
+        # This compares only paired observation hours; in events with missing
+        # observations, it is NOT the continuous full-event hydrograph volume.
         volume_obs=sum(obs)*3600.0; volume_sim=sum(ss)*3600.0
         volume_err=100*(volume_sim-volume_obs)/volume_obs if volume_obs else None
-        do=[obs[i]-obs[i-1] for i in range(1,len(obs))]
-        ds=[ss[i]-ss[i-1] for i in range(1,len(ss))]
+        # A slope cannot be computed across an observational outage. Adjacent
+        # entries in 'pairs' may be separated by days; use only true 1h steps.
+        adjacent=[i for i in range(1,len(tt))
+                  if abs((tt[i]-tt[i-1]).total_seconds()-3600.0)<1.0]
+        do=[obs[i]-obs[i-1] for i in adjacent]
+        ds=[ss[i]-ss[i-1] for i in adjacent]
         derivative_rmse=math.sqrt(sum((a-b)**2 for a,b in zip(do,ds))/len(do)) if do else None
         sign_hits=sum((a==0 and b==0) or (a*b>0) for a,b in zip(do,ds))
         rise_fall_skill=sign_hits/len(do) if do else None
+        pair_gaps_h=[(tt[i]-tt[i-1]).total_seconds()/3600.0-1.0
+                     for i in range(1,len(tt))
+                     if (tt[i]-tt[i-1]).total_seconds()>3600.0+1.0]
+        coverage=len(pairs)/len(times) if times else 0.0
         result[code]={
-            "pairs":len(pairs),"mean_observed_m3s":mo,"mean_simulated_m3s":ms,
+            "pairs":len(pairs),
+            "observed_coverage_ratio":coverage,
+            "observed_missing_hours":max(len(times)-len(pairs),0),
+            "observed_gap_count":len(pair_gaps_h),
+            "max_observed_gap_hours":max(pair_gaps_h,default=0.0),
+            "valid_hourly_slope_pairs":len(adjacent),
+            "coverage_caveat":"computed only on actual paired observation hours; gaps are not interpolated",
+            "mean_observed_m3s":mo,"mean_simulated_m3s":ms,
             "rmse_m3s":rmse,"normalized_rmse":None if mo==0 else rmse/mo,
             "mae_m3s":mae,"nse":nse,"kge":kge,"correlation":r,
             "pbias_pct":pbias,"volume_error_pct":volume_err,
+            "volume_error_scope":"paired_hours_only",
             "observed_peak_m3s":peak_obs,"simulated_peak_m3s":peak_sim,
             "peak_error_pct":peak_err,
             "observed_peak_time_utc":tt[oi].isoformat().replace("+00:00","Z"),
