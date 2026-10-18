@@ -36,6 +36,51 @@ class TestG040MultieventCalibrationContract(unittest.TestCase):
         self.assertIn("no_leakage", src)
         self.assertIn("parameter_freeze_rule", src)
 
+    def test_rank_favors_two_events_over_single_event_overfit(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "g040_calibration", ROOT / "scripts/calibrate_hec_hms_g040_e1_multievent.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        concentrated = {
+            "eligible_for_calibration_ranking": True,
+            "calibration_events_with_gate": 1,
+            "checkpoint_gate_pass_count": 4,
+            "worst_event_penalty": 0.2,
+            "mean_multi_metric_penalty": 0.2,
+        }
+        balanced = {
+            "eligible_for_calibration_ranking": True,
+            "calibration_events_with_gate": 2,
+            "checkpoint_gate_pass_count": 2,
+            "worst_event_penalty": 0.3,
+            "mean_multi_metric_penalty": 0.3,
+        }
+        self.assertLess(mod.rank_key(balanced), mod.rank_key(concentrated))
+
+    def test_penalty_accounts_for_hydrograph_slope(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "g040_calibration_penalty", ROOT / "scripts/calibrate_hec_hms_g040_e1_multievent.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        base = {
+            "pairs": 48,
+            "nse": 0.8,
+            "kge": 0.8,
+            "normalized_rmse": 0.3,
+            "pbias_pct": 8,
+            "peak_error_pct": 6,
+            "peak_timing_error_h": 1,
+            "rise_fall_sign_skill": 0.7,
+            "mean_observed_m3s": 1000,
+        }
+        good = mod.metric_penalty({**base, "derivative_rmse_m3s_h": 50})
+        poor = mod.metric_penalty({**base, "derivative_rmse_m3s_h": 500})
+        self.assertLess(good, poor)
+
     def test_runner_accepts_event_specific_inputs(self):
         src = (
             ROOT / "scripts/run_hec_hms_g040_e1_hindcast.py"
