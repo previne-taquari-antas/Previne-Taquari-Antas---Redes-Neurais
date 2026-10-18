@@ -97,7 +97,7 @@ jobs:
           HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
           test -n "$HEC_SH"
           set +e
-          python -B scripts/calibrate_hec_hms_g040_e1_multievent.py "$HEC_SH" --qmc 6             > /tmp/g040_multievent_calibration.stdout 2>&1
+          python -B scripts/calibrate_hec_hms_g040_e1_multievent.py "$HEC_SH" --qmc 12             > /tmp/g040_multievent_calibration.stdout 2>&1
           RC=$?
           set -e
           cat /tmp/g040_multievent_calibration.stdout
