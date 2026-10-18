@@ -81,6 +81,25 @@ class TestG040MultieventCalibrationContract(unittest.TestCase):
         poor = mod.metric_penalty({**base, "derivative_rmse_m3s_h": 500})
         self.assertLess(good, poor)
 
+    def test_long_observation_outage_cannot_pass_calibration_gate(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location(
+            "g040_quality_gate",ROOT/"scripts/calibrate_hec_hms_g040_e1_multievent.py"
+        )
+        mod=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        strong={
+            "pairs":198, "nse":0.95,"pbias_pct":0,
+            "peak_error_pct":1, "peak_timing_error_h":0,
+            "rise_fall_sign_skill":0.99,
+            "observed_coverage_ratio":198/288,
+            "max_observed_gap_hours":90.0,
+        }
+        self.assertFalse(mod.checkpoint_gate(strong))
+        strong["observed_coverage_ratio"]=1.0
+        strong["max_observed_gap_hours"]=0.0
+        self.assertTrue(mod.checkpoint_gate(strong))
+
     def test_runner_accepts_event_specific_inputs(self):
         src = (
             ROOT / "scripts/run_hec_hms_g040_e1_hindcast.py"
