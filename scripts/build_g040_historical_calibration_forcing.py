@@ -297,6 +297,12 @@ def component_forcing(
         "hour_count": len(times),
         "hours_with_any_station": sum(x > 0 for x in valid_counts),
         "hours_with_at_least_3_stations": sum(x >= MIN_RAIN_STATIONS_FOR_STRONG_HOUR for x in valid_counts),
+        # Three widely separated rain gauges cannot resolve storm placement
+        # across the entire G040 network; report this limitation explicitly.
+        "hours_with_fewer_than_4_stations": sum(0 < x < 4 for x in valid_counts),
+        "fraction_hours_with_fewer_than_4_stations": (
+            sum(0 < x < 4 for x in valid_counts) / len(times) if times else 0.0
+        ),
         "minimum_valid_station_count": min(valid_counts) if valid_counts else 0,
         "median_valid_station_count": valid_sorted[len(valid_sorted)//2] if valid_sorted else 0,
         "maximum_valid_station_count": max(valid_counts) if valid_counts else 0,
@@ -425,6 +431,19 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
             "failures": failures,
         },
         "rain_diagnostics": rain_diag,
+        "spatial_support_assessment": {
+            "flag": "SPARSE_GAUGE_SUPPORT" if
+                rain_diag["fraction_hours_with_fewer_than_4_stations"] > 0.25
+                else "NO_SPARSE_GAUGE_FLAG",
+            "explanation": (
+                "Continuous IDW rainfall is not proof of spatial representativeness. "
+                "Fewer than four reporting rain gauges across G040 for over 25% "
+                "of hourly intervals makes spatial calibration weak."
+            ),
+            "hourly_gauge_threshold": 4,
+            "flag_fraction_threshold": 0.25,
+            "does_not_impute_missing_rain": True,
+        },
         "upper_antas_nested_forcing": {
             "purpose": "7-day observed warm-up plus event rain for predictive 86472000 boundary",
             "warmup_days": UPPER_WARMUP_DAYS,
@@ -477,6 +496,7 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
         "rain_status": rain_payload["status"],
         "rain_station_count": len(stations),
         "rain_diagnostics": rain_diag,
+        "spatial_support_flag": rain_payload["spatial_support_assessment"]["flag"],
         "upper_antas_nested_complete": nested_diag["complete_zone_count"] == nested_diag["zone_count"],
         "upper_antas_nested_diagnostics": nested_diag,
         "active_boundary_codes": active,
