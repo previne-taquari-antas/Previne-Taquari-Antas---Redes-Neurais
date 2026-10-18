@@ -61,6 +61,43 @@ class TestNumerics(unittest.TestCase):
         self.assertIn('t.add(60)',src)
         self.assertIn('Time Interval: {COMPUTE_INTERVAL_MIN}',src)
 
+
+    def test_observed_interpolation_never_bridges_an_outage(self):
+        from datetime import datetime, timedelta, timezone
+        a=datetime(2023,9,1,0,0,tzinfo=timezone.utc)
+        rows=[(a,100.0),(a+timedelta(minutes=30),130.0),
+              (a+timedelta(hours=4),400.0)]
+        self.assertAlmostEqual(m.interp(rows,a+timedelta(minutes=15)),115.0)
+        self.assertIsNone(m.interp(rows,a+timedelta(hours=1)))
+        self.assertIsNone(m.interp(rows,a+timedelta(hours=2)))
+        self.assertEqual(m.interp(rows,a+timedelta(hours=4)),400.0)
+
+    def test_e22_scoring_uses_only_recorded_mucum_discharge(self):
+        # Replays must not count 90 missing historical hours as observations.
+        from datetime import timedelta, timezone
+        from unittest.mock import patch
+        data=ROOT/"assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/E22_SEP2023/hydro.json"
+        self.assertTrue(data.is_file(),"Historical hydro package should be committed")
+        import json
+        hydro=json.loads(data.read_text(encoding="utf-8"))
+        _,series=m.series_control(hydro,"86510000")
+        start=series[0][0]; end=series[-1][0]
+        axis=m.hourly_axis(start,end)
+        observed=m.target_hourly(hydro,"86510000",axis)
+        self.assertEqual(len(axis),288)
+        self.assertEqual(len(observed),198)
+        # Simulated discharge covers the whole HEC window, not the observed gaps.
+        predicted={"J_86510000":[(t,1000.0) for t in axis]}
+        with patch.object(m,"MAIN_CHECKPOINTS",["86510000"]):
+            scores=m.score_outputs(predicted,hydro,axis)
+        mu=scores["86510000"]
+        self.assertEqual(mu["pairs"],198)
+        self.assertEqual(mu["observed_missing_hours"],90)
+        self.assertEqual(mu["observed_gap_count"],1)
+        self.assertEqual(mu["max_observed_gap_hours"],90.0)
+        self.assertEqual(mu["valid_hourly_slope_pairs"],196)
+        self.assertEqual(mu["volume_error_scope"],"paired_hours_only")
+
     def test_dss_time_conversion_preserves_project_timezone(self):
         from datetime import datetime, timezone
         # 2023-09-01 00:00 local BRT must become 03:00 UTC.
