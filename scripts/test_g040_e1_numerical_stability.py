@@ -98,6 +98,28 @@ class TestNumerics(unittest.TestCase):
         self.assertEqual(mu["valid_hourly_slope_pairs"],196)
         self.assertEqual(mu["volume_error_scope"],"paired_hours_only")
 
+    def test_full_hydrograph_peak_is_not_hidden_by_missing_observations(self):
+        from datetime import datetime, timedelta, timezone
+        from unittest.mock import patch
+        start=datetime(2023,9,4,0,0,tzinfo=timezone.utc)
+        axis=[start+timedelta(hours=i) for i in range(7)]
+        # Synthetic observation has a three-hour outage around the flood crest.
+        observed=[100.0,120.0,None,None,None,140.0,110.0]
+        hydropkg={"controls":[{"code":"86510000","recent_rows":[
+            {"time_utc":t.isoformat(),"flow_m3s":q}
+            for t,q in zip(axis,observed) if q is not None
+        ]}]}
+        simulated=[100.0,125.0,180.0,700.0,340.0,142.0,115.0]
+        out_by={"J_86510000":list(zip(axis,simulated))}
+        with patch.object(m,"MAIN_CHECKPOINTS",["86510000"]):
+            score=m.score_outputs(out_by,hydropkg,axis)["86510000"]
+        self.assertEqual(score["pairs"],4)
+        self.assertEqual(score["full_simulated_peak_m3s"],700.0)
+        self.assertEqual(score["full_peak_observation_status"],
+                         "FULL_SIMULATED_PEAK_HAS_NO_NEARBY_OBSERVATION")
+        self.assertEqual(score["max_observed_gap_hours"],3.0)
+        self.assertLess(score["simulated_peak_m3s"],200.0)
+
     def test_dss_time_conversion_preserves_project_timezone(self):
         from datetime import datetime, timezone
         # 2023-09-01 00:00 local BRT must become 03:00 UTC.
