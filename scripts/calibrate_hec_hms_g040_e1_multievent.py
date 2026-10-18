@@ -139,6 +139,12 @@ def run_event(hec: str, row: dict[str, Any], event_id: str) -> dict[str, Any]:
         "--x",
         str(row["x"]),
     ]
+    if row.get("overbank_fraction"):
+        cmd.extend([
+            "--overbank-threshold-m3s",str(row["overbank_threshold_m3s"]),
+            "--overbank-fraction",str(row["overbank_fraction"]),
+            "--overbank-release-tau-h",str(row["overbank_release_tau_h"]),
+        ])
     p = subprocess.run(
         cmd,
         cwd=ROOT,
