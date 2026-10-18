@@ -214,6 +214,26 @@ jobs:
           cat hec_research_stdout.txt
           echo "$RC" > hec_research_exit_code.txt
           test -f assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_latest.json
+      - name: Research-only Muçum routing attenuation sensitivity
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
+          test -n "$HEC_SH"
+          set +e
+          python -B scripts/run_g040_reach_attenuation_sensitivity.py "$HEC_SH" \
+            > hec_routing_sensitivity_stdout.txt 2>&1
+          RC=$?
+          set -e
+          cat hec_routing_sensitivity_stdout.txt
+          echo "$RC" > hec_routing_sensitivity_exit_code.txt
+          test -f assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_latest.json
+      - name: Export full observed vs simulated hydrographs
+        if: always()
+        continue-on-error: true
+        run: |
+          python -B scripts/export_g040_research_hydrographs.py
       - name: Preserve research evidence without publishing to main
         if: always()
         uses: actions/upload-artifact@v4
@@ -226,3 +246,9 @@ jobs:
             assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_latest.json
             assets/data/hec_hms_g040_full_basin/g040_e1_multievent_calibration_candidates.csv
             assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/manifest_latest.json
+            hec_routing_sensitivity_stdout.txt
+            hec_routing_sensitivity_exit_code.txt
+            assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_latest.json
+            assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_candidates.csv
+            assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/*.csv
+            assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/manifest.json
