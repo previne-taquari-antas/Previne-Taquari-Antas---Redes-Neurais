@@ -39,7 +39,7 @@ class TestFrozenTransfer(unittest.TestCase):
 
     def test_deployment_forbidden_and_weather_not_forecast(self):
         text=SCRIPT.read_text(encoding="utf-8")
-        self.assertIn('"score-hydro-file"',text)
+        self.assertIn('"--score-hydro-file"',text)
         self.assertIn('score_hydro_file',text)
         self.assertIn('observed_rainfall_across_entire_validation_event',text)
         self.assertIn('forecast_skill_demonstrated',text)
