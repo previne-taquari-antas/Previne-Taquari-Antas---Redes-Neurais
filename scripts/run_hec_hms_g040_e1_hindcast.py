@@ -648,6 +648,19 @@ def score_outputs(out_by,hydro,times,boundary_source_code=None):
             result[code]={"pairs":len(pairs),"status":"insufficient_observed_Q"}
             continue
         tt=[x[0] for x in pairs]; obs=[x[1] for x in pairs]; ss=[x[2] for x in pairs]
+        # Full simulation peak includes missing-observation hours. A high NSE
+        # on paired hours must never obscure a hydrologically extreme unobserved peak.
+        start_t=times[0]; end_t=times[-1]
+        all_sim=[(t,float(q)) for t,q in sim_rows
+                 if start_t<=t<=end_t and math.isfinite(float(q))]
+        full_peak_time,full_peak_q=max(all_sim,key=lambda z:z[1]) if all_sim else (None,None)
+        full_peak_obs_available=bool(full_peak_time is not None
+            and any(abs((t-full_peak_time).total_seconds())<=1800 for t in obsmap))
+        full_peak_gap_notice=(
+            "FULL_SIMULATED_PEAK_HAS_NO_NEARBY_OBSERVATION"
+            if full_peak_time is not None and not full_peak_obs_available
+            else "PEAK_TIME_OBSERVATION_PRESENT"
+        )
         mo=sum(obs)/len(obs); ms=sum(ss)/len(ss)
         sse=sum((a-b)**2 for a,b in zip(obs,ss)); den=sum((a-mo)**2 for a in obs)
         rmse=math.sqrt(sse/len(obs)); mae=sum(abs(a-b) for a,b in zip(obs,ss))/len(obs)
@@ -694,6 +707,19 @@ def score_outputs(out_by,hydro,times,boundary_source_code=None):
             "pbias_pct":pbias,"volume_error_pct":volume_err,
             "volume_error_scope":"paired_hours_only",
             "observed_peak_m3s":peak_obs,"simulated_peak_m3s":peak_sim,
+            "full_simulated_peak_m3s":full_peak_q,
+            "full_simulated_peak_time_utc":(
+                full_peak_time.isoformat().replace("+00:00","Z")
+                if full_peak_time is not None else None
+            ),
+            "full_peak_observation_status":full_peak_gap_notice,
+            "full_peak_relative_to_recorded_observed_peak_pct":(
+                100*(full_peak_q-peak_obs)/peak_obs
+                if full_peak_q is not None and peak_obs else None
+            ),
+            "full_peak_relative_error_caveat":(
+                "Not true peak error when observations are missing near model peak"
+            ),
             "peak_error_pct":peak_err,
             "observed_peak_time_utc":tt[oi].isoformat().replace("+00:00","Z"),
             "simulated_peak_time_utc":tt[si].isoformat().replace("+00:00","Z"),
