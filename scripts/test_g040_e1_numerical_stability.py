@@ -10,6 +10,40 @@ m=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 class TestNumerics(unittest.TestCase):
+    def test_overbank_storage_conserves_mass_and_is_causal(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location(
+            "overbank",ROOT/"scripts/g040_overbank_storage.py")
+        ob=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ob)
+        q=[700.0]*8+[8000.0]*8+[700.0]*30
+        args=dict(threshold_m3s=5000,diverted_fraction=0.65,
+                  release_tau_h=12.0)
+        out,audit=ob.route_overbank(q,**args)
+        self.assertEqual(len(out),len(q))
+        self.assertGreater(max(q),max(out))
+        self.assertAlmostEqual(sum(q)*3600,sum(out)*3600+
+                               audit["remaining_storage_m3"],delta=0.5)
+        self.assertLess(audit["maximum_storage_m3"],4e8)
+        qfuture=q[:20]+[9999.0]*26
+        changed,_=ob.route_overbank(qfuture,**args)
+        self.assertEqual(out[:20],changed[:20])
+        self.assertTrue(all(v>=0 for v in out))
+        self.assertEqual(out[:8],q[:8])
+
+    def test_overbank_zero_fraction_keeps_original_observed_flow(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location(
+            "overbank_zero",ROOT/"scripts/g040_overbank_storage.py")
+        ob=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ob)
+        q=[120.0,8000.0,1200.0]
+        out,audit=ob.route_overbank(q,threshold_m3s=1000,
+                                     diverted_fraction=0,
+                                     release_tau_h=6)
+        self.assertEqual(out,q)
+        self.assertAlmostEqual(audit["remaining_storage_m3"],0)
+
     def test_interval_is_three_minutes(self):
         self.assertEqual(m.COMPUTE_INTERVAL_MIN,3)
         from datetime import datetime, timezone
