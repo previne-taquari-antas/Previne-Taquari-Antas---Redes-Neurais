@@ -803,6 +803,8 @@ def main():
         "score_hydro_file":str(Path(args.score_hydro_file)) if args.score_hydro_file else str(Path(args.hydro_file)),
         "scenario_file":str(Path(args.scenario_file))},
       "rainfall_runoff_components":used,
+      "rainfall_spatial_support":rainpkg.get("spatial_support_assessment", {}),
+      "rainfall_diagnostics":rainpkg.get("rain_diagnostics", {}),
       "preflight_contract":preflight,
       "parameters":{"cn":args.cn,"lag_min":args.lag_min,"baseflow":"None",
         "k_group_h":{"g1":args.k_g1,"g2":args.k_g2,"g3":args.k_g3,"g4":args.k_g4},
