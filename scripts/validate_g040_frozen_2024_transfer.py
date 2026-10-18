@@ -147,6 +147,27 @@ def run_member(hec,eid,member,p,cfg):
         if int(metrics.get("pairs") or 0)<4:
             raise RuntimeError("too few Muçum observations to score")
         s=(j.get("upstream_boundary_overbank_storage_experiment") or {})
+        window=j.get("window") or {}
+        expected=int((load(p["rain_file"]).get("window") or {}).get("hours") or 0)
+        window_hours=int(window.get("hours") or 0)
+        complete_fraction=window_hours/expected if expected else 0.0
+        observed_target=next((c for c in load(p["score_hydro_file"]).get("controls") or []
+                              if str(c.get("code"))=="86510000"),{})
+        observed_records=[
+            x for x in observed_target.get("recent_rows") or []
+            if x.get("flow_m3s") is not None and x.get("time_utc")
+        ]
+        valid_obs=[
+            (float(x["flow_m3s"]),datetime.fromisoformat(
+             str(x["time_utc"]).replace("Z","+00:00")))
+            for x in observed_records if math.isfinite(float(x["flow_m3s"]))
+        ]
+        max_obs_time=max(valid_obs,key=lambda x:x[0])[1] if valid_obs else None
+        begin=datetime.fromisoformat(str(window["start_utc"]).replace("Z","+00:00"))
+        end=datetime.fromisoformat(str(window["end_utc"]).replace("Z","+00:00"))
+        recorded_crest_in_simulation=bool(
+            max_obs_time and begin<=max_obs_time<=end
+        )
         return {
             "model_id":mid,"event_id":eid,"compute_ok":True,
             "mucum":{k:metrics.get(k) for k in METRICS},
@@ -154,7 +175,9 @@ def run_member(hec,eid,member,p,cfg):
                 for code,m in (j.get("scores") or {}).items()},
             "storage_max_m3":s.get("maximum_storage_m3"),
             "mass_balance_error_m3":s.get("mass_balance_error_m3"),
-            "simulation_times_utc":(j.get("window") or j.get("simulation_window")),
+            "simulation_times_utc":window,
+            "fraction_full_event_simulated":complete_fraction,
+            "recorded_event_crest_inside_simulated_window":recorded_crest_in_simulation,
             "rain_observed_full_event_not_forecast":True,
             "evaluation_uses_2024_Q_only_for_scoring":True,
             "log":str(log.relative_to(ROOT)),
@@ -177,6 +200,12 @@ def score_quality(row,inputs,config):
         "rain_gauge_spatial_proxy":(
             inputs["input_provenance"].get("median_spatial_reporting_rain_gauges") or 0
         )>=q["min_median_rain_gauges_per_hour"],
+        "simulated_at_least_70pct_of_full_event":(
+            row.get("fraction_full_event_simulated") or 0
+        )>=q["min_target_observed_coverage"],
+        "recorded_crest_inside_simulation":bool(
+            row.get("recorded_event_crest_inside_simulated_window")
+        ),
     }
     # Observed Q and meteorological quality cannot be rescued by good NSE.
     return {"gates":checks,"research_evidence_quality_adequate":all(checks.values()),
