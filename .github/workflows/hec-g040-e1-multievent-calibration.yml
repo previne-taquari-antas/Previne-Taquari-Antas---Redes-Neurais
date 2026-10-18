@@ -229,6 +229,21 @@ jobs:
           cat hec_routing_sensitivity_stdout.txt
           echo "$RC" > hec_routing_sensitivity_exit_code.txt
           test -f assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_latest.json
+      - name: Test temporary overbank floodplain storage through Muçum
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEC_SH="$(find "$PWD/.hec" -type f -name 'hec-hms.sh' | head -n 1)"
+          test -n "$HEC_SH"
+          set +e
+          python -B scripts/run_g040_overbank_sensitivity.py "$HEC_SH" \
+            > hec_overbank_sensitivity_stdout.txt 2>&1
+          RC=$?
+          set -e
+          cat hec_overbank_sensitivity_stdout.txt
+          echo "$RC" > hec_overbank_sensitivity_exit_code.txt
+          test -f assets/data/hec_hms_g040_full_basin/g040_mucum_overbank_sensitivity_latest.json
       - name: Export full observed vs simulated hydrographs
         if: always()
         continue-on-error: true
@@ -250,5 +265,9 @@ jobs:
             hec_routing_sensitivity_exit_code.txt
             assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_latest.json
             assets/data/hec_hms_g040_full_basin/g040_e1_mucum_routing_sensitivity_candidates.csv
+            hec_overbank_sensitivity_stdout.txt
+            hec_overbank_sensitivity_exit_code.txt
+            assets/data/hec_hms_g040_full_basin/g040_mucum_overbank_sensitivity_latest.json
+            assets/data/hec_hms_g040_full_basin/g040_mucum_overbank_sensitivity_candidates.csv
             assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/*.csv
             assets/data/hec_hms_g040_full_basin/g040_research_hydrograph_exports/manifest.json
