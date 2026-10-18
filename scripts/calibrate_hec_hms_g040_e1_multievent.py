@@ -195,6 +195,13 @@ def metric_penalty(metric: dict[str, Any]) -> float | None:
 def checkpoint_gate(metric: dict[str, Any]) -> bool:
     if not isinstance(metric, dict) or int(metric.get("pairs") or 0) < 12:
         return False
+    # A plausible NSE is not calibration evidence when the hydrograph is
+    # mostly absent or a long discharge outage crosses the event. The score
+    # remains diagnostic, but the checkpoint cannot satisfy a readiness gate.
+    coverage=float(metric.get("observed_coverage_ratio",1.0))
+    largest_gap=float(metric.get("max_observed_gap_hours",0.0))
+    if coverage<0.70 or largest_gap>6.0:
+        return False
     return (
         metric.get("nse") is not None
         and float(metric["nse"]) >= 0.50
@@ -247,6 +254,8 @@ def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]
                 sum(penalties) / len(penalties) if penalties else None
             ),
             "scores": scores,
+            "rainfall_spatial_support": event.get("rainfall_spatial_support"),
+            "rainfall_diagnostics": event.get("rainfall_diagnostics"),
             "error": event.get("error"),
         })
 
@@ -375,7 +384,11 @@ def main() -> int:
             "design": "2 report-derived anchors + deterministic Van der Corput/QMC",
             "bounds": BOUNDS,
             "ranking": "both calibration events contribute >=2 checkpoints; maximize event balance and checkpoint gates; minimize worst-event then mean penalty (including rise/recession derivative error)",
-            "checkpoint_gate": "pairs>=12, NSE>=0.50, |PBIAS|<=20%, |peak error|<=20%, |peak timing|<=3h, rise/fall sign skill>=0.65",
+            "checkpoint_gate": "pairs>=12, observed coverage>=70%, longest missing Q gap<=6h, NSE>=0.50, |PBIAS|<=20%, |peak error|<=20%, |peak timing|<=3h, rise/fall sign skill>=0.65",
+            "calibration_quality_note": (
+                "Observed discharge gaps and low spatial rainfall gauge support "
+                "can prevent scientifically defensible promotion even when HEC computes."
+            ),
             "selection_variables": [
                 "CN",
                 "SCS lag",
