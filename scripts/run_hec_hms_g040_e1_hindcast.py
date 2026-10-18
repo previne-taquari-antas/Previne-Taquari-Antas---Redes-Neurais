@@ -22,6 +22,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.g040_overbank_storage import route_overbank
+except ModuleNotFoundError:
+    from g040_overbank_storage import route_overbank
+
 ROOT=Path(__file__).resolve().parents[1]
 BASE=ROOT/"assets/data/hec_hms_g040_full_basin"
 OBSRAIN=BASE/"whole_basin_observed_rain_latest.json"
@@ -754,6 +759,12 @@ def main():
         help="Optional ISO UTC time; verification metrics use only timestamps at/before this time.")
     ap.add_argument("--scenario-file",type=Path,default=SCENARIOS)
     ap.add_argument("--output-root",type=Path,default=OUTROOT)
+    ap.add_argument("--overbank-threshold-m3s",type=float,default=None,
+        help="Research-only conceptual bankfull discharge threshold at mainstem upstream boundary")
+    ap.add_argument("--overbank-fraction",type=float,default=0.0,
+        help="Fraction of above-threshold discharge temporarily stored in off-channel reservoir")
+    ap.add_argument("--overbank-release-tau-h",type=float,default=None,
+        help="Off-channel conceptual reservoir release residence time in hours")
     args=ap.parse_args()
     if not (20<args.cn<95): raise SystemExit("CN outside physical search domain")
     if not (1<=args.lag_min<=600): raise SystemExit("lag outside search domain")
@@ -777,6 +788,19 @@ def main():
     times=hourly_axis(start,end)
 
     source_values={code:source_hourly(hydro,code,times) for code in [primary_source,*active]}
+    overbank_audit=None
+    if args.overbank_fraction:
+        if primary_source!="86472000":
+            raise RuntimeError("overbank experiment needs observed 86472000 upstream source")
+        if args.overbank_threshold_m3s is None or args.overbank_release_tau_h is None:
+            raise RuntimeError("overbank experiment requires threshold and release tau")
+        source_values[primary_source],overbank_audit=route_overbank(
+            source_values[primary_source],
+            threshold_m3s=args.overbank_threshold_m3s,
+            diverted_fraction=args.overbank_fraction,
+            release_tau_h=args.overbank_release_tau_h,
+            timestep_h=1.0,
+        )
     score_start=utc(args.score_start_utc) if args.score_start_utc else None
     score_end=utc(args.score_end_utc) if args.score_end_utc else None
     score_times=[t for t in times if (score_start is None or t>=score_start) and (score_end is None or t<=score_end)]
@@ -829,6 +853,7 @@ def main():
         "score_hydro_file":str(Path(args.score_hydro_file)) if args.score_hydro_file else str(Path(args.hydro_file)),
         "scenario_file":str(Path(args.scenario_file))},
       "rainfall_runoff_components":used,
+      "upstream_boundary_overbank_storage_experiment":overbank_audit,
       "rainfall_spatial_support":rainpkg.get("spatial_support_assessment", {}),
       "rainfall_diagnostics":rainpkg.get("rain_diagnostics", {}),
       "preflight_contract":preflight,
@@ -846,6 +871,7 @@ def main():
         "global CN and lag are temporary calibration parameterization, not 145-subbasin transfer",
         "model stops at Porto Mariante until lower-TaQ routing/backwater evidence is closed",
         "when score_hydro_file differs from hydro_file, future observations are verification-only and never enter forcing",
+        "overbank-storage option is conceptual and does not replace a measured storage-elevation-discharge curve or 2D floodplain model",
         "if Muçum is the primary fallback, Muçum itself is boundary-only and is excluded from forecast scoring"],
       "promotion_allowed":False}
     (rt/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
