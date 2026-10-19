@@ -9,6 +9,15 @@
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="../assets/css/estudo_caso_territorio.css?v=20261001-case7">
+  <style>
+    /* Keep the controls' intrinsic width inside the responsive grid. */
+    @media (max-width: 1100px) {
+      body.territorio.sala-reunida .control-dock > * { min-width: 0; }
+    }
+    @media (max-width: 900px) {
+      body.territorio.sala-reunida .cockpit-tabs .segment { width: auto; }
+    }
+  </style>
 </head>
 <body class="territorio sala-reunida is-cockpit">
   <a class="skip" href="#sala-stage">Pular para o conteúdo</a>
@@ -25,7 +34,7 @@
       </div>
       <div class="scope-badge">
         <strong>ESTUDO TERRITORIAL</strong>
-        <span>Cenários para análise territorial.</span>
+        <span>Cenários para análise territorial. Não é alerta oficial nem ordem de evacuação.</span>
       </div>
     </header>
 
@@ -35,6 +44,8 @@
       <a href="sala-integrada-eventos.html">Replay de evento</a>
       <a href="../pesquisas.html">Pesquisa</a>
     </nav>
+
+    <p class="gate-line" id="stz-field-context" hidden><strong>Santa Tereza · referência de campo:</strong> régua 1,60 m = HAND 0, somente rio principal; contornos LiDAR até HAND 25 m. O cenário de rota de zero 4,0 m é legado bloqueado; o replay territorial ainda requer reconciliação. <a href="santa-tereza-painel-evacuacao.html">Abrir painel atual de pesquisa</a>. Não é água observada, alerta ou rota liberada.</p>
 
     <section class="control-dock" aria-label="Controles da sala">
       <div class="control-field">
@@ -240,7 +251,7 @@
             </div>
             <div class="live-card" id="live-card">
               <strong id="live-title">Toque uma rua laranja ou o mapa</strong>
-              <p id="live-copy">Mostra o abrigo mais perto e quantos km faltam.</p>
+              <p id="live-copy">Disponibilidade de traçado e destino depende do município e do cenário; não comprova abrigo seguro ou acesso.</p>
               <div class="rota-metrics" id="rota-metrics" hidden></div>
             </div>
           </article>
@@ -272,7 +283,7 @@
             <div class="links" id="city-links"></div>
           </details>
 
-          <p class="gate-line compact-gate">Análise de rotas: confira condições atualizadas dos acessos.</p>
+          <p class="gate-line compact-gate">Rotas de pesquisa, não certificadas como seguras. Confira condições atualizadas dos acessos; não é ordem de saída.</p>
         </aside>
       </div>
     </section>

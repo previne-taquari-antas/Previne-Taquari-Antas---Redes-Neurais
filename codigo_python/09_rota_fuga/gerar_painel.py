@@ -27,6 +27,7 @@ from shapely.strtree import STRtree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gerar_rota_fuga_ruas as rf_mod  # noqa: E402
 from rede_casas import no_prox  # noqa: E402
+from stz_street_legacy_guard import require_supported_street_pipeline  # noqa: E402
 
 RAIZ = rf_mod.RAIZ
 CFG = {
@@ -39,6 +40,7 @@ MODOS = ("rotas", "margem", "impacto")
 
 
 def gera(cidade, rf_nome=None, html=None, modos=MODOS, titulo="Evacuação", taxa_cm_h=40.0):
+    require_supported_street_pipeline(cidade)
     cfg = CFG[cidade]
     rf = json.load(open(os.path.join(RAIZ, "assets", "data", "rota_fuga", rf_nome or cfg["rf"]), encoding="utf-8"))
     if "niveis" not in rf:

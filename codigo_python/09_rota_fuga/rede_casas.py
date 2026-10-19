@@ -13,11 +13,13 @@ from collections import Counter
 
 from shapely.geometry import Point
 from shapely.strtree import STRtree
+from stz_street_legacy_guard import require_supported_street_pipeline
 
 VEL_IDOSO = 0.9
 
 
 def casas_com_rota(rf):
+    require_supported_street_pipeline((rf.get("meta") or {}).get("municipio"))
     campos = (rf.get("meta") or {}).get("casas_campos")
     if not campos or not rf.get("casas"):
         return []
@@ -52,6 +54,7 @@ def no_prox(nos, lat, lon, validos=None):
 
 class GradeCasas:
     def __init__(self, rf):
+        require_supported_street_pipeline((rf.get("meta") or {}).get("municipio"))
         self.rf = rf
         self.casas = casas_com_rota(rf)
         self.tree = STRtree([Point(c["lon"], c["lat"]) for c in self.casas]) if self.casas else None
