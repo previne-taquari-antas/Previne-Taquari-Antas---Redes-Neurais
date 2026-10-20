@@ -31,17 +31,18 @@ check(
 );
 
 const sources = feed.sourcesFor('previsao_ao_vivo.json');
-check(sources.length, 4, 'quatro fontes');
-check(sources[0].url, 'previsao_ao_vivo.json', 'Pages relativo');
-assert.ok(sources[1].url.includes('/main/previsao_ao_vivo.json'), 'Raw GitHub');
-assert.ok(sources[2].url.includes('jsdelivr.net/gh/'), 'CDN jsDelivr');
-assert.ok(sources[3].url.includes('/contents/previsao_ao_vivo.json'), 'API GitHub');
+check(sources.length, 3, 'três fontes publicadas');
+assert.ok(sources.every(s=>s.url.startsWith('https:')), 'JSON live não publicado no Pages');
+assert.ok(sources[0].url.includes('/main/previsao_ao_vivo.json'), 'Raw GitHub');
+assert.ok(sources[1].url.includes('jsdelivr.net/gh/'), 'CDN jsDelivr');
+assert.ok(sources[2].url.includes('/contents/previsao_ao_vivo.json'), 'API GitHub');
 assert.ok(!sources[0].url.includes('22:45'), 'fonte local não é o snapshot velho');
-check(feed.primarySources(sources).length, 3, 'API fica de reserva');
+check(feed.primarySources(sources).length, 2, 'API fica de reserva');
 check(feed.apiSources(sources).length, 1, 'uma fonte API');
 
 const mucum = feed.sourcesFor('assets/foo/previsao_ao_vivo_mucum.json?cb=1');
-check(mucum[0].url, 'previsao_ao_vivo_mucum.json', 'usa só o nome do arquivo');
+assert.ok(mucum[0].url.endsWith('/previsao_ao_vivo_mucum.json'));
+const originalNow=Date.now; Date.now=()=>Date.parse('2026-09-16T19:40:00-03:00');
 
 function jsonOk(data) {
   return {
@@ -103,8 +104,10 @@ async function withFetch(mock, fn) {
   }, function () { return feed.fetchLive('previsao_ao_vivo.json'); });
   check(viaApi.consultado_em, github.consultado_em, 'API entra só quando Pages/Raw/CDN falham');
 
-  console.log('OK live_feed: Pages velho perde para o GitHub mais novo');
+  Date.now=originalNow;
+  console.log('OK live_feed: fontes publicadas e recuperação pela API');
 })().catch(function (err) {
   console.error(err);
   process.exit(1);
 });
+

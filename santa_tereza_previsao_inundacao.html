@@ -448,6 +448,7 @@
 <script src="assets/js/previsao_cidades.js?v=20261007-cidades-1"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/js/fmt_quando.js?v=20260916-hora-0h4"></script>
+<script src="assets/js/site_runtime.js?v=20261020-recovery"></script>
 <script src="assets/js/live_feed.js?v=20260921-live-refresh-2"></script>
 <script src="assets/previsao_panorama.js?v=20261008-4h-v11"></script>
 <script src="assets/previsao_fila.js"></script>
@@ -649,7 +650,7 @@ function updateTelemetryMarkers(D){
 // handArr fica para consulta pontual e TP/FP/FN. A mancha principal usa
 // contornos_mancha.json (extensão total HAND), preservando o canal preenchido;
 // o nível espacializado é régua - 1,60 m.
-function loadHand(){return new Promise(res=>{
+function loadHand(){return PrevineSiteRuntime.imageTask(res=>{
   const img=new Image();
   img.onload=()=>{
     const c=document.createElement('canvas'); c.width=COLS;c.height=ROWS; const x=c.getContext('2d'); x.drawImage(img,0,0);
@@ -667,7 +668,7 @@ function ensureHand(){
   return handLoadPromise;
 }
 
-function loadContornos(){return fetch(CONTORNOS_URL,{cache:'no-store'}).then(r=>{
+function loadContornos(){return PrevineSiteRuntime.fetchResource(CONTORNOS_URL,{cache:'no-store'}).then(r=>{
   if(!r.ok) throw new Error('HTTP '+r.status);
   return r.json();
 }).then(fc=>{
@@ -682,12 +683,12 @@ function loadContornos(){return fetch(CONTORNOS_URL,{cache:'no-store'}).then(r=>
 
 function loadElevation(){
   if(!ELEVATION_URL){ elevationMeta=null; elevationArr=null; return Promise.resolve(); }
-  return fetch(ELEVATION_URL).then(r=>{
+  return PrevineSiteRuntime.fetchResource(ELEVATION_URL).then(r=>{
     if(!r.ok) throw new Error('HTTP '+r.status);
     return r.json();
   }).then(meta=>{
     if(meta.same_source_as_hand!==true) throw new Error('MDT rejeitado: fonte não declarada como a mesma do HAND');
-    return new Promise(resolve=>{
+    return PrevineSiteRuntime.imageTask(resolve=>{
       const img=new Image();
       img.onload=()=>{
         const canvas=document.createElement('canvas'); canvas.width=meta.cols; canvas.height=meta.rows;
@@ -1271,9 +1272,23 @@ function renderLiveStep(){
   set('live-when', liveWhenText(liveData,P));
   renderFrame();
 }
+let liveEntering=false;
+let liveRetryDelay=5000;
 async function enterLive(){
+  if(liveEntering) return;
+  liveEntering=true;
+  clearTimeout(liveTimer);
   let d; try{ d=await fetchLiveJson(); }
-  catch(e){ window.PREVINE_PUBLIC.failed(true); return; }
+  catch(e){
+    if(window.PREVINE_PUBLIC) window.PREVINE_PUBLIC.failed(true);
+    const note=document.getElementById('live-note');
+    if(note){note.style.display='';note.textContent='Tentando atualizar os dados novamente…';}
+    liveTimer=setTimeout(enterLive,liveRetryDelay);
+    liveRetryDelay=Math.min(liveRetryDelay*2,30000);
+    return;
+  } finally { liveEntering=false; }
+  liveRetryDelay=5000;
+  if(window.PREVINE_PUBLIC) window.PREVINE_PUBLIC.recovered();
   liveData=d; prepareLiveData(liveData); updateTelemetryMarkers(liveData); if(window.PREVINE_PANORAMA)PREVINE_PANORAMA.update(liveData,activeLiveData()); liveMode=true; document.body.classList.add('live'); liveIdx=0; const toggle=document.getElementById('live-btn'); if(toggle){toggle.textContent='← Voltar ao histórico';toggle.setAttribute('aria-pressed','true');}
   document.getElementById('live-bar').style.display='';
   document.getElementById('live-hz').style.display='flex';
@@ -1292,7 +1307,7 @@ async function enterLive(){
     clearInterval(liveTimer);
     liveTimer=setInterval(async()=>{
       try{
-        const j=await fetchLiveJson();
+        const j=await fetchLiveJson(); if(window.PREVINE_PUBLIC) window.PREVINE_PUBLIC.recovered();
         liveData=j;
         if(semHorizontes(j)) liveData.passos=[[j.gerado_em,liveNowCm(j),j.nivel_previsto_cm]];
         prepareLiveData(liveData);
@@ -1354,13 +1369,13 @@ async function init(){
   document.getElementById('live-btn').onclick=()=>liveMode?exitLive():enterLive();
   document.querySelectorAll('[data-live-hz]').forEach(b=>b.onclick=()=>setLiveHorizon(b.dataset.liveHz));
 
-  await Promise.all([loadContornos(), loadElevation()]);
+  const spatialReady=Promise.all([loadContornos(), loadElevation()]);
   if(typeof L!=='undefined'){
     map=L.map('map',{scrollWheelZoom:true}).fitBounds(BOUNDS);
     const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19,attribution:'© Esri, Maxar'});
     const labels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19});
     const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'});
-    sat.on('tileerror',()=>{if(!map.hasLayer(osm)&&!map.hasLayer(sat)) osm.addTo(map);});
+    PrevineSiteRuntime.installTileFallback(map,sat,osm);
     sat.addTo(map); labels.addTo(map);
     if(window.PREVINE_CITY_MAP) PREVINE_CITY_MAP.init({map:map,city:'santa_tereza',bounds:BOUNDS,variant:'completa'});
     telemetryLayer=L.layerGroup().addTo(map);
@@ -1369,12 +1384,12 @@ async function init(){
       {'Rótulos':labels,'Estações hidrotelemétricas':telemetryLayer},
       {position:'topright'}
     ).addTo(map);
-    if(elevationMeta&&elevationMeta.visual_png){
+    spatialReady.then(()=>{ if(elevationMeta&&elevationMeta.visual_png){
       const mdtBounds=[[elevationMeta.S,elevationMeta.W],[elevationMeta.N,elevationMeta.E]];
       const mdtVisualUrl=new URL(elevationMeta.visual_png,new URL(ELEVATION_URL,document.baseURI)).href;
       const mdtVisual=L.imageOverlay(mdtVisualUrl,mdtBounds,{opacity:.48,interactive:false,alt:'MDT de Santa Tereza da mesma fonte do HAND'});
       layerControl.addOverlay(mdtVisual,'MDT atual · mesma fonte do HAND');
-    }
+    }});
     // A borda prevista fica sempre acima do azul para a RNA continuar visível,
     // mesmo quando a mancha futura coincide com a atual ou fica contida nela.
     map.createPane('predictionUncertaintyPane').style.zIndex=410;
@@ -1473,6 +1488,7 @@ async function init(){
     const box=document.getElementById('map');
     const b=document.createElement('div'); b.className='banner'; b.textContent='Mapa base (Leaflet) não carregou aqui — abra pelo GitHub Pages.'; box.appendChild(b);
   }
+  spatialReady.then(()=>{ if(liveMode) renderLiveStep(); else renderFrame(); });
   setEvent(curEv);            // frame inicial (sobrescrito pelo ao vivo)
   enterLive();                // simulador = só AO VIVO (previsão real)
 }
@@ -1481,3 +1497,4 @@ init();
 </script>
 </body>
 </html>
+

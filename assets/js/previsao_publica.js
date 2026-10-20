@@ -19,7 +19,6 @@
     return !!(hasValue && base && target && target.getTime() > Date.now());
   }
   function renderHorizons(live, active, ready) {
-    connectionError = false;
     const horizons = live && live.horizontes || {};
     const missing = [];
     document.querySelectorAll('#live-hz [data-live-hz]').forEach(button => {
@@ -93,5 +92,6 @@
     note.textContent = initial ? 'Os dados atuais não carregaram. Tente novamente em instantes.' : 'Não foi possível confirmar a atualização. Os últimos dados carregados continuam visíveis.';
     note.hidden = false;
   }
-  window.PREVINE_PUBLIC = {isReady, renderHorizons, update, failed};
+  window.PREVINE_PUBLIC = {isReady, renderHorizons, update, failed, recovered: () => { connectionError = false; }};
 })();
+

@@ -11,14 +11,14 @@
   var p3=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:3,maximumFractionDigits:3});
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
   var finite=function(v){return typeof v==='number'&&Number.isFinite(v);};
-  var n=function(v,d){return finite(Number(v))?(d===0?p0:d===3?p3:d===2?p2:d===1?p1:pt).format(Number(v)):'—';};
-  var pct=function(v){return finite(Number(v))?p2.format(Number(v))+'%':'—';};
+  var n=function(v,d){return v!==null&&v!==undefined&&v!==''&&finite(Number(v))?(d===0?p0:d===3?p3:d===2?p2:d===1?p1:pt).format(Number(v)):'—';};
+  var pct=function(v){return v!==null&&v!==undefined&&v!==''&&finite(Number(v))?p2.format(Number(v))+'%':'—';};
   var date=function(v){if(!v)return '—';var s=String(v).replace('T',' ').replace('Z','');return s.length>16?s.slice(0,16):s;};
   var titleCase=function(v){return String(v||'').replace(/_/g,' ').replace(/\b\w/g,function(x){return x.toUpperCase();});};
   var color=function(kind){return kind==='gefs'?'gefs':kind==='risk'?'risk':kind==='rna'?'rna':'';};
   var fill=function(value,max,kind){var x=finite(Number(value))&&max>0?Math.max(0,Math.min(100,Number(value)/max*100)):0;return '<div class="pattern-model-track"><div class="pattern-model-fill '+color(kind)+'" style="width:'+x.toFixed(1)+'%"></div></div>';};
   var bar=function(label,value,max,kind,unit,decimals){return '<div class="pattern-bar-row"><span>'+esc(label)+'</span><div class="pattern-bar-track"><div class="pattern-bar-fill '+(kind||'')+'" style="width:'+(finite(Number(value))&&max>0?Math.max(0,Math.min(100,Number(value)/max*100)):0).toFixed(1)+'%"></div></div><b>'+n(value,decimals==null?1:decimals)+' '+esc(unit||'')+'</b></div>';};
-  var scoreLabel=function(v){var n=Number(v);return Number.isFinite(n)?p2.format(n)+'% exp.':'sem score atual';};
+  var scoreLabel=function(v){var n=Number(v);return v!==null&&v!==undefined&&v!==''&&Number.isFinite(n)?p2.format(n)+'% exp.':'sem score atual';};
   var sourceState=function(d,key){return ((d.source_quality||{})[key]||{}).state||'unknown';};
   var sourceAge=function(d,key){var x=Number(((d.source_quality||{})[key]||{}).age_hours);return Number.isFinite(x)?x:null;};
   var ageText=function(h){return h==null?'idade desconhecida':h>=48?p1.format(h/24)+' dias':p1.format(h)+' h';};
@@ -58,7 +58,7 @@
     }).join(''));
   }
   function row(label,value,max,kind,unit,decimals){return '<div class="pattern-model-row"><span>'+esc(label)+'</span>'+fill(value,max,kind)+'<strong>'+n(value,decimals==null?1:decimals)+' '+esc(unit||'')+'</strong></div>';}
-  function statusRow(label,text){return '<div class="pattern-model-row"><span>'+esc(label)+'</span><div class="pattern-model-track"></div><strong>'+esc(text)+'</strong></div>';
+  function statusRow(label,text){return '<div class="pattern-model-row"><span>'+esc(label)+'</span><div class="pattern-model-track"></div><strong>'+esc(text)+'</strong></div>';}
   function renderModels(d){
     var hs=Array.isArray(d.horizons)?d.horizons:[],loc=d.location,probState=sourceState(d,'probability'),probAge=sourceAge(d,'probability');
     if(!hs.length){setText('#pattern-models','<div class="pattern-empty">Nenhuma rodada de modelos disponível.</div>');return;}
@@ -79,7 +79,7 @@
         rows.push(row('RNA IFS',h.rna_score_percent,100,'rna','%',2));
         rows.push(probState==='fresh'?row('Score GEFS',h.probability_percent,100,'risk','%',2):statusRow('Score GEFS','desatualizado'));
       }
-      var hasScore=Number.isFinite(Number(h.probability_percent)),score=scoreLabel(h.probability_percent),dc=hasScore?'risk':'';
+      var hasScore=h.probability_percent!==null&&h.probability_percent!==undefined&&h.probability_percent!==''&&Number.isFinite(Number(h.probability_percent)),score=scoreLabel(h.probability_percent),dc=hasScore?'risk':'';
       var scoreText=hasScore?score+' · experimental':(probState==='stale'?'GEFS desatualizado':'sem score GEFS atual');
       return '<div class="pattern-horizon"><div class="pattern-horizon-head"><strong>+'+n(h.hours)+' h</strong><span class="'+dc+'">'+esc(scoreText)+'</span></div>'+rows.join('')+'</div>';
     }).join('');
@@ -99,3 +99,4 @@
   function fail(){setText('#pattern-kpis','<div class="pattern-empty">Feed visual indisponível no momento.</div>');setText('#pattern-events','');setText('#pattern-models','');setText('#pattern-insight','<strong>Sem leitura atual:</strong> o feed de padrões não carregou. Isso não significa “não vai inundar”.');}
   fetch(feed+'?cb='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('feed');return r.json();}).then(render).catch(fail);
 })();
+

@@ -1221,7 +1221,7 @@
 
   async function loadText(url) {
     try {
-      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
+      const response = await PrevineSiteRuntime.fetchResource(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) return null;
       return await response.text();
     } catch (_) { return null; }
@@ -1669,7 +1669,7 @@
 
   async function loadJson(url) {
     try {
-      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
+      const response = await PrevineSiteRuntime.fetchResource(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) return null;
       return await response.json();
     } catch (_) { return null; }
@@ -1733,7 +1733,8 @@
     try {
       await Promise.all(pairs.map(async ([key, cfg]) => {
         const [pattern, weather, live] = await Promise.all([loadJson(cfg.pattern), loadJson(cfg.weather), loadLive(cfg.live)]);
-        state.feeds[key] = { pattern, weather, live };
+        const previous=state.feeds[key]||{};
+        state.feeds[key] = {pattern:pattern||previous.pattern, weather:weather||previous.weather, live:live||previous.live};
       }));
       const [research, rainSummary, basin, networkStatus] = await Promise.all([
         loadJson(researchUrl),
@@ -1741,10 +1742,10 @@
         state.basinGeometry ? Promise.resolve(state.basinGeometry) : loadJson(basinUrl),
         loadJson(basinStatusUrl)
       ]);
-      state.research = research;
-      state.rainSummary = rainSummary;
-      state.basinGeometry = basin;
-      state.networkStatus = mergeRecentTargetLevels(networkStatus);
+      state.research = research || state.research;
+      state.rainSummary = rainSummary || state.rainSummary;
+      state.basinGeometry = basin || state.basinGeometry;
+      state.networkStatus = mergeRecentTargetLevels(networkStatus || state.networkStatus);
       populateNetworkUpgFilter();
       populateNetworkStationSearch();
       if (!state.selectedNetworkStationId && networkStatus && Array.isArray(networkStatus.stations)) {
@@ -1864,3 +1865,4 @@
     if (document.visibilityState === 'visible') loadFeeds();
   }, AUTO_REFRESH_MS);
 })();
+

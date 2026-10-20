@@ -5,6 +5,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  const apiAttempts = new Map();
+  const LIVE_FILES = new Set(['previsao_ao_vivo.json','previsao_ao_vivo_mucum.json']);
+  const MAX_REVISION_AGE_MS=15*60000;
+  const API_COOLDOWN_MS=60000;
+
   const REPO = 'previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais';
 
   function withCacheBust(url) {
@@ -19,7 +24,7 @@
   }
 
   function pickNewest(feeds) {
-    const ok = (feeds || []).filter(Boolean);
+    const ok = (feeds || []).filter(data => data && typeof data === 'object' && !Array.isArray(data) && Number.isFinite(stampMs(data)) && stampMs(data) <= Date.now()+5*60000);
     if (!ok.length) return null;
     ok.sort(function (a, b) { return (stampMs(b) || 0) - (stampMs(a) || 0); });
     return ok[0];
@@ -33,7 +38,7 @@
     const file = fileName(path);
     if (!file) return [];
     return [
-      { label: 'arquivo publicado', url: file },
+      ...(!LIVE_FILES.has(file) ? [{ label: 'arquivo publicado', url: file }] : []),
       { label: 'arquivo Raw', url: 'https://raw.githubusercontent.com/' + REPO + '/main/' + file },
       { label: 'CDN jsDelivr', url: 'https://cdn.jsdelivr.net/gh/' + REPO + '@main/' + file },
       { label: 'API GitHub', url: 'https://api.github.com/repos/' + REPO + '/contents/' + file + '?ref=main', kind: 'github-api' }
@@ -108,20 +113,40 @@
     return fileName(path) === 'previsao_ao_vivo_mucum.json';
   }
 
+  function needsRefresh(feed) {
+    const revision=stampMs(feed);
+    if(!Number.isFinite(revision)||Date.now()-revision>MAX_REVISION_AGE_MS) return true;
+    const observation=feed && (feed.telemetria_ultima_em_utc||feed.telemetria_ultima_em||feed.nivel_rio_agora_em);
+    if(!observation) return false; // Histories need only a valid revision timestamp.
+    const time=stampMs({gerado_em:observation});
+    return !Number.isFinite(time)||Date.now()-time>60*60000;
+  }
+
   async function fetchLive(path) {
     const sources = sourcesFor(path);
-    let feed;
-    try {
-      feed = await fetchNewest(primarySources(sources));
-    } catch (primaryError) {
-      const fallback = apiSources(sources);
-      if (!fallback.length) throw primaryError;
-      feed = await fetchNewest(fallback);
+    let feed, primaryError;
+    try { feed=await fetchNewest(primarySources(sources)); }
+    catch(error) { primaryError=error; }
+    const fallback=apiSources(sources);
+    const key=fileName(path), now=Date.now();
+    const cached=apiAttempts.get(key);
+    if(!feed||needsRefresh(feed)) {
+      if(cached && now-cached.at<API_COOLDOWN_MS) {
+        // Reuse the API response across consumers without repeating the request.
+        const recovered=await cached.promise;
+        feed=pickNewest([feed,recovered]);
+      } else if(fallback.length) {
+        const promise=fetchNewest(fallback).catch(()=>null);
+        apiAttempts.set(key,{at:now,promise});
+        feed=pickNewest([feed,await promise]);
+      }
     }
+    if(!feed) throw primaryError||new Error('fontes indisponíveis');
     return selectPublicMucum4h(feed, isPublicMucumPage(path));
   }
 
   return {
+    needsRefresh: needsRefresh,
     stampMs: stampMs,
     pickNewest: pickNewest,
     sourcesFor: sourcesFor,
@@ -133,3 +158,4 @@
     selectPublicMucum4h: selectPublicMucum4h
   };
 });
+

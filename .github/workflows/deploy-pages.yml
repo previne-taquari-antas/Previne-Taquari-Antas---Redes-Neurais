@@ -5,6 +5,14 @@ on:
     branches:
       - main
     paths:
+      - "*.html"
+      - "assets/previsao_fila.js"
+      - "scripts/validate_site_frontend.py"
+      - "scripts/optimize_static_site.py"
+      - "scripts/test_static_site_optimization.py"
+      - "scripts/test_site_recovery.js"
+      - "scripts/test_live_feed.js"
+      - "scripts/test_public_forecast.js"
       - "index.html"
       - "projeto.html"
       - "pesquisas.html"
@@ -136,6 +144,10 @@ jobs:
             !*.md
             !*.yml
             !*.yaml
+            scripts/validate_site_frontend.py
+            scripts/optimize_static_site.py
+            scripts/test_static_site_optimization.py
+            scripts/test_*.js
             scripts/validate_osm_tiles.py
             scripts/apply_institutional_logos.py
             scripts/validar_panorama_site.py
@@ -159,6 +171,18 @@ jobs:
             assets/data/vulnerabilidade/metadados/ESPECIFICACAO_FICHA_TRIAGEM_CENARIOS.md
             assets/data/vulnerabilidade/brutos/FONTES.md
           sparse-checkout-cone-mode: false
+
+      - name: Validate frontend syntax, DOM and recovery contracts
+        run: |
+          python scripts/validate_site_frontend.py
+          python scripts/test_static_site_optimization.py
+          node scripts/test_live_feed.js
+          node scripts/test_public_forecast.js
+          node scripts/test_site_recovery.js
+          node scripts/test_fmt_quando.js
+          node scripts/test_basin_level_display.js
+          node scripts/test_stz_shadow_ui.js
+          node scripts/test_stz_v11_ui.js
 
       - name: Validate OpenStreetMap tile contract
         run: python scripts/validate_osm_tiles.py
@@ -217,6 +241,9 @@ jobs:
       - name: Aplicar logos PREVINE, UFRGS e LAGAM nas páginas públicas
         run: python -B scripts/apply_institutional_logos.py --site-dir _site
 
+      - name: Optimize cacheable static assets
+        run: python scripts/optimize_static_site.py --site-dir _site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -225,3 +252,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
