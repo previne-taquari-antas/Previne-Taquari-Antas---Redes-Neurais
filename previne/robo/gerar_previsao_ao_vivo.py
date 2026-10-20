@@ -2015,50 +2015,6 @@ def sha256_arquivo(path):
             h.update(bloco)
     return h.hexdigest().upper()
 
-def escrever(nivel_atual, nivel_prev, t, status, aviso, inputs_faltantes=None, estacoes_status=None):
-    consultado_em = agora_brt()
-    raw_st = ULTIMA_RAW.get("86472600")
-    idade_min = None
-    status_dados = None
-    if raw_st:
-        idade_min = round((consultado_em - raw_st[0]).total_seconds() / 60)
-        status_dados = (
-            "telemetria recente"
-            if idade_min <= TELEMETRY_WARN_MAX_AGE.total_seconds() / 60
-            else f"telemetria atrasada ({idade_min} min)"
-        )
-    out = {
-        "modo": "ao_vivo",
-        "gerado_em": (t.isoformat() if t else consultado_em.isoformat()),
-        "hora_modelo": (t.isoformat() if t else None),
-        "consultado_em": consultado_em.isoformat(timespec="seconds"),
-        "telemetria_ultima_em": (raw_st_valido[0].isoformat() if raw_st_valido else None),
-        "telemetria_ultima_nivel_cm": (round(raw_st_valido[1]) if raw_st_valido else None),
-        "telemetria_raw_rejeitada": (
-            {"hora": raw_st[0].isoformat(), "nivel_cm": round(raw_st[1]), "motivo": "fora_faixa_plausivel"}
-            if raw_st and not raw_st_valido else None
-        ),
-        "idade_telemetria_min": idade_min,
-        "status_dados": status_dados,
-        "estacao": "86472600", "local": "Santa Tereza",
-        "horizonte": HORIZONTE, "modelo": COMBO, "bankfull_cm": BANKFULL_CM,
-        "hand_zero_cm": HAND_ZERO_CM,
-        "nivel_modelo_cm": (round(nivel_atual) if nivel_atual is not None else None),
-        "nivel_rio_agora_cm": (round(raw_st_valido[1]) if raw_st_valido else (round(nivel_atual) if nivel_atual is not None else None)),
-        "nivel_rio_agora_em": (raw_st_valido[0].isoformat() if raw_st_valido else (t.isoformat() if t else None)),
-        "nivel_atual_cm": (round(nivel_atual) if nivel_atual is not None else None),
-        "nivel_previsto_cm": (round(nivel_prev) if nivel_prev is not None else None),
-        "disponivel": nivel_prev is not None,
-        "inputs_total": 15,
-        "inputs_faltantes_n": len(inputs_faltantes or []),
-        "inputs_faltantes": inputs_faltantes or [],
-        "estacoes_status": estacoes_status or [],
-        "status": status,
-        "aviso": aviso,
-    }
-    with open(SAIDA, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, indent=1)
-    print("escrito", SAIDA, "->", out["nivel_atual_cm"], "->", out["nivel_previsto_cm"], status)
 
 def _base_saida(cfg, nivel_atual, nivel_prev, t, status, aviso, inputs_faltantes=None, estacoes_status=None):
     consultado_em = agora_brt()
