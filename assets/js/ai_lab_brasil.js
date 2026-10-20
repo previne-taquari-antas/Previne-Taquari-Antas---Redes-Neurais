@@ -56,7 +56,10 @@
   }
   function stationFromFeed(key,station){
     var coord=station && station.coordinates;
-    if(!coord || coord.latitude === null || coord.longitude === null) return null;
+    if(!coord || coord.latitude == null || coord.longitude == null ||
+       String(coord.latitude).trim() === '' || String(coord.longitude).trim() === '' ||
+       !Number.isFinite(Number(coord.latitude)) || !Number.isFinite(Number(coord.longitude)) ||
+       Math.abs(Number(coord.latitude)) > 90 || Math.abs(Number(coord.longitude)) > 180) return null;
     return {
       key:key,
       name:station.station_name || station.name || key,
@@ -70,20 +73,25 @@
     state.markers.forEach(function(m){ if(state.map) state.map.removeLayer(m); });
     state.markers=[];
     state.stationIndex=[];
-    if(!state.feed || !state.feed.stations || !state.map) return;
+    if(!state.feed || !state.feed.stations) return;
 
     Object.keys(state.feed.stations).forEach(function(key){
       var item=stationFromFeed(key,state.feed.stations[key]);
       if(!item || Number.isNaN(item.lat) || Number.isNaN(item.lon)) return;
       state.stationIndex.push(item);
+      if(!state.map) return;
       var icon=L.divIcon({className:'lab-marker',html:'<div class="lab-marker-core"></div>',iconSize:[22,22],iconAnchor:[11,11]});
       var marker=L.marker([item.lat,item.lon],{icon:icon}).addTo(state.map);
-      marker.bindPopup('<div class="lab-popup"><strong>'+item.name+'</strong><span>'+item.code+'</span><span>Clique para abrir o supervisor.</span></div>');
+      var popup=document.createElement('div'); popup.className='lab-popup';
+      [item.name,item.code,'Clique para abrir o supervisor.'].forEach(function(value,index){
+        var child=document.createElement(index===0?'strong':'span'); child.textContent=value; popup.appendChild(child);
+      });
+      marker.bindPopup(popup);
       marker.on('click',function(){ selectStation(item); });
       state.markers.push(marker);
     });
-    text('map-status',state.stationIndex.length+' ponto(s) real(is) conectado(s) nesta versão · arquitetura preparada para expansão nacional');
-    if(state.stationIndex.length){ selectStation(state.stationIndex[0]); }
+    if(state.map) text('map-status',state.stationIndex.length+' ponto(s) real(is) conectado(s) nesta versão · arquitetura preparada para expansão nacional');
+    if(state.stationIndex.length){ selectStation(state.stationIndex.find(function(item){ return state.selected && item.key===state.selected.key; }) || state.stationIndex[0]); }
   }
   function updateNetworkKpis(){
     var active=0, shadow=0;
@@ -186,10 +194,10 @@
       tr.innerHTML=
         '<td><span class="model-role '+(role==='principal'?'role-main':'role-shadow')+'">'+role+'</span></td>'+
         '<td>'+fmtNumber(m.hours,0)+' h</td>'+
-        '<td>'+String(m.model || '—')+'</td>'+
+        '<td>'+escapeHtml(m.model || '—')+'</td>'+
         '<td>'+fmtLevel(m.level_forecast_cm)+'</td>'+
         '<td>'+fmtNumber(m.inputs_exact!==undefined?m.inputs_exact:m.inputs_total,0)+'/'+fmtNumber(m.inputs_total,0)+'</td>'+
-        '<td>'+String(quality)+'</td>'+
+        '<td>'+escapeHtml(quality)+'</td>'+
         '<td>'+err+'</td>';
       body.appendChild(tr);
     });
@@ -333,13 +341,13 @@
     var sources=[SHADOW_LIVE_RAW,SHADOW_LIVE_LOCAL], lastError=null;
     for(var i=0;i<sources.length;i++){
       try{
-        var response=await fetch(sources[i],{cache:'no-store'});
+        var response=await PrevineSiteRuntime.fetchResource(sources[i],{cache:'no-store'});
         if(!response.ok) throw new Error('HTTP '+response.status);
         renderShadowLive(await response.json());
         return;
       }catch(err){lastError=err;}
     }
-    setPill(el('shadow-live-status'),{label:'sem rodada',cls:'neutral'});
+    setPill(el('shadow-live-status'),{label:'consulta indisponível',cls:'warn'});
     if(lastError) console.warn('AI Lab live shadow:',lastError);
   }
 
@@ -347,14 +355,14 @@
     var sources=[SHADOW_MANIFEST_RAW,SHADOW_MANIFEST_LOCAL], lastError=null;
     for(var i=0;i<sources.length;i++){
       try{
-        var response=await fetch(sources[i],{cache:'no-store'});
+        var response=await PrevineSiteRuntime.fetchResource(sources[i],{cache:'no-store'});
         if(!response.ok) throw new Error('HTTP '+response.status);
         renderShadowPackage(await response.json());
         return;
       }catch(err){lastError=err;}
     }
-    setPill(el('shadow-package-status'),{label:'ainda não criado',cls:'warn'});
-    text('shadow-package-note','O gate já pode ter candidatos, mas o pacote de pesos ainda não foi publicado. O manifesto aparecerá aqui quando a construção concluir.');
+    setPill(el('shadow-package-status'),{label:'consulta indisponível',cls:'warn'});
+    text('shadow-package-note','Não foi possível consultar o pacote de pesos. Tente atualizar novamente; os resultados anteriores, quando disponíveis, continuam visíveis.');
     if(lastError) console.warn('AI Lab shadow package:',lastError);
   }
 
@@ -364,23 +372,24 @@
     var lastError=null;
     for(var i=0;i<sources.length;i++){
       try{
-        var response=await fetch(sources[i],{cache:'no-store'});
+        var response=await PrevineSiteRuntime.fetchResource(sources[i],{cache:'no-store'});
         if(!response.ok) throw new Error('HTTP '+response.status);
         var data=await response.json();
         renderAutoTraining(data);
         return;
       }catch(err){ lastError=err; }
     }
-    setPill(el('auto-training-status'),{label:'fila/sem resultado',cls:'warn'});
-    text('training-message','O motor já está configurado, mas ainda não há um resultado publicado desta rodada. Abra a fila do GitHub para acompanhar a execução.');
+    setPill(el('auto-training-status'),{label:'consulta indisponível',cls:'warn'});
+    text('training-message','Não foi possível consultar o treinamento. Tente atualizar novamente ou abra a fila do GitHub para acompanhar a execução.');
     if(lastError) console.warn('AI Lab auto training:',lastError);
   }
 
+  function normalizeSearch(value){ return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
   function searchStation(){
-    var q=String(el('station-search').value||'').trim().toLowerCase();
+    var q=normalizeSearch(el('station-search').value);
     if(!q){ toast('Digite o nome ou código de uma estação conectada.'); return; }
     var found=state.stationIndex.find(function(item){
-      return item.name.toLowerCase().indexOf(q)>=0 || String(item.code).toLowerCase().indexOf(q)>=0;
+      return normalizeSearch(item.name).indexOf(q)>=0 || normalizeSearch(item.code).indexOf(q)>=0;
     });
     if(!found){
       text('search-help','Não encontrei esse ponto no feed piloto. A busca nacional ainda será ligada aos conectores.');
@@ -394,9 +403,11 @@
   async function loadFeed(){
     text('hero-status-title','Atualizando feed piloto');
     try{
-      var response=await fetch(FEED,{cache:'no-store'});
+      var response=await PrevineSiteRuntime.fetchResource(FEED,{cache:'no-store'});
       if(!response.ok) throw new Error('HTTP '+response.status);
-      state.feed=await response.json();
+      var next=await response.json();
+      if(!next || !next.stations || typeof next.stations!=='object' || Array.isArray(next.stations)) throw new Error('Formato de dados inválido');
+      state.feed=next;
       addMarkers();
       updateNetworkKpis();
       text('hero-status-title','Feed piloto conectado');
@@ -405,13 +416,22 @@
       if(dot) dot.style.background='#17805a';
     }catch(err){
       text('hero-status-title','Feed piloto indisponível');
-      text('hero-status-note','A interface nacional segue acessível, mas os dados não carregaram.');
+      text('hero-status-note',state.feed ? 'Falha na atualização. Mantidos os dados de '+fmtTime(state.feed.generated_at_utc)+'.' : 'Os dados não carregaram. Use Atualizar para tentar novamente.');
+      var dot=document.querySelector('.status-dot'); if(dot) dot.style.background='#b66b15';
       text('map-status','Não foi possível carregar o feed: '+err.message);
       toast('Falha ao carregar o feed piloto.');
     }
   }
+  var refreshing=false;
+  async function refreshAll(){
+    if(refreshing) return;
+    refreshing=true;
+    var button=el('refresh-feed'); button.disabled=true; button.textContent='atualizando…'; button.setAttribute('aria-busy','true');
+    try { await Promise.allSettled([loadFeed(),loadAutoTraining(),loadShadowPackage(),loadShadowLive()]); }
+    finally { refreshing=false; button.disabled=false; button.textContent='atualizar'; button.removeAttribute('aria-busy'); }
+  }
   function wire(){
-    el('refresh-feed').addEventListener('click',loadFeed);
+    el('refresh-feed').addEventListener('click',refreshAll);
     el('station-search-button').addEventListener('click',searchStation);
     el('station-search').addEventListener('keydown',function(ev){ if(ev.key==='Enter') searchStation(); });
     el('horizon-select').addEventListener('change',function(){ if(state.selected) renderModels(state.selected.raw); updateTrainingRequest(); });
@@ -432,10 +452,7 @@
   document.addEventListener('DOMContentLoaded',function(){
     initMap();
     wire();
-    loadFeed();
-    loadAutoTraining();
-    loadShadowPackage();
-    loadShadowLive();
+    refreshAll();
     updateTrainingRequest();
   });
 })();
