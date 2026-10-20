@@ -1,16 +1,16 @@
 {
   "schema_version": "hec_hms_spatial_forecast_mucum_input_v2_warmup",
-  "generated_at_utc": "2026-10-20T20:52:56.532725Z",
+  "generated_at_utc": "2026-10-20T20:55:15.400162Z",
   "model": "HEC-HMS 4.13 two-zone spatial pilot",
   "parameter_source": {
-    "source_event": "E19_LIVE_EVENT_CAL",
-    "initial_loss_mm": 10.0,
-    "constant_loss_mm_h": 1.0,
-    "tc_h": 64.0,
-    "storage_h": 60.0,
+    "source_event": "E28_LIVE_EVENT_CAL",
+    "initial_loss_mm": 25.0,
+    "constant_loss_mm_h": 2.0,
+    "tc_h": 15.0,
+    "storage_h": 15.0,
     "recession_constant_daily": 0.9,
     "threshold_ratio_to_peak": 0.1,
-    "initial_flow_multiplier": 1.0,
+    "initial_flow_multiplier": 0.35,
     "live_event_calibration": true
   },
   "rain_source": "26/09->t0 all valid upstream gauges (ANA+INMET+CEMADEN; IDW^2 by HEC zone) + ECMWF IFS 0.25 degree full field forecast",
@@ -853,7 +853,7 @@
     "2026-10-25T18:00:00Z",
     "2026-10-25T19:00:00Z"
   ],
-  "forecast_start_utc": "2026-10-20T20:15:00Z",
+  "forecast_start_utc": "2026-10-20T20:30:00Z",
   "zones": {
     "86472000": {
       "name": "Linha José Júlio",
@@ -1121,8 +1121,8 @@
     "hours": 593,
     "start_local": "2026-09-26T00:00",
     "end_at_current_hour_local": "2026-10-20T17:00",
-    "current_observation_local": "2026-10-20T17:15",
-    "current_hour_elapsed_fraction": 0.25,
+    "current_observation_local": "2026-10-20T17:30",
+    "current_hour_elapsed_fraction": 0.5,
     "missing_hours": {
       "86472000": 0,
       "02851072": 0
@@ -1299,7 +1299,7 @@
       "86472000": {
         "observed_partial_mm": 0.057,
         "ifs_full_hour_mm": 0.008,
-        "combined_hour_mm": 0.063,
+        "combined_hour_mm": 0.061,
         "source": "all_station_observed_partial_plus_remaining_ifs",
         "degraded": false,
         "current_station_count": 33,
@@ -1333,24 +1333,24 @@
     }
   },
   "initial_state": {
-    "stage_cm": 315.0,
-    "q_m3s": 429.9496457729945,
+    "stage_cm": 318.0,
+    "q_m3s": 438.27932854545,
     "rating_segment": 2,
-    "observed_at_utc": "2026-10-13T20:15:00Z",
-    "source": "ANA/SGB first available observed stage after requested warm-up start (requested 2026-09-26T00:00:00, gap_h=425.25)",
+    "observed_at_utc": "2026-10-13T20:30:00Z",
+    "source": "ANA/SGB first available observed stage after requested warm-up start (requested 2026-09-26T00:00:00, gap_h=425.50)",
     "method": "observed Muçum Q at 26/09 event start as HEC-HMS Recession initial flow/area ratio, internally calibrated by multiplier",
-    "initial_flow_multiplier": 1.0,
-    "initial_flow_area_ratio_raw_m3s_per_km2": 0.02740152,
-    "initial_flow_area_ratio_m3s_per_km2": 0.02740152
+    "initial_flow_multiplier": 0.35,
+    "initial_flow_area_ratio_raw_m3s_per_km2": 0.027932387,
+    "initial_flow_area_ratio_m3s_per_km2": 0.009776335
   },
   "current_state": {
-    "stage_cm": 206.0,
-    "q_m3s": 193.98308650187198,
+    "stage_cm": 202.0,
+    "q_m3s": 186.82002250789313,
     "rating_segment": 1,
-    "observed_at_utc": "2026-10-20T20:15:00Z",
+    "observed_at_utc": "2026-10-20T20:30:00Z",
     "source": "ANA/SGB Hidrotelemetria via previsao_ao_vivo_mucum.json",
-    "trend_1h_cm": -17.0,
-    "trend_reference_utc": "2026-10-20T19:15:00Z",
+    "trend_1h_cm": -16.0,
+    "trend_reference_utc": "2026-10-20T19:30:00Z",
     "state_handling": "exact observed timestamp retained for validation; HEC state interpolated within the hourly step for comparison only; no stage bias correction and no internal HEC-HMS state assimilation is claimed"
   },
   "runtime": {
