@@ -11,6 +11,7 @@
   var p3=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:3,maximumFractionDigits:3});
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
   var finite=function(v){return typeof v==='number'&&Number.isFinite(v);};
+  var present=function(v){return v!==null&&v!==undefined&&String(v).trim()!==''&&Number.isFinite(Number(v));};
   var n=function(v,d){return v!==null&&v!==undefined&&v!==''&&finite(Number(v))?(d===0?p0:d===3?p3:d===2?p2:d===1?p1:pt).format(Number(v)):'—';};
   var pct=function(v){return v!==null&&v!==undefined&&v!==''&&finite(Number(v))?p2.format(Number(v))+'%':'—';};
   var date=function(v){if(!v)return '—';var s=String(v).replace('T',' ').replace('Z','');return s.length>16?s.slice(0,16):s;};
@@ -20,24 +21,24 @@
   var bar=function(label,value,max,kind,unit,decimals){return '<div class="pattern-bar-row"><span>'+esc(label)+'</span><div class="pattern-bar-track"><div class="pattern-bar-fill '+(kind||'')+'" style="width:'+(finite(Number(value))&&max>0?Math.max(0,Math.min(100,Number(value)/max*100)):0).toFixed(1)+'%"></div></div><b>'+n(value,decimals==null?1:decimals)+' '+esc(unit||'')+'</b></div>';};
   var scoreLabel=function(v){var n=Number(v);return v!==null&&v!==undefined&&v!==''&&Number.isFinite(n)?p2.format(n)+'% exp.':'sem score atual';};
   var sourceState=function(d,key){return ((d.source_quality||{})[key]||{}).state||'unknown';};
-  var sourceAge=function(d,key){var x=Number(((d.source_quality||{})[key]||{}).age_hours);return Number.isFinite(x)?x:null;};
+  var sourceAge=function(d,key){var x=((d.source_quality||{})[key]||{}).age_hours;return present(x)?Number(x):null;};
   var ageText=function(h){return h==null?'idade desconhecida':h>=48?p1.format(h/24)+' dias':p1.format(h)+' h';};
   var setText=function(sel,html){var el=q(sel);if(el)el.innerHTML=html;};
   function renderKpis(d){
     var s=d.summary||{}, events=Array.isArray(d.events)?d.events:[], hs=Array.isArray(d.horizons)?d.horizons:[], loc=d.location;
     var cards=[];
-    cards.push('<div class="pattern-kpi blue"><strong>'+n(s.event_count||events.length)+'</strong><span>eventos comparados antes das cheias</span></div>');
+    cards.push('<div class="pattern-kpi blue"><strong>'+n(s.event_count==null?events.length:s.event_count)+'</strong><span>eventos comparados antes das cheias</span></div>');
     cards.push('<div class="pattern-kpi"><strong>'+n(s.peak_max_cm)+' cm</strong><span>maior pico observado · cota '+n(d.threshold_cm)+' cm</span></div>');
     if(loc==='mucum'){
       cards.push('<div class="pattern-kpi accent"><strong>'+n(s.rain_72h_median_mm,1)+' mm</strong><span>mediana de chuva antecedente em 72 h</span></div>');
       cards.push('<div class="pattern-kpi purple"><strong>'+n(s.api_72h_median_mm,1)+' mm-eq.</strong><span>mediana de memória da bacia (API 72 h)</span></div>');
     }else{
-      cards.push('<div class="pattern-kpi accent"><strong>'+n(s.model_card_event_count||events.length)+'</strong><span>eventos no cartão de validação</span></div>');
+      cards.push('<div class="pattern-kpi accent"><strong>'+n(s.model_card_event_count==null?events.length:s.model_card_event_count)+'</strong><span>eventos no cartão de validação</span></div>');
       var latest=hs.length?hs[hs.length-1]:{}, pstate=sourceState(d,'probability'), page=sourceAge(d,'probability');
       if(pstate==='fresh'){
         cards.push('<div class="pattern-kpi purple"><strong>'+pct(latest.probability_percent)+'</strong><span>score GEFS experimental no horizonte de '+n(latest.hours)+' h</span></div>');
       }else{
-        cards.push('<div class="pattern-kpi purple"><strong>desatualizado</strong><span>score GEFS ocultado · última fonte há '+esc(ageText(page))+'</span></div>');
+        cards.push('<div class="pattern-kpi purple"><strong>'+esc(pstate==='stale'?'desatualizado':'sem fonte atual')+'</strong><span>score GEFS ocultado · última fonte há '+esc(ageText(page))+'</span></div>');
       }
     }
     setText('#pattern-kpis',cards.join(''));
@@ -47,14 +48,15 @@
     var max=0;events.forEach(function(e){['rain_24h_mm','rain_72h_mm','rain_168h_mm','api_72h_mm'].forEach(function(k){if(finite(Number(e[k])))max=Math.max(max,Number(e[k]));});});
     if(!events.length){setText('#pattern-events','<div class="pattern-empty">Nenhum evento antecedente disponível.</div>');return;}
     setText('#pattern-events',events.map(function(e){
-      return '<article class="pattern-event"><div class="pattern-event-head"><strong>'+esc(e.id.replace('MUCUM-CAND-','Evento '))+'</strong><span>'+esc(date(e.date))+'</span></div><div class="pattern-event-peak">'+n(e.peak_cm)+' cm <small>pico observado</small></div><div class="pattern-bars">'+bar('24 h',e.rain_24h_mm,max,'rain24','mm',1)+bar('72 h',e.rain_72h_mm,max,'rain72','mm',1)+bar('168 h',e.rain_168h_mm,max,'rain168','mm',1)+bar('API 72 h',e.api_72h_mm,max,'api','mm-eq.',1)+'</div><div class="pattern-status">'+esc(e.soil_status||'Solo: proxy/sem sensor local.')+'<br><strong>'+esc(e.status||'Revisão pendente')+'</strong></div></article>';
+      return '<article class="pattern-event"><div class="pattern-event-head"><strong>'+esc(String(e.id || 'Evento sem identificador').replace('MUCUM-CAND-','Evento '))+'</strong><span>'+esc(date(e.date))+'</span></div><div class="pattern-event-peak">'+n(e.peak_cm)+' cm <small>pico observado</small></div><div class="pattern-bars">'+bar('24 h',e.rain_24h_mm,max,'rain24','mm',1)+bar('72 h',e.rain_72h_mm,max,'rain72','mm',1)+bar('168 h',e.rain_168h_mm,max,'rain168','mm',1)+bar('API 72 h',e.api_72h_mm,max,'api','mm-eq.',1)+'</div><div class="pattern-status">'+esc(e.soil_status||'Solo: proxy/sem sensor local.')+'<br><strong>'+esc(e.status||'Revisão pendente')+'</strong></div></article>';
     }).join(''));
   }
   function renderSantaEvents(events){
     if(!events.length){setText('#pattern-events','<div class="pattern-empty">Nenhum pico acima da cota de pesquisa no catálogo visível.</div>');return;}
     setText('#pattern-events',events.map(function(e){
-      var difficulty=finite(Number(e.difficulty))?pct(Number(e.difficulty)*100):'—';
-      return '<article class="pattern-event"><div class="pattern-event-head"><strong>'+esc(date(e.date))+'</strong><span>'+n(e.model_count)+' modelos</span></div><div class="pattern-event-peak">'+n(e.peak_cm)+' cm <small>pico observado</small></div><div class="pattern-bars">'+bar('Dificuldade',Number(e.difficulty)*100,100,'rain168','%',1)+bar('Modelos',e.model_count,Math.max.apply(null,events.map(function(x){return Number(x.model_count)||0;})),'rain72','',0)+'</div><div class="pattern-status">'+esc(e.status||'Pico acima da cota de pesquisa')+'<br><strong>Dificuldade do evento: '+difficulty+'</strong></div></article>';
+      var difficultyValue=present(e.difficulty)?Number(e.difficulty)*100:null;
+      var difficulty=pct(difficultyValue);
+      return '<article class="pattern-event"><div class="pattern-event-head"><strong>'+esc(date(e.date))+'</strong><span>'+n(e.model_count)+' modelos</span></div><div class="pattern-event-peak">'+n(e.peak_cm)+' cm <small>pico observado</small></div><div class="pattern-bars">'+bar('Dificuldade',difficultyValue,100,'rain168','%',1)+bar('Modelos',e.model_count,Math.max.apply(null,events.map(function(x){return Number(x.model_count)||0;})),'rain72','',0)+'</div><div class="pattern-status">'+esc(e.status||'Pico acima da cota de pesquisa')+'<br><strong>Dificuldade do evento: '+difficulty+'</strong></div></article>';
     }).join(''));
   }
   function row(label,value,max,kind,unit,decimals){return '<div class="pattern-model-row"><span>'+esc(label)+'</span>'+fill(value,max,kind)+'<strong>'+n(value,decimals==null?1:decimals)+' '+esc(unit||'')+'</strong></div>';}
@@ -77,10 +79,10 @@
         rows.push(row('IFS máximo',h.ifs_max_mm,rainMax,'gefs','mm',1));
         rows.push(row('IFS ponto',h.point_mm,rainMax,'','mm',1));
         rows.push(row('RNA IFS',h.rna_score_percent,100,'rna','%',2));
-        rows.push(probState==='fresh'?row('Score GEFS',h.probability_percent,100,'risk','%',2):statusRow('Score GEFS','desatualizado'));
+        rows.push(probState==='fresh'?row('Score GEFS',h.probability_percent,100,'risk','%',2):statusRow('Score GEFS',probState==='stale'?'desatualizado':'sem fonte atual'));
       }
-      var hasScore=h.probability_percent!==null&&h.probability_percent!==undefined&&h.probability_percent!==''&&Number.isFinite(Number(h.probability_percent)),score=scoreLabel(h.probability_percent),dc=hasScore?'risk':'';
-      var scoreText=hasScore?score+' · experimental':(probState==='stale'?'GEFS desatualizado':'sem score GEFS atual');
+      var hasScore=(loc==='mucum'||probState==='fresh')&&h.probability_percent!==null&&h.probability_percent!==undefined&&h.probability_percent!==''&&Number.isFinite(Number(h.probability_percent)),score=scoreLabel(h.probability_percent),dc=hasScore?'risk':'';
+      var scoreText=hasScore?score+' · experimental':(loc==='mucum'?'sem score logístico atual':probState==='stale'?'GEFS desatualizado':'sem score GEFS atual');
       return '<div class="pattern-horizon"><div class="pattern-horizon-head"><strong>+'+n(h.hours)+' h</strong><span class="'+dc+'">'+esc(scoreText)+'</span></div>'+rows.join('')+'</div>';
     }).join('');
     setText('#pattern-models',html);
@@ -94,9 +96,32 @@
     renderModels(d);
     setText('#pattern-insight','<strong>O padrão encontrado:</strong> '+esc(summary.pattern_text||'O feed ainda não tem síntese textual.')+' <span>Os valores mostram sinais e divergências entre fontes; não transformam proxy em certeza de inundação.</span>');
     var ps=sourceState(d,'probability'),pa=sourceAge(d,'probability');
-    setText('#pattern-source','Feed visual gerado em '+esc(date(d.generated_at_utc))+' UTC · '+(ps==='stale'?'score GEFS experimental ocultado porque a fonte tem '+esc(ageText(pa)):'fontes atuais dentro da janela definida')+' · modelos: '+esc((d.models||[]).map(function(x){return x.name;}).join(' · '))+'.');
+    setText('#pattern-source','Feed visual gerado em '+esc(date(d.generated_at_utc))+' UTC · '+(ps==='stale'?'score GEFS experimental ocultado porque a fonte tem '+esc(ageText(pa)):ps==='fresh'?'fonte do score GEFS dentro da janela definida':'atualidade do score GEFS não informada nesta fonte')+' · modelos: '+esc((d.models||[]).map(function(x){return x.name;}).join(' · '))+'.');
   }
-  function fail(){setText('#pattern-kpis','<div class="pattern-empty">Feed visual indisponível no momento.</div>');setText('#pattern-events','');setText('#pattern-models','');setText('#pattern-insight','<strong>Sem leitura atual:</strong> o feed de padrões não carregou. Isso não significa “não vai inundar”.');}
-  fetch(feed+'?cb='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('feed');return r.json();}).then(render).catch(fail);
+  var loading=false;
+  var retry=document.createElement('button');
+  retry.type='button'; retry.textContent='Tentar novamente'; retry.hidden=true;
+  retry.addEventListener('click',load);
+  root.appendChild(retry);
+  function fail(){
+    setText('#pattern-kpis','<div class="pattern-empty">Feed visual indisponível no momento.</div>');
+    setText('#pattern-events','');setText('#pattern-models','');setText('#pattern-model-legend','');
+    setText('#pattern-insight','<strong>Sem leitura atual:</strong> não foi possível carregar os dados. Tente novamente.');
+    setText('#pattern-source','Consulta indisponível.');
+    var updated=q('.pattern-updated');if(updated)updated.textContent='Falha ao carregar';
+    retry.hidden=false;
+  }
+  async function load(){
+    if(loading)return;
+    loading=true;retry.disabled=true;root.setAttribute('aria-busy','true');
+    try{
+      var r=await PrevineSiteRuntime.fetchResource(feed+'?cb='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw Error('HTTP '+r.status);
+      var d=await r.json();
+      if(!d || !['mucum','santa_tereza'].includes(d.location) || !Array.isArray(d.events) || !Array.isArray(d.horizons))throw Error('Formato inválido');
+      render(d);retry.hidden=true;
+    }catch(error){fail();}
+    finally{loading=false;retry.disabled=false;root.removeAttribute('aria-busy');}
+  }
+  load();
 })();
-
