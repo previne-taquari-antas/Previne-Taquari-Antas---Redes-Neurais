@@ -22,7 +22,9 @@ class Page(HTMLParser):
 
 def validate(root=ROOT):
     errors=[];count=0;inline=0
-    pages=sorted(set(root.glob('*.html'))|set((root/'pesquisas').glob('*.html'))|set((root/'inventario').glob('*.html')))
+    pages=sorted(path for path in root.rglob('*.html')
+                 if not any(part in {'raw', 'rascunhos', '_site', 'node_modules', '.git'}
+                            for part in path.relative_to(root).parts))
     def check(path,label):
         result=subprocess.run(['node','--check',str(path)],capture_output=True,text=True)
         if result.returncode:errors.append(label+': '+result.stderr)

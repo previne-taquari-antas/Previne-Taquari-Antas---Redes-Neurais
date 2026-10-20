@@ -39,6 +39,7 @@ class PageStructure(HTMLParser):
         self.body_attributes_end = None
         self.has_body = False
         self.redirect = False
+        self.has_viewport = False
         self.fixed_map = False
         self.mobile_bottom_panel = False
         self.in_style = False
@@ -50,6 +51,8 @@ class PageStructure(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
+        if tag == "meta" and attributes.get("name", "").lower() == "viewport":
+            self.has_viewport = True
         if tag == "body":
             self.has_body = True
             self.body_attributes_end = self.source_offset() + len(self.get_starttag_text()) - 1
@@ -103,6 +106,10 @@ def brand_page(path: Path, root: Path) -> str:
     prefix = "" if prefix == "." else prefix + "/"
     newline = "\r\n" if "\r\n" in source else "\n"
     style = f'<link rel="stylesheet" href="{prefix}assets/css/institutional_logos.css?v={VERSION}" data-previne-institutions-style="v1">{newline}'
+    style += f'<link rel="stylesheet" href="{prefix}assets/css/site_accessibility.css">{newline}'
+    style += f'<script defer src="{prefix}assets/js/site_accessibility.js"></script>{newline}'
+    if not page.has_viewport:
+        style += f'<meta name="viewport" content="width=device-width, initial-scale=1">{newline}'
     classes = "previne-institutions" + (" previne-institutions--map" if page.fixed_map else "")
     blocks = [f'{newline}<!-- PREVINE: institutional signature -->',
               f'<div id="previne-institutions" class="{classes}" {MARKER} role="group" aria-label="Identidade institucional: PREVINE, UFRGS e LAGAM">',
