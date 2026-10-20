@@ -105,7 +105,7 @@
       '+4 h: '+(document.getElementById('sit-'+id+'-4h')||{}).textContent+'\n'+
       (document.getElementById('sit-'+id+'-trend')||{}).textContent+'\n'+
       (document.getElementById('sit-'+id+'-stamp')||{}).textContent+'\n'+
-      'Pesquisa/protótipo; não é alerta oficial.\n'+location.origin+location.pathname+'#situacao-agora';
+      'PREVINE · síntese dos dados apresentados.\n'+location.origin+location.pathname+'#situacao-agora';
     var msg=card.querySelector('.situation-message');
     function ok(){ if(msg) msg.textContent='Resumo copiado.'; }
     if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok).catch(function(){window.prompt('Copie o resumo:',txt);});

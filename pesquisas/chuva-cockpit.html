@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="PREVINE · leitura de chuva prevista para Santa Tereza e Muçum. Pesquisa; não é alerta oficial.">
+  <meta name="description" content="PREVINE · leitura de chuva prevista para Santa Tereza e Muçum. Pesquisa hidrometeorológica.">
   <title>PREVINE · Chuva</title>
   <style>
     :root{--ink:#112f35;--muted:#607a7e;--line:#d7e5e5;--surface:#fff;--soft:#f4f9f8;--teal:#087c6d;--blue:#146db2;--orange:#db752e;--gold:#a46b10;--gate:#7a2f28}
@@ -32,7 +32,7 @@
 <main class="wrap">
   <header class="top">
     <div><p class="eyebrow">PREVINE · cockpit territorial</p><h1 id="title">Chuva</h1><p class="lede" id="lede">Carregando previsão meteorológica…</p></div>
-    <div class="badge">PESQUISA · não é alerta oficial<br>Chuva prevista não significa inundação prevista.</div>
+    <div class="badge">PESQUISA · CHUVA<br>Chuva prevista não significa inundação prevista.</div>
   </header>
   <p class="status" id="status">Carregando feed meteorológico…</p>
 
@@ -79,7 +79,7 @@
   fetch(cfg.file+'?cb='+Date.now(),{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(function(d){
     document.title='PREVINE · Chuva · '+cfg.name; el('title').textContent='Chuva · '+cfg.name;
     el('lede').textContent=d.current_forecast_message||'Previsão meteorológica usada como insumo de pesquisa.';
-    el('status').textContent='Atualizado '+dt(d.generated_at_utc)+' · '+(d.current_forecast_state||d.status||'estado não informado')+'. Pesquisa; não é alerta.';
+    el('status').textContent='Atualizado '+dt(d.generated_at_utc)+' · '+(d.current_forecast_state||d.status||'estado não informado')+'. Dados de pesquisa.';
     var hs=horizons(d).filter(function(x){return x.hours!=null}).sort(function(a,b){return a.hours-b.hours});
     function get(h){return hs.find(function(x){return Number(x.hours)===h})}
     el('rain24').textContent=mm((get(24)||{}).rain); el('rain72').textContent=mm((get(72)||{}).rain);

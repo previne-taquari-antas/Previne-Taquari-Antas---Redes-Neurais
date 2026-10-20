@@ -2,12 +2,50 @@
 
 Atualizado em: 2026-10-01.
 
+## Auditoria de remanso no Marrecão — 12/10/2026
+
+**Situação: reprocessamento espacial PENDENTE.** Os contornos publicados
+antes desta auditoria foram criados com `FLOWACC >= 50.000.000` células
+(~50 km²), critério que também permite selecionar afluentes como o Marrecão,
+cuja área contribuinte supera 50 km². O contorno antigo **não foi corrigido
+pelo simples commit do código**. A classificação de edificações baseada nele
+é suspensa pelo painel até que um produto novo identifique explicitamente
+`metadata.river_reference_method = "eixo_dominante_taquari_D8"`.
+
+O gerador atualizado usa o algoritmo
+`codigo_python/02_mdt_hand_mancha/eixo_principal_taquari.py`, que sobe
+pela rede D8 escolhendo o ramo de maior acumulação em cada confluência,
+evitando incluir o Marrecão como eixo de referência. A extração tem trava
+geográfica em relação à estação 86472600 e recusa eixos curtos ou distantes.
+
+**Remanso não é subida local de 25 metros:** os 0–25 m publicados são o
+domínio vertical HAND, não uma medição de elevação do Marrecão. O efeito de
+remanso requer nível de contorno na foz, cotas altimétricas reconciliadas,
+topobatimetria, obstáculos e verificação com eventos históricos. Corrigir
+somente o eixo do canal reduz a confusão entre rios, mas **não constitui**
+simulação 1D/2D validada de remanso nem comprova alcance nas casas.
+
+Para ativar novamente a classificação individual:
+1. Executar o gerador com os rasters LiDAR originais
+   `CLIP_MOSAICO_LIDAR_RS.tif`, `FILL_CLIP_MOSAICO_LIDAR_RS.tif`,
+   `FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif` e `FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif`
+   no diretório configurado (originalmente `D:\\PREVINE\\hand\\santa tereza`).
+2. Confirmar o teste `tests/test_eixo_principal_taquari.py`, as coordenadas
+   e o percurso do eixo, principalmente a confluência Taquari–Marrecão.
+3. Auditar cota e extensão contra pontos observados e modelagem de remanso.
+   A nova mancha traz a procedência do eixo em `contornos_mancha.json`.
+4. Publicar o contorno e verificar as páginas pública e de pesquisa.
+
+Até completar as etapas de recomputação/validação, manter o status pendente:
+**o código está corrigido; a mancha hidráulica NÃO foi validada**.
+
 ## Produção atual (site)
 
 A página ao vivo `santa_tereza_previsao_inundacao.html` usa o **HAND 5 m**
 gerado a partir dos rasters de campo em `D:\\PREVINE\\hand\\santa tereza`.
-O rio principal é definido por `FLOWACC >= 50.000.000` células finas e o
-gerador atual segue o `FLOWDIR` D8 até o rio principal. A calibração vertical
+O gerador original considerava `FLOWACC >= 50.000.000` células finas,
+sem separar tributários. O código corrigido extrai o eixo dominante do Taquari
+pela rede `FLOWDIR`/`FLOWACC`; a publicação da mancha nova está pendente. A calibração vertical
 permanece separada: **1,60 m na régua = HAND 0**.
 
 O gerador `codigo_python/02_mdt_hand_mancha/gerar_hand_lidar_santa_tereza.py`

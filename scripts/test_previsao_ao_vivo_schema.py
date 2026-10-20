@@ -57,7 +57,7 @@ class LiveFeedContractTests(unittest.TestCase):
         if "contour_max_m" in diagnostic:
             self.assertEqual(diagnostic["contour_max_m"], 25.0)
 
-    def test_explicit_4h_fallback_without_prediction_is_valid(self) -> None:
+    def test_explicit_4h_without_prediction_is_valid(self) -> None:
         data = copy.deepcopy(self.data)
         four = data["horizontes"]["4h"]
         four["nivel_previsto_cm"] = None
@@ -108,21 +108,35 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertIn('atual["ultima_tentativa_em"] = agora', block)
         self.assertIn('audit = auditoria_inputs_8h(cfg, cand, x)', source)
 
+    def test_8h_is_hard_suspended_without_model_or_fallback_publication(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        self.assertTrue(live.SUSPENSAO_STZ_8H_ATIVA)
+        configs = {cfg["horizonte"]: cfg for cfg in live.MODELOS}
+        for key in ("8h", "8h_v002"):
+            self.assertFalse(configs[key]["ativo_ao_vivo"])
+            self.assertFalse(live.FALLBACKS_HORIZONTE[key]["ativo_ao_vivo"])
+            out = live.saida_suspensa_stz_8h(configs[key], "teste", [])
+            self.assertIsNone(out["nivel_previsto_cm"])
+            self.assertFalse(out["disponivel"])
+            self.assertFalse(out["ativo_ao_vivo"])
+            self.assertEqual(
+                out["qualidade_ao_vivo"]["status"],
+                "SUSPENSO_TELEMETRIA_INVALIDA",
+            )
+            self.assertTrue(out["suspensao_operacional"]["ativa"])
+            self.assertEqual(out["auditoria_inputs"]["status"], "INVALIDO")
+
     def test_operational_fallbacks_are_explicit_and_drop_86298000_dependency(self) -> None:
         from previne.robo import gerar_previsao_ao_vivo as live
 
-        four = live.FALLBACKS_HORIZONTE["4h"]
+        self.assertNotIn("4h", live.FALLBACKS_HORIZONTE)
         eight = live.FALLBACKS_HORIZONTE["8h"]
         eight_v2 = live.FALLBACKS_HORIZONTE["8h_v002"]
-        self.assertEqual(four["inputs_total"], 5)
         self.assertEqual(eight["inputs_total"], 10)
         self.assertEqual(eight_v2["inputs_total"], 10)
-        self.assertEqual(four["input_grade"], "hourly_exact")
         self.assertEqual(eight["input_grade"], "hourly_exact")
         self.assertEqual(eight_v2["input_grade"], "hourly_exact")
-        self.assertNotIn("86298000", " ".join(four.get("input_labels") or []))
-        self.assertNotIn("86125500", " ".join(four.get("input_labels") or []))
-        self.assertIn("Ituim", str(four.get("proveniencia_nota") or "") + " " + " ".join(four.get("input_labels") or []))
         self.assertNotIn("86298000", " ".join(eight.get("input_labels") or []))
         self.assertNotIn("86298000", " ".join(eight_v2.get("input_labels") or []))
         self.assertTrue(eight_v2["shadow_only"])
@@ -137,6 +151,85 @@ class LiveFeedContractTests(unittest.TestCase):
             "hora_alvo": "2026-09-21T23:00:00",
         }
         self.assertTrue(live._precisa_fallback(expired))
+
+    def test_4h_is_v11_cascade_matching_contract_without_fallback(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        cfg = next(c for c in live.MODELOS if c["horizonte"] == "4h")
+        self.assertEqual(cfg["modelo"], "STZ_4H_V11_CASCATA")
+        self.assertEqual(cfg["inputs_total"], 18)
+        self.assertEqual(len(cfg["input_labels"]), 18)
+        self.assertTrue(cfg["principal"])
+        self.assertFalse(cfg.get("shadow_only", False))
+        self.assertFalse(hasattr(live, "SUSPENSAO_STZ_4H_PRO_ATIVA"))
+        self.assertEqual(live.sha256_arquivo(ROOT / cfg["mat"]), cfg["modelo_sha256"])
+
+        contract = json.loads((ROOT / live.MODELO_4H_V11_CONTRATO).read_text(encoding="utf-8"))
+        tipos = {"nivel": "nivel", "vel_nivel": "dif", "acel_nivel": "acel"}
+        as_specs = lambda items: tuple(
+            (tipos[i["tipo"]], i["estacao"], int(i["defasagem_h"])) for i in items
+        )
+        self.assertEqual(contract["mat"], cfg["mat"])
+        self.assertEqual(contract["modelo_sha256"], cfg["modelo_sha256"])
+        self.assertEqual(as_specs(contract["inputs_nivel"]), live.SPECS_NIVEL_4H_V11)
+        self.assertEqual(as_specs(contract["cascata_2h"]["inputs"]), live.SPECS_NIVEL_CASCATA_2H)
+        self.assertEqual(contract["cascata_2h"]["mat"], live.MODELO_MAT)
+        self.assertEqual(
+            [(c["nome"], c["janela_h"], tuple(c["estacoes"])) for c in contract["chuvas"]],
+            list(live.CHUVAS_4H_V11),
+        )
+
+        expired = {
+            "modelo": cfg["modelo"], "nivel_previsto_cm": 500,
+            "hora_modelo": "2026-09-21T19:00:00", "hora_alvo": "2026-09-21T23:00:00",
+        }
+        self.assertIs(live.aplicar_fallback_operacional(cfg, expired, {}, [], "", []), expired)
+
+    def test_v11_rain_hour_closes_interval_and_requires_all_quarters(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        rows = [("08:15", "1"), ("08:30", "2"), ("08:45", "3"), ("09:00", "4"),
+                ("09:15", "5"), ("09:30", "6")]
+        xml = "<root>" + "".join(
+            f"<row><DataHora>2026-10-08 {h}:00</DataHora><Chuva>{v}</Chuva></row>" for h, v in rows
+        ) + "</root>"
+        rain = live._chuva_horaria_fim_intervalo(xml)
+        self.assertEqual(rain, {live.dt.datetime(2026, 10, 8, 9): 10.0})
+
+    def test_v11_inputs_use_2h_forecast_at_same_base(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        t = live.dt.datetime(2026, 10, 8, 22)
+        hours = [t - live.dt.timedelta(hours=h) for h in range(30)]
+        series = {
+            "86472600": {h: 450.0 + 0.3 * i * i for i, h in enumerate(reversed(hours))},
+            "86472000": {h: 300.0 + 1.5 * i for i, h in enumerate(reversed(hours))},
+            "__chuva4h_v11_postos__": {
+                "86472600": {h: 0.2 for h in hours},
+                "86472000": {h: 0.4 for h in hours[:6]},
+                "2851044": {h: 1.0 for h in hours},
+            },
+        }
+        x, st0 = live.montar_inputs_4h_v11_cascata(series, t)
+        x2 = [live._valor_nivel_exato(series, spec, t) for spec in live.SPECS_NIVEL_CASCATA_2H]
+        self.assertEqual(len(x), 18)
+        self.assertEqual(st0, series["86472600"][t])
+        self.assertAlmostEqual(x[14], 6 * 0.3 + 6 * 0.2)
+        self.assertAlmostEqual(x[15], 15.0)
+        self.assertAlmostEqual(x[16], live.prever(live.MODELO_MAT, x2))
+        self.assertAlmostEqual(x[17], x[0] + x[16])
+        audit = live.auditoria_inputs_4h_v11_cascata(series, t, valores=x)
+        self.assertEqual(audit["status"], "NORMAL")
+        self.assertTrue(audit["formula_conferida_com_montador"])
+        self.assertEqual(audit["n_inputs"], 18)
+        self.assertEqual(audit["n_inputs_nao_exatos"], 0)
+        self.assertTrue(audit["chuva_parcial"])
+
+        del series["__chuva4h_v11_postos__"]["2851044"][t - live.dt.timedelta(hours=14)]
+        x, _ = live.montar_inputs_4h_v11_cascata(series, t)
+        self.assertIsNone(x[15])
+        audit = live.auditoria_inputs_4h_v11_cascata(series, t, valores=x)
+        self.assertEqual(audit["status"], "INVALIDO")
 
     def test_ana_reuses_one_xml_for_level_and_rain(self) -> None:
         from previne.robo import gerar_previsao_ao_vivo as live

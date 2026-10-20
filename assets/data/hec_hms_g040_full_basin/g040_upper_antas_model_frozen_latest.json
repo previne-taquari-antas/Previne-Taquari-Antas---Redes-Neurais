@@ -1,0 +1,78 @@
+{
+  "schema_version": "g040_upper_antas_model_frozen_v1",
+  "generated_at_utc": "2026-10-07T12:51:44.395136Z",
+  "research_only": true,
+  "status": "UPPER_ANTAS_FROZEN_CALIBRATION_READY",
+  "station_code": "86472000",
+  "calibration_events": [
+    "E22_SEP2023",
+    "E24_NOV2023"
+  ],
+  "validation_events_excluded_from_selection": [
+    "E27_MAY2024",
+    "E28_JUN2024",
+    "E2026_JUL"
+  ],
+  "candidate_count": 623,
+  "search": {
+    "strategy": "two_stage_grid_plus_local_refinement",
+    "coarse_candidate_count": 286,
+    "refinement_seed_count": 12,
+    "refined_candidate_count": 349,
+    "robust_event_weighting": {
+      "mean": 0.6,
+      "worst_event": 0.4
+    },
+    "calibration_feasibility_gate": {
+      "nse_min": 0.7,
+      "peak_relative_error_max": 0.15,
+      "peak_lag_hours_max": 3.0,
+      "absolute_volume_error_max": 0.25,
+      "feasible_candidate_count": 3,
+      "gate_used_for_selection": true
+    },
+    "validation_or_holdout_used": false
+  },
+  "parameters": {
+    "initial_loss": 5.5,
+    "constant_loss": 1.0,
+    "tc": 10.0,
+    "storage": 20.0,
+    "recession": 0.98,
+    "initial_flow_ratio": 0.001
+  },
+  "objective": 0.383496,
+  "event_objective_scores": {
+    "E22_SEP2023": 0.440267,
+    "E24_NOV2023": 0.359165
+  },
+  "event_metrics": {
+    "E22_SEP2023": {
+      "pairs": 288.0,
+      "nse": 0.7598555641606897,
+      "peak_relative_error": 0.10066199058478865,
+      "peak_lag_hours": -2.0,
+      "volume_error": 0.20070482593286018,
+      "observed_peak_m3s": 15447.875,
+      "simulated_peak_m3s": 17002.888847804992
+    },
+    "E24_NOV2023": {
+      "pairs": 240.0,
+      "nse": 0.8103176580889333,
+      "peak_relative_error": 0.12332518814927346,
+      "peak_lag_hours": -3.0,
+      "volume_error": -0.23667152796448948,
+      "observed_peak_m3s": 13034.0475,
+      "simulated_peak_m3s": 11426.621139715933
+    }
+  },
+  "state_correction_tau_h": 24.0,
+  "no_validation_leakage": true,
+  "model_structure": "Prata + Antas residual area-weighted rain; Initial+Constant loss; Clark transform; recession baseflow",
+  "selection_objective": "robust multi-event: hydrograph NSE + explicit peak magnitude/timing/volume penalties",
+  "areas_km2": {
+    "SB_PRATA_7868": 3775.99,
+    "SB_ANTAS_RESIDUAL": 9142.666
+  },
+  "promotion_allowed": false
+}

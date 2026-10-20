@@ -1,0 +1,44 @@
+name: Frontend quality
+on:
+  pull_request:
+    paths: ['**/*.html', 'inventario/**', 'assets/js/**', 'assets/css/**', 'assets/previsao*', 'scripts/*site*', 'scripts/apply_institutional_logos.py', 'scripts/test_*.js', '.github/workflows/frontend-quality.yml']
+  push:
+    branches: [main]
+    paths: ['**/*.html', 'inventario/**', 'assets/js/**', 'assets/css/**', 'assets/previsao*', 'scripts/*site*', 'scripts/apply_institutional_logos.py', 'scripts/test_*.js', '.github/workflows/frontend-quality.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*.html
+            /**/*.html
+            /pesquisas/**/*.html
+            /inventario/*.html
+            /assets/js/
+            /assets/css/
+            /assets/*.js
+            /assets/*.css
+            /scripts/test_*.js
+            /scripts/validate_site_frontend.py
+            /scripts/optimize_static_site.py
+            /scripts/test_static_site_optimization.py
+            /scripts/test_site_accessibility.py
+            /scripts/apply_institutional_logos.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate active pages and scripts
+        run: python scripts/validate_site_frontend.py
+      - name: Regression tests
+        run: |
+          python scripts/test_static_site_optimization.py
+          python scripts/test_site_accessibility.py
+          for test in scripts/test_*.js; do node "$test"; done

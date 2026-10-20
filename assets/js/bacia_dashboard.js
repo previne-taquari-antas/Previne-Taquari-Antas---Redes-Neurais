@@ -1221,7 +1221,7 @@
 
   async function loadText(url) {
     try {
-      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
+      const response = await PrevineSiteRuntime.fetchResource(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) return null;
       return await response.text();
     } catch (_) { return null; }
@@ -1429,7 +1429,7 @@
       const archiveNote = snap.archivedRisk == null ? '' : '<span class="model-archive-note">Existe resultado arquivado, mas ele foi ocultado da leitura atual por estar desatualizado.</span>';
       return `<article class="model-risk-card is-stale"><div class="model-subhead"><div><span class="model-eyebrow">Risco de pesquisa</span><h3>Probabilidade de cruzar a cota</h3></div><span class="model-status-pill is-stale">indisponível</span></div><div class="model-availability"><strong>Sem valor atual</strong><span>rodada atrasada · ${esc(stateLabel)}</span></div><p>Não há probabilidade atual utilizável. Resultado antigo não é reutilizado como se fosse vigente.</p>${archiveNote}<span class="model-source">PROBABILIDADE · experimental · ${esc(snap.station.label)}</span></article>`;
     }
-    return `<article class="model-risk-card"><div class="model-subhead"><div><span class="model-eyebrow">Risco de pesquisa</span><h3>Probabilidade de cruzar a cota</h3></div><span class="model-status-pill is-ok">utilizável</span></div><div class="model-risk-value">${pct(snap.risk)}<span>estimativa experimental</span></div><p>Estimativa experimental de cruzamento; não é alerta oficial.</p><span class="model-source">PROBABILIDADE · experimental · ${esc(snap.station.label)}</span></article>`;
+    return `<article class="model-risk-card"><div class="model-subhead"><div><span class="model-eyebrow">Risco de pesquisa</span><h3>Probabilidade de cruzar a cota</h3></div><span class="model-status-pill is-ok">utilizável</span></div><div class="model-risk-value">${pct(snap.risk)}<span>estimativa experimental</span></div><p>Estimativa experimental entre indicadores.</p><span class="model-source">PROBABILIDADE · experimental · ${esc(snap.station.label)}</span></article>`;
   }
   function modelSoilVisual(snap) {
     const soil = num(snap.soil);
@@ -1669,7 +1669,7 @@
 
   async function loadJson(url) {
     try {
-      const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
+      const response = await PrevineSiteRuntime.fetchResource(`${url}${url.includes('?') ? '&' : '?'}cb=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) return null;
       return await response.json();
     } catch (_) { return null; }
@@ -1680,6 +1680,52 @@
     }
     return loadJson(url);
   }
+  // Level/RNA robots publish independently of the 530-station weather snapshot.
+  // A failed basin publication must not pin the two target gauges to yesterday's
+  // readings. Every adopted measurement carries its original observation time.
+  function mergeRecentTargetLevels(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.stations)) return snapshot;
+    Object.entries(stations).forEach(([key, cfg]) => {
+      const live = state.feeds[key] && state.feeds[key].live;
+      if (!live || typeof live !== 'object') return;
+      const cm = num(live.telemetria_ultima_nivel_cm);
+      const observedAt = parseDate(live.telemetria_ultima_em_utc || live.telemetria_ultima_em);
+      if (cm == null || cm < 0 || cm > 5000 || !observedAt ||
+          observedAt.getTime() > Date.now() + 5 * 60000) return;
+      const row = snapshot.stations.find((item) => item && String(item.code) === cfg.code &&
+        (item.source_networks || []).some((source) => source === 'ANA/HidroWeb' || source === 'SGB/SACE'));
+      if (!row) return;
+      const previousAt = parseDate(row.level && row.level.observed_at_utc);
+      if (previousAt && previousAt.getTime() >= observedAt.getTime()) return;
+      // Future valid horizons only. No extrapolation from a stale or unavailable
+      // network, and an unavailable horizon never inherits yesterday's forecast.
+      const forecasts = Object.entries(live.horizontes || {}).flatMap(([id, value]) => {
+        if (!value || value.disponivel !== true) return [];
+        const futureCm = num(value.nivel_previsto_cm);
+        const target = parseDate(value.hora_alvo_utc || value.hora_alvo);
+        if (futureCm == null || futureCm < 0 || futureCm > 5000 ||
+            !target || target.getTime() <= Date.now()) return [];
+        return [{ id, label: 'RNA ' + id.replace(/_/g, ' '),
+          cm: futureCm, time: target.toISOString() }];
+      });
+      row.level = {
+        ...(row.level || {}),
+        state: 'available',
+        current_cm: cm,
+        raw_current_cm: cm,
+        measurement_classification: 'nivel_observado',
+        observed_at_utc: observedAt.toISOString(),
+        observed_age_minutes: Math.max(0, (Date.now() - observedAt.getTime()) / 60000),
+        source: 'ANA/SGB · robô independente da estação',
+        forecast_applicable: true,
+        forecasts,
+        forecast_cm: forecasts.length ? forecasts[0].cm : null,
+        forecast_at_utc: forecasts.length ? forecasts[0].time : null,
+      };
+    });
+    return snapshot;
+  }
+
   async function loadFeeds() {
     if (state.loading) return;
     state.loading = true;
@@ -1687,7 +1733,8 @@
     try {
       await Promise.all(pairs.map(async ([key, cfg]) => {
         const [pattern, weather, live] = await Promise.all([loadJson(cfg.pattern), loadJson(cfg.weather), loadLive(cfg.live)]);
-        state.feeds[key] = { pattern, weather, live };
+        const previous=state.feeds[key]||{};
+        state.feeds[key] = {pattern:pattern||previous.pattern, weather:weather||previous.weather, live:live||previous.live};
       }));
       const [research, rainSummary, basin, networkStatus] = await Promise.all([
         loadJson(researchUrl),
@@ -1695,10 +1742,10 @@
         state.basinGeometry ? Promise.resolve(state.basinGeometry) : loadJson(basinUrl),
         loadJson(basinStatusUrl)
       ]);
-      state.research = research;
-      state.rainSummary = rainSummary;
-      state.basinGeometry = basin;
-      state.networkStatus = networkStatus;
+      state.research = research || state.research;
+      state.rainSummary = rainSummary || state.rainSummary;
+      state.basinGeometry = basin || state.basinGeometry;
+      state.networkStatus = mergeRecentTargetLevels(networkStatus || state.networkStatus);
       populateNetworkUpgFilter();
       populateNetworkStationSearch();
       if (!state.selectedNetworkStationId && networkStatus && Array.isArray(networkStatus.stations)) {
@@ -1818,3 +1865,4 @@
     if (document.visibilityState === 'visible') loadFeeds();
   }, AUTO_REFRESH_MS);
 })();
+

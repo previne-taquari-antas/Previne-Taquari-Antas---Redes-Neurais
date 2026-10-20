@@ -240,13 +240,17 @@
     if(!old||priority>=old.priority) points.set(key,{time:d,cm,priority,kind});
   }
 
-  // Registros 4h_cascata pertencem ao replay legado e continuam preservados
-  // no histórico para auditoria. Eles não são, porém, uma saída pública do
-  // robô atual: misturá-los ao gráfico faria parecer que o horizonte 4h foi
-  // emitido por dois modelos diferentes no mesmo ciclo.
+  // O 4h publicado é somente a V11 em cascata com a RNA 2h. Registros de
+  // modelos 4h retirados (PRO, PRIO e o replay 4h_cascata legado) continuam
+  // preservados no histórico para auditoria, mas misturá-los ao gráfico faria
+  // parecer que o horizonte 4h foi emitido por mais de um modelo.
+  const FOUR_HOUR_MODEL='STZ_4H_V11_CASCATA';
   function isLegacyCascade(row){
     if(!row||typeof row!=='object') return false;
-    return ['id','horizonte','tipo','modelo','rotulo'].some(key=>/cascata/i.test(String(row[key]||'')));
+    if(/cascata/i.test(String(row.horizonte||''))) return true;
+    const model=String(row.modelo||'');
+    if(String(row.horizonte||'')==='4h') return model!==FOUR_HOUR_MODEL;
+    return /cascata/i.test(model)&&model!==FOUR_HOUR_MODEL;
   }
 
   function observedPoints(history,live){
@@ -334,6 +338,7 @@
     const hs=live.horizontes&&Object.keys(live.horizontes).length?live.horizontes:{[live.horizonte||'2h']:live};
     const candidatesByHours=new Map();
     Object.entries(hs).forEach(([key,obj])=>{
+      if(document.body.classList.contains('public-forecast') && !window.PREVINE_PUBLIC.isReady(key,obj)) return;
       if(!obj||obj.disponivel===false||obj.shadow_only) return;
       const cm=number(obj.nivel_previsto_cm),hours=horizonHours(key,obj);
       if(cm===null||hours===null||![2,4,8,12].includes(hours)) return;
@@ -555,7 +560,9 @@
     const crossDay=new Date(xMin).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'})!==new Date(xMax).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});
 
     const spanHours=(xMax-xMin)/36e5;
-    const descText=items.length
+    const descText=document.body.classList.contains('public-forecast')
+      ?`Nível observado nas ${opts.periodLabel}, em azul. Pontos coloridos: previsões disponíveis. Lacunas de telemetria não são ligadas por linhas.`
+      :items.length
       ?`Nível do rio observado nas ${opts.periodLabel}. A linha azul mostra observações; a cinza tracejada mostra o que a RNA previu antes para cada hora-alvo; cada horizonte ativo tem cor e marcador próprios.`
       :`Nível do rio observado nas ${opts.periodLabel}, em linha azul. A cinza tracejada mostra previsões anteriores da RNA. Lacunas de telemetria não são ligadas por linhas.`;
     const desc=svgNode('desc',{},descText);
@@ -706,9 +713,10 @@
     return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   }
 
-  function errorHorizonLabel(key,hours){
+  function errorHorizonLabel(key,hours,model){
     const normalized=String(key||'').toLowerCase();
     if(normalized==='2h_versao_b') return '2 h B';
+    if(normalized==='4h'&&model===FOUR_HOUR_MODEL) return '4 h V11 cascata';
     if(normalized==='4h_versao_b') return '4 h comparativo';
     if(normalized==='8h_v002') return '8 h V002';
     if(normalized==='8h_versao_b') return '8 h comparativo';
@@ -723,7 +731,7 @@
     const rows=Array.isArray(historyOrRows)?historyOrRows:(historyOrRows&&Array.isArray(historyOrRows.registros)?historyOrRows.registros:[]);
     const unique=new Map();
     rows.forEach(row=>{
-      if(!row||typeof row!=='object') return;
+      if(!row||typeof row!=='object'||(row._source!=='catalog'&&isLegacyCascade(row))) return;
       const target=parseWhen(row.hora_alvo), predicted=number(row.nivel_previsto_cm);
       const hours=horizonHours(row.horizonte,row), model=String(row.modelo||'').trim();
       if(!target||predicted===null||hours===null||!model) return;
@@ -778,7 +786,7 @@
     rows.forEach(item=>{
       let group=groups.get(item.groupKey);
       if(!group){
-        group={key:item.groupKey,horizonKey:item.horizonKey,hours:item.hours,model:item.model,label:errorHorizonLabel(item.horizonKey,item.hours),rows:[]};
+        group={key:item.groupKey,horizonKey:item.horizonKey,hours:item.hours,model:item.model,label:errorHorizonLabel(item.horizonKey,item.hours,item.model),rows:[]};
         groups.set(item.groupKey,group);
       }
       group.rows.push(item);
@@ -895,7 +903,7 @@
     else if(state.live) summaryText='A rodada ao vivo foi carregada, mas ainda não há um horizonte utilizável para resumir. ';
     summaryText+=snapshot.n?`Na janela de ${windowLabel}, há ${nf0.format(snapshot.n)} previsões conferidas, MAE de ${metricText(snapshot.mae)} e viés de ${snapshot.bias>0?'+':''}${metricText(snapshot.bias)}.`:`Na janela de ${windowLabel}, ainda não há amostra conferida suficiente para calcular erro.`;
     summary.textContent=summaryText;
-    if(footnote) footnote.textContent=`Pesquisa científica · ${windowLabel} selecionados para os erros · ausência ou atraso permanece visível · não é alerta oficial, ordem de evacuação ou autorização de rota.`;
+    if(footnote) footnote.textContent=`Pesquisa científica · ${windowLabel} selecionados para os erros · ausência ou atraso permanece visível`;
   }
 
   function renderWindowComparison(rows,loading,error){
@@ -1090,12 +1098,12 @@
     const staleText=staleHorizons.length
       ?` ${staleHorizons.map(p=>`+${p.hours} h`).join(' e ')} ficou fora do panorama porque o horário-alvo já passou; permanece no histórico para auditoria.`
       :'';
-    detail.innerHTML=`${timingRowsHtml(selected)}<span class="live-timing-meta">${ageText}${liveFresh.stale?' · publicação marcada como atrasada':''}${telemetryText?` · ${telemetryText}`:''}. O robô tenta atualizar a cada 5 minutos, mas o painel mede e mostra o atraso real da execução. A linha azul usa a série observada ANA/SGB; a auditoria da RNA fica separada. A ANA pode chegar em :15/:30/:45, enquanto a RNA usa somente bases de hora cheia. O robô publica previsões experimentais de ${escapeHtml(liveHorizons||'nenhum horizonte')}.${escapeHtml(staleText)} A pesquisa “vai mudar ou não?” de 24–168 h fica em página separada; este panorama não é alerta oficial.</span>`;
+    detail.innerHTML=`${timingRowsHtml(selected)}<span class="live-timing-meta">${ageText}${liveFresh.stale?' · publicação marcada como atrasada':''}${telemetryText?` · ${telemetryText}`:''}. O robô tenta atualizar a cada 5 minutos, mas o painel mede e mostra o atraso real da execução. A linha azul usa a série observada ANA/SGB; a auditoria da RNA fica separada. A ANA pode chegar em :15/:30/:45, enquanto a RNA usa somente bases de hora cheia. O robô publica previsões experimentais de ${escapeHtml(liveHorizons||'nenhum horizonte')}.${escapeHtml(staleText)} A pesquisa “vai mudar ou não?” de 24–168 h fica em página separada; este painel apresenta resultados de pesquisa.</span>`;
     const mapSummary=document.getElementById('map-accessible-summary');
     if(mapSummary){
       const current=state.live&&(state.live.nivel_rio_agora_cm??state.live.telemetria_ultima_nivel_cm);
       const horizons=state.live&&state.live.horizontes?Object.keys(state.live.horizontes).filter(k=>/^(2h|4h|8h)/.test(k)).join(', '):'nenhum';
-      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota oficial configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e não é alerta oficial.`;
+      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota oficial configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e está em análise.`;
     }
   }
 
@@ -1156,7 +1164,7 @@
         return value===null?'indisponível':nf2.format(value*100)+'%';
       };
       label.textContent='Probabilidade experimental de transbordamento disponível';
-      detail.textContent=`GEFS/NOAA: +24 h ${pText(24)} · +48 h ${pText(48)} · +72 h ${pText(72)} · +120 h ${pText(120)} · +168 h ${pText(168)}. Escala de 0% a 100%; não é alerta oficial. Rodada ${fmtWhenWithZone(feedTimestamp(r.probabilities))}.`;
+      detail.textContent=`GEFS/NOAA: +24 h ${pText(24)} · +48 h ${pText(48)} · +72 h ${pText(72)} · +120 h ${pText(120)} · +168 h ${pText(168)}. Escala de 0% a 100%; dados experimentais. Rodada ${fmtWhenWithZone(feedTimestamp(r.probabilities))}.`;
       return;
     }
     if(r.rna&&r.rna.scores){
@@ -1229,12 +1237,13 @@
     // está no futuro. Saídas vencidas continuam em liveStaleHorizons e no
     // histórico/auditoria, mas não são desenhadas como previsão atual.
     const published=items;
-    const previous24=previousForecastPoints(state.history,state.live,current,24);
-    const previousWeek=previousForecastPoints(state.history,state.live,current,168);
+    const publicView=document.body.classList.contains('public-forecast');
+    const previous24=publicView?[]:previousForecastPoints(state.history,state.live,current,24);
+    const previousWeek=publicView?[]:previousForecastPoints(state.history,state.live,current,168);
     const trend=trendInfo(points);
     const flood=floodInfo(current,items,state.config.cotaInundCm);
     drawChart(points,published,state.config.cotaInundCm,{windowHours:24,previous:previous24});
-    drawChart(weekPoints,[],state.config.cotaInundCm,{
+    if(!publicView) drawChart(weekPoints,[],state.config.cotaInundCm,{
       svgId:'river-week-chart',
       emptyId:'overview-week-empty',
       periodLabel:'últimos 7 dias',
@@ -1244,6 +1253,11 @@
       previous:previousWeek
     });
     renderLegend(published,previous24.length>0||previousWeek.length>0);
+    if(publicView){
+      const badge=document.getElementById('overview-trend-badge');
+      if(badge){badge.textContent=trend.label;badge.className='trend-badge '+(flood.alert?'alert':trend.className);}
+    }
+    if(!publicView){
     renderWeekCoverage(weekPoints);
     renderErrorReport();
     renderBriefing(current,items,state.history?errorReportRows(state.history):[]);
@@ -1251,6 +1265,7 @@
     renderRobotStatus();
     renderResearchRisk();
     renderSpecialistReview();
+    }
 
     const status=document.getElementById('overview-source-status');
     if(status){
@@ -1272,7 +1287,9 @@
         :state.historyError
         ?'O histórico não carregou; os horizontes ao vivo continuam visíveis.'
         :'Linha azul: telemetria observada ANA/SGB, independente da auditoria da RNA. Cinza tracejada: o que a RNA previu antes. Cada horizonte ativo tem cor e marcador próprios.';
-      status.textContent=prefix+(freshness?' '+freshness+'.':'');
+      status.textContent=publicView
+        ?(state.historyError?'O histórico não carregou. ':state.liveError?'Os dados atuais não carregaram. ':'')+'Linha azul: nível observado. Os pontos coloridos indicam as previsões disponíveis.'+(telemetryWhen?' Última leitura: '+fmtWhenWithZone(telemetryWhen)+'.':'')
+        :prefix+(freshness?' '+freshness+'.':'');
     }
     const accessible=document.getElementById('overview-accessible');
     if(accessible){

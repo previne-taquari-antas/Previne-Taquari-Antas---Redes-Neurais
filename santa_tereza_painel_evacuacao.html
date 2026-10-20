@@ -22,20 +22,89 @@
  .rota{background:#eaf5ef;border:1px solid #bfe0cd;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px}
  .big{font-size:12px;color:#7a5b00;margin-top:6px}
  .hide{display:none}
+
+/* Mobile map-first interface: the panel is a collapsible bottom sheet. */
+.mobile-sheet .sheet-toggle,.mobile-sheet .sheet-summary{display:none}
+.sheet-state{padding:4px 14px;background:#f5f7f6;color:#53665d;border-top:1px solid #e4eae6;font-size:11px;line-height:1.35}
+.sheet-state[hidden]{display:none}
+.quick-stage button:disabled,.anim-controls button:disabled{opacity:.42;cursor:not-allowed}
+.mobile-sheet .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.technical-note{font-size:12px;color:#6c591e;margin:7px 0 10px;border:1px solid #e7ddbd;border-radius:8px;background:#fffdf4}
+.technical-note summary{cursor:pointer;padding:8px 10px;font-weight:650}
+.technical-note p{padding:0 10px 9px;margin:0;line-height:1.5}
+
+.anim-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:7px 0 9px}
+.anim-controls button{border:1px solid #bad0c3;border-radius:8px;background:#f1f8f4;color:#126746;padding:7px 10px;font:600 12px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}
+.anim-controls button.anim-main{background:#0e7750;border-color:#0e7750;color:#fff}
+.anim-controls button:focus-visible,.quick-stage button:focus-visible{outline:2px solid #0f8b46;outline-offset:2px}
+.anim-time{display:block;width:100%;font-size:11px;color:#52665a;font-variant-numeric:tabular-nums}
+.quick-stage{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
+.quick-stage input[type=range]{min-width:0;flex:1;accent-color:#0f8b46;touch-action:pan-x}
+.quick-stage button{height:42px;min-width:42px;border:1px solid #bad0c3;border-radius:9px;background:#f2f8f4;color:#126746;font:700 22px/1 sans-serif}
+@media(max-width:700px){.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
+@media (max-width:700px){
+ body{overflow:hidden}
+ .hud.mobile-sheet,body[data-previne-map-signature] > .hud.mobile-sheet{
+   box-sizing:border-box;position:fixed;inset:auto 12px calc(12px + env(safe-area-inset-bottom,0px)) 12px;
+   width:auto;max-width:none;max-height:min(64dvh,calc(100dvh - 118px - env(safe-area-inset-bottom,0px)));
+   display:flex;flex-direction:column;padding:0;margin:0;overflow:hidden;
+   border-radius:17px;background:#fff;box-shadow:0 7px 28px rgba(7,30,22,.3);
+ }
+ .mobile-sheet .sheet-head{flex:0 0 auto;padding:9px 14px 4px}
+ .mobile-sheet .sheet-head h1{margin:0;padding:0;font:600 17px/1.35 Georgia,serif}
+ .mobile-sheet .sheet-toggle{display:inline-flex;align-items:center;justify-content:center;min-height:38px;
+   border:1px solid #bcd6c7;border-radius:9px;background:#edf7f1;color:#0f6745;
+   font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:8px 12px;cursor:pointer}
+ .mobile-sheet .sheet-toggle:focus-visible,.mobile-sheet .tabs button:focus-visible{outline:3px solid #0f8b46;outline-offset:2px}
+ .mobile-sheet .sheet-summary{display:block;padding:3px 14px 7px;font-size:12.5px;color:#485c52;line-height:1.45}
+ .mobile-sheet .sheet-summary strong{color:#0d704c;font-variant-numeric:tabular-nums}
+ .mobile-sheet .sheet-alert{display:block;color:#78591b;font-size:11px}
+ .mobile-sheet:not(.mobile-collapsed) .sheet-summary{display:none}
+ .mobile-sheet.mobile-collapsed .bd{display:none}
+ .mobile-sheet .tabs{margin:0;flex:0 0 auto}
+ .mobile-sheet .tabs button{min-height:46px;font-size:14px;padding:10px 3px}
+ .mobile-sheet .bd{padding:10px 14px 16px;overflow-y:auto;overscroll-behavior:contain;
+   -webkit-overflow-scrolling:touch;min-height:0}
+ .mobile-sheet input[type=range]{min-height:35px;margin:0 0 4px;accent-color:#0f8b46}
+ .mobile-sheet .sub{font-size:13px;line-height:1.45}
+ .mobile-sheet .row{font-size:13px;line-height:1.4;gap:10px;padding:3px 0;align-items:flex-start}
+ .mobile-sheet .row span{min-width:0;flex:1}
+ .mobile-sheet .row b{flex:0 0 auto}
+ #map .leaflet-bottom{bottom:calc(var(--evac-sheet-height,135px) + 16px + env(safe-area-inset-bottom,0px))}
+}
 </style></head><body>
 <div id="map"></div>
-<div class="hud">
-  <h1>Evacuação · <span id="cid"></span></h1>
+<div class="hud mobile-sheet mobile-collapsed">
+  <div class="sheet-head">
+    <h1>Evacuação · <span id="cid"></span></h1>
+    <button type="button" id="sheetToggle" class="sheet-toggle" aria-controls="sheetContent" aria-expanded="false">Detalhes</button>
+  </div>
+  <div class="sheet-state" id="sheetState" role="status" aria-live="polite">Conferindo a mancha de inundação…</div>
+  <div class="sheet-summary" id="sheetSummary">
+    Régua <strong id="sheetLevel">1,6 m</strong> · subida <strong id="sheetRate">40 cm/h</strong>
+    
+    <div class="quick-stage" role="group" aria-label="Controle rápido do nível da régua">
+      <button type="button" id="quickMinus" aria-label="Diminuir 10 centímetros">−</button>
+      <input id="quickSld" type="range" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível na régua em metros">
+      <button type="button" id="quickPlus" aria-label="Aumentar 10 centímetros">+</button>
+      <button type="button" id="quickPlay" aria-label="Iniciar animação" title="Animar nível da régua">▶</button>
+    </div>
+  </div>
   <div class="tabs">
     <button data-m="rotas" class="on">Rotas</button>
     <button data-m="margem">Margem</button>
-    <button data-m="impacto">Quem sai</button>
+    <button data-m="impacto">Casas em risco</button>
   </div>
-  <div class="bd">
+  <div class="bd" id="sheetContent">
     <div id="sliders" class="hide">
       <div class="sub">Nível na régua: <span class="lv" id="nvtxt"></span></div>
       <input type="range" id="sld" min="1.6" max="26.6" value="1.6" step="0.1" aria-label="Nível da régua de 1,60 a 26,60 metros">
-      <div class="sub" style="font-size:11px;color:#7a5b00;margin-top:4px"><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> A mancha e os limiares da grade foram recalculados com o HAND LiDAR atual: HAND = régua − 1,60 m. É uma triagem de pesquisa; não é água observada, rota liberada, alerta ou ordem de evacuação.</div>
+      <div class="anim-controls" role="group" aria-label="Animação do cenário de subida do nível">
+        <button type="button" id="animToggle" class="anim-main" aria-pressed="false">▶ Animar subida</button>
+        <button type="button" id="animReset">↺ Reiniciar</button>
+        <span class="anim-time" id="animClock">Tempo simulado desde 1,60 m: 0 min</span>
+      </div>
+      <details class="technical-note"><summary>Sobre o cálculo e suas limitações</summary><p><b>Campo: régua 1,60 m = HAND 0 no rio principal.</b> O Marrecão é sujeito ao remanso do Taquari; os 25 m são o intervalo de modelagem HAND, não uma subida local no arroio. Os contornos publicados ainda precisam de reprocessamento com o eixo Taquari e validação hidráulica.</p></details>
       <div class="sub">Velocidade: <span class="lv" id="taxatxt"></span> cm/h <span id="taxacen" style="color:#7a5b00;font-size:11px"></span></div>
       <input type="range" id="sldTaxa" min="10" max="200" value="40" step="5">
     </div>
@@ -52,9 +121,18 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9}).addTo(map);
 const CORES={alagada:'#1e5fbf',rota_comprometida:'#6b2f5b',critica:'#b3382c',apertada:'#e8730c',atencao:'#e3b100',confortavel:'#1b7a5a',alto:'#7a8a84',sem_dado:'#9aa3a0'};
 const CLASSES_SAIDA=new Set(['alagada','rota_comprometida','critica','apertada','atencao']);
-const ROT={alagada:'local atingido no cenário HAND',rota_comprometida:'gargalo da rota já atingido',critica:'margem negativa',apertada:'margem <15 min',atencao:'margem <1 h',confortavel:'margem >1 h no modelo',alto:'ponto alto',sem_dado:'sem cobertura HAND no intervalo'};
+const ROT={referencia:'nível de referência — sem impacto classificado',alagada:'interseção com a mancha HAND simulada',rota_comprometida:'gargalo da rota já atingido',critica:'margem negativa',apertada:'margem <15 min',atencao:'margem <1 h',confortavel:'margem >1 h no modelo',alto:'ponto alto',sem_dado:'sem cobertura HAND no intervalo'};
 const ordem=['alagada','rota_comprometida','critica','apertada','atencao','sem_dado','confortavel'];
-let contornosGeo=null, contornosOrdenados=[];
+let contornosGeo=null, contornosOrdenados=[], estadoMancha='carregando';
+function setStatusMancha(status,mensagem){
+  estadoMancha=status;
+  const aviso=document.getElementById('sheetState');
+  aviso.hidden=status==='validado';
+  aviso.textContent=status==='validado'?'':mensagem;
+  if(status!=='validado'&&status!=='previa'&&typeof pausarAnimacao==='function')pausarAnimacao();
+  if(typeof atualizarBotoesAnimacao==='function')atualizarBotoesAnimacao();
+}
+
 
 function pontoNoAnel(lon,lat,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];const hit=((yi>lat)!=(yj>lat))&&(lon<(xj-xi)*(lat-yi)/(yj-yi+1e-15)+xi);if(hit)inside=!inside;}return inside;}
 function pontoNaGeom(lon,lat,g){if(!g)return false;if(g.type==='Polygon'){if(!pontoNoAnel(lon,lat,g.coordinates[0]))return false;for(let k=1;k<g.coordinates.length;k++)if(pontoNoAnel(lon,lat,g.coordinates[k]))return false;return true;}if(g.type==='MultiPolygon')return g.coordinates.some(poly=>{if(!pontoNoAnel(lon,lat,poly[0]))return false;for(let k=1;k<poly.length;k++)if(pontoNoAnel(lon,lat,poly[k]))return false;return true;});return false;}
@@ -91,8 +169,26 @@ const cellNode=cellCenters.map(c=>noMaisProximo(c[0],c[1]));
 
 // Mancha HAND atual: é a área física do cenário. A grade IBGE NÃO é mancha.
 const manchaLayer=L.layerGroup();
-function featureCenario(nivelRegua){if(!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=contornosOrdenados[0],bd=Infinity;contornosOrdenados.forEach(x=>{const d=Math.abs(x.nivel-hand);if(d<bd){bd=d;best=x;}});return best&&best.feature;}
-function atualizaMancha(nivelRegua){manchaLayer.clearLayers();const f=featureCenario(nivelRegua);if(!f)return;L.geoJSON(f,{interactive:false,style:{color:'#1e5fbf',weight:.8,fillColor:'#1e5fbf',fillOpacity:.14}}).eachLayer(l=>manchaLayer.addLayer(l));}
+function featureCenario(nivelRegua){
+  if(!contornosGeo||!contornosOrdenados.length)return null;
+  if(estadoMancha==='validado'&&contornosGeo.metadata?.river_reference_method!=='eixo_dominante_taquari_D8')return null;
+  if(estadoMancha==='previa'&&contornosGeo.metadata?.preview_only!==true)return null;
+  if(!['validado','previa'].includes(estadoMancha))return null;if(nivelRegua<=BANKFULL_M+1e-9||!contornosOrdenados.length)return null;const hand=Math.max(0,Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M));let best=null;for(const x of contornosOrdenados){if(x.nivel>hand+1e-9)break;best=x;}return best&&best.feature;}
+const rendererMancha=L.canvas({padding:.25});
+let ultimaFeatureDesenhada=undefined;
+function atualizaMancha(nivelRegua){
+  const f=featureCenario(nivelRegua);
+  if(f===ultimaFeatureDesenhada)return;
+  ultimaFeatureDesenhada=f;
+  manchaLayer.clearLayers();
+  if(!f)return;
+  L.geoJSON(f,{renderer:rendererMancha,interactive:false,style:{
+    color:estadoMancha==='previa'?'#2b96d1':'#1e5fbf',weight:1.2,
+    dashArray:estadoMancha==='previa'?'4 3':null,
+    fillColor:'#1782ce',fillOpacity:estadoMancha==='previa'?.36:.23
+  }})
+    .eachLayer(l=>manchaLayer.addLayer(l));
+}
 
 const b=L.latLngBounds();
 const ruas=D.edges.map(([a,c,ag])=>{const A=D.nos[a],C=D.nos[c];b.extend(A);b.extend(C);return {pl:L.polyline([A,C],{weight:1.0,opacity:.60,interactive:false}),a,c,ag};});
@@ -100,15 +196,102 @@ const ruasLayer=L.layerGroup(ruas.map(r=>r.pl));
 
 // Grade IBGE: contorno discreto + ponto no centro. Não pintar o quadrado inteiro,
 // porque em área rural a célula pode ter ~1 km e a população não está localizada casa a casa.
-const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.75,color:'#26332e',opacity:.78,fillColor:CORES.sem_dado,fillOpacity:.72})
-  .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),geral=classe(lc,ri.cota,c.dist_m,nivel),saida=CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${saida?'Até '+c.pop+' pessoas a priorizar para saída neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
+const cellBoxes=D.cells.map((c,idx)=>L.polygon(c.poly,{weight:.65,color:'#a7b9b0',opacity:.22,fillColor:'#a7b9b0',fillOpacity:.025})
+  .bindPopup(()=>{const ri=rotaInfo[cellNode[idx]]||{},lc=cotaCellsAtuais[idx],local=lc==null?'sem cobertura no intervalo':(BANKFULL_M+lc).toFixed(1)+' m na régua',garg=ri.cota==null?'sem cota suficiente':(BANKFULL_M+ri.cota).toFixed(1)+' m na régua',nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9,geral=referencia?'referencia':classe(lc,ri.cota,c.dist_m,nivel),saida=!referencia&&CLASSES_SAIDA.has(geral);return `<b>${c.pop} pessoas na célula da Grade IBGE</b><br><b>${referencia?'Nível de referência: sem impacto de inundação classificado':saida?'Até '+c.pop+' pessoas em triagem prioritária neste cenário':'0 pessoas em prioridade de saída nesta classe'}</b><br><small>A cor preenche a célula da Grade IBGE como visualização de triagem; não significa que toda a superfície da célula esteja fisicamente inundada.</small><br>classe: <b>${ROT[geral]||geral}</b><br>limiar HAND no centro da célula: <b>${local}</b><br>primeiro gargalo HAND da rota: <b>${garg}</b><br>a pé: ${(c.dist_m/1000).toFixed(2)} km`; }));
 const cellLabels=D.cells.map((c,idx)=>L.marker(cellCenters[idx],{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[36,22],iconAnchor:[18,11],html:`<div id="poplbl-${idx}" style="min-width:24px;color:#fff;text-align:center;font:900 12px/1.1 Arial,sans-serif;text-shadow:0 1px 3px #000,0 0 2px #000">?</div>`})}));
 const cellsLayer=L.layerGroup([...cellBoxes,...cellLabels]);
+
+const casasLayer=L.layerGroup(), BBcasas=L.latLngBounds(), rendererCasas=L.canvas({padding:.35});
+let casas=[], estadoCasas='carregando';
+const CORES_CASAS={atingida:'#1765b6',iminente:'#cb3535',atencao:'#e88921',distante:'#85959d'};
+const DIST_VERMELHO_M=30, DIST_LARANJA_M=100;
+const TELA_M=160, LAT_M=110540, LON_M=111320*Math.cos(-29.17*Math.PI/180);
+let indiceAtual=null;
+function projetarCasa(lon,lat){return [lon*LON_M,lat*LAT_M];}
+function carregarPontosCasas(payload){
+  if(!payload||!Array.isArray(payload.pontos)||!payload.pontos.length)throw Error('Sem pontos de edificações');
+  casasLayer.clearLayers();casas=[];
+  payload.pontos.forEach((coord,i)=>{
+    if(!Array.isArray(coord)||coord.length<2||!Number.isFinite(coord[0])||!Number.isFinite(coord[1]))return;
+    const xy=projetarCasa(coord[1],coord[0]);
+    const casa={lat:coord[0],lon:coord[1],x:xy[0],y:xy[1],ordem:i+1,cota:null,classe:'distante',distancia:null,marcador:null};
+    casa.marcador=L.circleMarker([casa.lat,casa.lon],{renderer:rendererCasas,radius:3.6,weight:1,color:'#fff',fillColor:CORES_CASAS.distante,fillOpacity:.9})
+      .bindPopup(()=>{
+        if(estadoMancha!=='validado')
+          return '<b>Edificação OSM #'+casa.ordem+'</b><br>Mancha em revisão: não há distância validada até a água nem classificação de risco para este ponto.';
+        const legenda={atingida:'A mancha simulada alcançou este ponto.',iminente:'Água muito próxima deste ponto (até 30 m).',atencao:'Água próxima deste ponto (até 100 m).',distante:'Fora da faixa de proximidade de 100 m neste cenário.'};
+        const dist=casa.distancia===null?'':'<br>Distância até a borda da mancha: ~'+Math.round(casa.distancia)+' m.';
+        const limiar=casa.cota===null?'Sem limiar de alagamento identificado nos contornos publicados.':
+          'Primeira interseção: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
+        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+legenda[casa.classe]+dist+'<br>'+limiar+
+          '<br><small>Distância planimétrica aproximada, baseada no contorno modelado; ponto OSM não é domicílio validado.</small>';
+      });
+    casas.push(casa);casasLayer.addLayer(casa.marcador);BBcasas.extend([casa.lat,casa.lon]);
+  });
+  estadoCasas=casas.length?'ok':'indisponivel';
+}
+function recalcularCotasCasas(){
+  if(!contornosGeo||contornosGeo.metadata?.river_reference_method!=='eixo_dominante_taquari_D8')return;
+  if(!contornosOrdenados.length)return;
+  casas.forEach(casa=>{
+    casa.cota=null;
+    for(const item of contornosOrdenados){if(itemContem(item,casa.lat,casa.lon)){casa.cota=item.nivel;break;}}
+  });
+}
+// Índice espacial da BORDA da mancha, em metros, para o nível ativo.
+// Ele evita calcular distâncias sobre todos os vértices em cada casa.
+function indiceBordaNivel(nivelRegua){
+  if(nivelRegua<=BANKFULL_M+1e-9)return null;
+  const h=Math.min(CAMADA_MAX,nivelRegua-BANKFULL_M);
+  let item=null;
+  for(const candidato of contornosOrdenados){if(candidato.nivel>h+1e-9)break;item=candidato;}
+  if(!item)return null;
+  if(indiceAtual&&indiceAtual.item===item)return indiceAtual;
+  const grade=new Map(),margem=DIST_LARANJA_M+1;
+  function registrarSegmento(a,b){
+    const x1=a[0]*LON_M,y1=a[1]*LAT_M,x2=b[0]*LON_M,y2=b[1]*LAT_M;
+    if(![x1,y1,x2,y2].every(Number.isFinite))return;
+    const segmento=[x1,y1,x2,y2];
+    const ix0=Math.floor((Math.min(x1,x2)-margem)/TELA_M),ix1=Math.floor((Math.max(x1,x2)+margem)/TELA_M);
+    const iy0=Math.floor((Math.min(y1,y2)-margem)/TELA_M),iy1=Math.floor((Math.max(y1,y2)+margem)/TELA_M);
+    for(let ix=ix0;ix<=ix1;ix++)for(let iy=iy0;iy<=iy1;iy++){
+      const chave=ix+','+iy,lista=grade.get(chave);
+      if(lista)lista.push(segmento);else grade.set(chave,[segmento]);
+    }
+  }
+  function anel(linha){
+    for(let i=1;i<linha.length;i++)registrarSegmento(linha[i-1],linha[i]);
+    if(linha.length>2&&(linha[0][0]!==linha[linha.length-1][0]||linha[0][1]!==linha[linha.length-1][1]))
+      registrarSegmento(linha[linha.length-1],linha[0]);
+  }
+  const g=item.geom;
+  if(g.type==='Polygon')g.coordinates.forEach(anel);
+  else if(g.type==='MultiPolygon')g.coordinates.forEach(poly=>poly.forEach(anel));
+  indiceAtual={item,grade};
+  return indiceAtual;
+}
+function distanciaAteMancha(casa,indice){
+  if(!indice)return Infinity;
+  if(itemContem(indice.item,casa.lat,casa.lon))return 0;
+  const lista=indice.grade.get(Math.floor(casa.x/TELA_M)+','+Math.floor(casa.y/TELA_M));
+  if(!lista)return Infinity;
+  let menor2=Infinity;
+  for(const [x1,y1,x2,y2] of lista){
+    const dx=x2-x1,dy=y2-y1;
+    const t=Math.max(0,Math.min(1,((casa.x-x1)*dx+(casa.y-y1)*dy)/(dx*dx+dy*dy||1)));
+    const ex=casa.x-x1-t*dx,ey=casa.y-y1-t*dy,dist2=ex*ex+ey*ey;
+    if(dist2<menor2)menor2=dist2;
+  }
+  return Math.sqrt(menor2);
+}
+function classePorDistancia(d){
+  return d===0?'atingida':d<=DIST_VERMELHO_M?'iminente':d<=DIST_LARANJA_M?'atencao':'distante';
+}
 const abrigos=L.layerGroup(D.abrigos.map(a=>L.marker([a.lat,a.lon]).bindPopup('<b>'+a.nome+'</b><br>abrigo / ponto de encontro')));
 const BB=b.pad(0.06);
 const bc=L.latLngBounds();D.cells.forEach(c=>c.poly.forEach(p=>bc.extend(p)));
 const BBcells=bc.pad(0.03);
-function aj(){map.invalidateSize();map.fitBounds(modo==='impacto'?BBcells:BB);}
+function aj(){map.invalidateSize();map.fitBounds(modo==='impacto'&&BBcasas.isValid()?BBcasas.pad(0.08):BB);}
 
 function classeLocal(cotaLocal,dist,nivelRegua){
   const nivelHand=Math.max(0,nivelRegua-BANKFULL_M);
@@ -136,30 +319,51 @@ function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
   document.getElementById('painel').innerHTML='<div class="sub"><b>Clique em qualquer ponto visível do mapa.</b> As linhas foram afinadas para não atrapalhar o clique. Azul = trecho alcançado pelo HAND atual; ao clicar eu mostro a distância até o abrigo e até o primeiro trecho que permanece seco pelo restante da rota.</div><div class="rota" id="rota">Clique no mapa para calcular.</div>';
 }
-function renderMargem(){const nivel=nivelAtual();const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
+function renderMargem(){const nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9;const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
   const cl=D.nos.map((_,i)=>classe(cotaNosAtuais[i],rotaInfo[i]&&rotaInfo[i].cota,D.dist_m[i],nivel));cl.forEach(k=>cnt[k]++);
-  ruas.forEach(r=>r.pl.setStyle({color:CORES[pior(cl[r.a],cl[r.c])],weight:2.5,opacity:.85}));
+  ruas.forEach(r=>r.pl.setStyle(referencia?{color:'#8fa7a0',weight:1.25,opacity:.36}:{color:CORES[pior(cl[r.a],cl[r.c])],weight:2.5,opacity:.85}));
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Margem calculada com as cotas extraídas dos contornos HAND atualmente publicados.</b> O cálculo percorre a rota inteira: um ponto alto pode perder saída antes de ser inundado localmente.</div>'+
+  document.getElementById('painel').innerHTML='<div class="sub"><b>Margem projetada usando a velocidade de subida escolhida.</b> As cores indicam tempo estimado, não água observada. No nível de referência (1,60 m), as ruas permanecem neutras para não aparentar inundação.</div>'+
     ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k]}</b></div>`).join('');
 }
-function renderImpacto(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
-  D.cells.forEach((c,i)=>{
-    const ri=rotaInfo[cellNode[i]]||{}, local=classeLocal(cotaCellsAtuais[i],c.dist_m,nivel), geral=classe(cotaCellsAtuais[i],ri.cota,c.dist_m,nivel);cnt[geral]+=c.pop;
-    const rotaAtingida=ri.cota!=null&&ri.cota<=h;
-    const borda=rotaAtingida?CORES.rota_comprometida:(geral==='critica'?CORES.critica:geral==='apertada'?CORES.apertada:'#ffffff');
-    const cor=CORES[geral]||CORES.sem_dado,op=geral==='sem_dado'?.40:.76;
-    cellBoxes[i].setStyle({fillColor:cor,fillOpacity:op,color:'#26332e',opacity:.78,weight:.75});
-    const svg=cellBoxes[i].getElement(); if(svg){svg.setAttribute('fill',cor);svg.style.fill=cor;svg.style.fillOpacity=String(op);}
-    const lbl=document.getElementById('poplbl-'+i); if(lbl) lbl.textContent=geral==='sem_dado'?'?':(CLASSES_SAIDA.has(geral)?c.pop:'0');
-  });
+function renderImpacto(){
+  const nivel=nivelAtual();
   document.getElementById('nvtxt').textContent=nivel.toFixed(1)+' m';
-  const risco=cnt.alagada+cnt.rota_comprometida+cnt.critica+cnt.apertada+cnt.atencao;
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Quadradinhos coloridos = células da Grade IBGE, como antes.</b> <b>Todo o quadradinho fica preenchido pela cor da classe</b> e o número mostra quantas pessoas entram na prioridade de saída; <b>0</b> = sem prioridade e <b>?</b> = sem dado. A cor é uma visualização de triagem da célula, não quer dizer que toda a superfície esteja fisicamente inundada.</div>'+
-    ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('')+
-    `<div class="big"><b>${risco.toLocaleString('pt-BR')}</b> pessoas a priorizar para saída neste cenário, considerando célula inteira como limite superior de triagem.</div>`;
+  if(estadoMancha!=='validado'){
+    document.getElementById('painel').innerHTML=estadoMancha==='previa'
+      ? '<div class="sub"><b>Simulação de subida.</b> A mancha azul acompanha o nível escolhido usando contornos históricos em revisão, inclusive na área do Marrecão. A classificação das edificações será exibida após a revisão hidráulica.</div>'
+      : '<div class="sub"><b>Carregando ou aguardando prévia visual.</b> A mancha hidráulica ainda não foi validada; os pontos das edificações não indicam segurança. Mova a régua apenas como cenário de estudo.</div>';
+    return;
+  }
+  if(estadoCasas!=='ok'||!contornosOrdenados.length){
+    document.getElementById('painel').innerHTML='<div class="sub"><b>Dados espaciais indisponíveis.</b> Não é possível classificar o risco das edificações.</div>';
+    return;
+  }
+  const indice=indiceBordaNivel(nivel);
+  const cnt={atingida:0,iminente:0,atencao:0,distante:0};
+  casas.forEach(c=>{
+    const d=distanciaAteMancha(c,indice),classe=classePorDistancia(d);
+    c.distancia=Number.isFinite(d)?d:null;c.classe=classe;cnt[classe]++;
+    c.marcador.setStyle({fillColor:CORES_CASAS[classe],radius:classe==='atingida'?5.2:classe==='iminente'?5:classe==='atencao'?4.3:3.4,
+      weight:classe==='distante'?1:1.6,fillOpacity:.95});
+  });
+  const fmt=n=>n.toLocaleString('pt-BR'),destacadas=cnt.atingida+cnt.iminente+cnt.atencao;
+  document.getElementById('painel').innerHTML=
+    '<div class="sub"><b>Proximidade individual das edificações à mancha simulada.</b> Cada ponto muda de cor conforme o nível da régua. A distância é medida do ponto OSM até a borda do contorno LiDAR, e não por quadrículas do IBGE.</div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.atencao+'"></i>Laranja · água até 100 m</span><b>'+fmt(cnt.atencao)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.iminente+'"></i>Vermelho · água até 30 m</span><b>'+fmt(cnt.iminente)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Azul · ponto dentro da mancha</span><b>'+fmt(cnt.atingida)+'</b></div>'+
+    '<div class="row"><span><i style="background:'+CORES_CASAS.distante+'"></i>Cinza · fora da faixa de 100 m</span><b>'+fmt(cnt.distante)+'</b></div>'+
+    '<div class="big"><b>'+fmt(destacadas)+'</b> edificações próximas ou atingidas, de '+fmt(casas.length)+' pontos mapeados.</div>'+
+    '<div class="sub">Distâncias planimétricas aproximadas: proximidade não determina profundidade, tempo de chegada ou segurança das rotas. Pontos OSM podem incluir edificações não residenciais; abrigos e ocupação exigem validação local.</div>';
 }
-function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;
+let redrawPendente=false;
+function solicitarRedraw(){
+  if(redrawPendente)return;
+  redrawPendente=true;
+  requestAnimationFrame(()=>{redrawPendente=false;redraw();});
+}
+function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;updateSheetStatus();
   document.getElementById('taxacen').textContent=taxaCmH<=25?'(lenta)':taxaCmH>100?'(subida rápida · cenário)':'';
   atualizaMancha(nivelAtual());
   if(modo==='margem')renderMargem(); else if(modo==='impacto')renderImpacto(); else if(modo==='rotas')renderRotas();}
@@ -220,6 +424,7 @@ map.on('click',e=>{ if(modo!=='rotas')return;
     saidaTxt='<span style="color:#0f8b46"><b>Até trecho seco contínuo da rota:</b> '+fmtDist((saida.dist_m||0)+snapM)+'</span>';
   } else saidaTxt='<span style="color:#b3382c"><b>Trecho seco contínuo:</b> não foi identificado antes do fim desta rota neste cenário.</span>';
   const tempoAbrigo=Number.isFinite(dm)?Math.round(dm/vel/60):null;
+  if(window.matchMedia('(max-width:700px)').matches)setSheetExpanded(true);
   document.getElementById('rota').innerHTML=
     '<b>Do ponto clicado</b><br>'+
     'Até abrigo <b>'+(ab?ab.nome:'')+': '+fmtDist(dm)+'</b>'+(tempoAbrigo!=null?' · ~'+tempoAbrigo+' min a pé':'')+'<br>'+'<span style="color:#66736d">Encaixe no nó viário mais próximo: '+fmtDist(snapM)+'.</span><br>'+
@@ -232,22 +437,175 @@ map.on('click',e=>{ if(modo!=='rotas')return;
 function setModo(m){modo=m;
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));
   document.getElementById('sliders').classList.remove('hide');
-  [manchaLayer,ruasLayer,cellsLayer].forEach(l=>map.removeLayer(l));
+  [manchaLayer,ruasLayer,cellsLayer,casasLayer].forEach(l=>map.removeLayer(l));
   if(cam){map.removeLayer(cam);cam=null;} if(orig){map.removeLayer(orig);orig=null;} if(safeMark){map.removeLayer(safeMark);safeMark=null;} if(snapLine){map.removeLayer(snapLine);snapLine=null;}
   manchaLayer.addTo(map); abrigos.addTo(map);
-  if(m==='impacto'){map.getContainer().style.cursor='';cellsLayer.addTo(map);renderImpacto();setTimeout(aj,0);}
+  if(m==='impacto'){map.getContainer().style.cursor='';casasLayer.addTo(map);renderImpacto();setTimeout(aj,0);}
   else{ruasLayer.addTo(map); if(m==='margem'){map.getContainer().style.cursor='';renderMargem();} else {map.getContainer().style.cursor='crosshair';renderRotas();}setTimeout(aj,0);}
 }
-document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>setModo(x.dataset.m));
-const sld=document.getElementById('sld'),sldTaxa=document.getElementById('sldTaxa');
-sld.oninput=redraw;sld.onchange=redraw;sldTaxa.oninput=redraw;sldTaxa.onchange=redraw;
-document.getElementById('taxatxt').textContent=taxaCmH;
-setModo('impacto'); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
-Promise.allSettled([
-  fetch('assets/data/santa_tereza_inundacao/contornos_mancha.json').then(r=>{if(!r.ok)throw new Error('contornos '+r.status);return r.json();})
-]).then(res=>{
-  if(res[0].status==='fulfilled'){contornosGeo=res[0].value;preparaContornos(contornosGeo);recalculaTerrenoAtual();}
-  else {contornosGeo=null;contornosOrdenados=[];}
-  redraw();
+document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
+
+function updateSheetStatus(){
+  document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';
+  document.getElementById('sheetRate').textContent=taxaCmH+' cm/h';
+  const q=document.getElementById('quickSld');if(q)q.value=sld.value;
+  const clock=document.getElementById('animClock');if(clock){const mins=(nivelAtual()-BANKFULL_M)/Math.max(0.1,taxaCmH/100)*60;const horas=Math.floor(mins/60),resto=Math.round(mins%60);clock.textContent='Tempo simulado desde 1,60 m: '+(horas?horas+' h ':'')+resto+' min';}
+}
+function updateSheetFootprint(){
+  if(!window.matchMedia('(max-width:700px)').matches)return;
+  const hud=document.querySelector('.hud.mobile-sheet');
+  document.documentElement.style.setProperty('--evac-sheet-height',Math.ceil(hud.getBoundingClientRect().height)+'px');
+}
+function setSheetExpanded(expanded){
+  const hud=document.querySelector('.hud.mobile-sheet');
+  const mobile=window.matchMedia('(max-width:700px)').matches;
+  const collapsed=mobile&&!expanded;
+  hud.classList.toggle('mobile-collapsed',collapsed);
+  const button=document.getElementById('sheetToggle');
+  button.textContent=collapsed?'Detalhes':'Recolher';
+  button.setAttribute('aria-expanded',String(!collapsed));
+  requestAnimationFrame(updateSheetFootprint);
+}
+document.getElementById('sheetToggle').addEventListener('click',()=>{
+  setSheetExpanded(document.querySelector('.hud.mobile-sheet').classList.contains('mobile-collapsed'));
 });
+if('ResizeObserver' in window){
+  new ResizeObserver(updateSheetFootprint).observe(document.querySelector('.hud.mobile-sheet'));
+}
+window.addEventListener('resize',()=>{
+  if(!window.matchMedia('(max-width:700px)').matches){
+    document.documentElement.style.removeProperty('--evac-sheet-height');
+  }else{updateSheetFootprint();}
+});
+
+const sld=document.getElementById('sld'),sldTaxa=document.getElementById('sldTaxa');
+
+const quickSld=document.getElementById('quickSld');
+function mudarNivelRapido(v){
+  sld.value=String(Math.max(BANKFULL_M,Math.min(NVMAX,Math.round(Number(v)*10)/10)));
+  quickSld.value=sld.value;
+  solicitarRedraw();
+}
+const animToggle=document.getElementById('animToggle'),animReset=document.getElementById('animReset'),quickPlay=document.getElementById('quickPlay');
+let animTimer=null;
+const ANIM_INTERVAL_MS=700,ANIM_STEP_M=1.0;
+function atualizarBotoesAnimacao(){
+  const disponivel=estadoMancha==='validado'||estadoMancha==='previa';
+  animToggle.disabled=!disponivel;
+  quickPlay.disabled=!disponivel;
+  animToggle.title=estadoMancha==='previa'?'Animar prévia visual não validada':disponivel?'Animar mancha validada':'Aguardando dados espaciais para animar';
+  quickPlay.title=animToggle.title;
+  const rodando=animTimer!==null;
+  animToggle.textContent=rodando?'❚❚ Pausar':estadoMancha==='previa'?'▶ Prévia da subida':'▶ Animar subida';
+  animToggle.setAttribute('aria-pressed',String(rodando));
+  quickPlay.textContent=rodando?'❚❚':'▶';
+  quickPlay.setAttribute('aria-label',rodando?'Pausar animação':'Iniciar animação');
+  quickPlay.setAttribute('aria-pressed',String(rodando));
+}
+function pausarAnimacao(){
+  if(animTimer!==null){clearInterval(animTimer);animTimer=null;}
+  atualizarBotoesAnimacao();
+}
+function nivelManual(v){pausarAnimacao();mudarNivelRapido(v);}
+function quadroAnimacao(){
+  if(nivelAtual()>=NVMAX-1e-9){pausarAnimacao();return;}
+  mudarNivelRapido(Math.min(NVMAX,Math.round((nivelAtual()+ANIM_STEP_M)*10)/10));
+  if(nivelAtual()>=NVMAX-1e-9)pausarAnimacao();
+}
+function alternarAnimacao(){
+  if(estadoMancha!=='validado'&&estadoMancha!=='previa')return;
+  if(animTimer!==null){pausarAnimacao();return;}
+  if(nivelAtual()>=NVMAX-1e-9)mudarNivelRapido(BANKFULL_M);
+  animTimer=setInterval(quadroAnimacao,ANIM_INTERVAL_MS);
+  atualizarBotoesAnimacao();
+  quadroAnimacao();
+}
+animToggle.addEventListener('click',alternarAnimacao);
+quickPlay.addEventListener('click',alternarAnimacao);
+animReset.addEventListener('click',()=>nivelManual(BANKFULL_M));
+quickSld.addEventListener('input',()=>nivelManual(quickSld.value));
+quickSld.addEventListener('change',()=>nivelManual(quickSld.value));
+document.getElementById('quickMinus').addEventListener('click',()=>nivelManual(+sld.value-.1));
+document.getElementById('quickPlus').addEventListener('click',()=>nivelManual(+sld.value+.1));
+sld.oninput=()=>{pausarAnimacao();solicitarRedraw();};
+sld.onchange=()=>{pausarAnimacao();solicitarRedraw();};
+sldTaxa.oninput=solicitarRedraw;sldTaxa.onchange=solicitarRedraw;
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pausarAnimacao();});
+atualizarBotoesAnimacao();
+document.getElementById('taxatxt').textContent=taxaCmH;
+updateSheetStatus();setSheetExpanded(false);
+setModo('impacto'); aj(); setTimeout(aj,300); window.addEventListener('resize',aj);
+// Manifesto pequeno evita baixar ~45 MB de polígonos enquanto o produto não está validado.
+const pastaMancha='assets/data/santa_tereza_inundacao/';
+const arquivoPontos='assets/data/rota_fuga/pontos_edificacoes_santa_tereza.json';
+async function obterJson(url){
+  const r=await fetch(url,{cache:'no-store'});
+  if(!r.ok)throw Error('Falha HTTP '+r.status+' em '+url);
+  return r.json();
+}
+// Primeiro carrega os pontos pequenos. A mancha completa de 44,9 MB NUNCA é baixada.
+Promise.allSettled([
+  obterJson(pastaMancha+'manifesto_painel_evacuacao.json'),
+  obterJson(arquivoPontos)
+]).then(async res=>{
+  if(res[1].status==='fulfilled'){
+    try{carregarPontosCasas(res[1].value);}catch(e){estadoCasas='indisponivel';console.error(e);}
+  }else{estadoCasas='indisponivel';console.warn('Pontos das edificações indisponíveis',res[1].reason);}
+  const m=res[0].status==='fulfilled'?res[0].value:null;
+  const contratoValidado=m&&m.schema_version==='previne_painel_evacuacao_v1'&&
+       m.status==='validado'&&m.validated===true&&m.hydraulic_validation===true&&
+       m.river_reference_method_required==='eixo_dominante_taquari_D8';
+
+  // Uma simulacao visual de contornos LEGADOS nao autoriza classificacao de casas.
+  if(!contratoValidado){
+    setStatusMancha('pendente','Preparando visualização da subida. Revisão hidráulica do Taquari e Marrecão em andamento.');
+    try{
+      const r=await fetch(pastaMancha+'contornos_previa_visual_leve.json',{cache:'no-store'});
+      if(!r.ok)throw Error('Prévia não publicada ('+r.status+')');
+      const tam=Number(r.headers.get('content-length')||0);
+      if(tam>6000000)throw Error('Prévia muito grande');
+      const fc=await r.json();
+      if(fc.metadata?.status!=='previa_visual_legada_nao_validada'||
+         fc.metadata?.preview_only!==true||fc.metadata?.usable_for_building_risk!==false||
+         fc.metadata?.backwater_hydrodynamic_calibration!==false)
+        throw Error('Metadados da prévia inconsistentes');
+      preparaContornos(fc);
+      if(!contornosOrdenados.length)throw Error('Prévia sem geometrias');
+      contornosGeo=fc;
+      ultimaFeatureDesenhada=undefined;
+      setStatusMancha('previa','SIMULAÇÃO VISUAL · CONTORNOS HISTÓRICOS EM REVISÃO · Casas sem classificação de risco.');
+    }catch(e){
+      console.warn('Prévia ilustrativa indisponível',e);
+      contornosGeo=null;contornosOrdenados=[];
+      setStatusMancha('pendente','Visualização de inundação indisponível. Aguardando atualização dos contornos.');
+    }
+  }else{
+    try{
+      const r=await fetch(pastaMancha+'contornos_mancha_web.json',{cache:'no-store'});
+      if(!r.ok)throw Error('Contornos validados indisponíveis ('+r.status+')');
+      if(Number(r.headers.get('content-length')||0)>7000000)throw Error('Arquivo acima de 7 MB');
+      const fc=await r.json();
+      if(fc.metadata?.river_reference_method!=='eixo_dominante_taquari_D8'||
+         fc.metadata?.backwater_hydrodynamic_calibration!==true||
+         fc.metadata?.preview_only===true)throw Error('Procedência e remanso sem validação');
+      preparaContornos(fc);
+      if(!contornosOrdenados.length)throw Error('Contornos vazios');
+      contornosGeo=fc;
+      ultimaFeatureDesenhada=undefined;
+      recalculaTerrenoAtual();
+      recalcularCotasCasas();
+      setStatusMancha('validado','');
+    }catch(e){
+      console.error('Contorno validado não carregou',e);
+      contornosGeo=null;contornosOrdenados=[];
+      setStatusMancha('erro','Produto validado indisponível. Nenhuma classificação de risco disponível.');
+    }
+  }
+  solicitarRedraw();
+  if(modo==='impacto'&&BBcasas.isValid())aj();
+}).catch(e=>{
+  console.error('Erro ao inicializar painel de evacuação',e);
+  setStatusMancha('erro','Painel espacial indisponível.');
+});
+
 </script></body></html>

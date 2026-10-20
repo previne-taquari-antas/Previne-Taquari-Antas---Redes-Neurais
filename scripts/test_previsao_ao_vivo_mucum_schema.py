@@ -38,7 +38,6 @@ class MucumFeedContractTests(unittest.TestCase):
                 for key, hours, inputs, role, rank in (
                     ("2h", 2, 14, "principal", None),
                     ("4h", 4, 15, "principal", 1),
-                    ("4h_versao_b", 4, 15, "comparativo", 2),
                     ("8h", 8, 26, "principal", 1),
                     ("8h_versao_b", 8, 28, "comparativo", 2),
                 )
@@ -50,7 +49,7 @@ class MucumFeedContractTests(unittest.TestCase):
         item = {
             "horizonte": key,
             "horizonte_h": hours,
-            "modelo": "fixture_" + key,
+            "modelo": ("015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31" if key == "4h" else "fixture_" + key),
             "tipo": "ALT",
             "status": "ok",
             "modelo_papel": role,
@@ -76,6 +75,37 @@ class MucumFeedContractTests(unittest.TestCase):
     def test_current_feed_schema(self) -> None:
         validate_data(self.data)
 
+    def test_single_4h_model_is_version_b(self) -> None:
+        modelos = LIVE.carregar_modelos()
+        quatro = [m for m in modelos if m["horizonte_h"] == 4]
+        self.assertEqual(len(quatro), 1)
+        self.assertEqual(quatro[0]["modelo"], "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31")
+        self.assertEqual(quatro[0]["horizonte"], "4h")
+        self.assertEqual(quatro[0]["papel"], "principal")
+
+    def test_old_primary_is_rejected(self) -> None:
+        data = copy.deepcopy(self.data)
+        data["horizontes"]["4h"]["modelo"] = "006_MUC_H04_STZ_RECORTE_CONTROLE_15INPUTS_NH32_S06"
+        with self.assertRaises(SystemExit):
+            validate_data(data)
+
+    def test_version_b_history_is_preserved_under_4h(self) -> None:
+        model = "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31"
+        records = [
+            {"local": "Muçum", "horizonte": "4h_versao_b", "modelo": model,
+             "hora_modelo": "2026-10-10T04:00:00", "status_auditoria": "conferido",
+             "erro_abs_cm": 3.0, "id": "legacy-b"},
+            {"local": "Muçum", "horizonte": "4h", "modelo": "006_MUC_H04_STZ_RECORTE_CONTROLE_15INPUTS_NH32_S06",
+             "hora_modelo": "2026-10-10T04:00:00", "status_auditoria": "conferido",
+             "erro_abs_cm": 44.0, "id": "legacy-old"},
+        ]
+        active = [m for m in LIVE.carregar_modelos() if m["horizonte"] == "4h"]
+        kept = LIVE.filtrar_historico_modelos(records, active)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["horizonte"], "4h")
+        self.assertEqual(kept[0]["modelo"], model)
+        self.assertEqual(kept[0]["erro_abs_cm"], 3.0)
+
     def test_explicit_missing_prediction_is_valid(self) -> None:
         data = copy.deepcopy(self.data)
         data["horizontes"]["8h_versao_b"]["nivel_previsto_cm"] = None
@@ -98,6 +128,54 @@ class MucumFeedContractTests(unittest.TestCase):
             LIVE._hora_previsao_mais_recente(data),
             dt.datetime(2026, 8, 28, 18, 0),
         )
+
+    def test_live_quality_guard_marks_recent_high_error(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        data = {"4h": item}
+        audit = {
+            "n_total": 10,
+            "n_conferidas": 10,
+            "n_aguardando": 0,
+            "mae_ultimas_6_cm": 40.0,
+            "mae_24h_cm": 45.2,
+            "maior_erro_abs_24h_cm": 79.0,
+            "ultima_conferida": None,
+            "ultimas_conferidas": [],
+        }
+        with mock.patch.object(LIVE, "resumo_auditoria", return_value=audit):
+            LIVE.aplicar_guardrail_qualidade_horizontes(data, [])
+        out = data["4h"]
+        self.assertEqual(out["qualidade_ao_vivo"]["status"], "ATENCAO")
+        self.assertIn("erro recente do modelo ativo acima do guardrail", out["status"])
+
+    def test_live_freshness_guard_hides_two_hour_old_base(self) -> None:
+        item = self._item("8h", 8, 26, "principal", 1)
+        item["hora_modelo"] = "2026-08-28T16:00:00"
+        item["passos"] = [["2026-08-28T16:00:00", 100, 101, 120]]
+        data = {"8h": item}
+        LIVE.aplicar_guardrail_frescor_horizontes(
+            data,
+            dt.datetime(2026, 8, 28, 18, 15),
+        )
+        out = data["8h"]
+        self.assertFalse(out["disponivel"])
+        self.assertIsNone(out["nivel_previsto_cm"])
+        self.assertEqual(out["previsao_stale_candidata_cm"], 100.0)
+        self.assertEqual(out["qualidade_ao_vivo"]["status"], "BASE_DESATUALIZADA")
+        self.assertEqual(out["auditoria_inputs"]["status"], "ATENCAO")
+
+    def test_live_freshness_guard_warns_between_one_and_two_hours(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        item["hora_modelo"] = "2026-08-28T17:00:00"
+        data = {"4h": item}
+        LIVE.aplicar_guardrail_frescor_horizontes(
+            data,
+            dt.datetime(2026, 8, 28, 18, 15),
+        )
+        out = data["4h"]
+        self.assertTrue(out["disponivel"])
+        self.assertIsNotNone(out["nivel_previsto_cm"])
+        self.assertIn("atencao: base da RNA 1.2h", out["status"])
 
     def test_implausible_observed_level_is_rejected(self) -> None:
         data = copy.deepcopy(self.data)

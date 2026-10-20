@@ -74,7 +74,11 @@ ANA_TIMEOUT_NIVEL_S = 15
 ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 2
 ANA_RETRIES_CHUVA = 2
-HORIZONTES_AO_VIVO = {"2h", "4h", "4h_versao_b", "8h", "8h_versao_b"}
+HORIZONTES_AO_VIVO = {"2h", "4h", "8h", "8h_versao_b"}
+HOURLY_BASE_WARN_LAG_H = 1.0
+HOURLY_BASE_STALE_LAG_H = 2.0
+LIVE_WARN_MAE_24H_CM = 30.0
+LIVE_WARN_MAX_24H_CM = 100.0
 
 
 # ---------- configuração dos modelos (a partir do JSON) ----------
@@ -134,7 +138,7 @@ def _cfg(m, hh):
     return cfg
 
 def carregar_modelos():
-    """Carrega 2h e os dois melhores 4h/8h com chave própria no feed.
+    """Carrega 2h, somente a RNA B em 4h e os dois candidatos de 8h.
 
     O arquivo separado é deliberadamente uma lista operacional auditável: os
     candidatos possuem MAT, Excel e séries ponto a ponto reconciliados. Os
@@ -588,6 +592,79 @@ def serie_observada_ana_publica(series, dias=7):
     ]
 
 
+def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
+    """Expõe no feed o desempenho recente de cada RNA ativa."""
+    for hz, out in horizontes.items():
+        audit = resumo_auditoria(historico, hz)
+        out["auditoria"] = audit
+        mae24 = audit.get("mae_24h_cm")
+        max24 = audit.get("maior_erro_abs_24h_cm")
+        if str(out.get("status") or "").startswith("ok") and (
+            (mae24 is not None and mae24 > LIVE_WARN_MAE_24H_CM)
+            or (max24 is not None and max24 > LIVE_WARN_MAX_24H_CM)
+        ):
+            out["qualidade_ao_vivo"] = {
+                "status": "ATENCAO",
+                "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
+                "mae_24h_cm": mae24,
+                "maior_erro_abs_24h_cm": max24,
+                "modelo": out.get("modelo"),
+            }
+            out["status"] = (
+                f"{out['status']} - atencao: erro recente do modelo ativo acima do guardrail"
+            )
+        else:
+            out["qualidade_ao_vivo"] = {
+                "status": "NORMAL" if audit.get("n_conferidas") else "SEM_VALIDACAO_HISTORICA",
+                "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
+                "mae_24h_cm": mae24,
+                "maior_erro_abs_24h_cm": max24,
+                "modelo": out.get("modelo"),
+            }
+    return horizontes
+
+
+def aplicar_guardrail_frescor_horizontes(horizontes, telemetria_em):
+    """Não publica como previsão ao vivo uma RNA horária com base velha."""
+    if telemetria_em is None:
+        return horizontes
+    for out in horizontes.values():
+        hm = _parse_hora(out.get("hora_modelo") or "")
+        if hm is None or out.get("nivel_previsto_cm") is None:
+            continue
+        if out.get("input_grade") != "hourly_exact":
+            continue
+        atraso_h = (telemetria_em - hm).total_seconds() / 3600.0
+        out["atraso_base_telemetria_h"] = round(atraso_h, 3)
+        if atraso_h >= HOURLY_BASE_STALE_LAG_H:
+            out["previsao_stale_candidata_cm"] = out.get("nivel_previsto_cm")
+            if out.get("passos"):
+                out["passos_stale_candidatos"] = out.get("passos")
+            out["nivel_previsto_cm"] = None
+            out["passos"] = []
+            out["disponivel"] = False
+            out["status"] = (
+                f"indisponivel: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
+                "aguardando conjunto completo de entradas na mesma hora cheia"
+            )
+            audit = dict(out.get("auditoria_inputs") or {})
+            audit["status"] = "ATENCAO"
+            audit["motivo_publicacao"] = (
+                f"base horaria {atraso_h:.1f}h anterior a telemetria recente"
+            )
+            out["auditoria_inputs"] = audit
+            out["qualidade_ao_vivo"] = {
+                "status": "BASE_DESATUALIZADA",
+                "regra": "base horaria >=2 h atras da telemetria recente",
+            }
+        elif atraso_h >= HOURLY_BASE_WARN_LAG_H and str(out.get("status") or "").startswith("ok"):
+            out["status"] = (
+                f"{out['status']} - atencao: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
+                "aguardando conjunto completo de entradas na mesma hora cheia"
+            )
+    return horizontes
+
+
 def diagnosticar_proxima_base(cfg, series, hora_modelo, limite_alvo=None):
     """Explica por que a próxima hora cheia ainda não virou base do modelo."""
     if hora_modelo is None:
@@ -884,9 +961,17 @@ def filtrar_historico_modelos(registros, modelos):
     ativos = {}
     for cfg in modelos:
         ativos.setdefault(cfg["horizonte"], set()).add(cfg["modelo"])
+    # A versão B passou da chave comparativa para a única saída de 4h.
+    # Migra os confrontos prospectivos já auditados, sem perder o MAE histórico.
+    modelo_b = next((cfg["modelo"] for cfg in modelos if cfg["horizonte"] == "4h"), None)
+    for r in registros:
+        if r.get("horizonte") == "4h_versao_b" and r.get("modelo") == modelo_b:
+            r["horizonte"] = "4h"
+            r["id"] = f"{r.get('local', 'Muçum')}|4h|{modelo_b}|{r.get('hora_modelo', '')}"
+    # Não misturar nem exibir o modelo 006 retirado ou o antigo alias comparativo.
     return [
         r for r in registros
-        if r.get("horizonte") not in ativos or r.get("modelo") in ativos[r.get("horizonte")]
+        if r.get("horizonte") in ativos and r.get("modelo") in ativos[r["horizonte"]]
     ]
 
 
@@ -986,6 +1071,11 @@ def main():
     historico = conferir_historico(historico, series)
     salvar_historico(historico)
 
+    aplicar_guardrail_qualidade_horizontes(horizontes, historico)
+    aplicar_guardrail_frescor_horizontes(
+        horizontes,
+        raw_mucum[0] if raw_mucum else None,
+    )
     escrever_pacote(horizontes, historico, series)
 
 

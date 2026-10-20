@@ -1,0 +1,183 @@
+"""Historicos estritos e arquivo imutavel de cada ciclo, inclusive indisponibilidade."""
+import copy
+import datetime as dt
+import gzip
+import hashlib
+import json
+import math
+import os
+import sys
+from importlib.metadata import version, PackageNotFoundError
+from pathlib import Path
+from . import stz_shadow_common as C
+
+ARCHIVE = C.ROOT / 'assets/data/stz_shadow_archive'
+HISTORY_ROOT = C.ROOT / 'assets/data/stz_shadow_history'
+SCHEMA = 'stz_shadow_history_v1'
+PARTITION_SCHEMA = 'stz_shadow_history_partition_v1'
+FROZEN = ('modelo_id','modelo_sha256','hora_modelo','hora_alvo','horizonte_h',
+          'emitida_em','nivel_previsto_cm','nivel_base_cm','origem','inputs','inputs_horas',
+          'cascata_2h','cobertura_chuva','contrato_sha256')
+SCORED = ('observado_cm','conferido_em','erro_cm','erro_persistencia_cm')
+
+def key(p):
+    return (p['modelo_id'],p['modelo_sha256'],p['hora_modelo'],p['horizonte_h'])
+
+def validate(history):
+    if not isinstance(history,dict) or history.get('schema_version')!=SCHEMA or history.get('shadow_only') is not True or not isinstance(history.get('registros'),list):
+        raise ValueError('Historico de sombra ausente ou com schema invalido; nao reinicializar')
+    keys=set()
+    for p in history['registros']:
+        k=key(p)
+        if k in keys:raise ValueError('Chave duplicada no historico de sombra')
+        keys.add(k)
+        base,target,issued=(dt.datetime.fromisoformat(p[n]) for n in ('hora_modelo','hora_alvo','emitida_em'))
+        if target-base!=dt.timedelta(hours=p['horizonte_h']) or not issued<target or p.get('origem')!='emissao_prospectiva':
+            raise ValueError('Horario/origem invalida no historico prospectivo')
+        for n in ('nivel_previsto_cm','nivel_base_cm'):
+            if not isinstance(p.get(n),(int,float)) or not math.isfinite(p[n]):raise ValueError('Nivel invalido no historico')
+        cascade=p.get('cascata_2h')
+        if cascade is not None:
+            if (cascade.get('hora_modelo')!=p['hora_modelo']
+                    or dt.datetime.fromisoformat(cascade['hora_alvo'])!=base+dt.timedelta(hours=2)
+                    or not issued<dt.datetime.fromisoformat(cascade['hora_alvo'])
+                    or cascade.get('origem')!='inferencia_2h_mesma_base_sem_observacao_futura'):
+                raise ValueError('Cascata de 2 h com base/origem/antecedencia invalida')
+            if (p['inputs'][-2:]!=[cascade['delta_previsto_cm'],cascade['nivel_previsto_cm']]
+                    or abs(cascade['nivel_previsto_cm']-p['nivel_base_cm']-cascade['delta_previsto_cm'])>1e-8):
+                raise ValueError('Entradas da cascata nao reconciliam')
+        if p.get('observado_cm') is not None:
+            obs=p['observado_cm']
+            if not math.isfinite(obs) or dt.datetime.fromisoformat(p['conferido_em'])<target:
+                raise ValueError('Conferencia invalida')
+            if abs(p['erro_cm']-(p['nivel_previsto_cm']-obs))>1e-8 or abs(p['erro_persistencia_cm']-(p['nivel_base_cm']-obs))>1e-8:
+                raise ValueError('Erro nao reconcilia com observacao')
+    return history
+
+def month(p):
+    # Particao pelo mes de emissao: a concatenacao mensal preserva a ordem de insercao.
+    return p['emitida_em'][:7]
+
+def validate_partition(name,part):
+    if (not isinstance(part,dict) or part.get('schema_version')!=PARTITION_SCHEMA or part.get('shadow_only') is not True
+            or part.get('mes')!=name or not isinstance(part.get('registros'),list) or not part['registros']):
+        raise ValueError(f'Particao mensal invalida: {name}')
+    if any(month(p)!=name for p in part['registros']):raise ValueError(f'Registro fora da particao {name}')
+    return part
+
+def combine(legacy,partitions):
+    """Historico unico em memoria: arquivo legado (se ainda existir) seguido das particoes mensais."""
+    if legacy is None and not partitions:raise FileNotFoundError('Historico de sombra ausente; nao reinicializar')
+    history={'schema_version':SCHEMA,'shadow_only':True,'registros':[]}
+    if legacy is not None:
+        validate(legacy);history['registros']=copy.deepcopy(legacy['registros'])
+        if 'atualizado_em' in legacy:history['atualizado_em']=legacy['atualizado_em']
+    positions={key(p):i for i,p in enumerate(history['registros'])}
+    for name,part in sorted(partitions):
+        validate_partition(name,part)
+        for p in part['registros']:
+            k=key(p)
+            if k in positions:history['registros'][positions[k]]=p
+            else:positions[k]=len(history['registros']);history['registros'].append(p)
+        if part.get('atualizado_em') and part['atualizado_em']>history.get('atualizado_em',''):history['atualizado_em']=part['atualizado_em']
+    return validate(history)
+
+def partition_files(path):
+    path=Path(path)
+    return sorted(path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json')) if path.is_dir() else []
+
+def load(path,legacy=None):
+    # Estes arquivos ja foram inicializados e versionados na ativacao.
+    # Um checkout incompleto nunca autoriza apagar sua historia.
+    path=Path(path)
+    if path.suffix=='.json':return validate(json.loads(path.read_text(encoding='utf-8')))
+    old=json.loads(Path(legacy).read_text(encoding='utf-8')) if legacy and Path(legacy).exists() else None
+    return combine(old,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])
+
+def render_partition(name,rows,updated):
+    head=json.dumps({'schema_version':PARTITION_SCHEMA,'shadow_only':True,'mes':name,'atualizado_em':updated},ensure_ascii=False)[:-1]
+    lines=',\n'.join(json.dumps(p,ensure_ascii=False,allow_nan=False,separators=(',',':')) for p in rows)
+    return head+',"registros":[\n'+lines+'\n]}\n'
+
+def preserve(before,after):
+    validate(before);validate(after)
+    rows={key(p):p for p in after['registros']}
+    for old in before['registros']:
+        new=rows.get(key(old))
+        if new is None:raise ValueError('Uma previsao anterior desapareceu')
+        if any(old.get(n)!=new.get(n) for n in FROZEN):raise ValueError('Emissao anterior foi alterada')
+        if old.get('observado_cm') is not None and any(old.get(n)!=new.get(n) for n in SCORED):
+            raise ValueError('Primeira conferencia foi alterada')
+
+def save(path,before,after,legacy=None):
+    preserve(before,after)
+    path=Path(path)
+    if path.suffix=='.json':
+        C.write(path,after);return [path]
+    groups={}
+    for p in after['registros']:groups.setdefault(month(p),[]).append(p)
+    stale={f.stem for f in partition_files(path)}-set(groups)
+    if stale:raise ValueError('Particao existente sem registros no novo historico: '+', '.join(sorted(stale)))
+    path.mkdir(parents=True,exist_ok=True)
+    for name,rows in sorted(groups.items()):
+        target=path/f'{name}.json'
+        if target.exists() and json.loads(target.read_text(encoding='utf-8')).get('registros')==rows:continue
+        tmp=target.with_suffix('.json.tmp')
+        tmp.write_text(render_partition(name,rows,after.get('atualizado_em')),encoding='utf-8');tmp.replace(target)
+    if legacy and Path(legacy).exists():
+        if combine(None,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])['registros']!=after['registros']:
+            raise ValueError('Particoes gravadas nao reproduzem o historico; legado mantido')
+        Path(legacy).unlink()
+    return partition_files(path)
+
+def runtime_versions():
+    packages={}
+    for name in ('numpy','scipy','scikit-learn','torch','xgboost','joblib','h5py'):
+        try:packages[name]=version(name)
+        except PackageNotFoundError:packages[name]=None
+    return packages
+
+def archive(source,now,predictions,levels,rain,before,after,root=None,provenance=None):
+    preserve(before,after)
+    root=Path(root or ARCHIVE)
+    run='-'.join(os.environ.get(n,'local') for n in ('GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT'))
+    if any(c not in '0123456789-local' for c in run):raise ValueError('Identificador de execucao invalido')
+    filename=f'{source}_{now.strftime("%Y%m%dT%H%M%S")}_{run}.json.gz'
+    path=root/now.date().isoformat()/filename
+    index_path=root/'index.json'
+    if not index_path.exists() and any(root.rglob('*.json.gz')):
+        raise ValueError('Indice de arquivo ausente; nao recriar sobre ciclos existentes')
+    index=C.read(index_path,{'schema_version':'stz_shadow_archive_index_v1','arquivos':[]})
+    if not isinstance(index,dict) or index.get('schema_version')!='stz_shadow_archive_index_v1' or not isinstance(index.get('arquivos'),list):
+        raise ValueError('Indice de arquivo invalido')
+    old={key(p):p for p in before['registros']}
+    changes=[p for p in after['registros'] if key(p) not in old or p!=old[key(p)]]
+    payload={'schema_version':'stz_shadow_cycle_v1','fonte':source,'emitida_em':C.stamp(now),
+             'run_id':run,'timezone':'America/Sao_Paulo','unidades':{'nivel':'cm','chuva':'mm'},
+             'previsoes':predictions,'alteracoes_historico':changes,
+             'historico_n':len(after['registros']),
+             'historico_sha256_canonico':hashlib.sha256(json.dumps(after,sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest().upper(),
+             'historico_inicial':before if not any(a['fonte']==source for a in index['arquivos']) else None,
+             'contrato_sha256':(provenance or {}).get('contrato_sha256') or C.sha(C.ROOT/'assets/data/stz_n5_sombra_contrato.json'),
+             'manifesto_sha256':C.sha(C.ROOT/'assets/data/stz_user_models/manifest.json'),
+             'runtime':{'python':sys.version,'pacotes':runtime_versions()},
+             'proveniencia':provenance,
+             'coleta_ana':copy.deepcopy(C.DOWNLOAD_EVIDENCE),
+             'nivel_apos_qc':{cod:{C.stamp(t):v for t,v in sorted(series.items())} for cod,series in C.qc_levels(levels,C.read(C.ROOT/'assets/data/stz_n5_sombra_contrato.json')['limites_estacao_cm']).items()},
+             'telemetria':{kind:{cod:{C.stamp(t):v for t,v in sorted(series.items())} for cod,series in data.items()} for kind,data in (('nivel',levels),('chuva_horaria',rain))}}
+    if path.exists():
+        payload['historico_inicial']=json.loads(gzip.decompress(path.read_bytes())).get('historico_inicial')
+    body=gzip.compress((json.dumps(payload,ensure_ascii=False,allow_nan=False,sort_keys=True)+'\n').encode('utf-8'),mtime=0)
+    path.parent.mkdir(parents=True,exist_ok=True)
+    if path.exists() and path.read_bytes()!=body:raise ValueError('Tentativa de sobrescrever arquivo imutavel de ciclo')
+    if not path.exists():
+        tmp=path.with_suffix('.tmp');tmp.write_bytes(body);tmp.replace(path)
+    digest=hashlib.sha256(body).hexdigest().upper()
+    info={'arquivo':str(path.relative_to(root)).replace('\\','/'),'sha256':digest,'bytes':len(body),
+          'fonte':source,'emitida_em':C.stamp(now),'previsoes_n':len(predictions),
+          'disponiveis_n':sum(p['disponivel'] for p in predictions),'alteracoes_n':len(changes),'historico_n':len(after['registros'])}
+    existing=next((a for a in index['arquivos'] if a['arquivo']==info['arquivo']),None)
+    if existing and existing!=info:raise ValueError('Indice de arquivo imutavel divergente')
+    if not existing:index['arquivos'].append(info)
+    index['atualizado_em']=C.stamp(now);C.write(index_path,index)
+    return dict(info,arquivo='assets/data/stz_shadow_archive/'+info['arquivo'])

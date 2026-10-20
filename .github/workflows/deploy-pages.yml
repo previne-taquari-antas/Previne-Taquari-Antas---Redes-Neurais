@@ -5,6 +5,15 @@ on:
     branches:
       - main
     paths:
+      - "**/*.html"
+      - "assets/previsao_fila.js"
+      - "scripts/validate_site_frontend.py"
+      - "scripts/optimize_static_site.py"
+      - "scripts/test_static_site_optimization.py"
+      - "scripts/test_site_accessibility.py"
+      - "scripts/test_site_recovery.js"
+      - "scripts/test_live_feed.js"
+      - "scripts/test_public_forecast.js"
       - "index.html"
       - "projeto.html"
       - "pesquisas.html"
@@ -13,8 +22,13 @@ on:
       - "vulnerabilidade.html"
       - "santa_tereza_inundacao.html"
       - "santa_tereza_previsao_inundacao.html"
+      - "santa_tereza_previsao_inundacao_usuario.html"
+      - "santa_tereza_painel_evacuacao.html"
+      - "santa_tereza_painel_casas.html"
+      - "mucum_painel_casas.html"
       - "santa_tereza_rota_fuga*.html"
       - "mucum_previsao_inundacao.html"
+      - "mucum_previsao_inundacao_usuario.html"
       - "plataforma_hec_twin.html"
       - "plataforma_bacia.html"
       - "pesquisa_status*.html"
@@ -22,8 +36,12 @@ on:
       - "inventario/**"
       - "assets/css/**"
       - "assets/js/**"
+      - "assets/logos/**"
       - "assets/previsao_panorama.js"
       - "assets/previsao_panorama.css"
+      - "assets/previsao_panorama_usuario.js"
+      - "assets/previsao_panorama_usuario.css"
+      - "assets/previsao_fila_usuario.js"
       - "assets/data/research_*.json"
       - "assets/data/acervo_pesquisas.json"
       - "assets/data/ai_lab/**"
@@ -34,6 +52,7 @@ on:
       - "assets/data/basin_station_forecast_latest.json"
       - "assets/data/agenda_pesquisas.json"
       - "scripts/validate_osm_tiles.py"
+      - "scripts/apply_institutional_logos.py"
       - "scripts/validar_panorama_site.py"
       - "scripts/validate_santa_tereza_lidar_contract.py"
       - "codigo_python/02_mdt_hand_mancha/refinar_mdt_santa_tereza.py"
@@ -73,6 +92,10 @@ on:
       - "QA automatizada da pesquisa"
       - "Sincroniza contrato espacial LiDAR da pesquisa"
       - "PREVINE AI Lab - treinamento automatico"
+      - "G040 adaptive eventwise selector"
+      - "G040 Stage-2 readiness"
+      - "Serviços públicos — dados IEDE (bacia Taquari-Antas)"
+      - "Vulnerabilidade — dados IBGE (bacia Taquari-Antas)"
     types:
       - completed
 
@@ -82,9 +105,10 @@ permissions:
   id-token: write
 
 concurrency:
-  # Separar push de workflow_run evita que a fila frequente dos robôs cancele
-  # uma publicação manual de interface antes mesmo de o job começar.
-  group: github-pages-site-${{ github.event_name }}
+  # Todos os eventos publicam o MESMO site: um único deploy por vez.
+  # A fila mantém a rodada pendente mais recente; o checkout lê main atual,
+  # inclusive mudanças manuais anteriores, sem criar um backlog de builds.
+  group: github-pages-site
   cancel-in-progress: false
 
 jobs:
@@ -121,7 +145,13 @@ jobs:
             !*.md
             !*.yml
             !*.yaml
+            scripts/validate_site_frontend.py
+            scripts/optimize_static_site.py
+            scripts/test_static_site_optimization.py
+            scripts/test_site_accessibility.py
+            scripts/test_*.js
             scripts/validate_osm_tiles.py
+            scripts/apply_institutional_logos.py
             scripts/validar_panorama_site.py
             scripts/validate_santa_tereza_lidar_contract.py
             codigo_python/02_mdt_hand_mancha/gerar_mosaico_mdt.py
@@ -143,6 +173,19 @@ jobs:
             assets/data/vulnerabilidade/metadados/ESPECIFICACAO_FICHA_TRIAGEM_CENARIOS.md
             assets/data/vulnerabilidade/brutos/FONTES.md
           sparse-checkout-cone-mode: false
+
+      - name: Validate frontend syntax, DOM and recovery contracts
+        run: |
+          python scripts/validate_site_frontend.py
+          python scripts/test_static_site_optimization.py
+          python scripts/test_site_accessibility.py
+          node scripts/test_live_feed.js
+          node scripts/test_public_forecast.js
+          node scripts/test_site_recovery.js
+          node scripts/test_fmt_quando.js
+          node scripts/test_basin_level_display.js
+          node scripts/test_stz_shadow_ui.js
+          node scripts/test_stz_v11_ui.js
 
       - name: Validate OpenStreetMap tile contract
         run: python scripts/validate_osm_tiles.py
@@ -198,6 +241,12 @@ jobs:
 
           touch _site/.nojekyll
 
+      - name: Aplicar logos PREVINE, UFRGS e LAGAM nas páginas públicas
+        run: python -B scripts/apply_institutional_logos.py --site-dir _site
+
+      - name: Optimize cacheable static assets
+        run: python scripts/optimize_static_site.py --site-dir _site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -206,3 +255,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

@@ -5,7 +5,12 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const REPO = 'julianacarolinoreis/Previne-Taquari-Antas---Redes-Neurais';
+  const apiAttempts = new Map();
+  const LIVE_FILES = new Set(['previsao_ao_vivo.json','previsao_ao_vivo_mucum.json']);
+  const MAX_REVISION_AGE_MS=15*60000;
+  const API_COOLDOWN_MS=60000;
+
+  const REPO = 'previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais';
 
   function withCacheBust(url) {
     return url + (String(url).includes('?') ? '&' : '?') + 'cb=' + Date.now();
@@ -19,7 +24,7 @@
   }
 
   function pickNewest(feeds) {
-    const ok = (feeds || []).filter(Boolean);
+    const ok = (feeds || []).filter(data => data && typeof data === 'object' && !Array.isArray(data) && Number.isFinite(stampMs(data)) && stampMs(data) <= Date.now()+5*60000);
     if (!ok.length) return null;
     ok.sort(function (a, b) { return (stampMs(b) || 0) - (stampMs(a) || 0); });
     return ok[0];
@@ -33,7 +38,7 @@
     const file = fileName(path);
     if (!file) return [];
     return [
-      { label: 'arquivo publicado', url: file },
+      ...(!LIVE_FILES.has(file) ? [{ label: 'arquivo publicado', url: file }] : []),
       { label: 'arquivo Raw', url: 'https://raw.githubusercontent.com/' + REPO + '/main/' + file },
       { label: 'CDN jsDelivr', url: 'https://cdn.jsdelivr.net/gh/' + REPO + '@main/' + file },
       { label: 'API GitHub', url: 'https://api.github.com/repos/' + REPO + '/contents/' + file + '?ref=main', kind: 'github-api' }
@@ -84,18 +89,64 @@
     return newest;
   }
 
+  // Um único modelo +4h para Muçum (versão B), nas interfaces pública e do usuário.
+  // Feeds legados ainda possuem ambas as RNAs: normalizar sem reativar a antiga.
+  function selectPublicMucum4h(feed, isMucum) {
+    if (!isMucum || !feed || !feed.horizontes) return feed;
+    const versionB = feed.horizontes['4h_versao_b'];
+    if (!versionB) return feed; // O feed novo já traz a versão B na chave 4h.
+    const horizons = Object.assign({}, feed.horizontes);
+    horizons['4h'] = Object.assign({}, versionB, {
+      horizonte: '4h',
+      rotulo: '4h · versão B',
+      modelo_papel: 'principal',
+      selection_rank: 1,
+      origem_horizonte: '4h_versao_b'
+    });
+    delete horizons['4h_versao_b'];
+    // Se B estiver sem previsão, manter indisponível: nunca voltar à RNA 006.
+    return Object.assign({}, feed, { horizontes: horizons });
+  }
+
+  function isPublicMucumPage(path) {
+    // Ambas as páginas consomem este feed; nenhuma deve mostrar a RNA 006.
+    return fileName(path) === 'previsao_ao_vivo_mucum.json';
+  }
+
+  function needsRefresh(feed) {
+    const revision=stampMs(feed);
+    if(!Number.isFinite(revision)||Date.now()-revision>MAX_REVISION_AGE_MS) return true;
+    const observation=feed && (feed.telemetria_ultima_em_utc||feed.telemetria_ultima_em||feed.nivel_rio_agora_em);
+    if(!observation) return false; // Histories need only a valid revision timestamp.
+    const time=stampMs({gerado_em:observation});
+    return !Number.isFinite(time)||Date.now()-time>60*60000;
+  }
+
   async function fetchLive(path) {
     const sources = sourcesFor(path);
-    try {
-      return await fetchNewest(primarySources(sources));
-    } catch (primaryError) {
-      const fallback = apiSources(sources);
-      if (!fallback.length) throw primaryError;
-      return fetchNewest(fallback);
+    let feed, primaryError;
+    try { feed=await fetchNewest(primarySources(sources)); }
+    catch(error) { primaryError=error; }
+    const fallback=apiSources(sources);
+    const key=fileName(path), now=Date.now();
+    const cached=apiAttempts.get(key);
+    if(!feed||needsRefresh(feed)) {
+      if(cached && now-cached.at<API_COOLDOWN_MS) {
+        // Reuse the API response across consumers without repeating the request.
+        const recovered=await cached.promise;
+        feed=pickNewest([feed,recovered]);
+      } else if(fallback.length) {
+        const promise=fetchNewest(fallback).catch(()=>null);
+        apiAttempts.set(key,{at:now,promise});
+        feed=pickNewest([feed,await promise]);
+      }
     }
+    if(!feed) throw primaryError||new Error('fontes indisponíveis');
+    return selectPublicMucum4h(feed, isPublicMucumPage(path));
   }
 
   return {
+    needsRefresh: needsRefresh,
     stampMs: stampMs,
     pickNewest: pickNewest,
     sourcesFor: sourcesFor,
@@ -103,6 +154,8 @@
     apiSources: apiSources,
     withCacheBust: withCacheBust,
     fetchNewest: fetchNewest,
-    fetchLive: fetchLive
+    fetchLive: fetchLive,
+    selectPublicMucum4h: selectPublicMucum4h
   };
 });
+

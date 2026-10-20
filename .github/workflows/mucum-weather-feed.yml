@@ -7,18 +7,23 @@ on:
     branches: [main]
     paths:
       - 'scripts/build_mucum_weather_feed.py'
+      - 'scripts/build_basin_research_feed.py'
+      - 'scripts/test_basin_research_feed.py'
       - 'scripts/build_binary_research_decision.py'
       - 'scripts/build_visual_research_patterns.py'
       - '.github/workflows/mucum-weather-feed.yml'
   schedule:
     - cron: '17,47 * * * *'
+  repository_dispatch:
+    types:
+      - previne-rain-updated
 
 permissions:
   contents: write
 
 concurrency:
   group: mucum-weather-feed
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   refresh:

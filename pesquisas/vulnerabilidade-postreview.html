@@ -685,7 +685,7 @@ const DATA = "../assets/data/vulnerabilidade";
 // quando o caminho relativo não existir, busca direto do repositório Previne
 // SHA fixo para evitar misturar a pagina publicada com o branch mutavel `main`.
 const DATA_FALLBACK_COMMIT = "362733ab61e32bcf6ebeadf1f1c205b648087bd8";
-const DATA_FALLBACK = `https://raw.githubusercontent.com/julianacarolinoreis/Previne-Taquari-Antas---Redes-Neurais/${DATA_FALLBACK_COMMIT}/assets/data/vulnerabilidade`;
+const DATA_FALLBACK = `https://raw.githubusercontent.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/${DATA_FALLBACK_COMMIT}/assets/data/vulnerabilidade`;
 const cacheJSON = new Map();
 let fallbackUsado = false;
 async function fetchJSON(url){
@@ -1086,7 +1086,7 @@ function legenda(brk, ctx){
   const extrasPrint=[];
   if(typeof perigoLayer!=="undefined" && perigoLayer && map.hasLayer(perigoLayer)) extrasPrint.push("SGB: risco setorizado em Santa Tereza (2025), não é mancha contínua");
   if(typeof svcLayers!=="undefined" && Object.values(svcLayers).some(x=>x && x!=="carregando" && map.hasLayer(x))) extrasPrint.push("IEDE: pontos cadastrados; ausência não prova ausência");
-  const pm=document.getElementById("printMeta"); if(pm) pm.textContent=`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco; não é alerta.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`;
+  const pm=document.getElementById("printMeta"); if(pm) pm.textContent=`PREVINE · Vulnerabilidade social · ${d?.nome||"indicador"}; ${escala === "bacia" ? "escala comparável na bacia" : "escala relativa à área"}. Fonte: ${refPrint}; geometrias EPSG:4326. Vulnerabilidade social ≠ perigo ≠ risco.${extrasPrint.length?` ${extrasPrint.join("; ")}.`:""}`;
   brk.forEach((v,i)=>{ document.getElementById("fx"+i).value = Math.round(v*100)/100; });
 }
 function totaliza(props){

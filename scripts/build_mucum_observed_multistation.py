@@ -35,6 +35,7 @@ RAIN_CATALOG = OUT / "pluviometria_g040.geojson"
 FLOW_CATALOG = OUT / "postos_g040.geojson"
 BASIN_PATH = ROOT / "assets/data/hec_hms_spatialized_mucum/watershed_86510000_srtm.geojson"
 ZONES_PATH = ROOT / "assets/data/hec_hms_spatialized_mucum/thiessen_zones_86510000.geojson"
+SUBBASIN_ZONES = OUT / "mucum_twin_subbasin_zones.geojson"
 CHUVAS = ROOT / "assets/data/chuvas_horarias.csv"
 LIVE_STZ = ROOT / "previsao_ao_vivo.json"
 LIVE_MUC = ROOT / "previsao_ao_vivo_mucum.json"
@@ -42,6 +43,7 @@ LIVE_MUC = ROOT / "previsao_ao_vivo_mucum.json"
 JSON_OUT = OUT / "mucum_observed_multistation_latest.json"
 RAIN_CSV = OUT / "mucum_observed_multistation_rain_hourly.csv"
 FLOW_CSV = OUT / "mucum_observed_multistation_flow_hourly.csv"
+G040_OBS = ROOT / "assets/data/hec_hms_g040_full_basin/whole_basin_observed_rain_latest.json"
 
 BRT = timezone(timedelta(hours=-3))
 UTC = timezone.utc
@@ -66,11 +68,11 @@ CSV_RAIN_COLUMNS = {
 EXTRA_RAIN_CODES = {"86510000", "86160000"}
 
 FAST_MODE = os.environ.get("OBS_FAST_MODE", "0").strip().lower() in {"1","true","yes"}
-ANA_TIMEOUT = int(os.environ.get("OBS_ANA_TIMEOUT", "7" if FAST_MODE else "12"))
-ANA_RETRIES = int(os.environ.get("OBS_ANA_RETRIES", "1" if FAST_MODE else "2"))
+ANA_TIMEOUT = int(os.environ.get("OBS_ANA_TIMEOUT", "10" if FAST_MODE else "12"))
+ANA_RETRIES = int(os.environ.get("OBS_ANA_RETRIES", "2" if FAST_MODE else "2"))
 GRID_STEP = 0.05
 ANA_CACHE: dict[str, dict[str, Any]] = {}
-MAX_FETCH_WORKERS = int(os.environ.get("OBS_FETCH_WORKERS", "12" if FAST_MODE else "8"))
+MAX_FETCH_WORKERS = int(os.environ.get("OBS_FETCH_WORKERS", "4" if FAST_MODE else "6"))
 MAX_FLOW_M3S = 50000.0
 MAX_RAIN_MM_H = 250.0
 FRESH_FLOW_MINUTES = 120.0
@@ -204,7 +206,9 @@ def fetch_ana(code: str, start: datetime, end: datetime) -> dict[str, Any]:
             except Exception as exc:
                 errors.append(f"{base}: {exc}")
         if attempt < ANA_RETRIES - 1:
-            time.sleep(3)
+            # ANA returns HTTP 429 under load. Back off instead of amplifying
+            # the rate limit with simultaneous retries from multiple workers.
+            time.sleep(min(15, 3 * (2 ** attempt)))
     result = {"ok": False, "rows": [], "source": "ANA/SGB", "error": " | ".join(errors[-4:])}
     ANA_CACHE[code] = result
     return result
@@ -457,6 +461,16 @@ def main() -> int:
         query_start = max(start, end - timedelta(hours=8))
 
     basin, zones = basin_and_zones()
+    # Do not substitute a basin-average observed rain gauge in all residuals:
+    # rasterize the same five non-overlapping nested subbasins used for IFS.
+    if not SUBBASIN_ZONES.exists():
+        raise FileNotFoundError(f"Observed rainfall requires nested subbasins: {SUBBASIN_ZONES}")
+    sub_features=load(SUBBASIN_ZONES).get("features") or []
+    subbasins={str(feat["properties"]["subbasin_id"]):shape(feat["geometry"])
+               for feat in sub_features}
+    required_sub={"SB_CARREIRO_7866","SB_STZ_RESIDUAL","SB_INC_MUCUM"}
+    if not required_sub.issubset(subbasins):
+        raise RuntimeError(f"Residual observed rainfall zones missing: {required_sub-set(subbasins)}")
     rain_catalog = catalog_map(RAIN_CATALOG, basin)
     flow_catalog = catalog_map(FLOW_CATALOG, basin)
 
@@ -497,10 +511,40 @@ def main() -> int:
     fetched: dict[str, dict[str, Any]] = {}
     all_query_meta = dict(active_flow_meta)
     all_query_meta.update(rain_query_meta)
+
+    # G040 already retrieves the entire observed station network. For ten-minute
+    # cycles with a fresh archive, rotate direct ANA queries rather than flood
+    # its API; keep *all* stations in modeling via full archived observations.
+    request_meta = dict(all_query_meta)
+    refresh_audit = {
+        "mode": "full_inventory", "eligible_count": len(all_query_meta),
+        "requested_count": len(all_query_meta), "archive_age_hours": None,
+    }
+    if FAST_MODE and G040_OBS.exists() and previous:
+        try:
+            archive = load(G040_OBS)
+            archived_at = datetime.fromisoformat(str(archive.get("generated_at_utc")).replace("Z", "+00:00"))
+            age_h = (datetime.now(UTC) - archived_at.astimezone(UTC)).total_seconds() / 3600
+            ready = archive.get("status") == "OBSERVED_RAIN_READY" and -0.25 <= age_h <= 3.0 and len(archive.get("stations") or []) >= 20
+            if ready and all_query_meta:
+                keys = sorted(all_query_meta)
+                batch = max(8, int(os.environ.get("OBS_RECENT_REFRESH_BATCH", "32")))
+                offset = (int(time.time() // 600) * batch) % len(keys)
+                rotating = {keys[(offset+i) % len(keys)] for i in range(min(batch, len(keys)))}
+                rotating.update(code for code in ("86472000","86472600","86500000","86510000") if code in all_query_meta)
+                request_meta = {code: all_query_meta[code] for code in sorted(rotating)}
+                refresh_audit.update({
+                    "mode": "rotating_recent_fetch_plus_full_g040_archive",
+                    "requested_count": len(request_meta), "rotation_batch": batch,
+                    "archive_age_hours": round(age_h,2),
+                    "not_fetched_in_this_cycle":len(all_query_meta)-len(request_meta),
+                })
+        except (TypeError, ValueError, OSError):
+            refresh_audit["mode"] = "full_inventory_archive_check_failed"
     with ThreadPoolExecutor(max_workers=MAX_FETCH_WORKERS) as pool:
         futures = {
             pool.submit(fetch_network, st, query_start, end): code
-            for code, st in all_query_meta.items()
+            for code, st in request_meta.items()
         }
         for fut in as_completed(futures):
             code = futures[fut]
@@ -568,6 +612,79 @@ def main() -> int:
             rain_fallback_codes.append(code)
             rain_meta.setdefault(code, dict(st))
             rain_sources.setdefault(code, "última observação válida publicada + fontes atuais")
+
+    # Reconcile the other independently collected G040 station archive.
+    # G040 contains stations *downstream* of Muçum. Never import one merely
+    # because it appears in G040: intersect station ID with the Muçum basin
+    # inventory, eligibility, and watershed point geometry.
+    # Keep fresh current/CVS data on overlap; only fill missing genuine hours.
+    g040_fallback = {
+        "source": str(G040_OBS.relative_to(ROOT)),
+        "status": "unavailable",
+        "gauges_considered_upstream": 0,
+        "stations_filled": 0,
+        "hours_filled": 0,
+        "conflicts_preserved": 0,
+        "excluded_downstream_or_ineligible": 0,
+        "generated_at_utc": None,
+    }
+    if G040_OBS.exists():
+        try:
+            g040 = load(G040_OBS)
+            if g040.get("status") != "OBSERVED_RAIN_READY":
+                raise ValueError("G040 observed package is not ready")
+            ts_raw = g040.get("generated_at_utc")
+            ts = datetime.fromisoformat(str(ts_raw).replace("Z", "+00:00"))
+            age_h = (datetime.now(UTC) - ts.astimezone(UTC)).total_seconds() / 3600
+            if not (-0.25 <= age_h <= 12):
+                raise ValueError("G040 observed archive is stale or future-dated")
+            g040_fallback["generated_at_utc"] = ts_raw
+            g040_fallback["age_hours"] = round(age_h, 2)
+            for archived in g040.get("stations") or []:
+                code = str(archived.get("code") or "").strip()
+                st = rain_query_meta.get(code)
+                if st is None or not inventory_operational(st):
+                    g040_fallback["excluded_downstream_or_ineligible"] += 1
+                    continue
+                try:
+                    inside = basin.covers(Point(float(st["lon"]), float(st["lat"])))
+                except (TypeError, ValueError, KeyError):
+                    inside = False
+                if not inside:
+                    g040_fallback["excluded_downstream_or_ineligible"] += 1
+                    continue
+                # Preserve station identity and coordinate from Muçum catalog,
+                # not the broader G040 catalog.
+                g040_fallback["gauges_considered_upstream"] += 1
+                target = rain_series.setdefault(code, {})
+                added = 0
+                for row in archived.get("series") or []:
+                    try:
+                        t = datetime.fromisoformat(str(row["time_local"]))
+                    except (TypeError, ValueError, KeyError):
+                        continue
+                    if not start <= t <= end:
+                        continue
+                    v = qc_rain(row.get("mm"))
+                    if v is None:
+                        continue
+                    t = t.replace(minute=0, second=0, microsecond=0)
+                    if t not in target:
+                        target[t] = v
+                        added += 1
+                    elif abs(float(target[t]) - v) > 0.01:
+                        # Disagreements are preserved for independent audit,
+                        # rather than silently rewriting station measurements.
+                        g040_fallback["conflicts_preserved"] += 1
+                if added:
+                    g040_fallback["stations_filled"] += 1
+                    g040_fallback["hours_filled"] += added
+                    rain_meta.setdefault(code, dict(st))
+                    rain_sources.setdefault(code, "G040 ANA/CEMADEN observed archive")
+            g040_fallback["status"] = "reconciled"
+        except (ValueError, OSError, TypeError, KeyError) as exc:
+            g040_fallback["status"] = "unavailable_or_invalid"
+            g040_fallback["reason"] = str(exc)
 
     # Keep only gauges with at least one real observed value since 26/09.
     rain_series = {code: series for code, series in rain_series.items() if series}
@@ -663,6 +780,9 @@ def main() -> int:
 
     # Hourly areal rainfall by exact HEC zones.
     grids = {"basin": grid(basin), **{code: grid(geom) for code, geom in zones.items()}}
+    sub_grids={code:grid(geom) for code,geom in subbasins.items()}
+    if any(not g for g in sub_grids.values()):
+        raise RuntimeError("At least one observed subbasin rain grid is empty")
     hours = []
     t = start
     while t <= end.replace(minute=0, second=0, microsecond=0):
@@ -684,6 +804,8 @@ def main() -> int:
         }
         for code in zones:
             row[f"zone_{code}_mm"] = idw_mean(grids[code], rain_stations, values)
+        for code in subbasins:
+            row[f"subbasin_{code}_mm"] = idw_mean(sub_grids[code], rain_stations, values)
         areal_rows.append(row)
 
     with RAIN_CSV.open("w", encoding="utf-8", newline="") as fh:
@@ -693,6 +815,7 @@ def main() -> int:
             "valid_station_codes",
             "basin_mean_mm",
             *[f"zone_{code}_mm" for code in zones],
+            *[f"subbasin_{code}_mm" for code in subbasins],
         ]
         writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
@@ -764,7 +887,7 @@ def main() -> int:
 
     failures = [
         {"code": code, "network": st.get("network"), "error": (fetched.get(code) or {}).get("error")}
-        for code, st in all_query_meta.items()
+        for code, st in request_meta.items()
         if not (fetched.get(code) or {}).get("ok")
     ]
 
@@ -781,7 +904,9 @@ def main() -> int:
             reason = "used_valid_rain"
         elif not eligible:
             reason = "inventory_inactive_or_inoperable"
-        elif code in all_query_meta and not (fetched.get(code) or {}).get("ok"):
+        elif code in all_query_meta and code not in request_meta:
+            reason = "not_refetched_this_cycle_uses_archive_if_available"
+        elif code in request_meta and not (fetched.get(code) or {}).get("ok"):
             reason = "source_query_failed"
         else:
             reason = "no_valid_rain_returned"
@@ -814,7 +939,9 @@ def main() -> int:
             reason = "used_valid_hydrometry"
         elif not eligible:
             reason = "inventory_inactive_or_inoperable"
-        elif code in all_query_meta and not (fetched.get(code) or {}).get("ok"):
+        elif code in all_query_meta and code not in request_meta:
+            reason = "not_refetched_this_cycle_uses_archive_if_available"
+        elif code in request_meta and not (fetched.get(code) or {}).get("ok"):
             reason = "source_query_failed"
         else:
             reason = "no_valid_flow_or_level_returned"
@@ -901,7 +1028,7 @@ def main() -> int:
                 for net in ("ANA", "INMET", "CEMADEN")
             },
             "spatial_method": (
-                "IDW^2 por hora em grade 0.05° sobre a bacia e zonas HEC; "
+                "IDW^2 por hora em grade 0.05° sobre a bacia, zonas HEC e cinco sub-bacias aninhadas; "
                 "usa todos os postos com observação válida; ausência permanece ausente, nunca zero"
             ),
             "accumulations": accum_audit,
@@ -927,13 +1054,16 @@ def main() -> int:
             "inventory_audit": flow_inventory_audit,
         },
         "fetch_audit": {
-            "queried_station_count": len(all_query_meta),
+            "queried_station_count": len(request_meta),
+            "eligible_station_count": len(all_query_meta),
+            "refresh_strategy": refresh_audit,
             "failed_count": len(failures),
             "failures": failures,
             "policy": "inventário completo da bacia; consultas concorrentes limitadas; ANA primário+espelho; CSV operacional e histórico publicado usados apenas como persistência; ausência não vira zero; vazão > 50000 m3/s e chuva > 250 mm/h são rejeitadas por QC",
             "fast_mode": FAST_MODE,
             "query_start_local": iso(query_start),
             "rain_fallback_station_codes": sorted(set(rain_fallback_codes)),
+            "g040_upstream_archive_reconciliation": g040_fallback,
             "flow_fallback_station_codes": sorted(set(flow_fallback_codes)),
         },
         "artifacts": {

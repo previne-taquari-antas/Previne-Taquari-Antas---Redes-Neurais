@@ -115,7 +115,7 @@
 <main>
   <div id="map" role="application" aria-label="Mapa interativo das cheias históricas em Santa Tereza" aria-describedby="map-accessible-description"><span class="sr-only" id="map-accessible-description">Use os controles de camadas para alternar o mapa de fundo. As manchas representam uma espacialização de pesquisa e não validação em nível de rua.</span></div>
   <aside>
-    <div class="scn-intro">Escolha uma cheia que já aconteceu para ver a mancha que a RNA espacializou no terreno.</div>
+    <div class="scn-intro">Escolha uma cheia que transbordou, com nível histórico a partir de 15 m, para acompanhar a mancha espacializada pela RNA.</div>
     <div class="scn" id="scn"></div>
 
     <!-- ===== LINHA DO TEMPO (compartilhada) ===== -->
@@ -164,6 +164,7 @@
           <div class="row2"><span class="sw u"></span>faixa de incerteza (a borda pode variar)</div>
         </div>
         <div class="disc">A <b>confiança</b> cai quanto maior o horizonte (2 h é mais confiável que 12 h). A posição exata da borda pode variar — trate a mancha como <b>zona de atenção</b>, não como linha exata. Base atual: <b>HAND hidráulico LiDAR</b>, com o terreno vindo de <b>CLIP_MOSAICO_LIDAR_RS.tif</b> e FILL/FLOWDIR/FLOWACC usados somente no roteamento. Na mancha desenhada, somente ilhas internas menores que <b>0,5 ha</b> são ocultadas para reduzir ruído visual; ilhas maiores permanecem preservadas. O GeoJSON original e suas áreas não mudam.</div>
+        <div class="disc"><b>Marrecão: remanso do Taquari.</b> O nível de 25 m é o limite de modelagem HAND, não a altura de subida local do arroio. Os contornos anteriores à separação do eixo Taquari estão em reprocessamento e não devem ser usados para determinar cotas de inundação no Marrecão.</div>
       </div></details>
     </div>
 
@@ -205,6 +206,13 @@
 const HAND=JSON.parse(document.getElementById('hand-data').textContent);
 const EVENTS=JSON.parse(document.getElementById('event-data').textContent);
 const COTA_INUND=1500;
+// A seleção usa níveis históricos publicados; previsões não classificam o evento.
+function eventoTransbordou(ev){
+  const pico=Number(ev.pico_obs_cm);
+  if(Number.isFinite(pico)&&pico>=COTA_INUND)return true;
+  return (ev.series||[]).some(row=>[row[1],row[2]].some(v=>v!=null&&Number.isFinite(Number(v))&&Number(v)>=COTA_INUND));
+}
+const OVERFLOW_EVENTS=Object.keys(EVENTS).filter(k=>eventoTransbordou(EVENTS[k]));
 const COLS=HAND.cols, ROWS=HAND.rows;
 const BOUNDS=[[HAND.S,HAND.W],[HAND.N,HAND.E]];
 const CONTORNOS_URL='assets/data/santa_tereza_inundacao/contornos_mancha.json';
@@ -228,7 +236,7 @@ const UNCERT={'2h':0.3,'4h':0.5,'8h':0.7,'12h':1.0,'—':0};
 const CONF={'2h':['Alta','#1b7a5a'],'4h':['Moderada','#c98a1a'],'8h':['Moderada','#c98a1a'],'12h':['Baixa','#c0392b'],'—':['—','#999']};
 const HAND_ZERO_CM=Number.isFinite(Number(HAND.hand_zero_cm))?Number(HAND.hand_zero_cm):160;
 const HAND_SATURATED=Number.isFinite(Number(HAND.saturated_value))?Number(HAND.saturated_value):null;
-let handArr=null, handLoadPromise=null, curEv=Object.keys(EVENTS)[0];
+let handArr=null, handLoadPromise=null, curEv=OVERFLOW_EVENTS[0];
 let bankfull=HAND_ZERO_CM, tIdx=0, playing=false, timer=null, map=null, curS=null;
 const calibByEvent={};
 
@@ -408,6 +416,7 @@ function drawHydro(){
 }
 
 function setEvent(ev){
+  if(!OVERFLOW_EVENTS.includes(ev))return;
   curEv=ev; tIdx=0;
   document.querySelectorAll('#scn button').forEach(b=>b.classList.toggle('on',b.dataset.ev===ev));
   const E=EVENTS[ev];
@@ -434,11 +443,10 @@ function setEvent(ev){
 function tick(){const E=EVENTS[curEv]; tIdx=(tIdx+1)%E.series.length; document.getElementById('time').value=tIdx; renderFrame(); if(playing) timer=setTimeout(tick,300);}
 
 function buildScenarios(){
-  const scn=document.getElementById('scn'); const groups={'Cheias que transbordaram':[],'Testes de previsão':[],'Referência':[]};
-  Object.keys(EVENTS).forEach(k=>{const E=EVENTS[k];
+  const scn=document.getElementById('scn'); const groups={'Cheias que transbordaram':[],'Referência':[]};
+  OVERFLOW_EVENTS.forEach(k=>{const E=EVENTS[k];
     if(E.estatico) groups['Referência'].push(k);
-    else if(E.ilustra) groups['Cheias que transbordaram'].push(k);
-    else groups['Testes de previsão'].push(k);});
+    else groups['Cheias que transbordaram'].push(k);});
   Object.entries(groups).forEach(([g,ks])=>{ if(!ks.length)return;
     const lab=document.createElement('div'); lab.className='grp'; lab.textContent=g; scn.appendChild(lab);
     ks.forEach(k=>{const b=document.createElement('button'); b.dataset.ev=k; b.textContent=EVENTS[k].label; b.onclick=()=>setEvent(k); scn.appendChild(b);});

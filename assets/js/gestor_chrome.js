@@ -43,8 +43,11 @@
       '<a href="' + prefix + 'pesquisas/briefing-gestores.html"' + current('briefing') + '>Briefing</a>' +
       '<a href="' + prefix + 'pesquisas.html"' + current('arquivo') + '>Arquivo</a>' +
     '</div>' +
-    '<div class="gestor-chrome-seal">Pesquisa · não é alerta oficial</div>';
-  document.body.insertBefore(nav, document.body.firstChild);
+    '<div class="gestor-chrome-seal">Pesquisa hidrológica</div>';
+  var signature = document.getElementById('previne-institutions');
+  var insertionPoint = signature && signature.parentNode === document.body
+    ? signature.nextSibling : document.body.firstChild;
+  document.body.insertBefore(nav, insertionPoint);
   document.body.classList.add('has-gestor-chrome');
   if (page === 'mapa' || page === 'pessoas') document.body.classList.add('gestor-fill-layout');
 })();

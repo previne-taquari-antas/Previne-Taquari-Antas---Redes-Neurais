@@ -10,10 +10,11 @@ de entrada são insumos hidrológicos, não um HAND pronto:
   FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif
   FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif
 
-O rio principal é extraído por acumulação de fluxo >= 50.000.000 células finas
-(aproximadamente 50 km² de área contribuinte no raster de 1 m). O HAND é
-calculado seguindo a direção D8 do escoamento até esse rio principal — nunca
-pela distância euclidiana ao canal. O código autodetecta a convenção D8
+O rio Taquari é identificado como um EIXO ÚNICO de fluxo dominante a partir
+da rede D8/FLOWACC, verificado junto à estação 86472600. O limiar de
+50.000.000 células (~50 km²) define somente CANDIDATOS, pois incluiria
+afluentes como o Marrecão se usado diretamente como rio principal. O HAND
+segue a direção D8 até esse eixo e não usa distância euclidiana ao canal. O código autodetecta a convenção D8
 (ESRI/Whitebox/ordinal) comparando a direção proposta com a acumulação e o
 terreno e interrompe a geração se a convenção não puder ser identificada com
 segurança. O terreno é reamostrado para 5 m apenas para o payload leve do
@@ -58,6 +59,7 @@ from scipy import ndimage
 from shapely.geometry import mapping, shape
 from shapely.ops import transform as transform_geometry, unary_union
 from shapely.validation import make_valid
+from eixo_principal_taquari import extrair_eixo_dominante
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -189,6 +191,8 @@ def compute_hand_flowpath(
     routing_dem: np.ndarray,
     flowdir: np.ndarray,
     flowacc: np.ndarray,
+    transform,
+    crs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
     """Calcula HAND e limiar hidráulico numa rede guiada por D8 + FLOWACC.
 
@@ -205,19 +209,14 @@ def compute_hand_flowpath(
     if terrain_dem.shape != routing_dem.shape:
         raise RuntimeError("LiDAR bruto e FILL não têm a mesma grade")
 
-    main_river = flowacc >= FLOWACC_THRESHOLD_FINE_CELLS
-    labels, n_components = ndimage.label(
-        main_river, structure=np.ones((3, 3), dtype=np.uint8)
+    # Fluxo >= 50 km2 é só lista de CANDIDATOS; nunca a máscara do Taquari.
+    candidatos_rio = flowacc >= FLOWACC_THRESHOLD_FINE_CELLS
+    _, n_components = ndimage.label(
+        candidatos_rio, structure=np.ones((3, 3), dtype=np.uint8)
     )
-    if n_components == 0:
-        raise RuntimeError("nenhum trecho do rio principal atingiu o limiar de acumulação")
-    if n_components > 1:
-        sizes = np.bincount(labels.ravel())
-        sizes[0] = 0
-        main_river = labels == int(sizes.argmax())
-        n_components_kept = 1
-    else:
-        n_components_kept = n_components
+    if not candidatos_rio.any():
+        raise RuntimeError("nenhum canal candidato: revisar FLOWACC")
+    n_components_kept = 1  # um ÚNICO eixo dominante a ser construído abaixo
 
     scheme_name, mapping, scheme_scores = detect_d8_scheme(
         flowdir, flowacc, routing_dem
@@ -277,6 +276,16 @@ def compute_hand_flowpath(
                 assigned_view[better] = True
 
     assigned_receivers = receiver != flat_index
+    # O Marrecão tem área contribuinte suficiente para exceder o limiar
+    # FLOWACC. Só o caminho principal do Taquari pode virar referencial HAND.
+    sx, sy = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform(
+        -51.7322, -29.1781  # estação Santa Tereza (86472600)
+    )
+    estacao_rc = rasterio.transform.rowcol(transform, sx, sy)
+    resolucao_m = (abs(transform.a) + abs(transform.e)) / 2
+    main_river, mainstem_diag = extrair_eixo_dominante(
+        flowacc, receiver, candidatos_rio, estacao_rc, resolucao_m
+    )
     receiver[main_river] = flat_index[main_river]
     receiver_flat = receiver.ravel().copy()
 
@@ -347,6 +356,10 @@ def compute_hand_flowpath(
         "componentes_detectados": int(n_components),
         "componentes_mantidos": int(n_components_kept),
         "celulas_rio_principal": int(main_river.sum()),
+        "mainstem_diagnostic": mainstem_diag,
+        "river_reference_method": "eixo_dominante_taquari_D8",
+        "marrecao_tratamento": "afluente; remanso dependente do Taquari, nao rio principal",
+        "backwater_hydrodynamic_calibration": "not_validated",
         "hand_method": "raw LiDAR elevation relative to D8-connected main-river cell",
         "hydraulic_hand_method": "maximum raw-LiDAR barrier along D8 path to main river",
         "hydraulic_barrier_cells_gt_0_10m": int(np.sum(delta_valid > 0.10)),
@@ -550,7 +563,7 @@ def write_contours(hand: np.ndarray, main_river: np.ndarray, transform, crs, out
             "properties": {
                 "nivel_m": level,
                 "area_ha": round(float(geom_utm.area / 10000.0), 1),
-                "interpretacao": "proxy cumulativo relativo ao HAND 0 do rio principal",
+                "interpretacao": "proxy cumulativo de conectividade relativa ao eixo do Taquari; remanso não calibrado",
             },
             "geometry": mapping(geom_wgs84),
         })
@@ -562,7 +575,10 @@ def write_contours(hand: np.ndarray, main_river: np.ndarray, transform, crs, out
         "metadata": {
             "cidade": "santa_tereza",
             "fonte": "HAND 5 m derivado dos rasters novos de campo",
-            "rio": "somente rio principal",
+            "rio": "eixo dominante Taquari; Marrecão tributário sujeito a remanso",
+            "backwater_hydrodynamic_calibration": "not_validated",
+            "river_reference_method": "eixo_dominante_taquari_D8",
+            "marrecao_regime": "remanso_dependente_nivel_taquari; sem_rio_local_25m",
             "flowacc_threshold_fine_cells": FLOWACC_THRESHOLD_FINE_CELLS,
             "hand_zero_cm": HAND_ZERO_CM,
             "resolucao_vetor_aprox_m": 10.0,
@@ -638,7 +654,7 @@ def main() -> None:
     flowdir = read_flowdir(dir_path, terrain_dem.shape, transform, crs)
 
     hand, hydraulic_hand, main_river, hand_diag = compute_hand_flowpath(
-        terrain_dem, routing_dem, flowdir, flowacc
+        terrain_dem, routing_dem, flowdir, flowacc, transform, crs
     )
     elevation_summary = write_same_source_elevation(terrain_dem, transform, crs)
 
@@ -677,6 +693,8 @@ def main() -> None:
         "N": round(float(north), 6),
         "E": round(float(east), 6),
         "station": {"lat": -29.1781, "lon": -51.7322, "code": "86472600"},
+        "river_reference_method": "eixo_dominante_taquari_D8",
+        "marrecao_regime": "remanso_do_Taquari; hidrodinamica_nao_validada",
         "ponte": {"lat": -29.0908727, "lon": -51.713269, "label": "Ponte Santa Barbara"},
         "hand_zero_cm": HAND_ZERO_CM,
         "nodata": 255,
@@ -687,7 +705,7 @@ def main() -> None:
         "fonte": (
             "HAND hidráulico 5 m: cotas e barreiras do CLIP_MOSAICO_LIDAR_RS.tif bruto; "
             "FILL/FLOWDIR/FLOWACC usados somente para roteamento até o rio principal; "
-            "régua 1,60 m = HAND 0; produto de pesquisa, não é alerta oficial."
+            "régua 1,60 m = HAND 0; remanso do Marrecão requer calibração hidrodinâmica."
         ),
         "hand_png_b64": base64.b64encode(buf.getvalue()).decode("ascii"),
     }
@@ -727,6 +745,7 @@ def main() -> None:
         "hand_max_payload_m": MAX_HAND_M,
         "contour_max_m": MAX_HAND_M,
         "spatialization_rule": "nivel_regua_m - 1.60 m",
+        "marrecao_backwater_status": "mainstem_reference_fixed; hydrodynamic_calibration_pending",
         "crs": str(crs),
         "bounds_lonlat": {"south": float(south), "west": float(west), "north": float(north), "east": float(east)},
         "observacao": (

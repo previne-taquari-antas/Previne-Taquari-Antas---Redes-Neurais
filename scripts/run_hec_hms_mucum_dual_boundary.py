@@ -388,15 +388,15 @@ Precip Method Parameters: Specified Average
 End:
 
 Subbasin: CARR_RES
-     Gage: RAIN_RESIDUAL
+     Gage: RAIN_CARR_RES
 End:
 
 Subbasin: STZ_RES
-     Gage: RAIN_RESIDUAL
+     Gage: RAIN_STZ_RES
 End:
 
 Subbasin: MUC_INC
-     Gage: RAIN_RESIDUAL
+     Gage: RAIN_MUC_INC
 End:
 """
 
@@ -472,9 +472,9 @@ End:
      Filepath Separator: \\
 End:
 
-""" + block("Q_LJJ_LIVE","Flow",f"/MUCUM/LJJ/FLOW/{dp}/1Hour/FORECAST/") + block("Q_CARR_LIVE","Flow",f"/MUCUM/CARR/FLOW/{dp}/1Hour/FORECAST/") + block("RAIN_RESIDUAL","Precipitation",f"/MUCUM/RESIDUAL/PRECIP-INC/{dp}/1Hour/FORECAST/")
+""" + block("Q_LJJ_LIVE","Flow",f"/MUCUM/LJJ/FLOW/{dp}/1Hour/FORECAST/") + block("Q_CARR_LIVE","Flow",f"/MUCUM/CARR/FLOW/{dp}/1Hour/FORECAST/") + block("RAIN_CARR_RES","Precipitation",f"/MUCUM/CARR_RES/PRECIP-INC/{dp}/1Hour/FORECAST/") + block("RAIN_STZ_RES","Precipitation",f"/MUCUM/STZ_RES/PRECIP-INC/{dp}/1Hour/FORECAST/") + block("RAIN_MUC_INC","Precipitation",f"/MUCUM/MUC_INC/PRECIP-INC/{dp}/1Hour/FORECAST/")
 
-def write_script(times,q_ljj,q_carr,rain):
+def write_script(times,q_ljj,q_carr,rain_carr,rain_stz,rain_muc):
     p=PROJ/"run.script"
     ts=[t.strftime("%Y-%m-%d %H:%M:%S") for t in times]
     dp=dpart(times[0].replace(tzinfo=BRT))
@@ -487,7 +487,9 @@ project_dir=r"{PROJ.as_posix()}"
 times={ts!r}
 q_ljj={q_ljj!r}
 q_carr={q_carr!r}
-rain={rain!r}
+rain_carr={rain_carr!r}
+rain_stz={rain_stz!r}
+rain_muc={rain_muc!r}
 dp="{dp}"
 
 def put(path,values,units,typ):
@@ -505,7 +507,9 @@ def put(path,values,units,typ):
 dss=HecDss.open(project_dir+"/input.dss")
 put("/MUCUM/LJJ/FLOW/"+dp+"/1Hour/FORECAST/",q_ljj,"M3/S","INST-VAL")
 put("/MUCUM/CARR/FLOW/"+dp+"/1Hour/FORECAST/",q_carr,"M3/S","INST-VAL")
-put("/MUCUM/RESIDUAL/PRECIP-INC/"+dp+"/1Hour/FORECAST/",rain,"MM","PER-CUM")
+put("/MUCUM/CARR_RES/PRECIP-INC/"+dp+"/1Hour/FORECAST/",rain_carr,"MM","PER-CUM")
+put("/MUCUM/STZ_RES/PRECIP-INC/"+dp+"/1Hour/FORECAST/",rain_stz,"MM","PER-CUM")
+put("/MUCUM/MUC_INC/PRECIP-INC/"+dp+"/1Hour/FORECAST/",rain_muc,"MM","PER-CUM")
 dss.close()
 out=project_dir+"/output.dss"
 if os.path.exists(out): os.remove(out)
@@ -559,7 +563,37 @@ def main():
         state_slope_m3s_h=float(carr_stats["state_slope_m3s_h"]),memory_tau_h=MEMORY_TAU_H,
         model_increment_scale=(AREA_CARR_GAUGE/AREA_CARR_TOTAL)
     )
-    rain=[float(r["rain_02851072_mm"]) for r in rows]
+    # Auditoria interdisciplinar 08/10/2026:
+    # Observado multirrede por zona (até o último horário observado); a partir
+    # daí, NÃO repetir uma única chuva média em três sub-bacias distintas.
+    # Carreiro, STZ e incremento Muçum recebem as respectivas séries espaciais IFS.
+    obs_areal={str(r["time_local"])[:16]:r for r in (obs.get("rain") or {}).get("hourly_areal") or []}
+    future_hour=obs_t.replace(minute=0,second=0,microsecond=0)
+    ifs_times=[dt_local(t).replace(minute=0,second=0,microsecond=0) for t in forcing["times_utc"]]
+    if len(ifs_times)!=len(set(ifs_times)):
+        raise RuntimeError("IFS duplicou horários de previsão; bloqueando o HEC")
+    ifs_fields=forcing.get("precip_mm_by_subbasin") or {}
+    def residual_rain(zone):
+        vals=ifs_fields.get(zone)
+        if not isinstance(vals,list) or len(vals)!=len(ifs_times):
+            raise RuntimeError(f"IFS espacial ausente ou desalinhado para {zone}")
+        by_hour=dict(zip(ifs_times,[float(v) for v in vals]))
+        if any(t>future_hour and t not in by_hour for t in times):
+            raise RuntimeError(f"IFS incompleto em {zone} após condição observada")
+        out=[]
+        for t in times:
+            if t>future_hour:
+                out.append(by_hour[t])
+                continue
+            r=obs_areal.get(t.isoformat(timespec="minutes"))
+            p=None if r is None else r.get(f"subbasin_{zone}_mm")
+            if p is None:
+                raise RuntimeError(f"Missing observed multistation rainfall for {zone} at {t}; no basin-average substitution permitted")
+            out.append(float(p))
+        return out
+    rain_carr=residual_rain("SB_CARREIRO_7866")
+    rain_stz=residual_rain("SB_STZ_RESIDUAL")
+    rain_muc=residual_rain("SB_INC_MUCUM")
 
     row=next(r for r in lib["params_library_eventwise"] if r["event_id"]=="E28")
     params=params_from_library_row(row)
@@ -594,7 +628,7 @@ def main():
     (PROJ/"dual.control").write_text(control_text(start,end),encoding="utf-8")
     (PROJ/"mucum_dual_boundary.gage").write_text(gage_text(start,end),encoding="utf-8")
 
-    js=write_script(times,q_ljj,q_carr,rain)
+    js=write_script(times,q_ljj,q_carr,rain_carr,rain_stz,rain_muc)
     cp=subprocess.run([hec,"-s",str(js)],cwd=ROOT,text=True,capture_output=True)
     print(cp.stdout); print(cp.stderr,file=sys.stderr)
     if cp.returncode!=0: raise SystemExit(cp.returncode)
@@ -603,12 +637,49 @@ def main():
     vals=[float(x["q_m3s"]) for x in rr if x["element"]=="MUCUM"]
     vals=vals[-len(times):]
     if len(vals)!=len(times): raise RuntimeError(f"MUCUM output {len(vals)} != {len(times)}")
-    stages=[q_to_stage_cm(q,segs)["stage_cm"] for q in vals]
+    stage_meta=[q_to_stage_cm(q,segs) for q in vals]
+    stages=[m.get("stage_cm") for m in stage_meta]
 
     obs_n=float(live["telemetria_ultima_nivel_cm"])
-    obs_q=q_to_stage_cm(0,segs)  # placeholder to keep conversion family explicit
-    model_now=interp(times,stages,obs_t)
     q_now=interp(times,vals,obs_t)
+    relevant=[
+        (i,m) for i,(t,m) in enumerate(zip(times,stage_meta))
+        if t>=obs_t-timedelta(hours=12) and not bool(m.get("ok"))
+    ]
+    if relevant:
+        i0,m0=relevant[0]
+        out={
+          "schema_version":"hec_hms_mucum_dual_observed_boundary_v1",
+          "generated_at_utc":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
+          "status":"blocked_rating_curve_safety",
+          "model":"HEC-HMS 4.13",
+          "current":{
+            "observed_time_local":obs_t.isoformat(timespec="minutes"),
+            "observed_stage_cm":obs_n,
+            "model_q_m3s":round(q_now,3)
+          },
+          "rating_curve_safety":{
+            "first_unsafe_index":i0,
+            "first_unsafe_time_local":times[i0].isoformat(timespec="minutes"),
+            "reason":m0.get("reason"),
+            "diagnostic_stage_cm":m0.get("diagnostic_stage_cm"),
+            "safety_limit_cm":m0.get("safety_limit_cm"),
+            "unsafe_count_relevant_window":len(relevant)
+          },
+          "q_m3s":[round(x,3) for x in vals],
+          "stage_cm":[None for _ in vals],
+          "research_only":True,
+          "not_official_alert":True,
+          "publishable":False
+        }
+        RESULT.write_text(json.dumps(out,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+        with SERIES.open("w",newline="",encoding="utf-8") as f:
+            w=csv.writer(f); w.writerow(["time_local","q_m3s","stage_cm"])
+            for t,q in zip(times,vals): w.writerow([t.isoformat(timespec="minutes"),q,None])
+        print("DUAL_BOUNDARY_RESULT="+json.dumps({"status":out["status"],"rating_curve_safety":out["rating_curve_safety"]},ensure_ascii=False))
+        return
+
+    model_now=interp(times,stages,obs_t)
 
     # Recent fit against the 15-min live Muçum series. Keep both 6 h and 12 h
     # metrics because the platform must optimize a rejected candidate instead of
@@ -700,6 +771,10 @@ def main():
       },
       "observed_network_audit":{
         "rain_valid_station_count":(obs.get("rain") or {}).get("valid_station_count"),
+        "rain_future_by_residual_subbasin":True,
+        "rain_future_source":"ECMWF IFS full spatial field, 3 independent residual zones",
+        "rain_observed_residual_proxy":None,
+        "rain_observed_residual_method":"Observed all-station IDW^2 spatial precipitation by each nested residual subbasin, no missing-to-zero",
         "rain_spatial_method":(obs.get("rain") or {}).get("spatial_method"),
         "rain_event_basin_areal_mm":((obs.get("rain") or {}).get("accumulations") or {}).get("event_basin_areal_mm"),
         "rain_event_by_zone_mm":((obs.get("rain") or {}).get("accumulations") or {}).get("event_by_zone_mm"),
