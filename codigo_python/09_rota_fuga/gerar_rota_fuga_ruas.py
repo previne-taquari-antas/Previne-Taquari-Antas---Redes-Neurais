@@ -127,6 +127,7 @@ CIDADES = {
         # por isso a cota de alagamento sai dos contornos e não do mosaico 2 m.
         "zero_regua_m": 1.6, "nivel_padrao": 13.4, "cenario_regua_cm": 1500.0,
         "cota_de_contornos": True,
+        "fonte_mancha": "HAND LiDAR de campo (contornos_mancha.json, 0-25 m, rasterizados por gerar_cota_alaga.py)",
         "alarmes_regua_m": {"inundacao": 15.0},
         "html": os.path.join(RAIZ, "santa_tereza_rota_fuga_ruas{suf}.html"),
     },
@@ -141,6 +142,7 @@ CIDADES = {
         # régua 86510000 = cota de atenção do Plano de Contingência. HAND 0
         # quando o rio deixa a calha. Definitivo ainda depende do RN SGB/ANA.
         "zero_regua_m": 5.0, "nivel_padrao": 8.0, "cenario_regua_cm": 1800.0,
+        "fonte_mancha": "HAND do mosaico MDT 2 m (gerar_cota_alaga.py, 0-25 m)",
         "alarmes_regua_m": {"atencao": 5.0, "alerta": 10.0, "inundacao": 18.0},
         "html": os.path.join(RAIZ, "mucum_rota_fuga_ruas{suf}.html"),
     },
@@ -899,8 +901,9 @@ def main():
     tm = sorted(c[9] for c in casas if c[8] and c[9] is not None)
     td = sorted(c[12] for c in casas if c[8] and c[12] is not None)
     if tm:
+        direta = f"direta pela agua mediana {td[len(td)//2]/60:.0f} min; " if td else ""
         print(f"  na mancha: rota evitando agua mediana {tm[len(tm)//2]/60:.0f} min, max {tm[-1]/60:.0f} min; "
-              f"direta pela agua mediana {td[len(td)//2]/60:.0f} min; {n_exc} acima de {args.tempo_max:.0f} min")
+              f"{direta}{n_exc} acima de {args.tempo_max:.0f} min")
     for cd in candidatos:
         dm = demanda.get(cd["id"], {})
         print(f"  {cd['id']} (cobre {cd['n_cobre']}): {cd['n_casas']} casas {cd['motivos']}, pior "
@@ -971,7 +974,7 @@ def main():
                  "referencia_metodo": "Gandra Franco (2026), doi:10.5281/zenodo.20402230",
                  "fonte_rede": "© OpenStreetMap contributors (ODbL), vias a pé",
                  "fonte_casas": "© OpenStreetMap contributors (ODbL), building",
-                 "fonte_mancha": "HAND mosaico 2m (contornos_mancha.json até 15 m; raster acima)"},
+                 "fonte_mancha": cfg["fonte_mancha"]},
         "abrigos": [{"id": a["id"], "nome": a["nome"], "lat": round(a["lat"], 6), "lon": round(a["lon"], 6),
                      "node": idx.get(a["node"], -1), "snap_m": a["snap_m"],
                      "cota_alaga_m": _num(a["cota_alaga"], 1), "demanda": demanda.get(a["id"])} for a in abrigos],

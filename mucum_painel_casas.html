@@ -196,14 +196,19 @@ function rotaPorTrecho(casa,op){const g=L.featureGroup();let molhado=!!casa[CF.n
   while(i>=0&&n++<6000){const nx=D.prox[i];if(nx===i||nx<0)break;const e=ARESTA.get(i+','+nx),m=!!(e&&e[2]>0);
     if(m!==molhado){fecha();seg=[D.nos[i]];molhado=m;}seg.push(D.nos[nx]);i=nx;}
   fecha();return g;}
-// nível em que a água corta a rota até o abrigo oficial (rotas por nível)
-function txtCorte(casa){const ci=D.casas.indexOf(casa),hs=NV.hand_m;
-  for(let k=0;k<hs.length;k++)if(NV.casa_agua_m[k][ci]>0)
-    return k>0?` A água corta a rota entre ${txtNivel(hs[k-1])} e ${txtNivel(hs[k])}: <b>sair antes de ${txtNivel(hs[k-1])}</b>.`:' A rota já é cortada pela água com o rio baixo.';
-  return '';}
+// nível em que a água corta a rota até o abrigo oficial (rotas por nível). casa_agua_m
+// vem arredondado em metros: olha também a cota dos nós da rota, como a margem.
+function cortaNoNivel(ci,k){const no=NV.casa_no[k][ci];if(no<0||NV.casa_agua_m[k][ci]>0)return true;
+  const P=NV.prox[k];let j=no,g=0;
+  while(j>=0&&g++<6000){const c=D.cota_no[j];if(c!=null&&c<=NV.hand_m[k])return true;const nx=P[j];if(nx===j||nx<0)break;j=nx;}
+  return false;}
+// a casa é ilhada no cenário: o corte nunca fica acima do nível do cenário
+function txtCorte(ci){const hs=NV.hand_m,kp=kNivel(M.nivel_projeto_m);let k=0;
+  while(k<kp&&!cortaNoNivel(ci,k))k++;
+  return k>0?` A água corta a rota entre ${txtNivel(hs[k-1])} e ${txtNivel(hs[k])}: <b>sair antes de ${txtNivel(hs[k-1])}</b>.`:' A rota já é cortada pela água com o rio baixo.';}
 map.on('click',e=>{if(modo!=='rotas')return;
-  const la=e.latlng.lat,lo=e.latlng.lng;let casa=null,bc=1e18;
-  D.casas.forEach(c=>{const d=m2(la,lo,c[CF.lat],c[CF.lon]);if(d<bc){bc=d;casa=c;}});
+  const la=e.latlng.lat,lo=e.latlng.lng;let casa=null,bc=1e18,ci=-1;
+  D.casas.forEach((c,i)=>{const d=m2(la,lo,c[CF.lat],c[CF.lon]);if(d<bc){bc=d;casa=c;ci=i;}});
   if(!casa||Math.sqrt(bc)>60){document.getElementById('rota').textContent='Nenhuma casa a menos de 60 m deste ponto.';return;}
   [cam,camC,orig].forEach(l=>{if(l)map.removeLayer(l);});cam=camC=null;
   orig=L.circleMarker([casa[CF.lat],casa[CF.lon]],{radius:7,color:'#0f8b46',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
@@ -221,7 +226,7 @@ map.on('click',e=>{if(modo!=='rotas')return;
   const ag=casa[CF.agua_m]||0,st=casa[CF.situacao],cota=casa[CF.cota_alaga];
   document.getElementById('rota').innerHTML=`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>A pé: <b>${(casa[CF.dist_m]/1000).toFixed(2)} km</b> · <b>${fmin(casa[CF.tempo_s])}</b> (idoso)`+
     (cota!=null?`<br>A casa alaga a partir de ${txtNivel(cota)}.`:'<br>A casa não alaga até o nível mapeado.')+
-    (st==='ilhada'?`<br><span style="color:#4b2c78"><b>Ilhada</b>: não há caminho seco até o abrigo oficial neste cenário.${txtCorte(casa)}</span>`:'')+
+    (st==='ilhada'?`<br><span style="color:#4b2c78"><b>Ilhada</b>: não há caminho seco até o abrigo oficial neste cenário.${txtCorte(ci)}</span>`:'')+
     (ag>0?`<br><span style="color:#9e1b1b">⚠ A rota até o abrigo oficial atravessa ${Math.round(ag)} m de área que alaga (trecho vermelho): não é caminho seguro a pé neste cenário.</span>`:'<br><span style="color:#0f8b46">Rota fora da área que alaga.</span>')+txtC;});
 // ---------- abas ----------
 const NOMES={rotas:'Rotas',margem:'Margem',impacto:'Quem sai'};

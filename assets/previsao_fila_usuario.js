@@ -146,6 +146,8 @@
       box.innerHTML = '<div class="fila-bl">Sem nível do rio confiável agora — fila indisponível. Siga a Defesa Civil.</div>';
       if (sub) sub.textContent = '';
       if (tot) tot.innerHTML = '';
+      const m0 = cfg && cfg.getMap && cfg.getMap();
+      if (m0) hideOverlays(m0);
       return;
     }
     const semMancha = hRna <= 0.05;

@@ -9,12 +9,17 @@ Regras:
   - hora sem fuso no JSON da previsão é hora de Brasília (os robôs gravam a
     hora da telemetria da ANA). O runner do GitHub roda em UTC: sem isso a
     idade do dado sai 180 min maior;
-  - nível atual ausente devolve None, nunca 0: quem chama decide não publicar
-    em vez de inventar um rio seco que "sobe" até a previsão;
-  - o nível previsto de cada horizonte é o maior entre `nivel_previsto_cm` e o
-    ÚLTIMO campo de cada passo. Os formatos diferem: Santa Tereza grava
-    [hora, base, previsto] e Muçum [hora, modelo, agora, previsto] — ler o
-    índice 2 em Muçum pega o nível de agora, não o previsto;
+  - nível atual = leitura da régua COM a hora da leitura; sem uma delas devolve
+    None, nunca 0 (quem chama não publica). O `nivel_atual_cm` da previsão não
+    serve: quando a telemetria é rejeitada ele cai para o nível de base do
+    modelo, sem hora;
+  - o nível previsto é o ÚLTIMO campo de cada passo (e `nivel_previsto_cm`). Os
+    formatos diferem: Santa Tereza grava [hora, base, previsto] e Muçum
+    [hora, modelo, agora, previsto] — ler o índice 2 em Muçum pega o nível de
+    agora, não o previsto;
+  - o previsto vale para hora do modelo + horizonte, não para a hora da
+    leitura + horizonte (a leitura costuma ser 45-75 min mais nova que o
+    modelo: contar do lugar errado dava margem a mais);
   - horizonte com disponivel=False fica de fora.
 """
 import datetime as dt
@@ -49,23 +54,32 @@ def idade_min(iso, ref=None):
 
 
 def nivel_atual_cm(d):
-    for k in ("telemetria_ultima_nivel_cm", "nivel_atual_cm"):
-        v = d.get(k)
-        if v is not None:
-            return float(v)
-    return None
+    v = d.get("telemetria_ultima_nivel_cm")
+    if v is None or para_brt(d.get("telemetria_ultima_em")) is None:
+        return None
+    return float(v)
 
 
 def previstos_cm(d, horizontes=("2h", "4h")):
-    """[(horizonte, minutos à frente, nível previsto em cm)] dos horizontes disponíveis."""
+    """[(horizonte, minutos depois da leitura da régua, nível previsto em cm)],
+    em ordem de tempo. Previsto cujo alvo já passou fica de fora: a leitura vale mais."""
+    ref = para_brt(d.get("telemetria_ultima_em"))
     out = []
     for hk in horizontes:
         hv = (d.get("horizontes") or {}).get(hk) or {}
         if hv.get("disponivel") is False:
             continue
-        vals = [hv.get("nivel_previsto_cm")]
-        vals += [p[-1] for p in hv.get("passos") or [] if p]
-        vals = [float(v) for v in vals if v is not None]
-        if vals:
-            out.append((hk, int(hk.rstrip("h")) * 60, max(vals)))
-    return out
+        horas = int(hk.rstrip("h"))
+        pontos = [(p[0], p[-1]) for p in hv.get("passos") or [] if p]
+        pontos.append((hv.get("hora_modelo"), hv.get("nivel_previsto_cm")))
+        for hora, cm in pontos:
+            if cm is None:
+                continue
+            base = para_brt(hora)
+            if base is None or ref is None:
+                minutos = horas * 60
+            else:
+                minutos = round((base + dt.timedelta(hours=horas) - ref).total_seconds() / 60.0)
+            if minutos > 0:
+                out.append((hk, minutos, float(cm)))
+    return sorted(set(out), key=lambda x: (x[1], x[2]))

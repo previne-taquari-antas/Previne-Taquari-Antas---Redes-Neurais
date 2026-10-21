@@ -35,6 +35,7 @@ import io
 import sys
 import json
 import base64
+import hashlib
 import argparse
 from math import radians, cos, sin, asin, sqrt
 
@@ -126,6 +127,7 @@ def trajetoria_nivel(cenario):
             return None, "previsão sem nível atual do rio", None, tele_em
         pts = [(0, nivel_atual_cm / 100.0)]
         pts += [(m, cm / 100.0) for _hk, m, cm in nivel_ao_vivo.previstos_cm(d)]
+        pts.sort()
         # extrapola a última inclinação até o horizonte
         if len(pts) >= 2:
             (ma, na), (mb, nb) = pts[-2], pts[-1]
@@ -229,13 +231,13 @@ def escreve_json(quadras, meta, SAIDA_JSON):
 
 def mesmo_conteudo(SAIDA_JSON, quadras, meta):
     """True se a rodada só mudaria o carimbo de hora (não comitar a cada 5 min).
-    A idade do dado a página calcula sozinha, a partir de telemetria_em."""
+    A idade do dado a página calcula sozinha, a partir de telemetria_em; a
+    versão do template está no meta, então mudar o template republica."""
     try:
         velho = json.load(open(SAIDA_JSON, encoding="utf-8"))
     except (OSError, ValueError):
         return False
-    tempo = ("gerado_em", "idade_telemetria_min", "dados_desatualizados")
-    limpa = lambda m: {k: v for k, v in (m or {}).items() if k not in tempo}
+    limpa = lambda m: {k: v for k, v in (m or {}).items() if k != "gerado_em"}
     novo = json.loads(json.dumps({"quadras": quadras, "meta": meta}))
     return velho.get("quadras") == novo["quadras"] and limpa(velho.get("meta")) == limpa(novo["meta"])
 
@@ -350,7 +352,6 @@ def main():
 
     ao_vivo = args.cenario == "ao_vivo"
     tele = nivel_ao_vivo.para_brt(tele_em) if ao_vivo else None
-    idade = nivel_ao_vivo.idade_min(tele_em) if ao_vivo else None
     nivel_txt = (f"{nivel_cm/100:.2f} m".replace(".", ",") if nivel_cm is not None else "sem telemetria")
     meta = {
         "gerado_em": nivel_ao_vivo.agora().strftime("%Y-%m-%d %H:%M"),
@@ -358,8 +359,7 @@ def main():
         "cenario": args.cenario, "cenario_rotulo": rotulo,
         "nivel_atual_cm": nivel_cm, "nivel_txt": nivel_txt,
         "telemetria_em": tele.isoformat() if tele else None,
-        "idade_telemetria_min": idade,
-        "dados_desatualizados": ao_vivo and (idade is None or idade > nivel_ao_vivo.TELEMETRIA_VELHA_MIN),
+        "template": hashlib.sha1(_TEMPLATE.encode("utf-8")).hexdigest()[:12],
         "zero_regua_m": ZERO_REGUA_M, "bloco_m": BLOCO_M,
         "ponto_seguro": PONTO_SEGURO, "etapa": 1,
         "estacao": geo["station"], "ponte": geo.get("ponte"),
