@@ -77,7 +77,10 @@ class TestG040MultieventCalibrationContract(unittest.TestCase):
         # station in the SAME process; a second call for the same window
         # should reuse its cached response.
         from unittest.mock import patch
-        from scripts import build_mucum_observed_multistation as mod
+        source = ROOT / "scripts/build_mucum_observed_multistation.py"
+        spec = spec_from_file_location("mucum_rain_cache_isolation", source)
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
         sep_start = datetime(2023, 9, 1)
         sep_end = datetime(2023, 9, 12, 23)
         nov_start = datetime(2023, 11, 15)
