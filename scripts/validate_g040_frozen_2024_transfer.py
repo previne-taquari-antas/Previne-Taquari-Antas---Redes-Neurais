@@ -45,11 +45,30 @@ def save(p,j):
 def source_coverage(eid):
     raw=load(BASE/"historical_hydro_events"/f"{eid}.json")
     st=next((s for s in raw.get("stations") or [] if str(s.get("code"))=="86472000"),{})
-    n=sum(1 for r in st.get("series") or []
-          if r.get("time_utc") and r.get("flow_m3s") is not None)
     start,end=upper.local_to_utc(raw["window_local"]["start"]),upper.local_to_utc(raw["window_local"]["end"])
     hours=int((end-start).total_seconds()/3600)+1
+    # Coverage means *unique valid hourly instants inside this event window*;
+    # duplicate rows, out-of-window data and malformed/negative Q cannot count.
+    valid_hours=set()
+    raw_flow_records=0
+    for row in st.get("series") or []:
+        if row.get("flow_m3s") is None or not row.get("time_utc"):
+            continue
+        raw_flow_records+=1
+        try:
+            t=datetime.fromisoformat(str(row["time_utc"]).replace("Z","+00:00"))
+            q=float(row["flow_m3s"])
+        except (ValueError,TypeError,OverflowError):
+            continue
+        if t.tzinfo is None or not math.isfinite(q) or q<0:
+            continue
+        t=t.astimezone(timezone.utc)
+        if start<=t<=end and t.minute==0 and t.second==0 and t.microsecond==0:
+            valid_hours.add(t)
+    n=len(valid_hours)
     return {"station":"86472000","actual_flow_observations":n,
+            "raw_flow_records":raw_flow_records,
+            "discarded_duplicate_invalid_or_out_of_window_records":raw_flow_records-n,
             "event_window_hours":hours,"observed_coverage_ratio":n/max(hours,1),
             "direct_observed_boundary_eligible":n>=0.95*hours}
 
@@ -203,6 +222,9 @@ def score_quality(row,inputs,config):
         "simulated_at_least_70pct_of_full_event":(
             row.get("fraction_full_event_simulated") or 0
         )>=q["min_target_observed_coverage"],
+        "simulated_minimum_absolute_hours":(
+            (row.get("simulation_times_utc") or {}).get("hours") or 0
+        )>=q["min_simulated_window_hours"],
         "recorded_crest_inside_simulation":bool(
             row.get("recorded_event_crest_inside_simulated_window")
         ),
@@ -238,10 +260,42 @@ def main():
         out.append({"event_id":eid,"status":"COMPUTED" if all(r["compute_ok"] for r in rr)
                     else "PARTIALLY_COMPUTED", "input_provenance":inputs["input_provenance"],
                     "candidate_results":rr})
+    evaluated=[r for event in out for r in event.get("candidate_results") or []]
+    any_computed=any(r.get("compute_ok") for r in evaluated)
+    all_adequate=(
+        len(out)==len(config["validation_events"])
+        and all(
+            event.get("status")=="COMPUTED"
+            and len(event.get("candidate_results") or [])==len(candidates)
+            and all(
+                (r.get("verification_quality") or {}).get("research_evidence_quality_adequate")
+                for r in event["candidate_results"]
+            )
+            for event in out
+        )
+    )
+    failed_gates=sorted({
+        gate
+        for r in evaluated
+        for gate,passed in ((r.get("verification_quality") or {}).get("gates") or {}).items()
+        if not passed
+    })
     payload={
         "schema_version":"g040_frozen_2024_transfer_validation_v1",
         "generated_at_utc":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
-        "status":"RESEARCH_HISTORICAL_EVENT_TRANSFER_COMPLETE_WITH_QUALITY_GATES",
+        "status":(
+            "RESEARCH_HISTORICAL_EVENT_TRANSFER_QUALITY_GATES_PASSED"
+            if all_adequate else
+            "RESEARCH_HISTORICAL_EVENT_TRANSFER_COMPUTED_QUALITY_BLOCKED"
+            if any_computed else "RESEARCH_HISTORICAL_EVENT_TRANSFER_UNTESTABLE"
+        ),
+        "research_evidence_quality_adequate":all_adequate,
+        "evaluated_candidate_event_runs":len(evaluated),
+        "quality_adequate_candidate_event_runs":sum(
+            bool((r.get("verification_quality") or {}).get("research_evidence_quality_adequate"))
+            for r in evaluated
+        ),
+        "failed_quality_gates":failed_gates,
         "research_only":True,
         "frozen_parameters_provenance":config["source_artifact"],
         "frozen_member_parameters":config["candidate_members"],
@@ -274,7 +328,7 @@ def main():
         "event":x["event_id"],"status":x["status"],"computed":sum(y["compute_ok"] for y in x.get("candidate_results",[])),
         "errors":[y.get("error") for y in x.get("candidate_results",[]) if not y["compute_ok"]]
     } for x in out]},ensure_ascii=False),flush=True)
-    return 0 if any(y["compute_ok"] for x in out for y in x.get("candidate_results",[])) else 2
+    return 0 if any_computed else 2
 
 if __name__=="__main__":
     raise SystemExit(main())
