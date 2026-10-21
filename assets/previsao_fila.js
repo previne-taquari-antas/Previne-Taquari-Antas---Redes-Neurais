@@ -5,8 +5,8 @@
     alagada: '#1e5fbf', alto: '#7a8a84', isolada: '#7a1f1f', fuga: '#c0392b'
   };
   const LAB = {
-    seguro: 'ainda seguro', atencao: 'sair — RNA alcança', urgente: 'SAIR AGORA',
-    alagada: 'já alagou', alto: 'ponto alto', isolada: 'ROTA CORTADA', fuga: 'só pela água'
+    seguro: 'fora do alcance da previsão', atencao: 'a previsão alcança', urgente: 'prioridade de retirada',
+    alagada: 'já alagou', alto: 'ponto alto', isolada: 'rota cortada', fuga: 'rota cruza água'
   };
   const NF = new Intl.NumberFormat('pt-BR');
 
@@ -18,7 +18,7 @@
     const z = (data && data.meta && data.meta.zero_regua_m != null)
       ? data.meta.zero_regua_m
       : (cfg && cfg.bankfullM ? cfg.bankfullM() : 5);
-    if (cm == null || !Number.isFinite(Number(cm))) return 0;
+    if (cm == null || !Number.isFinite(Number(cm))) return null;
     return Math.max(0, Number(cm) / 100 - z);
   }
 
@@ -45,12 +45,12 @@
   }
 
   function txtCasa(c, k, rr, vel) {
-    if (k === 'seguro' || k === 'alto') return 'rota ainda não necessária';
+    if (k === 'seguro' || k === 'alto') return 'fora do alcance da previsão';
     if (rr.kind === 'isolada') return 'rota cortada — não chega a pé ao abrigo';
     const min = Math.round((rr.dist_m || 0) / vel / 60);
     const dest = (rr.abrigo || c.abrigo || '').split(' ').slice(0, 3).join(' ');
     if (rr.kind === 'fuga') {
-      return 'último corredor · ' + min + ' min → ' + dest + (rr.agua_m > 20 ? (' · ' + Math.round(rr.agua_m) + ' m na água') : '');
+      return 'rota cruza água' + (rr.agua_m > 20 ? (' (' + Math.round(rr.agua_m) + ' m)') : '') + ' — não usar a pé · ' + min + ' min → ' + dest;
     }
     const extra = (c.dist_m && rr.dist_m > c.dist_m * 1.15)
       ? (' · desvio +' + Math.round((rr.dist_m - c.dist_m) / vel / 60) + ' min') : '';
@@ -142,6 +142,12 @@
     }
     const vel = (data.meta && data.meta.vel_idoso_ms) || 0.9;
     const hNow = handCm(nowCm), hRna = handCm(foreCm);
+    if (hNow == null || hRna == null) {
+      box.innerHTML = '<div class="fila-bl">Sem nível do rio confiável agora — fila indisponível. Siga a Defesa Civil.</div>';
+      if (sub) sub.textContent = '';
+      if (tot) tot.innerHTML = '';
+      return;
+    }
     const semMancha = hRna <= 0.05;
     const popTot = data.meta.pop_total || 0;
     const cnt = { alagada: 0, urgente: 0, atencao: 0, seguro: 0, alto: 0 };
@@ -155,10 +161,10 @@
     }
     if (tot) {
       tot.innerHTML = semMancha
-        ? '<div class="fila-hero">Ninguém precisa sair agora</div>'
-        : ('<div class="fila-hero"><b>' + NF.format(sair) + '</b> pessoas precisam sair <span>de ' + NF.format(popTot) + '</span></div>' +
+        ? '<div class="fila-hero">Previsão sem mancha na área mapeada</div>'
+        : ('<div class="fila-hero"><b>' + NF.format(sair) + '</b> pessoas na área alcançada pela previsão <span>de ' + NF.format(popTot) + '</span></div>' +
           '<div class="fila-tot-row"><i style="background:' + CORES.alagada + '"></i>já na água<b>' + NF.format(cnt.alagada) + '</b></div>' +
-          '<div class="fila-tot-row"><i style="background:' + CORES.urgente + '"></i>sair agora<b>' + NF.format(cnt.urgente) + '</b></div>' +
+          '<div class="fila-tot-row"><i style="background:' + CORES.urgente + '"></i>prioridade de retirada<b>' + NF.format(cnt.urgente) + '</b></div>' +
           '<div class="fila-tot-row"><i style="background:' + CORES.atencao + '"></i>a RNA alcança<b>' + NF.format(cnt.atencao) + '</b></div>');
     }
 

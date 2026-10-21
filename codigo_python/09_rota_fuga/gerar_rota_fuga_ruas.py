@@ -50,7 +50,7 @@ Uso:
   python codigo_python/09_rota_fuga/gerar_rota_fuga_ruas.py --cidade mucum --fonte live
   python codigo_python/09_rota_fuga/gerar_rota_fuga_ruas.py --cidade mucum --fonte cenario
 """
-import os, json, math, time, argparse, datetime as dt
+import os, sys, json, math, time, argparse
 import urllib.request, urllib.parse
 import numpy as np
 import networkx as nx
@@ -59,6 +59,9 @@ from rasterio.features import shapes
 from shapely.geometry import shape, Point, LineString, Polygon, GeometryCollection
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import nivel_ao_vivo  # noqa: E402
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ABRIGOS = os.path.join(RAIZ, "assets", "data", "servicos", "abrigos.geojson")
@@ -97,7 +100,7 @@ NIVEL_MAX_M = 25.0
 PASSO_PERFIL_M = 4.0
 NIVEIS_ROTA_M = [float(n) for n in range(0, int(NIVEL_MAX_M) + 1)]
 AGUA_ILHADA_M = 0.0         # casa seca cuja rota cruza qualquer agua fica "ilhada" (mesma regra do painel)
-TELEMETRIA_VELHA_MIN = 180
+TELEMETRIA_VELHA_MIN = nivel_ao_vivo.TELEMETRIA_VELHA_MIN
 
 TEMPO_MAX_MIN = 30.0
 CAND_FOLGA_COTA_M = 2.0     # candidato so alaga pelo menos 2 m acima do nivel de projeto
@@ -165,13 +168,6 @@ def caminhos_saida(cfg, fonte):
             cfg["html"].format(suf=suf))
 
 
-def _idade_min(iso):
-    try:
-        return round((dt.datetime.now() - dt.datetime.fromisoformat(iso)).total_seconds() / 60.0)
-    except (TypeError, ValueError):
-        return None
-
-
 def nivel_de_projeto(cfg, fonte, nivel_fixo):
     """Devolve (hand_m, meta) do nivel de inundacao a evitar."""
     z = cfg["zero_regua_m"]
@@ -187,15 +183,12 @@ def nivel_de_projeto(cfg, fonte, nivel_fixo):
         return regua/100.0 - z, {"fonte": "cenario", "rotulo": rotulo,
                                  "nivel_regua_cm": regua, **extra}
     d = json.load(open(cfg["forecast"], encoding="utf-8"))
-    atual = d.get("telemetria_ultima_nivel_cm") or d.get("nivel_atual_cm") or 0
-    niveis = [atual]
-    for hk in ("2h", "4h"):
-        hv = (d.get("horizontes") or {}).get(hk) or {}
-        if hv.get("disponivel") is False:
-            continue
-        niveis += [p[2] for p in hv.get("passos") or [] if len(p) > 2 and p[2] is not None]
+    atual = nivel_ao_vivo.nivel_atual_cm(d)
+    if atual is None:
+        raise SystemExit(f"{cfg['slug']}: previsão sem nível atual do rio — rota ao vivo não gerada")
+    niveis = [atual] + [cm for _hk, _min, cm in nivel_ao_vivo.previstos_cm(d)]
     pico_cm = max(niveis); hand = pico_cm/100.0 - z
-    idade = _idade_min(d.get("telemetria_ultima_em"))
+    idade = nivel_ao_vivo.idade_min(d.get("telemetria_ultima_em"))
     return hand, {"fonte": "live", "rotulo": "previsão ao vivo (RNA 2h/4h)",
                   "nivel_atual_cm": atual, "nivel_pico_cm": pico_cm,
                   "telemetria_em": d.get("telemetria_ultima_em"), "idade_telemetria_min": idade,
@@ -959,7 +952,7 @@ def main():
         "meta": {"municipio": cfg["municipio"], "nivel_projeto_m": round(nivel, 2), "nivel_mancha_m": nn,
                  "nivel_acima_do_mapeado": acima, "nivel_max_mapeado_m": NIVEL_MAX_M,
                  "penal_agua": PENAL_AGUA,
-                 "gerado_em": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                 "gerado_em": nivel_ao_vivo.agora().strftime("%Y-%m-%d %H:%M"),
                  "n_nos": len(nos), "n_arestas": len(EDGES), "n_casas": len(casas),
                  "n_casas_mancha": n_mancha, "n_casas_sem_rota": n_sem,
                  "n_casas_excede": n_exc, "n_casas_excede_com_candidatos": restantes,
