@@ -18,15 +18,25 @@ python codigo_python/09_rota_fuga/gerar_rota_fuga_ruas.py --cidade santa_tereza 
 
 # 3. Camadas derivadas (leem o JSON do cenário)
 python codigo_python/09_rota_fuga/gerar_painel.py --cidade mucum
-python codigo_python/09_rota_fuga/gerar_mapa_margem.py --cidade mucum
-python codigo_python/09_rota_fuga/gerar_mapa_impacto.py --cidade mucum
-python codigo_python/09_rota_fuga/gerar_estudo_caso_mucum.py
 python codigo_python/09_rota_fuga/gerar_estudo_caso_slides.py
 python codigo_python/09_rota_fuga/gerar_fila_cidade.py          # depois dos slides (lê fila_evacuacao_mucum.json)
-python codigo_python/09_rota_fuga/gerar_comparacao_osm_ibge.py
+
+# Só o template do painel mudou? Os JSON de rota e os insumos OSM/MDT não
+# ficam no git; isto relê os dados do painel publicado e grava com o template atual
+python codigo_python/09_rota_fuga/gerar_painel.py --cidade mucum --republicar
+python codigo_python/09_rota_fuga/gerar_painel.py --cidade santa_tereza --republicar
 ```
 
-`--fonte`: `live` (pico entre atual/2h/4h da RNA; telemetria com mais de 3 h
+`gerar_mapa_margem.py`, `gerar_mapa_impacto.py`, `gerar_estudo_caso_mucum.py` e
+`gerar_comparacao_osm_ibge.py`, citados em versões anteriores deste README,
+não estão no repositório.
+
+Testes (sem OSM nem LiDAR): `python tests/test_rota_fuga_ao_vivo.py` e
+`python tests/test_rota_fuga_painel.py` (workflow `testar-rota-fuga.yml`).
+
+`--fonte`: `live` (pico entre atual/2h/4h da RNA, lido por `nivel_ao_vivo.py`:
+hora sem fuso é de Brasília, nível atual ausente não gera rota e o previsto é o
+último campo de cada passo; telemetria com mais de 3 h
 é marcada como desatualizada no JSON e no mapa), `cenario` (cota oficial de
 inundação: régua 18 m em Muçum, 15 m em Santa Tereza), `fixo` (`--nivel` em
 HAND). `--tempo-max` (padrão 30 min): limite de caminhada do idoso.
@@ -145,8 +155,6 @@ CTG Sentinela a partir de 20,6 m.
 - `gerar_painel.py` — **painel casa a casa** (`<cidade>_painel_casas.html`) com abas
   Rotas · Margem · Quem sai; em Quem sai cada casa é um ponto colorido pela situação.
   Não substitui o `<cidade>_painel_evacuacao.html` (grade IBGE, robô de 30 m).
-- `gerar_mapa_margem.py`, `gerar_mapa_impacto.py` — o mesmo painel com uma aba só.
-- `gerar_estudo_caso_<cidade>.py` — "a água chega nesta casa em 4h → rota → margem".
 - `gerar_estudo_caso_slides.py` — vídeo/slides de Muçum, recalculando as rotas por nível.
 - `gerar_fila_cidade.py` — fila por célula IBGE (`fila_cidade_<cidade>.json`):
   cota da casa mais baixa da célula e p90 do tempo a pé.
@@ -155,21 +163,38 @@ Todas leem o JSON do **cenário oficial** de cada cidade.
 
 **Margem de fuga** (painel): quanto tempo a pessoa ainda pode esperar para
 sair. É o mínimo, ao longo da rota até o abrigo no nível do slider, de
-`tempo até a água chegar no ponto − tempo do idoso para chegar nele`. Se a
-rota já cruza água no nível, a casa é "ilhada".
+`tempo até a água chegar no ponto − tempo do idoso para chegar nele − tempo de
+preparo` (seletor 0/30/60/120 min; padrão 30). Se a rota já cruza água no nível,
+a casa é "ilhada". A subida padrão é **90 cm/h**, a média de set/2023 e de
+22/07/2026 (o antigo 40 cm/h dava margem 2 a 5 vezes maior); o slider vai a
+2 m/h, ritmo dos trechos mais rápidos de set/2023. A margem supõe que o rio
+continua subindo nesse ritmo a partir do nível escolhido.
+
+**Cheias registradas** (`CFG[...]["cheias_ref"]` em `gerar_painel.py`): botões
+que levam o slider à cota oficial e aos picos das réguas (Santa Tereza: jul/2026
+17,46 m, nov/2023 21,61 m, set/2023 23,65 m, mai/2024 25,82 m de referência;
+Muçum: jul/2020 22,11 m, nov/2023 22,99 m, mai/2024 25,51 m — set/2023 fica de
+fora porque a série termina subindo em 21,18 m). Cada abrigo e candidato diz até
+onde fica seco e se alagaria em cada cheia; a aba Rotas avisa o que alagaria na
+maior delas. Em Muçum, o popup traz a capacidade planejada do Plano de
+Contingência de jul/2026 (`mucum_contingencia_202607.json`; faixa quando o plano
+diverge) e avisa quando a demanda do cenário passa dela.
 
 **Quem sai**: a população de cada célula IBGE é dividida entre as casas OSM
 dentro dela, cada casa com sua situação; célula sem casa mapeada usa o nó de
-via mais próximo do centroide.
+via mais próximo do centroide. **Isolada** = tinha rota até abrigo seco com o
+rio baixo e perdeu pela água (conta como risco: antes essas casas sumiam da
+contagem quando o abrigo alagava); **sem rota** = nunca teve via mapeada até
+um abrigo (não conta).
 
 O slider mostra o nível em **régua** (HAND entre parênteses). A paleta separa
 urgente (escuro) de folgado (claro) também para daltônicos; no celular o
 painel começa recolhido.
 
 ## Cobertura OSM × IBGE
-`gerar_comparacao_osm_ibge.py` conta, por célula da grade estatística, as
-edificações OSM usadas como casa e compara com os domicílios (`dom`).
-Saída em `output/relatorios/comparacao_osm_ibge/`.
+Contagem, por célula da grade estatística, das edificações OSM usadas como casa
+comparadas com os domicílios (`dom`). O script que a fez
+(`gerar_comparacao_osm_ibge.py`) não está no repositório.
 
 | | Muçum | Santa Tereza |
 |---|---|---|
@@ -192,8 +217,11 @@ ficam domicílios ribeirinhos e rurais que o modelo ainda não enxerga.
   contagem de casas atingidas. Exige refazer `02_mdt_hand_mancha`.
 - **Zero da régua**: ±1 m no zero leva as casas na água de Muçum de 62 a 330.
   Calibrar com as manchas e marcas das cheias de 2023/2024.
-- Capacidade dos abrigos e dos candidatos: a demanda já sai no JSON, falta a
-  capacidade para comparar.
+- Capacidade: Muçum já compara demanda × capacidade planejada no painel; faltam
+  Santa Tereza (sem plano no repositório) e os candidatos. Os 5 alojamentos do
+  Plano de Muçum de jul/2026 que não estão em `abrigos.geojson` (Centro Pastoral,
+  EMEF Jardim Cidade Alta, EMEI Pingo de Gente, Estação Ferroviária, Brás
+  Charléo) dependem de conferir o PDF do plano.
 - A fila (`fila_cidade_*.json` + `assets/previsao_fila.js`) ainda não está nas
   páginas de previsão ao vivo: primeiro validar o painel de evacuação. Ao
   ligar, `gerar_pagina_previsao_mucum.py` (que copia a página de Santa Tereza)
@@ -204,7 +232,9 @@ ficam domicílios ribeirinhos e rurais que o modelo ainda não enxerga.
 - **Santa Tereza**: Ginásio de Esportes (geocodificado do link da Defesa Civil).
 - **Muçum**: 6 pontos de encontro oficiais do **Plano de Contingência de Muçum 2025**
   (seção 8.3): Hospital NSa Aparecida, Igreja Matriz da Purificação, Salão Cidade
-  Alta, Salão José Marcolin, Posto Sander, CTG Sentinela — com coordenadas oficiais.
+  Alta, Salão José Marcolin, Posto Sander, CTG Sentinela — com coordenadas oficiais,
+  iguais às do plano de jul/2026 (`mucum_contingencia_202607.json`). Até out/2026
+  eles não estavam no arquivo e `--cidade mucum` abortava com "Nenhum abrigo".
 
 ## Calibração régua ↔ HAND — Muçum
 
