@@ -264,8 +264,10 @@ function avisoCheia(){if(!PIOR)return '';const h=PIOR.regua_m-ZR;
   if(nc)ab.push(`${nc} de ${D.candidatos.length} locais candidatos`);
   const qual=PIOR.tipo==='referencia'?'Na cheia de referência mais alta':'Na maior cheia registrada';
   return ab.length?`<div class="aviso">${qual} (${PIOR.rotulo}, régua ${fm2(PIOR.regua_m)} m) alagariam: ${ab.join(', ')}.</div>`:'';}
-// cores com luminância bem diferente entre urgente (escuro) e folgado (claro)
-const CORES={alagada:'#1f4e9c',ilhada:'#7b3fa0',isolada:'#2b2b2b',sem_abrigo:'#6b6b6b',critica:'#9e1b1b',apertada:'#e66100',atencao:'#f6c445',confortavel:'#9fdcc4',seguro:'#d5dbd8',sem_rota:'#ffffff'};
+// cores com luminância bem diferente entre urgente (escuro) e folgado (claro); par mais
+// próximo com distância de cor >= 17 (Lab) também em deuteranopia, protanopia e tritanopia
+// (antes "já na água" e "ilhada" ficavam a 2,0 na protanopia)
+const CORES={alagada:'#1f4e9c',ilhada:'#9d4edd',isolada:'#2b2b2b',sem_abrigo:'#6b6b6b',critica:'#9e1b1b',apertada:'#e66100',atencao:'#f6c445',confortavel:'#4fb38a',seguro:'#c9cfcc',sem_rota:'#ffffff'};
 const ROT={alagada:'já na água',ilhada:'ilhada — rota já cruza água',critica:'crítica — não sai a pé a tempo',apertada:'apertada (menos de 15 min)',atencao:'atenção (menos de 1 h)',confortavel:'confortável (mais de 1 h)',seguro:'rota não alaga',isolada:'isolada — a água cortou o caminho até abrigo seco',sem_abrigo:'sem abrigo oficial seco neste nível',sem_rota:'sem rota (sem via mapeada ou sem abrigo seco)'};
 const ORDEM=['alagada','ilhada','isolada','sem_abrigo','critica','apertada','atencao','confortavel','seguro','sem_rota'];
 const URG=k=>ORDEM.indexOf(k);
