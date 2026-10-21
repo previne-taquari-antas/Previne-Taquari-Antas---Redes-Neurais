@@ -387,6 +387,23 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
     stations, series_by_code, failures = fetch_event_rain(
         candidates, upper_rain_start, end, max_workers=max_workers
     )
+    # Explain why a large event-wide station inventory can still yield sparse
+    # *simultaneous hourly* rainfall coverage. Keep counts event-scoped, not warm-up.
+    station_hourly_support = []
+    for st in stations:
+        code = str(st["code"])
+        valid = series_by_code.get(code) or {}
+        covered = sum(1 for hour in times if hour in valid)
+        if covered:
+            station_hourly_support.append({
+                "code": code,
+                "name": st.get("name") or st.get("label"),
+                "network": st.get("network"),
+                "hours_in_event": covered,
+                "coverage_ratio": round(covered / expected_hours, 6),
+                "archive_contributed": bool(st.get("archive_contributed")),
+            })
+    station_hourly_support.sort(key=lambda x: (-x["hours_in_event"], x["code"]))
     components, rain_diag = component_forcing(
         stations, series_by_code, times, active
     )
@@ -427,6 +444,12 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
         "network": {
             "candidate_station_count": len(candidates),
             "valid_rain_station_count": len(stations),
+            "stations_reporting_at_least_one_event_hour": len(station_hourly_support),
+            "stations_reporting_at_least_75pct_event_hours": sum(
+                x["coverage_ratio"] >= 0.75 for x in station_hourly_support
+            ),
+            "station_hourly_support": station_hourly_support,
+            "coverage_note": "Station count means any valid hour, not simultaneous hourly spatial density.",
             "fetch_failure_without_archive_count": len(failures),
             "failures": failures,
         },
