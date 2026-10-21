@@ -188,8 +188,10 @@ contagem quando o abrigo alagava); **sem rota** = nunca teve via mapeada até
 um abrigo (não conta).
 
 O slider mostra o nível em **régua** (HAND entre parênteses). A paleta separa
-urgente (escuro) de folgado (claro) também para daltônicos; no celular o
-painel começa recolhido.
+urgente (escuro) de folgado (claro); o par de classes mais próximo fica a
+distância de cor ≥ 17 (Lab) também em deuteranopia, protanopia e tritanopia
+(simulação de Machado et al. 2009). No celular o painel começa recolhido.
+Os painéis por grade (`*_painel_evacuacao.html`) também abrem em 90 cm/h.
 
 ## Cobertura OSM × IBGE
 Contagem, por célula da grade estatística, das edificações OSM usadas como casa
