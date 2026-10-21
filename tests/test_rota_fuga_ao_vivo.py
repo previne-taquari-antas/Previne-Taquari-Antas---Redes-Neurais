@@ -144,6 +144,8 @@ class PaginasTest(unittest.TestCase):
                 self.assertIn("cam=rotaPorTrecho(casa,", s)
                 self.assertNotIn("cam=L.polyline(cadeia(casa[CF.no],D.prox,base()),{color:'#0f8b46'", s)
                 self.assertNotIn("abrigar-se no local", s)
+                # rotas por nível têm passo de 1 m: o corte fica ENTRE dois níveis
+                self.assertIn("A água corta a rota entre ${txtNivel(hs[k-1])} e ${txtNivel(hs[k])}", s)
                 self.assertIn("40199", s)
 
     def test_fila_sem_frases_de_comando(self):
