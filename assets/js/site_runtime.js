@@ -38,5 +38,21 @@
     primary.on('tileerror',onError);
     map.on('unload',()=>primary.off('tileerror',onError));
   }
-  return {fetchResource,imageTask,installTileFallback};
+  // Commit state immediately; draw at most once per animation frame while dragging.
+  function bindRange(input, update, render, format) {
+    let frame=null;
+    function paint(){frame=null;render();}
+    input.oninput=function(){
+      update(Number(input.value));
+      if(format)input.setAttribute('aria-valuetext',format(Number(input.value)));
+      if(frame===null)frame=requestAnimationFrame(paint);
+    };
+    input.onchange=function(){
+      if(frame!==null){cancelAnimationFrame(frame);frame=null;}
+      update(Number(input.value));
+      if(format)input.setAttribute('aria-valuetext',format(Number(input.value)));
+      render();
+    };
+  }
+  return {fetchResource,imageTask,installTileFallback,bindRange};
 });

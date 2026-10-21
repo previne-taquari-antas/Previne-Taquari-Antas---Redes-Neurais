@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -52,7 +53,8 @@ def age_hours(value: Any) -> float | None:
         return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
-    return max(0.0, (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds() / 3600.0)
+    age = (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds() / 3600.0
+    return None if age < -0.1 else max(0.0, age)
 
 
 def as_float(value: Any) -> float | None:
@@ -85,6 +87,8 @@ def current_decisions(feed: dict[str, Any]) -> list[dict[str, Any]]:
             else:
                 probability_percent = as_float(item.get("probability_percent"))
                 probability = probability_percent / 100.0 if probability_percent is not None else None
+        if probability is not None and (not math.isfinite(probability) or not 0 <= probability <= 1):
+            probability = None
         probability_percent = None if probability is None else probability * 100.0
         decision = None if probability is None else ("VAI" if probability >= DECISION_THRESHOLD else "NAO_VAI")
         decisions.append(
@@ -221,6 +225,11 @@ def build(name: str, source: Path, output: Path) -> dict[str, Any]:
             "Ele não transforma o score em certeza e não substitui alerta oficial."
         ),
     }
+    if source_age is None or source_age > 36:
+        payload["last_source_decisions"] = payload["decisions"]
+        payload["decisions"] = [dict(row, probability=None, probability_percent=None,
+            decision=None, decision_label="UNKNOWN", unavailable_reason="SOURCE_NOT_CURRENT")
+            for row in payload["decisions"]]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return payload

@@ -1175,8 +1175,8 @@ async function init(){
     stationLabel:'Muçum',
     onLayout:()=>{if(map)setTimeout(()=>map.invalidateSize(),50);}
   });
-  document.getElementById('time').oninput=e=>{tIdx=+e.target.value; renderFrame();};
-  document.getElementById('bankfull').oninput=e=>{bankfull=+e.target.value; calibByEvent[curEv]=bankfull; set('bfval',(bankfull/100).toFixed(1)+' m'); set('bfevent',(bankfull/100).toFixed(1)+' m (ajustado)'); renderFrame();};
+  PrevineSiteRuntime.bindRange(document.getElementById('time'),value=>{tIdx=value;},renderFrame);
+  PrevineSiteRuntime.bindRange(document.getElementById('bankfull'),value=>{bankfull=value; calibByEvent[curEv]=bankfull; set('bfval',(bankfull/100).toFixed(1)+' m'); set('bfevent',(bankfull/100).toFixed(1)+' m (ajustado)');},renderFrame,value=>(value/100).toFixed(1).replace('.',',')+' m');
   document.getElementById('play').onclick=()=>{playing=!playing; document.getElementById('play').textContent=playing?'⏸':'▶'; if(playing)tick(); else clearTimeout(timer);};
   document.getElementById('hydro').addEventListener('click',e=>{const E=EVENTS[curEv]; if(E.series.length<2)return;
     const r=e.currentTarget.getBoundingClientRect(), sx=(e.clientX-r.left)/r.width*320;

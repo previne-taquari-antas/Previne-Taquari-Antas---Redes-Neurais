@@ -1,0 +1,37 @@
+name: Site feed freshness
+on:
+  schedule:
+    - cron: '19,49 * * * *'
+  workflow_dispatch:
+  push:
+    paths: ['scripts/audit_site_feeds.py', '.github/workflows/site-feed-health.yml']
+permissions:
+  contents: read
+concurrency:
+  group: site-feed-health
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          filter: blob:none
+          sparse-checkout: |
+            scripts/audit_site_feeds.py
+            previsao_ao_vivo.json
+            previsao_ao_vivo_mucum.json
+            assets/data/research_*_latest.json
+          sparse-checkout-cone-mode: false
+      - name: Check source timestamps
+        run: |
+          set -o pipefail
+          python scripts/audit_site_feeds.py --output /tmp/site-feed-health.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: site-feed-health
+          path: /tmp/site-feed-health.json
+          retention-days: 14

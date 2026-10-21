@@ -15,6 +15,7 @@ on:
       - "scripts/test_live_feed.js"
       - "scripts/test_ai_lab.js"
       - "scripts/test_research_patterns.js"
+      - "scripts/test_range_controls.js"
       - "scripts/test_public_forecast.js"
       - "index.html"
       - "projeto.html"
@@ -187,6 +188,7 @@ jobs:
           node scripts/test_live_feed.js
           node scripts/test_ai_lab.js
           node scripts/test_research_patterns.js
+          node scripts/test_range_controls.js
           node scripts/test_public_forecast.js
           node scripts/test_site_recovery.js
           node scripts/test_fmt_quando.js
@@ -233,7 +235,7 @@ jobs:
                 mkdir -p "_site/$(dirname "$file")"
                 cp -p -- "$file" "_site/$file"
                 ;;
-              .github/*|scripts/*|*.tif|*.py|*.md|*.yml|*.yaml|Gemfile|Gemfile.lock)
+              .github/*|scripts/*|tests/*|docs/*|*.tif|*.py|*.md|*.yml|*.yaml|Gemfile|Gemfile.lock)
                 continue
                 ;;
               *.mat)
