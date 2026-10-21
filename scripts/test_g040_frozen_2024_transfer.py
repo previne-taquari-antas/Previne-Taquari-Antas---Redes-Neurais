@@ -83,6 +83,38 @@ class TestFrozenTransfer(unittest.TestCase):
         row["simulation_times_utc"]["hours"]=72
         self.assertTrue(mod.score_quality(row,inputs,cfg)["research_evidence_quality_adequate"])
 
+    def test_data_quality_and_hydrological_skill_are_separate(self):
+        spec=spec_from_file_location("frozen_transfer_skill",SCRIPT)
+        mod=module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cfg=json.loads(CFG.read_text(encoding="utf-8"))
+        row={
+            "compute_ok":True,
+            "mucum":{"pairs":312,"nse":0.82,"kge":0.82,
+                     "pbias_pct":-0.4,"peak_error_pct":23.8,
+                     "peak_timing_error_h":-3.0,
+                     "observed_coverage_ratio":1.0,
+                     "max_observed_gap_hours":0},
+            "fraction_full_event_simulated":1.0,
+            "recorded_event_crest_inside_simulated_window":True,
+            "simulation_times_utc":{"hours":312},
+        }
+        inputs={"input_provenance":{"median_spatial_reporting_rain_gauges":43}}
+        evidence=mod.score_quality(row,inputs,cfg)
+        skill=mod.retrospective_skill(row)
+        self.assertTrue(evidence["research_evidence_quality_adequate"])
+        self.assertFalse(skill["meets_all_descriptive_skill_criteria"])
+        self.assertFalse(skill["checks"]["absolute_peak_error_at_most_20_pct"])
+        self.assertFalse(skill["operational_forecast_validated"])
+        self.assertFalse(skill["selection_or_retuning_using_2024"])
+        row["mucum"]["peak_error_pct"]=5.0
+        row["mucum"]["pbias_pct"]=-24.66
+        self.assertFalse(mod.retrospective_skill(row)["meets_all_descriptive_skill_criteria"])
+        row["mucum"]["pbias_pct"]=-5.0
+        self.assertTrue(mod.retrospective_skill(row)["meets_all_descriptive_skill_criteria"])
+        row["mucum"]["peak_timing_error_h"]=None
+        self.assertFalse(mod.retrospective_skill(row)["meets_all_descriptive_skill_criteria"])
+
     def test_deployment_forbidden_and_weather_not_forecast(self):
         text=SCRIPT.read_text(encoding="utf-8")
         self.assertIn('"--score-hydro-file"',text)
