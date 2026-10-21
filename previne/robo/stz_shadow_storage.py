@@ -54,19 +54,28 @@ def validate(history):
                 raise ValueError('Erro nao reconcilia com observacao')
     return history
 
+def day(p):
+    # Particao pelo dia de emissao: a concatenacao diaria preserva a ordem de insercao.
+    # Era por mes; o arquivo do mes do usuario passava de 15 MB e era regravado a cada ciclo.
+    return p['emitida_em'][:10]
+
 def month(p):
-    # Particao pelo mes de emissao: a concatenacao mensal preserva a ordem de insercao.
+    # Formato antigo (YYYY-MM.json), lido e migrado para particoes diarias.
     return p['emitida_em'][:7]
 
+def partition_field(name):
+    return 'dia' if len(name)==10 else 'mes'
+
 def validate_partition(name,part):
+    field=partition_field(name);of=day if field=='dia' else month
     if (not isinstance(part,dict) or part.get('schema_version')!=PARTITION_SCHEMA or part.get('shadow_only') is not True
-            or part.get('mes')!=name or not isinstance(part.get('registros'),list) or not part['registros']):
-        raise ValueError(f'Particao mensal invalida: {name}')
-    if any(month(p)!=name for p in part['registros']):raise ValueError(f'Registro fora da particao {name}')
+            or part.get(field)!=name or not isinstance(part.get('registros'),list) or not part['registros']):
+        raise ValueError(f'Particao invalida: {name}')
+    if any(of(p)!=name for p in part['registros']):raise ValueError(f'Registro fora da particao {name}')
     return part
 
 def combine(legacy,partitions):
-    """Historico unico em memoria: arquivo legado (se ainda existir) seguido das particoes mensais."""
+    """Historico unico em memoria: arquivo legado (se ainda existir) seguido das particoes (mensais antigas, depois diarias)."""
     if legacy is None and not partitions:raise FileNotFoundError('Historico de sombra ausente; nao reinicializar')
     history={'schema_version':SCHEMA,'shadow_only':True,'registros':[]}
     if legacy is not None:
@@ -84,7 +93,9 @@ def combine(legacy,partitions):
 
 def partition_files(path):
     path=Path(path)
-    return sorted(path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json')) if path.is_dir() else []
+    if not path.is_dir():return []
+    return sorted([*path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json'),
+                   *path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json')],key=lambda f:f.stem)
 
 def load(path,legacy=None):
     # Estes arquivos ja foram inicializados e versionados na ativacao.
@@ -95,7 +106,7 @@ def load(path,legacy=None):
     return combine(old,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])
 
 def render_partition(name,rows,updated):
-    head=json.dumps({'schema_version':PARTITION_SCHEMA,'shadow_only':True,'mes':name,'atualizado_em':updated},ensure_ascii=False)[:-1]
+    head=json.dumps({'schema_version':PARTITION_SCHEMA,'shadow_only':True,partition_field(name):name,'atualizado_em':updated},ensure_ascii=False)[:-1]
     lines=',\n'.join(json.dumps(p,ensure_ascii=False,allow_nan=False,separators=(',',':')) for p in rows)
     return head+',"registros":[\n'+lines+'\n]}\n'
 
@@ -115,8 +126,10 @@ def save(path,before,after,legacy=None):
     if path.suffix=='.json':
         C.write(path,after);return [path]
     groups={}
-    for p in after['registros']:groups.setdefault(month(p),[]).append(p)
-    stale={f.stem for f in partition_files(path)}-set(groups)
+    for p in after['registros']:groups.setdefault(day(p),[]).append(p)
+    existing={f.stem for f in partition_files(path)}
+    monthly={n for n in existing if partition_field(n)=='mes'}
+    stale=existing-monthly-set(groups)
     if stale:raise ValueError('Particao existente sem registros no novo historico: '+', '.join(sorted(stale)))
     path.mkdir(parents=True,exist_ok=True)
     for name,rows in sorted(groups.items()):
@@ -124,10 +137,13 @@ def save(path,before,after,legacy=None):
         if target.exists() and json.loads(target.read_text(encoding='utf-8')).get('registros')==rows:continue
         tmp=target.with_suffix('.json.tmp')
         tmp.write_text(render_partition(name,rows,after.get('atualizado_em')),encoding='utf-8');tmp.replace(target)
-    if legacy and Path(legacy).exists():
-        if combine(None,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])['registros']!=after['registros']:
-            raise ValueError('Particoes gravadas nao reproduzem o historico; legado mantido')
-        Path(legacy).unlink()
+    if monthly or (legacy and Path(legacy).exists()):
+        # Migracao: o legado e as particoes mensais so saem quando as diarias reproduzem o historico.
+        daily=[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path) if partition_field(f.stem)=='dia']
+        if combine(None,daily)['registros']!=after['registros']:
+            raise ValueError('Particoes diarias nao reproduzem o historico; legado/mensais mantidos')
+        for name in monthly:(path/f'{name}.json').unlink()
+        if legacy and Path(legacy).exists():Path(legacy).unlink()
     return partition_files(path)
 
 def runtime_versions():

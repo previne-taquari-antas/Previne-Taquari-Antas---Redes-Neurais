@@ -202,28 +202,43 @@ class StorageTest(unittest.TestCase):
                              nivel_previsto_cm=430+i,origem='emissao_prospectiva',observado_cm=None))
         return {'schema_version':S.SCHEMA,'shadow_only':True,'registros':rows,'atualizado_em':'2026-11-01T01:17:00'}
 
-    def test_legacy_history_migrates_to_monthly_partitions_in_insertion_order(self):
+    def test_legacy_history_migrates_to_daily_partitions_in_insertion_order(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);legacy=root/'historico.json';parts=root/'hist'
             hist=self.multi_month_history();C.write(legacy,hist)
             before=S.load(parts,legacy);self.assertEqual(before,hist)
             files=S.save(parts,before,before,legacy)
-            self.assertEqual([f.name for f in files],['2026-10.json','2026-11.json'])
+            self.assertEqual([f.name for f in files],['2026-10-31.json','2026-11-01.json'])
             self.assertFalse(legacy.exists())
             self.assertEqual(S.load(parts,legacy)['registros'],hist['registros'])
-            lines=(parts/'2026-11.json').read_text(encoding='utf-8').splitlines()
+            lines=(parts/'2026-11-01.json').read_text(encoding='utf-8').splitlines()
             self.assertEqual(len(lines),4)  # cabecalho, dois registros, fechamento
             with self.assertRaises(FileNotFoundError):S.load(root/'vazio',root/'nao_existe.json')
 
-    def test_partitions_never_drop_months_or_records(self):
+    def test_partitions_never_drop_days_or_records(self):
         with tempfile.TemporaryDirectory() as d:
             parts=Path(d)/'hist';hist=self.multi_month_history()
             S.save(parts,hist,hist)
             fewer=copy.deepcopy(hist);fewer['registros']=fewer['registros'][1:]
             with self.assertRaises(ValueError):S.save(parts,hist,fewer)
             moved=copy.deepcopy(hist);moved['registros'][0]['emitida_em']='2026-11-01T00:00:00'
-            (parts/'2026-10.json').write_text(S.render_partition('2026-10',moved['registros'][:1],'x'),encoding='utf-8')
+            (parts/'2026-10-31.json').write_text(S.render_partition('2026-10-31',moved['registros'][:1],'x'),encoding='utf-8')
             with self.assertRaises(ValueError):S.load(parts)
+
+    def test_monthly_partitions_migrate_to_daily_without_losing_records(self):
+        with tempfile.TemporaryDirectory() as d:
+            parts=Path(d)/'hist';parts.mkdir();hist=self.multi_month_history()
+            # formato antigo: um arquivo por mes
+            for name in ('2026-10','2026-11'):
+                rows=[p for p in hist['registros'] if p['emitida_em'][:7]==name]
+                (parts/f'{name}.json').write_text(S.render_partition(name,rows,hist['atualizado_em']),encoding='utf-8')
+            before=S.load(parts);self.assertEqual(before['registros'],hist['registros'])
+            files=S.save(parts,before,before)
+            self.assertEqual([f.name for f in files],['2026-10-31.json','2026-11-01.json'])
+            self.assertEqual(S.load(parts)['registros'],hist['registros'])
+            # particao diaria apagada depois da migracao: o historico encolhe e salvar falha fechado
+            (parts/'2026-10-31.json').unlink()
+            with self.assertRaises(ValueError):S.save(parts,before,S.load(parts))
 
     def test_publication_validator_reads_committed_partitions_after_migration(self):
         import subprocess
