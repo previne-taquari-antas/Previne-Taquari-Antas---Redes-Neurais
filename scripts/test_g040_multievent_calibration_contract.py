@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import json
 import unittest
+from datetime import datetime, timedelta
+from importlib.util import spec_from_file_location, module_from_spec
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +28,49 @@ class TestG040MultieventCalibrationContract(unittest.TestCase):
         self.assertIn("missing remains missing; never zero-filled", src)
         self.assertIn("E22_SEP2023", src)
         self.assertIn("E24_NOV2023", src)
+
+    def test_station_audit_counts_only_unique_event_hours(self):
+        script = ROOT / "scripts/build_g040_historical_calibration_forcing.py"
+        spec = spec_from_file_location("historical_rain_station_audit", script)
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        t0 = datetime(2024, 6, 15)
+        hours = [t0 + timedelta(hours=i) for i in range(3)]
+        warmup = t0 - timedelta(days=1)
+        candidates = {
+            "A": {"code": "A", "name": "Station A", "network": "ANA"},
+            "B": {"code": "B", "name": "Station B", "network": "CEMADEN"},
+            "C": {"code": "C", "name": "Station C", "network": "INMET"},
+        }
+        stations = [
+            {**candidates["A"], "archive_contributed": True},
+            {**candidates["B"], "archive_contributed": True},
+        ]
+        series = {"A": {warmup: 9.0, hours[0]: 0.0, hours[2]: 4.0},
+                  "B": {warmup: 3.0}}
+        audit = mod.summarize_event_station_support(candidates, stations, series, hours)
+        self.assertEqual(audit["candidate_station_count"], 3)
+        self.assertEqual(audit["stations_reporting_at_least_one_event_hour"], 1)
+        self.assertEqual(audit["reporting_stations_by_network"], {"ANA": 1})
+        self.assertEqual(audit["station_hourly_support"][0]["hours_in_event"], 2)
+        self.assertEqual(audit["candidate_codes_without_any_event_hour"], ["B", "C"])
+        self.assertEqual(audit["stations_reporting_at_least_75pct_event_hours"], 0)
+
+    def test_entirely_missing_rain_hours_count_as_spatially_sparse(self):
+        script = ROOT / "scripts/build_g040_historical_calibration_forcing.py"
+        spec = spec_from_file_location("historical_rain_missing_hours", script)
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        t0 = datetime(2024, 6, 15)
+        hours = [t0 + timedelta(hours=i) for i in range(3)]
+        from unittest.mock import patch
+        support = [{"component_id": "G040_TEST", "local_area_km2": 1.0}]
+        with patch.object(mod, "read_support", return_value=support):
+            components, diag = mod.component_forcing([], {}, hours, [])
+        self.assertEqual(diag["hours_with_fewer_than_4_stations"], 3)
+        self.assertEqual(diag["hours_without_any_station"], 3)
+        self.assertEqual(diag["hours_with_any_station"], 0)
+        self.assertEqual(components[0]["available_hours"], 0)
 
     def test_calibrator_uses_only_calibration_events_for_selection(self):
         src = (
