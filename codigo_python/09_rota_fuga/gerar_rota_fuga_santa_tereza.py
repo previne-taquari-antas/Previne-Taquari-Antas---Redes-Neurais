@@ -351,7 +351,7 @@ def main():
     ao_vivo = args.cenario == "ao_vivo"
     tele = nivel_ao_vivo.para_brt(tele_em) if ao_vivo else None
     idade = nivel_ao_vivo.idade_min(tele_em) if ao_vivo else None
-    nivel_txt = (f"{nivel_cm/100:.2f} m" if nivel_cm is not None else "sem telemetria")
+    nivel_txt = (f"{nivel_cm/100:.2f} m".replace(".", ",") if nivel_cm is not None else "sem telemetria")
     meta = {
         "gerado_em": nivel_ao_vivo.agora().strftime("%Y-%m-%d %H:%M"),
         "fuso": "America/Sao_Paulo",

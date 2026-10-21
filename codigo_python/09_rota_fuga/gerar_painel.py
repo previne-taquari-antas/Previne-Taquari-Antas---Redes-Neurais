@@ -367,7 +367,7 @@ function rotaPorTrecho(casa,op){const g=L.featureGroup();let molhado=!!casa[CF.n
 // nível em que a água corta a rota até o abrigo oficial (rotas por nível)
 function txtCorte(casa){const ci=D.casas.indexOf(casa),hs=NV.hand_m;
   for(let k=0;k<hs.length;k++)if(NV.casa_agua_m[k][ci]>0)
-    return k>0?` A partir de ${txtNivel(hs[k])} a rota é cortada pela água: <b>sair antes de ${txtNivel(hs[k-1])}</b>.`:' A rota já é cortada pela água com o rio baixo.';
+    return k>0?` A água corta a rota entre ${txtNivel(hs[k-1])} e ${txtNivel(hs[k])}: <b>sair antes de ${txtNivel(hs[k-1])}</b>.`:' A rota já é cortada pela água com o rio baixo.';
   return '';}
 map.on('click',e=>{if(modo!=='rotas')return;
   const la=e.latlng.lat,lo=e.latlng.lng;let casa=null,bc=1e18;
