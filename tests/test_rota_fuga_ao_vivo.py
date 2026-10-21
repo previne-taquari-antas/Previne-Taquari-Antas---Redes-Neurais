@@ -6,6 +6,8 @@ Sem LiDAR nem OSM. Cobrem os erros achados na revisão de out/2026:
   - hora sem fuso lida como hora do runner (UTC): idade do dado +180 min;
   - nível atual ausente virando 0 m (rio "seco" que sobe até a previsão);
   - Muçum grava [hora, modelo, agora, previsto] e o índice 2 é o nível de agora;
+  - leitura rejeitada caindo para o nível de base do modelo, sem hora;
+  - previsto contado da hora da leitura e não da hora do modelo (margem a mais);
   - ponto seguro placeholder a ~670 m do Ginásio de Esportes;
   - rota desenhada toda em verde mesmo atravessando água;
   - frases de comando ("SAIR AGORA", "Ninguém precisa sair agora") na fila.
@@ -67,24 +69,44 @@ class NivelAoVivoTest(unittest.TestCase):
         self.assertIsNone(nv.idade_min("ontem", self.ref))
 
     def test_nivel_ausente_nao_vira_zero(self):
+        em = "2026-10-20T19:45:00"
         self.assertIsNone(nv.nivel_atual_cm({}))
-        self.assertIsNone(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": None}))
-        self.assertEqual(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": 0}), 0.0)
-        self.assertEqual(nv.nivel_atual_cm({"nivel_atual_cm": 186}), 186.0)
+        self.assertIsNone(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": None, "telemetria_ultima_em": em}))
+        self.assertEqual(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": 0, "telemetria_ultima_em": em}), 0.0)
+
+    def test_leitura_rejeitada_nao_usa_nivel_do_modelo(self):
+        # o robô de previsão zera a leitura e a hora, mas preenche nivel_atual_cm com o modelo
+        self.assertIsNone(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": None,
+                                             "telemetria_ultima_em": None, "nivel_atual_cm": 186}))
+        self.assertIsNone(nv.nivel_atual_cm({"telemetria_ultima_nivel_cm": 202, "telemetria_ultima_em": None}))
 
     def test_previsto_santa_tereza(self):
-        d = {"horizontes": {"2h": {"disponivel": True, "nivel_previsto_cm": 313,
+        # leitura 19:45, modelo das 19:00: 2h vale para 21:00 (75 min), 4h para 23:00 (195 min)
+        d = {"telemetria_ultima_em": "2026-10-20T19:45:00",
+             "horizontes": {"2h": {"disponivel": True, "nivel_previsto_cm": 313, "hora_modelo": "2026-10-20T19:00:00",
                                    "passos": [["2026-10-20T19:00:00", 202, 313]]},
                             "4h": {"disponivel": True, "passos": [["2026-10-20T19:00:00", 202, 433]]}}}
-        self.assertEqual(nv.previstos_cm(d), [("2h", 120, 313.0), ("4h", 240, 433.0)])
+        self.assertEqual(nv.previstos_cm(d), [("2h", 75, 313.0), ("4h", 195, 433.0)])
 
     def test_previsto_mucum_nao_le_o_nivel_de_agora(self):
-        # formato de Muçum: [hora, modelo, nível agora, previsto]
-        d = {"horizontes": {"4h": {"disponivel": True, "nivel_previsto_cm": 344,
+        # formato de Muçum: [hora, modelo, nível agora, previsto]; leitura 20:15, 4h vale para 00:00
+        d = {"telemetria_ultima_em": "2026-10-20T20:15:00",
+             "horizontes": {"4h": {"disponivel": True, "nivel_previsto_cm": 344, "hora_modelo": "2026-10-20T20:00:00",
                                    "passos": [["2026-10-20T20:00:00", 173, 171, 344]]}}}
-        self.assertEqual(nv.previstos_cm(d), [("4h", 240, 344.0)])
+        self.assertEqual(nv.previstos_cm(d), [("4h", 225, 344.0)])
         d["horizontes"]["4h"].pop("nivel_previsto_cm")
-        self.assertEqual(nv.previstos_cm(d), [("4h", 240, 344.0)])
+        self.assertEqual(nv.previstos_cm(d), [("4h", 225, 344.0)])
+
+    def test_previsto_ja_vencido_fica_de_fora(self):
+        # modelo das 17:00, leitura 19:45: o 2h (19:00) já passou; o 4h (21:00) fica
+        d = {"telemetria_ultima_em": "2026-10-20T19:45:00",
+             "horizontes": {"2h": {"disponivel": True, "passos": [["2026-10-20T17:00:00", 150, 260]]},
+                            "4h": {"disponivel": True, "passos": [["2026-10-20T17:00:00", 150, 300]]}}}
+        self.assertEqual(nv.previstos_cm(d), [("4h", 75, 300.0)])
+
+    def test_sem_hora_usa_o_horizonte(self):
+        d = {"horizontes": {"2h": {"disponivel": True, "passos": [["x", 202, 313]]}}}
+        self.assertEqual(nv.previstos_cm(d), [("2h", 120, 313.0)])
 
     def test_horizonte_indisponivel_fica_fora(self):
         d = {"horizontes": {"2h": {"disponivel": False, "nivel_previsto_cm": 900},
@@ -110,20 +132,33 @@ class Etapa1Test(unittest.TestCase):
             os.unlink(f.name)
 
     def test_sem_nivel_atual_nao_publica(self):
-        pts, _rot, nivel, _em = self.trajetoria({
-            "telemetria_ultima_nivel_cm": None, "telemetria_ultima_em": "2026-10-20T19:45:00",
-            "horizontes": {"2h": {"disponivel": True, "passos": [["x", 202, 265]]}}})
-        self.assertIsNone(pts)
-        self.assertIsNone(nivel)
+        for prev in ({"telemetria_ultima_nivel_cm": None, "telemetria_ultima_em": "2026-10-20T19:45:00"},
+                     {"telemetria_ultima_nivel_cm": None, "telemetria_ultima_em": None, "nivel_atual_cm": 186}):
+            prev["horizontes"] = {"2h": {"disponivel": True, "passos": [["x", 202, 265]]}}
+            pts, _rot, nivel, _em = self.trajetoria(prev)
+            with self.subTest(previsao=prev):
+                self.assertIsNone(pts)
+                self.assertIsNone(nivel)
 
     def test_trajetoria_parte_do_nivel_atual(self):
         pts, _rot, nivel, em = self.trajetoria({
             "telemetria_ultima_nivel_cm": 202, "telemetria_ultima_em": "2026-10-20T19:45:00",
-            "horizontes": {"2h": {"disponivel": True, "passos": [["x", 202, 313]]},
-                           "4h": {"disponivel": True, "passos": [["x", 202, 433]]}}})
-        self.assertEqual(pts[:3], [(0, 2.02), (120, 3.13), (240, 4.33)])
+            "horizontes": {"2h": {"disponivel": True, "passos": [["2026-10-20T19:00:00", 202, 313]]},
+                           "4h": {"disponivel": True, "passos": [["2026-10-20T19:00:00", 202, 433]]}}})
+        self.assertEqual(pts[:3], [(0, 2.02), (75, 3.13), (195, 4.33)])
         self.assertEqual(nivel, 202.0)
         self.assertEqual(em, "2026-10-20T19:45:00")
+
+    def test_mudar_o_template_republica(self):
+        meta = {"gerado_em": "2026-10-21 10:00", "template": self.mod.hashlib.sha1(
+            self.mod._TEMPLATE.encode("utf-8")).hexdigest()[:12], "nivel_txt": "2,02 m"}
+        quadras = [{"lat": -29.17, "lon": -51.73, "classe": "alagada"}]
+        with tempfile.TemporaryDirectory() as tmp:
+            j = os.path.join(tmp, "rota.json")
+            self.mod.escreve_json(quadras, meta, j)
+            self.assertTrue(self.mod.mesmo_conteudo(j, quadras, dict(meta, gerado_em="2026-10-21 10:05")))
+            self.assertFalse(self.mod.mesmo_conteudo(j, quadras, dict(meta, template="outro")))
+            self.assertFalse(self.mod.mesmo_conteudo(j, quadras, dict(meta, nivel_txt="2,10 m")))
 
     def test_ponto_seguro_e_o_do_geojson(self):
         abrigos = json.load(open(RAIZ / "assets/data/servicos/abrigos.geojson", encoding="utf-8"))
