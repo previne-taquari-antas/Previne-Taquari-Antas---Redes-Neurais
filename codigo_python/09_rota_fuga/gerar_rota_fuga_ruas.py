@@ -50,7 +50,7 @@ Uso:
   python codigo_python/09_rota_fuga/gerar_rota_fuga_ruas.py --cidade mucum --fonte live
   python codigo_python/09_rota_fuga/gerar_rota_fuga_ruas.py --cidade mucum --fonte cenario
 """
-import os, json, math, time, argparse, datetime as dt
+import os, sys, json, math, time, argparse
 import urllib.request, urllib.parse
 import numpy as np
 import networkx as nx
@@ -59,6 +59,9 @@ from rasterio.features import shapes
 from shapely.geometry import shape, Point, LineString, Polygon, GeometryCollection
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import nivel_ao_vivo  # noqa: E402
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ABRIGOS = os.path.join(RAIZ, "assets", "data", "servicos", "abrigos.geojson")
@@ -97,7 +100,7 @@ NIVEL_MAX_M = 25.0
 PASSO_PERFIL_M = 4.0
 NIVEIS_ROTA_M = [float(n) for n in range(0, int(NIVEL_MAX_M) + 1)]
 AGUA_ILHADA_M = 0.0         # casa seca cuja rota cruza qualquer agua fica "ilhada" (mesma regra do painel)
-TELEMETRIA_VELHA_MIN = 180
+TELEMETRIA_VELHA_MIN = nivel_ao_vivo.TELEMETRIA_VELHA_MIN
 
 TEMPO_MAX_MIN = 30.0
 CAND_FOLGA_COTA_M = 2.0     # candidato so alaga pelo menos 2 m acima do nivel de projeto
@@ -124,6 +127,7 @@ CIDADES = {
         # por isso a cota de alagamento sai dos contornos e não do mosaico 2 m.
         "zero_regua_m": 1.6, "nivel_padrao": 13.4, "cenario_regua_cm": 1500.0,
         "cota_de_contornos": True,
+        "fonte_mancha": "HAND LiDAR de campo (contornos_mancha.json, 0-25 m, rasterizados por gerar_cota_alaga.py)",
         "alarmes_regua_m": {"inundacao": 15.0},
         "html": os.path.join(RAIZ, "santa_tereza_rota_fuga_ruas{suf}.html"),
     },
@@ -138,6 +142,7 @@ CIDADES = {
         # régua 86510000 = cota de atenção do Plano de Contingência. HAND 0
         # quando o rio deixa a calha. Definitivo ainda depende do RN SGB/ANA.
         "zero_regua_m": 5.0, "nivel_padrao": 8.0, "cenario_regua_cm": 1800.0,
+        "fonte_mancha": "HAND do mosaico MDT 2 m (gerar_cota_alaga.py, 0-25 m)",
         "alarmes_regua_m": {"atencao": 5.0, "alerta": 10.0, "inundacao": 18.0},
         "html": os.path.join(RAIZ, "mucum_rota_fuga_ruas{suf}.html"),
     },
@@ -165,13 +170,6 @@ def caminhos_saida(cfg, fonte):
             cfg["html"].format(suf=suf))
 
 
-def _idade_min(iso):
-    try:
-        return round((dt.datetime.now() - dt.datetime.fromisoformat(iso)).total_seconds() / 60.0)
-    except (TypeError, ValueError):
-        return None
-
-
 def nivel_de_projeto(cfg, fonte, nivel_fixo):
     """Devolve (hand_m, meta) do nivel de inundacao a evitar."""
     z = cfg["zero_regua_m"]
@@ -187,15 +185,12 @@ def nivel_de_projeto(cfg, fonte, nivel_fixo):
         return regua/100.0 - z, {"fonte": "cenario", "rotulo": rotulo,
                                  "nivel_regua_cm": regua, **extra}
     d = json.load(open(cfg["forecast"], encoding="utf-8"))
-    atual = d.get("telemetria_ultima_nivel_cm") or d.get("nivel_atual_cm") or 0
-    niveis = [atual]
-    for hk in ("2h", "4h"):
-        hv = (d.get("horizontes") or {}).get(hk) or {}
-        if hv.get("disponivel") is False:
-            continue
-        niveis += [p[2] for p in hv.get("passos") or [] if len(p) > 2 and p[2] is not None]
+    atual = nivel_ao_vivo.nivel_atual_cm(d)
+    if atual is None:
+        raise SystemExit(f"{cfg['slug']}: previsão sem nível atual do rio — rota ao vivo não gerada")
+    niveis = [atual] + [cm for _hk, _min, cm in nivel_ao_vivo.previstos_cm(d)]
     pico_cm = max(niveis); hand = pico_cm/100.0 - z
-    idade = _idade_min(d.get("telemetria_ultima_em"))
+    idade = nivel_ao_vivo.idade_min(d.get("telemetria_ultima_em"))
     return hand, {"fonte": "live", "rotulo": "previsão ao vivo (RNA 2h/4h)",
                   "nivel_atual_cm": atual, "nivel_pico_cm": pico_cm,
                   "telemetria_em": d.get("telemetria_ultima_em"), "idade_telemetria_min": idade,
@@ -906,8 +901,9 @@ def main():
     tm = sorted(c[9] for c in casas if c[8] and c[9] is not None)
     td = sorted(c[12] for c in casas if c[8] and c[12] is not None)
     if tm:
+        direta = f"direta pela agua mediana {td[len(td)//2]/60:.0f} min; " if td else ""
         print(f"  na mancha: rota evitando agua mediana {tm[len(tm)//2]/60:.0f} min, max {tm[-1]/60:.0f} min; "
-              f"direta pela agua mediana {td[len(td)//2]/60:.0f} min; {n_exc} acima de {args.tempo_max:.0f} min")
+              f"{direta}{n_exc} acima de {args.tempo_max:.0f} min")
     for cd in candidatos:
         dm = demanda.get(cd["id"], {})
         print(f"  {cd['id']} (cobre {cd['n_cobre']}): {cd['n_casas']} casas {cd['motivos']}, pior "
@@ -959,7 +955,7 @@ def main():
         "meta": {"municipio": cfg["municipio"], "nivel_projeto_m": round(nivel, 2), "nivel_mancha_m": nn,
                  "nivel_acima_do_mapeado": acima, "nivel_max_mapeado_m": NIVEL_MAX_M,
                  "penal_agua": PENAL_AGUA,
-                 "gerado_em": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                 "gerado_em": nivel_ao_vivo.agora().strftime("%Y-%m-%d %H:%M"),
                  "n_nos": len(nos), "n_arestas": len(EDGES), "n_casas": len(casas),
                  "n_casas_mancha": n_mancha, "n_casas_sem_rota": n_sem,
                  "n_casas_excede": n_exc, "n_casas_excede_com_candidatos": restantes,
@@ -978,7 +974,7 @@ def main():
                  "referencia_metodo": "Gandra Franco (2026), doi:10.5281/zenodo.20402230",
                  "fonte_rede": "© OpenStreetMap contributors (ODbL), vias a pé",
                  "fonte_casas": "© OpenStreetMap contributors (ODbL), building",
-                 "fonte_mancha": "HAND mosaico 2m (contornos_mancha.json até 15 m; raster acima)"},
+                 "fonte_mancha": cfg["fonte_mancha"]},
         "abrigos": [{"id": a["id"], "nome": a["nome"], "lat": round(a["lat"], 6), "lon": round(a["lon"], 6),
                      "node": idx.get(a["node"], -1), "snap_m": a["snap_m"],
                      "cota_alaga_m": _num(a["cota_alaga"], 1), "demanda": demanda.get(a["id"])} for a in abrigos],

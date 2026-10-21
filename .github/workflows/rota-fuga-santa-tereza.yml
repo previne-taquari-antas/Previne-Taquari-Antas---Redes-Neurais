@@ -34,6 +34,7 @@ jobs:
     # publicacao; agendamento e disparo manual continuam permitidos.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     concurrency:
       group: rota-fuga-santa-tereza
       # O mapa deve terminar a rodada atual mesmo quando outra atualizacao

@@ -11,7 +11,8 @@ GitHub Actions):
      em que ela começa a alagar é  ZERO_REGUA + HAND.
   2. PREVISÃO -> previsao_ao_vivo.json (nível atual + trajetória da RNA de 2h/4h).
      Cruzando a trajetória com a cota da célula sai o TEMPO ATÉ A ÁGUA CHEGAR.
-  3. FUGA     -> tempo de caminhada até o ponto seguro (ginásio), em linha reta
+  3. FUGA     -> tempo de caminhada até o Ginásio de Esportes (ponto de encontro
+     da Defesa Civil em assets/data/servicos/abrigos.geojson), em linha reta
      com fator de desvio, na velocidade de um idoso (a maioria da população).
 
   margem = tempo_ate_a_agua − tempo_de_caminhada
@@ -31,18 +32,23 @@ Uso:
 import os
 import re
 import io
+import sys
 import json
 import base64
+import hashlib
 import argparse
-import datetime as dt
 from math import radians, cos, sin, asin, sqrt
 
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import nivel_ao_vivo  # noqa: E402
+
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PAGINA_HAND = os.path.join(RAIZ, "santa_tereza_previsao_inundacao.html")
 FORECAST = os.path.join(RAIZ, "previsao_ao_vivo.json")
+ABRIGOS = os.path.join(RAIZ, "assets", "data", "servicos", "abrigos.geojson")
 
 
 def caminhos_saida(cenario):
@@ -55,21 +61,25 @@ def caminhos_saida(cenario):
 # ------------------------------------------------------------------ parâmetros
 ZERO_REGUA_M = 1.60         # calibração de campo: 1,60 m na régua = HAND 0
 BLOCO_M = 30.0              # tamanho da "quadra" na Etapa 1
-HAND_MAX_HABITAVEL = 12.0   # ignora encostas altas (não é área urbana de risco)
+HAND_MAX_HABITAVEL = 25.0   # topo do HAND LiDAR; quadra que a previsão não alcança já fica fora do mapa
 VEL_IDOSO_MS = 0.9          # caminhada de idoso/criança (m/s) — conservador
 VEL_ADULTO_MS = 1.3         # caminhada adulto (m/s), para comparação
 FATOR_DESVIO = 1.4          # linha reta -> caminho real (Etapa 1; ruas entram depois)
 HORIZONTE_MIN = 360         # projeta a trajetória por até 6 h à frente
 
-# >>> PONTO SEGURO — A CONFIRMAR COM A DEFESA CIVIL <<<
-# Placeholder no Centro (Av. Itália, 474 é a Prefeitura). NÃO é a coordenada
-# oficial do ginásio: serve só para a prova de conceito rodar. Trocar assim
-# que a Defesa Civil confirmar o(s) ponto(s) seguro(s).
-PONTO_SEGURO = {
-    "lat": -29.1745, "lon": -51.7305,
-    "nome": "Ginásio (PLACEHOLDER — confirmar com a Defesa Civil)",
-    "confirmado": False,
-}
+
+def ponto_seguro_oficial():
+    """Ginásio de Esportes, o mesmo ponto de encontro das rotas por ruas."""
+    for f in json.load(open(ABRIGOS, encoding="utf-8"))["features"]:
+        pr = f["properties"]
+        if pr.get("municipio") == "Santa Tereza":
+            lon, lat = f["geometry"]["coordinates"][:2]
+            return {"lat": lat, "lon": lon, "nome": pr["nome"], "id": pr["id"],
+                    "fonte": pr.get("fonte"), "confirmado": True}
+    raise SystemExit(f"Santa Tereza sem ponto de encontro em {ABRIGOS}")
+
+
+PONTO_SEGURO = ponto_seguro_oficial()
 
 # recorte urbano aproximado (bbox) para a Etapa 1 — evita espalhar a grade pela
 # encosta/mata. Ajustável quando os endereços (CNEFE) entrarem.
@@ -96,31 +106,28 @@ def haversine_m(lat1, lon1, lat2, lon2):
 
 # ------------------------------------------------------------------- previsão
 def trajetoria_nivel(cenario):
-    """Devolve (t0, [(minutos, nivel_m), ...]) crescente no tempo.
-    Fonte normal: previsao_ao_vivo.json. Cenário '22jul': taxa de subida de
-    cheia documentada para demonstrar a Etapa 1 mesmo com o rio baixo hoje."""
+    """Devolve ([(minutos, nivel_m), ...] crescente no tempo, rótulo, nível atual
+    em cm, hora da telemetria). Fonte normal: previsao_ao_vivo.json; sem nível
+    atual devolve pontos=None (não publicar: nada de rio "seco" que sobe até a
+    previsão). Cenário '22jul': taxa de subida de cheia documentada para
+    demonstrar a Etapa 1 mesmo com o rio baixo hoje."""
     d = json.load(open(FORECAST, encoding="utf-8"))
-    nivel_atual_cm = d.get("telemetria_ultima_nivel_cm")
-    hor = d.get("horizontes", {})
-
-    def prev(hk):
-        p = hor.get(hk, {}).get("passos")
-        return p[0][2] if p else None
+    nivel_atual_cm = nivel_ao_vivo.nivel_atual_cm(d)
+    tele_em = d.get("telemetria_ultima_em")
 
     if cenario == "22jul":
         # subida ~ 40 cm/h (ordem de grandeza da cheia de 22/07/2026), partindo
         # do nível atual, projetada por HORIZONTE_MIN. Demonstra a margem.
-        base = (nivel_atual_cm or 400) / 100.0
+        base = (400 if nivel_atual_cm is None else nivel_atual_cm) / 100.0
         taxa_m_por_min = 0.40 / 60.0
         pts = [(m, base + taxa_m_por_min * m) for m in range(0, HORIZONTE_MIN + 1, 10)]
         rotulo = "cenário de cheia (subida ~40 cm/h, referência 22/07)"
     else:
-        p2, p4 = prev("2h"), prev("4h")
-        pts = [(0, (nivel_atual_cm or 0) / 100.0)]
-        if p2 is not None:
-            pts.append((120, p2 / 100.0))
-        if p4 is not None:
-            pts.append((240, p4 / 100.0))
+        if nivel_atual_cm is None:
+            return None, "previsão sem nível atual do rio", None, tele_em
+        pts = [(0, nivel_atual_cm / 100.0)]
+        pts += [(m, cm / 100.0) for _hk, m, cm in nivel_ao_vivo.previstos_cm(d)]
+        pts.sort()
         # extrapola a última inclinação até o horizonte
         if len(pts) >= 2:
             (ma, na), (mb, nb) = pts[-2], pts[-1]
@@ -128,7 +135,7 @@ def trajetoria_nivel(cenario):
             if mb < HORIZONTE_MIN:
                 pts.append((HORIZONTE_MIN, nb + incl * (HORIZONTE_MIN - mb)))
         rotulo = "previsão ao vivo (RNA 2h/4h)"
-    return pts, rotulo, nivel_atual_cm
+    return pts, rotulo, nivel_atual_cm, tele_em
 
 
 def tempo_ate(cota_m, pts):
@@ -222,15 +229,28 @@ def escreve_json(quadras, meta, SAIDA_JSON):
     return resumo
 
 
+def mesmo_conteudo(SAIDA_JSON, quadras, meta):
+    """True se a rodada só mudaria o carimbo de hora (não comitar a cada 5 min).
+    A idade do dado a página calcula sozinha, a partir de telemetria_em; a
+    versão do template está no meta, então mudar o template republica."""
+    try:
+        velho = json.load(open(SAIDA_JSON, encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    limpa = lambda m: {k: v for k, v in (m or {}).items() if k != "gerado_em"}
+    novo = json.loads(json.dumps({"quadras": quadras, "meta": meta}))
+    return velho.get("quadras") == novo["quadras"] and limpa(velho.get("meta")) == limpa(novo["meta"])
+
+
 def escreve_html(quadras, passo_lat, passo_lon, meta, resumo, SAIDA_HTML):
     ps = PONTO_SEGURO
-    banner_conf = "" if ps["confirmado"] else (
-        '<div class="aviso">⚠ Ponto seguro é PLACEHOLDER — confirmar com a Defesa Civil. '
-        'Mapa é prova de conceito (Etapa 1, grade de 30 m, linha reta). Não usar para orientar evacuação real.</div>')
+    banner = ('<div class="aviso">⚠ Prova de conceito (Etapa 1: grade de 30 m, linha reta até o '
+              + ps["nome"] + '). Não usar para orientar evacuação real.</div>')
     dados = json.dumps({"quadras": quadras, "dlat": passo_lat, "dlon": passo_lon,
                         "seguro": ps, "estacao": meta["estacao"], "ponte": meta["ponte"],
-                        "cores": CORES}, ensure_ascii=False)
-    html = _TEMPLATE.replace("__DADOS__", dados).replace("__BANNER__", banner_conf) \
+                        "cores": CORES, "telemetria_em": meta.get("telemetria_em"),
+                        "velho_min": nivel_ao_vivo.TELEMETRIA_VELHA_MIN}, ensure_ascii=False)
+    html = _TEMPLATE.replace("__DADOS__", dados).replace("__BANNER__", banner) \
                     .replace("__NIVEL__", meta["nivel_txt"]).replace("__CENARIO__", meta["cenario_rotulo"]) \
                     .replace("__GERADO__", meta["gerado_em"]).replace("__RESUMO__", json.dumps(resumo))
     open(SAIDA_HTML, "w", encoding="utf-8").write(html)
@@ -250,6 +270,7 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
  .hud .sub{color:#5b6b62;font-size:12.5px;margin:2px 0}
  .aviso{background:#fdecea;border:1px solid #f2b8b2;color:#b3382c;border-radius:8px;
         padding:8px 10px;font-size:12px;margin-top:8px}
+ .canais{background:#f3f6f4;border-radius:8px;padding:6px 9px;font-size:12px;margin-top:8px;color:#12211b}
  .leg{position:absolute;z-index:500;bottom:14px;left:10px;background:#fff;border-radius:10px;
       box-shadow:0 2px 12px rgba(0,0,0,.15);padding:10px 12px;font-size:12.5px}
  .leg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-2px}
@@ -259,35 +280,51 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
 <div class="hud">
   <h1>Rota de fuga · Santa Tereza</h1>
   <div class="sub">Prova de conceito (Etapa 1) — <b>__CENARIO__</b></div>
-  <div class="sub">Nível: <span class="lv">__NIVEL__</span></div>
-  <div class="sub">Gerado: __GERADO__</div>
+  <div class="sub">Nível do rio: <span class="lv">__NIVEL__</span></div>
+  <div class="sub" id="leitura"></div>
+  <div class="sub">Página gerada: __GERADO__ (horário de Brasília)</div>
+  <div class="sub" id="nota-leito"></div>
+  <div class="aviso" id="velho" hidden></div>
   __BANNER__
+  <div class="canais">Em emergência: <b>193</b> (Bombeiros) · <b>199</b> (Defesa Civil). Alertas oficiais por SMS: envie seu CEP para <b>40199</b>. Siga a Defesa Civil municipal.</div>
 </div>
 <div class="leg" id="leg"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const D=__DADOS__, RES=__RESUMO__;
-const map=L.map('map');
+// idade da leitura calculada no navegador: vale mesmo se o robô parar de rodar
+let VELHO=false;
+if(D.telemetria_em){const t=new Date(D.telemetria_em),min=Math.round((Date.now()-t)/60000);
+  const f=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('leitura').textContent='Leitura do rio: '+f.format(t)+' (Brasília) · há '+
+    (min<60?min+' min':Math.floor(min/60)+' h '+String(min%60).padStart(2,'0')+' min');
+  if(min>D.velho_min){VELHO=true;const v=document.getElementById('velho');v.hidden=false;
+    v.innerHTML='<b>Dado desatualizado</b>: a última leitura do rio tem mais de '+Math.round(D.velho_min/60)+' h. Este mapa não mostra a situação de agora.';}}
+const map=L.map('map',{zoomControl:false});
+L.control.zoom({position:'topright'}).addTo(map);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
  {maxZoom:19,attribution:'Esri World Imagery'}).addTo(map);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
  {maxZoom:19,opacity:.9}).addTo(map);
-const ROT={alagada:'já na água',critica:'crítica — precisa de resgate',apertada:'apertada — sair agora',
- atencao:'atenção',confortavel:'confortável'};
+const ROT={alagada:'abaixo do nível atual (leito e margens do rio)',critica:'margem negativa — a água chega antes',
+ apertada:'margem curta (menos de 15 min)',atencao:'margem de 15 a 60 min',confortavel:'margem de mais de 1 h'};
 const b=L.latLngBounds();
 D.quadras.forEach(q=>{
   const dy=D.dlat/2, dx=D.dlon/2;
+  const op=(q.classe==='alagada'?.55:.72)*(VELHO?.3:1);
   const rect=L.rectangle([[q.lat-dy,q.lon-dx],[q.lat+dy,q.lon+dx]],
-    {stroke:false,fillColor:D.cores[q.classe],fillOpacity:q.classe==='alagada'?.55:.72});
-  rect.bindPopup(`<b>Quadra</b><br>Água chega em <b>${q.min_ate_agua<=0?'já alagada':q.min_ate_agua+' min'}</b><br>`+
-    `Caminhada ao ponto seguro (idoso): <b>${q.min_caminhada_idoso} min</b> · ${q.dist_m} m<br>`+
-    `Margem: <b>${q.margem_min} min</b> — ${ROT[q.classe]}<br>`+
+    {stroke:false,fillColor:D.cores[q.classe],fillOpacity:op});
+  rect.bindPopup(`<b>Quadra</b><br>${q.min_ate_agua<=0?'<b>Abaixo do nível atual do rio</b>':'Água chega em <b>'+q.min_ate_agua+' min</b>'}<br>`+
+    `Caminhada até ${D.seguro.nome} (idoso, linha reta × 1,4): <b>${q.min_caminhada_idoso} min</b> · ${q.dist_m} m<br>`+
+    (q.min_ate_agua<=0?'':`Margem: <b>${q.margem_min} min</b> — ${ROT[q.classe]}<br>`)+
     `<span style="color:#5b6b62">cota que alaga: ${q.cota_alaga_m} m · HAND ${q.hand_m} m</span>`);
   rect.addTo(map); b.extend([q.lat,q.lon]);
 });
-// ponto seguro
-const seg=L.marker([D.seguro.lat,D.seguro.lon]).addTo(map);
-seg.bindPopup('<b>'+D.seguro.nome+'</b>'); b.extend([D.seguro.lat,D.seguro.lon]);
+if(D.quadras.length&&D.quadras.every(q=>q.classe==='alagada'))
+  document.getElementById('nota-leito').textContent='Fora do leito e das margens baixas do rio, nenhuma quadra é alcançada no horizonte desta previsão.';
+// ponto de encontro
+const seg=L.marker([D.seguro.lat,D.seguro.lon],{title:D.seguro.nome,alt:D.seguro.nome}).addTo(map);
+seg.bindPopup('<b>'+D.seguro.nome+'</b><br>ponto de encontro da Defesa Civil'); b.extend([D.seguro.lat,D.seguro.lon]);
 L.circleMarker([D.estacao.lat,D.estacao.lon],{radius:6,color:'#1e5fbf',fillColor:'#1e5fbf',fillOpacity:1})
   .bindPopup('Estação '+D.estacao.code).addTo(map);
 if(D.ponte) L.circleMarker([D.ponte.lat,D.ponte.lon],{radius:5,color:'#555',fillColor:'#999',fillOpacity:1})
@@ -307,19 +344,30 @@ def main():
 
     SAIDA_HTML, SAIDA_JSON = caminhos_saida(args.cenario)
     hand, geo = carrega_hand()
-    pts, rotulo, nivel_cm = trajetoria_nivel(args.cenario)
+    pts, rotulo, nivel_cm, tele_em = trajetoria_nivel(args.cenario)
+    if pts is None:
+        print(f"{rotulo}: página mantida (ela mostra a idade da última leitura)")
+        return
     quadras, passo_lat, passo_lon = monta_quadras(hand, geo, pts)
 
-    nivel_txt = (f"{nivel_cm/100:.2f} m" if nivel_cm else "sem telemetria")
+    ao_vivo = args.cenario == "ao_vivo"
+    tele = nivel_ao_vivo.para_brt(tele_em) if ao_vivo else None
+    nivel_txt = (f"{nivel_cm/100:.2f} m".replace(".", ",") if nivel_cm is not None else "sem telemetria")
     meta = {
-        "gerado_em": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "gerado_em": nivel_ao_vivo.agora().strftime("%Y-%m-%d %H:%M"),
+        "fuso": "America/Sao_Paulo",
         "cenario": args.cenario, "cenario_rotulo": rotulo,
         "nivel_atual_cm": nivel_cm, "nivel_txt": nivel_txt,
+        "telemetria_em": tele.isoformat() if tele else None,
+        "template": hashlib.sha1(_TEMPLATE.encode("utf-8")).hexdigest()[:12],
         "zero_regua_m": ZERO_REGUA_M, "bloco_m": BLOCO_M,
         "ponto_seguro": PONTO_SEGURO, "etapa": 1,
         "estacao": geo["station"], "ponte": geo.get("ponte"),
-        "aviso": "Etapa 1: grade 30 m, linha reta, ponto seguro placeholder. Não usar para evacuação real.",
+        "aviso": "Etapa 1: grade 30 m, linha reta até o ponto de encontro da Defesa Civil. Não usar para evacuação real.",
     }
+    if ao_vivo and mesmo_conteudo(SAIDA_JSON, quadras, meta):
+        print(f"cenario={args.cenario} nivel={nivel_txt}: sem mudança desde a última rodada, página mantida")
+        return
     resumo = escreve_json(quadras, meta, SAIDA_JSON)
     escreve_html(quadras, passo_lat, passo_lon, meta, resumo, SAIDA_HTML)
     print(f"cenario={args.cenario} nivel={nivel_txt} quadras={len(quadras)} resumo={resumo}")
