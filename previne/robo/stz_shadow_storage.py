@@ -137,6 +137,48 @@ def runtime_versions():
         except PackageNotFoundError:packages[name]=None
     return packages
 
+INDEX_V1 = 'stz_shadow_archive_index_v1'          # indice unico (formato antigo)
+INDEX_MANIFEST = 'stz_shadow_archive_index_v2'    # manifesto com um indice por dia
+INDEX_DAY = 'stz_shadow_archive_day_index_v1'
+
+def read_archive_index(root=None,reader=None):
+    """Entradas do arquivo de ciclos em ordem de insercao, no formato antigo ou por dia.
+
+    O indice unico chegou a 3,6 MB e era regravado a cada ciclo; o manifesto aponta um
+    indice por dia, e cada ciclo so regrava o do dia corrente. reader(rel) devolve o JSON
+    de um caminho relativo a raiz do arquivo (ou None), para ler tambem o HEAD do git."""
+    root=Path(root or ARCHIVE)
+    reader=reader or (lambda rel:C.read(root/rel))
+    index=reader('index.json')
+    if index is None:return None
+    if not isinstance(index,dict):raise ValueError('Indice de arquivo invalido')
+    if index.get('schema_version')==INDEX_V1 and isinstance(index.get('arquivos'),list):
+        return list(index['arquivos'])
+    if index.get('schema_version')!=INDEX_MANIFEST or not isinstance(index.get('dias'),list):
+        raise ValueError('Indice de arquivo invalido')
+    entries=[]
+    for day in index['dias']:
+        part=reader(day['arquivo'])
+        if (not isinstance(part,dict) or part.get('schema_version')!=INDEX_DAY or part.get('dia')!=day['dia']
+                or not isinstance(part.get('arquivos'),list) or len(part['arquivos'])!=day['n']
+                or any(a['arquivo'].split('/',1)[0]!=day['dia'] for a in part['arquivos'])):
+            raise ValueError('Indice diario ausente ou divergente: '+str(day.get('dia')))
+        entries.extend(part['arquivos'])
+    return entries
+
+def write_archive_index(root,entries,updated):
+    """Grava um indice por dia (so os que mudaram) e o manifesto."""
+    root=Path(root)
+    groups={}
+    for entry in entries:groups.setdefault(entry['arquivo'].split('/',1)[0],[]).append(entry)
+    days=[]
+    for day,rows in groups.items():
+        rel=f'{day}/index.json'
+        payload={'schema_version':INDEX_DAY,'dia':day,'arquivos':rows}
+        if C.read(root/rel)!=payload:C.write(root/rel,payload,compact=True)
+        days.append({'dia':day,'arquivo':rel,'n':len(rows)})
+    C.write(root/'index.json',{'schema_version':INDEX_MANIFEST,'dias':days,'atualizado_em':updated})
+
 def archive(source,now,predictions,levels,rain,before,after,root=None,provenance=None):
     preserve(before,after)
     root=Path(root or ARCHIVE)
@@ -147,9 +189,8 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
     index_path=root/'index.json'
     if not index_path.exists() and any(root.rglob('*.json.gz')):
         raise ValueError('Indice de arquivo ausente; nao recriar sobre ciclos existentes')
-    index=C.read(index_path,{'schema_version':'stz_shadow_archive_index_v1','arquivos':[]})
-    if not isinstance(index,dict) or index.get('schema_version')!='stz_shadow_archive_index_v1' or not isinstance(index.get('arquivos'),list):
-        raise ValueError('Indice de arquivo invalido')
+    entries=read_archive_index(root)
+    if entries is None:entries=[]
     old={key(p):p for p in before['registros']}
     changes=[p for p in after['registros'] if key(p) not in old or p!=old[key(p)]]
     payload={'schema_version':'stz_shadow_cycle_v1','fonte':source,'emitida_em':C.stamp(now),
@@ -157,7 +198,7 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
              'previsoes':predictions,'alteracoes_historico':changes,
              'historico_n':len(after['registros']),
              'historico_sha256_canonico':hashlib.sha256(json.dumps(after,sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest().upper(),
-             'historico_inicial':before if not any(a['fonte']==source for a in index['arquivos']) else None,
+             'historico_inicial':before if not any(a['fonte']==source for a in entries) else None,
              'contrato_sha256':(provenance or {}).get('contrato_sha256') or C.sha(C.ROOT/'assets/data/stz_n5_sombra_contrato.json'),
              'manifesto_sha256':C.sha(C.ROOT/'assets/data/stz_user_models/manifest.json'),
              'runtime':{'python':sys.version,'pacotes':runtime_versions()},
@@ -176,8 +217,8 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
     info={'arquivo':str(path.relative_to(root)).replace('\\','/'),'sha256':digest,'bytes':len(body),
           'fonte':source,'emitida_em':C.stamp(now),'previsoes_n':len(predictions),
           'disponiveis_n':sum(p['disponivel'] for p in predictions),'alteracoes_n':len(changes),'historico_n':len(after['registros'])}
-    existing=next((a for a in index['arquivos'] if a['arquivo']==info['arquivo']),None)
+    existing=next((a for a in entries if a['arquivo']==info['arquivo']),None)
     if existing and existing!=info:raise ValueError('Indice de arquivo imutavel divergente')
-    if not existing:index['arquivos'].append(info)
-    index['atualizado_em']=C.stamp(now);C.write(index_path,index)
+    if not existing:entries.append(info)
+    write_archive_index(root,entries,C.stamp(now))
     return dict(info,arquivo='assets/data/stz_shadow_archive/'+info['arquivo'])

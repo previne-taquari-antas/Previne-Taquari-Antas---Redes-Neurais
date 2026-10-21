@@ -109,6 +109,60 @@ class StorageTest(unittest.TestCase):
             with self.assertRaises(ValueError):S.archive('n5',now,[],{},{},self.empty,self.hist,root)
             self.assertEqual(file.read_bytes(),original)
 
+    def test_archive_index_is_split_by_day_and_migrates_single_index(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);now=self.data.now
+            # primeiro ciclo cria o historico; os seguintes partem dele, sem alteracoes de registro
+            def hist_em(t):
+                h=copy.deepcopy(self.hist);h['atualizado_em']=C.stamp(t);return h
+            def ciclo(t,before=None):
+                return S.archive('n5',t,[self.p],self.data.levels,self.data.rain,before or self.hist,hist_em(t),root)
+            first=S.archive('n5',now,[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            second=ciclo(now+dt.timedelta(days=1))
+            manifest=json.loads((root/'index.json').read_text(encoding='utf-8'))
+            self.assertEqual(manifest['schema_version'],S.INDEX_MANIFEST)
+            self.assertEqual([x['n'] for x in manifest['dias']],[1,1])
+            entries=S.read_archive_index(root)
+            self.assertEqual([a['arquivo'] for a in entries],[x['arquivo'].split('stz_shadow_archive/')[1] for x in (first,second)])
+            # repetir um ciclo nao duplica e nao regrava o indice de um dia anterior
+            day1=root/entries[0]['arquivo'].split('/')[0]/'index.json';before=day1.read_bytes()
+            ciclo(now+dt.timedelta(days=1))
+            self.assertEqual(len(S.read_archive_index(root)),2);self.assertEqual(day1.read_bytes(),before)
+            # indice unico antigo migra no proximo ciclo, sem perder entradas
+            C.write(root/'index.json',{'schema_version':S.INDEX_V1,'arquivos':entries,'atualizado_em':'x'})
+            for part in root.glob('*/index.json'):part.unlink()
+            third=ciclo(now+dt.timedelta(days=2))
+            migrated=S.read_archive_index(root)
+            self.assertEqual(migrated[:2],entries);self.assertEqual(migrated[2]['arquivo'],third['arquivo'].split('stz_shadow_archive/')[1])
+            self.assertEqual(json.loads((root/'index.json').read_text(encoding='utf-8'))['schema_version'],S.INDEX_MANIFEST)
+            from scripts.recover_stz_shadow_history import recover
+            self.assertEqual(recover(root,'n5'),hist_em(now+dt.timedelta(days=2)))
+            # indice diario apagado ou com contagem divergente falha fechado
+            day1.write_text(json.dumps({'schema_version':S.INDEX_DAY,'dia':day1.parent.name,'arquivos':[]}),encoding='utf-8')
+            with self.assertRaises(ValueError):S.read_archive_index(root)
+            day1.unlink()
+            with self.assertRaises(ValueError):ciclo(now+dt.timedelta(days=3))
+
+    def test_publication_validator_reads_old_single_index_from_head(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);now=self.data.now
+            git=lambda *a:subprocess.run(['git','-c','user.name=t','-c','user.email=t@t',*a],cwd=root,check=True,capture_output=True)
+            git('init','-q')
+            S.archive('n5',now,[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            entries=S.read_archive_index(root)
+            for part in root.glob('*/index.json'):part.unlink()
+            C.write(root/'index.json',{'schema_version':S.INDEX_V1,'arquivos':entries,'atualizado_em':'x'})
+            git('add','-A');git('commit','-qm','indice unico')
+            S.archive('n5',now+dt.timedelta(days=1),[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            def head(rel):
+                done=subprocess.run(['git','show','HEAD:'+rel],cwd=root,capture_output=True)
+                return json.loads(done.stdout) if done.returncode==0 else None
+            old=S.read_archive_index(root,reader=head)
+            current={a['arquivo']:a for a in S.read_archive_index(root)}
+            self.assertEqual(old,entries)
+            self.assertTrue(all(current.get(a['arquivo'])==a for a in old))
+
     def test_atomic_write_failure_leaves_original_history_bytes(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'history.json';C.write(path,self.hist);before=path.read_bytes()
