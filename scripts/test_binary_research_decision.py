@@ -24,6 +24,19 @@ class BinaryResearchDecisionTests(unittest.TestCase):
         self.assertEqual(result["model_verdict"], "NAO_FUNCIONA_DE_FORMA_CONFIAVEL")
         self.assertIn("indisponíveis", result["false_positive_metrics"])
 
+    def test_invalid_probabilities_are_unknown(self):
+        for value in [float('nan'), float('inf'), -0.1, 1.1]:
+            self.assertIsNone(binary.current_decisions({"horizons":[{"hours":24,"probability":value}]})[0]["decision"])
+
+    def test_old_or_future_source_cannot_publish_current_decisions(self):
+        for timestamp in ['2020-01-01T00:00:00Z', '2099-01-01T00:00:00Z', None]:
+            with tempfile.TemporaryDirectory() as folder:
+                source=Path(folder)/'input.json'; output=Path(folder)/'out.json'
+                source.write_text(json.dumps({"generated_at_utc":timestamp,"horizons":[{"hours":24,"probability":0.9}]}))
+                payload=binary.build('test',source,output)
+                self.assertIsNone(payload['decisions'][0]['decision'])
+                self.assertEqual(payload['last_source_decisions'][0]['decision'],'VAI')
+
     def test_build_records_source_age_and_scope(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "probability.json"
