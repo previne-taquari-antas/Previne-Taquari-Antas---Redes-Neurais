@@ -47,7 +47,7 @@ CFG = {
                          {"rotulo": "jul/2026", "regua_m": 17.46, "data": "2026-07-22"},
                          {"rotulo": "nov/2023", "regua_m": 21.61, "data": "2023-11-18"},
                          {"rotulo": "set/2023", "regua_m": 23.65, "data": "2023-09-04"},
-                         {"rotulo": "mai/2024", "regua_m": 25.82, "data": "2024-05",
+                         {"rotulo": "ref. mai/2024", "regua_m": 25.82, "data": "2024-05",
                           "nota": "referência de cenário de abrigos.geojson; a telemetria parou em 22,32 m antes do pico"},
                      ]},
     "mucum": {"cod": "4312609", "rf": "rota_fuga_ruas_mucum_cenario.json",
