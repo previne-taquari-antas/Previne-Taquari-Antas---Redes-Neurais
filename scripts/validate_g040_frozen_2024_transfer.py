@@ -233,6 +233,52 @@ def score_quality(row,inputs,config):
     return {"gates":checks,"research_evidence_quality_adequate":all(checks.values()),
             "independent_operational_forecast_validated":False}
 
+def retrospective_skill(row):
+    """Fixed descriptive 2023-calibration thresholds, NOT forecast validation.
+
+    Data availability passes are independent of hydrograph accuracy. These
+    limits are declared for transparent comparison, never model selection or
+    retuning against the independent 2024 validation events.
+    """
+    m = row.get("mucum") or {}
+    limits = {
+        "nse_min": 0.50,
+        "absolute_pbias_pct_max": 20.0,
+        "absolute_peak_error_pct_max": 20.0,
+        "absolute_peak_timing_error_h_max": 3.0,
+    }
+    def good(key):
+        try:
+            value = float(m.get(key))
+            return value if math.isfinite(value) else None
+        except (TypeError, ValueError):
+            return None
+    nse, pbias, peak, lag = (
+        good("nse"), good("pbias_pct"), good("peak_error_pct"),
+        good("peak_timing_error_h")
+    )
+    checks = {
+        "nse_at_least_0_50": nse is not None and nse >= limits["nse_min"],
+        "absolute_PBIAS_at_most_20_pct": (
+            pbias is not None and abs(pbias) <= limits["absolute_pbias_pct_max"]
+        ),
+        "absolute_peak_error_at_most_20_pct": (
+            peak is not None and abs(peak) <= limits["absolute_peak_error_pct_max"]
+        ),
+        "absolute_peak_timing_at_most_3h": (
+            lag is not None and abs(lag) <= limits["absolute_peak_timing_error_h_max"]
+        ),
+    }
+    return {
+        "diagnostic_thresholds": limits,
+        "criteria_source": "2023 calibration checkpoint_gate; retrospective description only",
+        "checks": checks,
+        "meets_all_descriptive_skill_criteria": bool(row.get("compute_ok")) and all(checks.values()),
+        "retrospective_hindcast_not_forecast": True,
+        "selection_or_retuning_using_2024": False,
+        "operational_forecast_validated": False,
+    }
+
 def main():
     if len(sys.argv)!=2:
         raise SystemExit("usage: validate_g040_frozen_2024_transfer.py PATH_TO_HEC_HMS_SH")
@@ -256,6 +302,7 @@ def main():
             print(f"2024 transfer {eid}: {member['id']}",flush=True)
             row=run_member(sys.argv[1],eid,member,inputs,config)
             row["verification_quality"]=score_quality(row,inputs,config)
+            row["retrospective_skill"]=retrospective_skill(row)
             rr.append(row)
         out.append({"event_id":eid,"status":"COMPUTED" if all(r["compute_ok"] for r in rr)
                     else "PARTIALLY_COMPUTED", "input_provenance":inputs["input_provenance"],
@@ -280,6 +327,16 @@ def main():
         for gate,passed in ((r.get("verification_quality") or {}).get("gates") or {}).items()
         if not passed
     })
+    skill_passing=[
+        r for r in evaluated
+        if (r.get("retrospective_skill") or {}).get("meets_all_descriptive_skill_criteria")
+    ]
+    skill_failures=sorted({
+        key
+        for r in evaluated
+        for key,passed in ((r.get("retrospective_skill") or {}).get("checks") or {}).items()
+        if not passed
+    })
     payload={
         "schema_version":"g040_frozen_2024_transfer_validation_v1",
         "generated_at_utc":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
@@ -296,6 +353,15 @@ def main():
             for r in evaluated
         ),
         "failed_quality_gates":failed_gates,
+        "evidence_gate_scope":"observation coverage, rainfall station count and simulated window, NOT hydrological skill",
+        "retrospective_hydrological_skill_status":(
+            "ALL_MEMBERS_MEET_DESCRIPTIVE_SKILL_GATES"
+            if len(skill_passing)==len(evaluated) and bool(evaluated)
+            else "SOME_MEMBERS_FAIL_DESCRIPTIVE_SKILL_GATES"
+        ),
+        "retrospective_skill_passing_candidate_event_runs":len(skill_passing),
+        "retrospective_skill_failed_gates":skill_failures,
+        "skill_gate_scope":"NSE/PBIAS/crest magnitude and timing; 2023 calibration-style thresholds, descriptive only",
         "research_only":True,
         "frozen_parameters_provenance":config["source_artifact"],
         "frozen_member_parameters":config["candidate_members"],
@@ -314,7 +380,7 @@ def main():
         w=csv.writer(fh)
         w.writerow(["event","candidate","computed","NSE","KGE","PBIAS_pct","peak_error_pct",
                     "peak_timing_error_h","pairs","Q_coverage","max_Q_gap_h",
-                    "max_storage_m3","enough_evidence","error"])
+                    "max_storage_m3","enough_evidence","retrospective_skill_all_gates","retrospective_skill_failed_gates","error"])
         for e in out:
             for r in e.get("candidate_results") or []:
                 m=r.get("mucum") or {}
@@ -323,6 +389,8 @@ def main():
                       "peak_timing_error_h","pairs","observed_coverage_ratio",
                       "max_observed_gap_hours")],r.get("storage_max_m3"),
                       r["verification_quality"]["research_evidence_quality_adequate"],
+                      r["retrospective_skill"]["meets_all_descriptive_skill_criteria"],
+                      ";".join(k for k,ok in r["retrospective_skill"]["checks"].items() if not ok),
                       r.get("error")])
     print(json.dumps({"status":payload["status"],"events":[{
         "event":x["event_id"],"status":x["status"],"computed":sum(y["compute_ok"] for y in x.get("candidate_results",[])),
