@@ -183,6 +183,21 @@ class PaginasTest(unittest.TestCase):
                 self.assertIn("A água corta a rota entre ${txtNivel(hs[k-1])} e ${txtNivel(hs[k])}", s)
                 self.assertIn("40199", s)
 
+    def test_canais_oficiais_nas_paginas_de_rota(self):
+        paginas = self.PAINEIS + [PASTA / "gerar_rota_fuga_santa_tereza.py"] + [RAIZ / p for p in (
+            "santa_tereza_painel_evacuacao.html", "mucum_painel_evacuacao.html",
+            "pesquisas/santa-tereza-painel-evacuacao.html", "pesquisas/mucum-painel-evacuacao.html",
+            "santa_tereza_rota_fuga_ruas_cenario.html", "mucum_rota_fuga_ruas_cenario.html",
+            "pesquisas/santa-tereza-rota-fuga-ruas-cenario.html", "pesquisas/mucum-rota-fuga-ruas-cenario.html")]
+        for p in paginas:
+            s = p.read_text(encoding="utf-8")
+            with self.subTest(arquivo=str(p.relative_to(RAIZ))):
+                self.assertIn("<b>193</b>", s)
+                self.assertIn("<b>199</b>", s)
+                self.assertIn("<b>40199</b>", s)
+                if "rota_fuga_ruas_cenario" in p.name or "rota-fuga-ruas-cenario" in p.name:
+                    self.assertIn("painel_casas.html#rotas", s)
+
     def test_fila_sem_frases_de_comando(self):
         for p in self.FILAS:
             s = p.read_text(encoding="utf-8")

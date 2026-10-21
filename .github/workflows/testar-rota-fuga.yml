@@ -6,9 +6,21 @@ on:
       - "codigo_python/09_rota_fuga/**"
       - "santa_tereza_painel_casas.html"
       - "mucum_painel_casas.html"
+      - "santa_tereza_painel_evacuacao.html"
+      - "mucum_painel_evacuacao.html"
+      - "pesquisas/santa-tereza-painel-evacuacao.html"
+      - "pesquisas/mucum-painel-evacuacao.html"
+      - "santa_tereza_rota_fuga_ruas_cenario.html"
+      - "mucum_rota_fuga_ruas_cenario.html"
+      - "pesquisas/santa-tereza-rota-fuga-ruas-cenario.html"
+      - "pesquisas/mucum-rota-fuga-ruas-cenario.html"
       - "assets/previsao_fila.js"
       - "assets/previsao_fila_usuario.js"
       - "assets/data/servicos/abrigos.geojson"
+      - "assets/data/eventos_analise.json"
+      - "assets/data/mucum_eventos_analise.json"
+      - "assets/data/mucum_contingencia_202607.json"
+      - "tests/test_rota_fuga_painel.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
   pull_request:
@@ -16,9 +28,21 @@ on:
       - "codigo_python/09_rota_fuga/**"
       - "santa_tereza_painel_casas.html"
       - "mucum_painel_casas.html"
+      - "santa_tereza_painel_evacuacao.html"
+      - "mucum_painel_evacuacao.html"
+      - "pesquisas/santa-tereza-painel-evacuacao.html"
+      - "pesquisas/mucum-painel-evacuacao.html"
+      - "santa_tereza_rota_fuga_ruas_cenario.html"
+      - "mucum_rota_fuga_ruas_cenario.html"
+      - "pesquisas/santa-tereza-rota-fuga-ruas-cenario.html"
+      - "pesquisas/mucum-rota-fuga-ruas-cenario.html"
       - "assets/previsao_fila.js"
       - "assets/previsao_fila_usuario.js"
       - "assets/data/servicos/abrigos.geojson"
+      - "assets/data/eventos_analise.json"
+      - "assets/data/mucum_eventos_analise.json"
+      - "assets/data/mucum_contingencia_202607.json"
+      - "tests/test_rota_fuga_painel.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
   workflow_dispatch:
@@ -37,10 +61,22 @@ jobs:
             codigo_python/09_rota_fuga/
             santa_tereza_painel_casas.html
             mucum_painel_casas.html
+            santa_tereza_painel_evacuacao.html
+            mucum_painel_evacuacao.html
+            pesquisas/santa-tereza-painel-evacuacao.html
+            pesquisas/mucum-painel-evacuacao.html
+            santa_tereza_rota_fuga_ruas_cenario.html
+            mucum_rota_fuga_ruas_cenario.html
+            pesquisas/santa-tereza-rota-fuga-ruas-cenario.html
+            pesquisas/mucum-rota-fuga-ruas-cenario.html
             assets/previsao_fila.js
             assets/previsao_fila_usuario.js
             assets/data/servicos/abrigos.geojson
             tests/test_rota_fuga_ao_vivo.py
+            tests/test_rota_fuga_painel.py
+            assets/data/eventos_analise.json
+            assets/data/mucum_eventos_analise.json
+            assets/data/mucum_contingencia_202607.json
           sparse-checkout-cone-mode: false
       - uses: actions/setup-python@v5
         with:
@@ -51,3 +87,5 @@ jobs:
         run: python -m py_compile codigo_python/09_rota_fuga/*.py
       - name: Hora, nivel do rio e paginas das rotas
         run: python tests/test_rota_fuga_ao_vivo.py -v
+      - name: Painel casa a casa, cheias registradas e abrigos
+        run: python tests/test_rota_fuga_painel.py -v
