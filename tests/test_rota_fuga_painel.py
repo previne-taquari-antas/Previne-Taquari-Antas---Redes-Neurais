@@ -31,7 +31,7 @@ def ler(p):
 
 def payload_bruto(html):
     i = html.index("const D=") + len("const D=")
-    return html[i:html.index(", M=D.meta", i)]
+    return html[i:json.JSONDecoder().raw_decode(html, i)[1]]
 
 
 TEMPLATE = re.search(r'_TEMPLATE = r"""(.*?)"""', GERADOR.read_text(encoding="utf-8"), re.S).group(1)

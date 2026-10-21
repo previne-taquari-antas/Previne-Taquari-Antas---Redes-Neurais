@@ -9,10 +9,10 @@
  .hud{position:absolute;z-index:500;top:10px;left:10px;width:330px;max-width:calc(100vw - 24px);max-height:calc(100vh - 40px);overflow:auto;
       background:#fff;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.22);padding:0 0 12px}
  .hud h1{font:600 17px Georgia,serif;margin:0;padding:12px 14px 8px}
- .dobra{float:right;margin:10px 10px 0 0;border:0;background:#eef3f0;border-radius:6px;padding:3px 9px;font:600 13px inherit;cursor:pointer}
+ .dobra{float:right;margin:10px 10px 0 0;border:0;background:#eef3f0;border-radius:6px;padding:3px 9px;font-weight:600;font-size:13px;font-family:inherit;cursor:pointer}
  .hud.min .corpo{display:none}
  .tabs{display:flex;border-bottom:1px solid #e6ece9;margin:0 0 8px}
- .tabs button{flex:1;border:0;background:none;padding:10px 4px;font:600 14px inherit;color:#4a5a52;cursor:pointer;border-bottom:3px solid transparent}
+ .tabs button{flex:1;border:0;background:none;padding:10px 4px;font-weight:600;font-size:14px;font-family:inherit;color:#4a5a52;cursor:pointer;border-bottom:3px solid transparent}
  .tabs button.on{color:#0f6b4a;border-bottom-color:#0f8b46}
  .bd{padding:0 14px}
  .sub{color:#4a5a52;font-size:13.5px;margin:3px 0}
@@ -31,7 +31,7 @@
  .leg-rota i.tr{background:repeating-linear-gradient(90deg,#b3241b 0 10px,transparent 10px 16px)}
  .canais{font-size:12px;color:#4a5a52;padding:0 14px 8px}
  .cheias{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 6px;font-size:12px;color:#4a5a52}
- .cheias button{border:1px solid #c9d6cf;background:#f4f7f5;border-radius:12px;padding:3px 9px;font:600 12px inherit;cursor:pointer;min-height:28px}
+ .cheias button{border:1px solid #c9d6cf;background:#f4f7f5;border-radius:12px;padding:3px 9px;font-weight:600;font-size:12px;font-family:inherit;cursor:pointer;min-height:28px}
  #selPrep{font:inherit;font-size:13px;margin-top:2px}
 </style></head><body>
 <div id="map"></div>
@@ -80,16 +80,18 @@ function txtValidade(cota){
 function txtCapacidade(a){const c=a.capacidade_plano;if(!c)return '';
   const dm=a.demanda&&a.demanda.pessoas;
   return `<br>Capacidade planejada (${c.tipo}; ${c.fonte}): <b>${c.min===c.max?c.min:c.min+'–'+c.max}</b> pessoas. Não é vaga disponível.`+
-    (dm!=null&&dm>c.min?`<br><b style="color:#9e1b1b">Demanda no cenário (~${dm} pessoas) acima da capacidade planejada.</b>`:'');}
+    (dm!=null&&dm>c.max?`<br><b style="color:#9e1b1b">Demanda no cenário (~${dm} pessoas) acima da capacidade planejada.</b>`:
+     dm!=null&&dm>c.min?`<br><b style="color:#9a3412">Demanda no cenário (~${dm} pessoas) acima do menor número do plano (${c.min}); o plano diverge entre ${c.min} e ${c.max}.</b>`:'');}
 function avisoCheia(){if(!PIOR)return '';const h=PIOR.regua_m-ZR;
   const ab=D.abrigos.filter(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=h).map(a=>a.nome);
   const nc=(D.candidatos||[]).filter(c=>c.cota_alaga_m!=null&&c.cota_alaga_m<=h).length;
   if(nc)ab.push(`${nc} de ${D.candidatos.length} locais candidatos`);
-  return ab.length?`<div class="aviso">Na maior cheia registrada (${PIOR.rotulo}, régua ${fm2(PIOR.regua_m)} m) alagariam: ${ab.join(', ')}.</div>`:'';}
+  const qual=PIOR.tipo==='referencia'?'Na cheia de referência mais alta':'Na maior cheia registrada';
+  return ab.length?`<div class="aviso">${qual} (${PIOR.rotulo}, régua ${fm2(PIOR.regua_m)} m) alagariam: ${ab.join(', ')}.</div>`:'';}
 // cores com luminância bem diferente entre urgente (escuro) e folgado (claro)
-const CORES={alagada:'#1f4e9c',ilhada:'#7b3fa0',isolada:'#2b2b2b',critica:'#9e1b1b',apertada:'#e66100',atencao:'#f6c445',confortavel:'#9fdcc4',seguro:'#d5dbd8',sem_rota:'#ffffff'};
-const ROT={alagada:'já na água',ilhada:'ilhada — rota já cruza água',critica:'crítica — não sai a pé a tempo',apertada:'apertada (menos de 15 min)',atencao:'atenção (menos de 1 h)',confortavel:'confortável (mais de 1 h)',seguro:'rota não alaga',isolada:'isolada — a água cortou o caminho até abrigo seco',sem_rota:'sem rota (sem via mapeada ou sem abrigo seco)'};
-const ORDEM=['alagada','ilhada','isolada','critica','apertada','atencao','confortavel','seguro','sem_rota'];
+const CORES={alagada:'#1f4e9c',ilhada:'#7b3fa0',isolada:'#2b2b2b',sem_abrigo:'#6b6b6b',critica:'#9e1b1b',apertada:'#e66100',atencao:'#f6c445',confortavel:'#9fdcc4',seguro:'#d5dbd8',sem_rota:'#ffffff'};
+const ROT={alagada:'já na água',ilhada:'ilhada — rota já cruza água',critica:'crítica — não sai a pé a tempo',apertada:'apertada (menos de 15 min)',atencao:'atenção (menos de 1 h)',confortavel:'confortável (mais de 1 h)',seguro:'rota não alaga',isolada:'isolada — a água cortou o caminho até abrigo seco',sem_abrigo:'sem abrigo oficial seco neste nível',sem_rota:'sem rota (sem via mapeada ou sem abrigo seco)'};
+const ORDEM=['alagada','ilhada','isolada','sem_abrigo','critica','apertada','atencao','confortavel','seguro','sem_rota'];
 const URG=k=>ORDEM.indexOf(k);
 const pior=(x,y)=>URG(x)<=URG(y)?x:y;
 // ---------- margem pela rota inteira ----------
@@ -111,20 +113,22 @@ function avalia(h){
   return {k,T,f,g,h,taxa};
 }
 const faixa=m=>m===Infinity?'seguro':(m-=prepMin)<0?'critica':m<15?'apertada':m<60?'atencao':'confortavel';
-// sem rota agora, mas com rota com o rio baixo (nível 0) = isolada pela água
-const semRota=(agora,rioBaixo)=>agora<0?(rioBaixo>=0?'isolada':'sem_rota'):null;
-function classeNo(i,A){if(A.T[i]<0)return semRota(A.T[i],NV.tempo_s[0][i]);const c=D.cota_no[i];
+// sem rota agora, mas com rota com o rio baixo (nível 0): se ainda há abrigo oficial seco,
+// a água cortou o caminho (isolada); se todos alagaram, falta abrigo (sem_abrigo)
+const semAbrigoSeco=A=>D.abrigos.every(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=NV.hand_m[A.k]);
+const semRota=(agora,rioBaixo,A)=>agora<0?(rioBaixo<0?'sem_rota':semAbrigoSeco(A)?'sem_abrigo':'isolada'):null;
+function classeNo(i,A){if(A.T[i]<0)return semRota(A.T[i],NV.tempo_s[0][i],A);const c=D.cota_no[i];
   if(c!=null&&c<=A.h)return 'alagada'; if(A.g[i]<=A.h)return 'ilhada'; return faixa(A.f[i]-A.T[i]/60);}
 function classeCasa(ci,A){const c=D.casas[ci],cota=c[CF.cota_alaga];
   if(cota!=null&&cota<=A.h)return 'alagada';
   const no=NV.casa_no[A.k][ci],Tc=NV.casa_tempo_s[A.k][ci];
-  if(no<0||Tc<0)return semRota(-1,Math.min(NV.casa_no[0][ci],NV.casa_tempo_s[0][ci]));
+  if(no<0||Tc<0)return semRota(-1,Math.min(NV.casa_no[0][ci],NV.casa_tempo_s[0][ci]),A);
   if(A.g[no]<=A.h||NV.casa_agua_m[A.k][ci]>0)return 'ilhada';
   return faixa(Math.min(cota==null?Infinity:(cota-A.h)/A.taxa,A.f[no]-Tc/60));}
 function classeCel(c,A){
   if(c.casas.length){const cnt={};c.casas.forEach(ci=>{const k=classeCasa(ci,A);cnt[k]=(cnt[k]||0)+1;});return cnt;}
   const no=c.no;let k;
-  if(c.cota!=null&&c.cota<=A.h)k='alagada';else if(A.T[no]<0)k=semRota(A.T[no],NV.tempo_s[0][no]);else if(A.g[no]<=A.h)k='ilhada';
+  if(c.cota!=null&&c.cota<=A.h)k='alagada';else if(A.T[no]<0)k=semRota(A.T[no],NV.tempo_s[0][no],A);else if(A.g[no]<=A.h)k='ilhada';
   else k=faixa(Math.min(c.cota==null?Infinity:(c.cota-A.h)/A.taxa,A.f[no]-A.T[no]/60));
   return {[k]:1};}
 // ---------- camadas ----------
@@ -203,8 +207,8 @@ const b=L.latLngBounds();
 const ruas=D.edges.map(e=>{const A=D.nos[e[0]],C=D.nos[e[1]];
   return {pl:L.polyline([A,C],{weight:2,opacity:.85}),a:e[0],c:e[1],ag:e[2],pe:e[3],cz:e[4]};});
 const ruasLayer=L.layerGroup(ruas.map(r=>r.pl));
-// Células IBGE: somente base estatística. Não desenhar polígonos/quadrados.
-D.cells.forEach(c=>c.poly.forEach(p=>b.extend(p)));
+// Células IBGE: somente base estatística. Não desenhar polígonos/quadrados nem enquadrar o
+// mapa por elas (as rurais, a quilômetros, deixavam a cidade pequena atrás do painel).
 const cv=L.canvas({padding:.3});
 let casaCl=[];
 const casasImp=D.casas.map((c,ci)=>L.circleMarker([c[CF.lat],c[CF.lon]],{renderer:cv,radius:3.6,weight:1,color:'#1b2620',fillOpacity:.95})
@@ -236,6 +240,7 @@ const BB=b.pad(0.04);function aj(){map.invalidateSize();map.fitBounds(BB);}
 let modo=M.modos[0];
 const sld=document.getElementById('sld'),sldTaxa=document.getElementById('sldTaxa');
 sld.max=Math.round(M.nivel_max_m*10);sld.value=Math.round(Math.max(0,M.nivel_projeto_m)*10);sldTaxa.value=M.taxa_cm_h;
+document.getElementById('selPrep').value=String(prepMin);sld.setAttribute('aria-valuetext',txtNivel(nivelAtual()));
 document.getElementById('cheias').innerHTML=CHEIAS.length?'<span>Cheias:</span>'+CHEIAS.map((c,i)=>
   `<button type="button" data-i="${i}" title="${c.nota||''}">${c.rotulo} · ${fm2(c.regua_m)} m</button>`).join(''):'';
 document.querySelectorAll('#cheias button').forEach(bt=>bt.onclick=()=>{
@@ -254,7 +259,7 @@ function renderMargem(){const A=avalia(nivelAtual());const cnt={};
   document.getElementById('painel').innerHTML='<div class="sub">Ruas pela margem: quanto tempo ainda dá para esperar antes de sair a pé (trechos de rua por faixa).</div>'+legenda(cnt,v=>v)+
     `<div class="nota">Margem = menor folga ao longo da rota até o abrigo: tempo até a água chegar em cada ponto − tempo do idoso para chegar nele − ${prepMin} min de preparo.</div>`;
 }
-const RISCO=['alagada','ilhada','isolada','critica','apertada','atencao'];
+const RISCO=['alagada','ilhada','isolada','sem_abrigo','critica','apertada','atencao'];
 function renderImpacto(){const A=avalia(nivelAtual());const cnt={};
   casaCl=D.casas.map((_,ci)=>classeCasa(ci,A));
   casasImp.forEach((m,ci)=>m.setStyle({fillColor:CORES[casaCl[ci]],radius:RISCO.includes(casaCl[ci])?4.2:3}));
@@ -273,14 +278,14 @@ function renderImpacto(){const A=avalia(nivelAtual());const cnt={};
     (URL_CONTORNOS?'Os contornos do remanso do Marrecão ainda precisam de reprocessamento e validação hidráulica; a representação é exploratória. ':'')+
     'Cada ponto representa uma edificação do OpenStreetMap. As células IBGE permanecem nos cálculos populacionais, mas não são desenhadas. Pontos não são domicílios verificados.</div>';
 }
-function cenTaxa(t){return t<40?'(cheia lenta)':t<90?'':t<150?'(média de set/2023 e de 22/07/2026)':'(trechos mais rápidos de set/2023, ~2 m/h)';}
+function cenTaxa(t){return t<40?'(cheia lenta)':t<90?'':t<150?'(média de set/2023 e de 22/07/2026)':t<190?'(acima da média observada)':'(trechos mais rápidos de set/2023, ~2 m/h)';}
 function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h);
   const al=D.abrigos.filter(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=NV.hand_m[k]).map(a=>a.nome);
   if(al.length)document.getElementById('painel').insertAdjacentHTML('afterbegin',
     `<div class="aviso">${al.length===D.abrigos.length?'<b>Nenhum abrigo oficial fica seco neste nível.</b> ':''}Alaga(m): ${al.join(', ')}.</div>`);
   if(h>=M.nivel_max_m)document.getElementById('painel').insertAdjacentHTML('afterbegin',
     `<div class="aviso">Acima de ${txtNivel(M.nivel_max_m)} o modelo não tem mancha: a área que alaga fica subestimada.</div>`);}
-function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;
+function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;sld.setAttribute('aria-valuetext',txtNivel(nivelAtual()));
   document.getElementById('taxacen').textContent=cenTaxa(taxaCmH);
   if(modo==='margem')renderMargem();else if(modo==='impacto'){atualizarManchaNivel();renderImpacto();}alertaNivel();}
 // ---------- rotas: clique ----------
