@@ -4,6 +4,7 @@ import json
 import py_compile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from importlib.util import spec_from_file_location, module_from_spec
 ROOT=Path(__file__).resolve().parents[1]
 CFG=ROOT/"config/g040_frozen_2024_transfer_validation_v1.json"
@@ -36,6 +37,51 @@ class TestFrozenTransfer(unittest.TestCase):
         self.assertEqual(june["actual_flow_observations"],0)
         self.assertFalse(may["direct_observed_boundary_eligible"])
         self.assertFalse(june["direct_observed_boundary_eligible"])
+
+
+    def test_coverage_does_not_count_duplicate_invalid_or_outside_hours(self):
+        spec=spec_from_file_location("frozen_transfer_coverage",SCRIPT)
+        mod=module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        raw={
+            "window_local":{"start":"2024-05-01T00:00","end":"2024-05-01T02:59"},
+            "stations":[{"code":"86472000","series":[
+                {"time_utc":"2024-05-01T03:00:00Z","flow_m3s":100},
+                {"time_utc":"2024-05-01T03:00:00Z","flow_m3s":110},
+                {"time_utc":"2024-05-01T04:00:00Z","flow_m3s":120},
+                {"time_utc":"2024-05-01T06:00:00Z","flow_m3s":130},
+                {"time_utc":"2024-05-01T05:00:00Z","flow_m3s":-9},
+                {"time_utc":"invalid","flow_m3s":140}
+            ]}]
+        }
+        with patch.object(mod,"load",return_value=raw):
+            result=mod.source_coverage("E27_MAY2024")
+        self.assertEqual(result["actual_flow_observations"],2)
+        self.assertEqual(result["raw_flow_records"],6)
+        self.assertEqual(result["event_window_hours"],3)
+        self.assertEqual(result["discarded_duplicate_invalid_or_out_of_window_records"],4)
+        self.assertFalse(result["direct_observed_boundary_eligible"])
+
+    def test_simulation_minimum_duration_is_a_separate_quality_gate(self):
+        spec=spec_from_file_location("frozen_transfer_duration",SCRIPT)
+        mod=module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cfg=json.loads(CFG.read_text(encoding="utf-8"))
+        row={
+            "compute_ok":True,
+            "mucum":{"pairs":24,"observed_coverage_ratio":1.0,
+                     "max_observed_gap_hours":0},
+            "fraction_full_event_simulated":1.0,
+            "recorded_event_crest_inside_simulated_window":True,
+            "simulation_times_utc":{"hours":36},
+        }
+        inputs={"input_provenance":{"median_spatial_reporting_rain_gauges":5}}
+        report=mod.score_quality(row,inputs,cfg)
+        self.assertTrue(report["gates"]["simulated_at_least_70pct_of_full_event"])
+        self.assertFalse(report["gates"]["simulated_minimum_absolute_hours"])
+        self.assertFalse(report["research_evidence_quality_adequate"])
+        row["simulation_times_utc"]["hours"]=72
+        self.assertTrue(mod.score_quality(row,inputs,cfg)["research_evidence_quality_adequate"])
 
     def test_deployment_forbidden_and_weather_not_forecast(self):
         text=SCRIPT.read_text(encoding="utf-8")
