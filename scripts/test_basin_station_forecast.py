@@ -480,9 +480,9 @@ class BasinStationForecastTests(unittest.TestCase):
             calls.append(url)
             # The provider rejects overly large requests, but healthy smaller
             # groups must still be accepted rather than discarded.
-            if url.count("%2C") >= 8:
-                raise ValueError("HTTP 400: lote muito grande")
             count = len(url.split("latitude=", 1)[1].split("&", 1)[0].split("%2C"))
+            if count > 12:
+                raise ValueError("HTTP 400: lote muito grande")
             return [
                 {"hourly": {"time": ["2026-10-23T12:00Z"],
                             "precipitation_ecmwf_ifs025": [1.0]}}
