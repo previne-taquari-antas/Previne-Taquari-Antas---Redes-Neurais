@@ -10,9 +10,9 @@ from previne.robo import stz_shadow_common as C
 
 def recover(root,source):
     root=Path(root)
-    index=C.read(root/'index.json')
-    if not index:raise ValueError('Indice de ciclos ausente')
-    rows=sorted((a for a in index['arquivos'] if a['fonte']==source),key=lambda a:(a['emitida_em'],a['arquivo']))
+    entries=S.read_archive_index(root)
+    if not entries:raise ValueError('Indice de ciclos ausente')
+    rows=sorted((a for a in entries if a['fonte']==source),key=lambda a:(a['emitida_em'],a['arquivo']))
     history=None
     for item in rows:
         path=(root/item['arquivo']).resolve()

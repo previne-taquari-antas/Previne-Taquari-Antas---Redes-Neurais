@@ -108,6 +108,26 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertIn('atual["ultima_tentativa_em"] = agora', block)
         self.assertIn('audit = auditoria_inputs_8h(cfg, cand, x)', source)
 
+    def test_history_is_not_rewritten_when_only_stamps_change(self) -> None:
+        import tempfile
+        from previne.robo import gerar_previsao_ao_vivo as live
+        reg = {"id": "a", "hora_alvo": "2026-10-21T10:00:00-03:00", "nivel_previsto_cm": 300,
+               "status_auditoria": "sem_dado_ana", "criado_em": "2026-10-21T08:05:00-03:00",
+               "auditado_em": "2026-10-21T10:30:00-03:00"}
+        with tempfile.TemporaryDirectory() as d, patch.object(live, "HISTORICO_SAIDA", str(Path(d) / "h.json")):
+            self.assertTrue(live.salvar_historico([dict(reg)]))
+            antes = Path(live.HISTORICO_SAIDA).read_bytes()
+            # novo ciclo: mesmo conteúdo, carimbos novos -> arquivo intacto
+            self.assertFalse(live.salvar_historico([dict(reg, criado_em="x", auditado_em="y")]))
+            self.assertEqual(Path(live.HISTORICO_SAIDA).read_bytes(), antes)
+            # conferência real: grava, com o novo carimbo
+            conferido = dict(reg, status_auditoria="conferido", observado_cm=310, auditado_em="z")
+            self.assertTrue(live.salvar_historico([conferido]))
+            salvo = json.loads(Path(live.HISTORICO_SAIDA).read_text(encoding="utf-8"))["registros"]
+            self.assertEqual(salvo, [dict(conferido, criado_em=reg["criado_em"])])
+            # registro novo também grava
+            self.assertTrue(live.salvar_historico([conferido, dict(reg, id="b")]))
+
     def test_8h_is_hard_suspended_without_model_or_fallback_publication(self) -> None:
         from previne.robo import gerar_previsao_ao_vivo as live
 

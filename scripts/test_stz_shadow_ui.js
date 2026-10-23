@@ -54,11 +54,11 @@ async function panel(feed, alternate=null, n5=null) {
     previsao: {disponivel: true, status: 'OK_SOMBRA', hora_modelo: new Date().toISOString(),
       hora_alvo: new Date(Date.now() + 4 * 3600000).toISOString(), nivel_base_cm: 400, nivel_previsto_cm: 452}};
   const withN5 = await panel({...feed, referencia_n5_teste: {mae_cm: 26.8},
-    historico_arquivos: ['assets/data/stz_shadow_history/usuario/2026-10.json']}, null, n5);
+    historico_arquivos: ['assets/data/stz_shadow_history/usuario/2026-10-21.json']}, null, n5);
   assert.match(withN5.el.innerHTML, /MAE teste histórico/);
   assert.match(withN5.el.innerHTML, /22,8 cm/);
   assert.match(withN5.el.innerHTML, /N5 · MATLAB[\s\S]*4,52 m[\s\S]*26,8 cm/);
-  assert.match(withN5.el.innerHTML, /stz_shadow_history\/usuario\/2026-10\.json/);
+  assert.match(withN5.el.innerHTML, /stz_shadow_history\/usuario\/2026-10-21\.json/);
   assert.equal((withN5.el.innerHTML.match(/<tr class=/g) || []).length, 14);
   withN5.listeners['#shadow-horizon']({target: {value: '8'}});
   assert.doesNotMatch(withN5.el.innerHTML, /N5 · MATLAB/);

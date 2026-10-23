@@ -1718,14 +1718,16 @@ def main() -> int:
     feed = build_feed(include_external=True)
     prepare_publishable_feed(feed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # JSON compacto: com indent=2 o feed tinha 38 MB (12 MB sem os espaços), era
+    # regravado a cada ciclo e baixado inteiro pela página inicial.
     args.output.write_text(
-        json.dumps(feed, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(feed, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     status_snapshot = _status_snapshot(feed)
     args.status_output.parent.mkdir(parents=True, exist_ok=True)
     args.status_output.write_text(
-        json.dumps(status_snapshot, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(status_snapshot, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     rain_ages = [

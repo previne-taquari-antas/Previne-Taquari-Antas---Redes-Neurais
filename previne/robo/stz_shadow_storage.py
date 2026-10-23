@@ -54,19 +54,28 @@ def validate(history):
                 raise ValueError('Erro nao reconcilia com observacao')
     return history
 
+def day(p):
+    # Particao pelo dia de emissao: a concatenacao diaria preserva a ordem de insercao.
+    # Era por mes; o arquivo do mes do usuario passava de 15 MB e era regravado a cada ciclo.
+    return p['emitida_em'][:10]
+
 def month(p):
-    # Particao pelo mes de emissao: a concatenacao mensal preserva a ordem de insercao.
+    # Formato antigo (YYYY-MM.json), lido e migrado para particoes diarias.
     return p['emitida_em'][:7]
 
+def partition_field(name):
+    return 'dia' if len(name)==10 else 'mes'
+
 def validate_partition(name,part):
+    field=partition_field(name);of=day if field=='dia' else month
     if (not isinstance(part,dict) or part.get('schema_version')!=PARTITION_SCHEMA or part.get('shadow_only') is not True
-            or part.get('mes')!=name or not isinstance(part.get('registros'),list) or not part['registros']):
-        raise ValueError(f'Particao mensal invalida: {name}')
-    if any(month(p)!=name for p in part['registros']):raise ValueError(f'Registro fora da particao {name}')
+            or part.get(field)!=name or not isinstance(part.get('registros'),list) or not part['registros']):
+        raise ValueError(f'Particao invalida: {name}')
+    if any(of(p)!=name for p in part['registros']):raise ValueError(f'Registro fora da particao {name}')
     return part
 
 def combine(legacy,partitions):
-    """Historico unico em memoria: arquivo legado (se ainda existir) seguido das particoes mensais."""
+    """Historico unico em memoria: arquivo legado (se ainda existir) seguido das particoes (mensais antigas, depois diarias)."""
     if legacy is None and not partitions:raise FileNotFoundError('Historico de sombra ausente; nao reinicializar')
     history={'schema_version':SCHEMA,'shadow_only':True,'registros':[]}
     if legacy is not None:
@@ -84,7 +93,9 @@ def combine(legacy,partitions):
 
 def partition_files(path):
     path=Path(path)
-    return sorted(path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json')) if path.is_dir() else []
+    if not path.is_dir():return []
+    return sorted([*path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json'),
+                   *path.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].json')],key=lambda f:f.stem)
 
 def load(path,legacy=None):
     # Estes arquivos ja foram inicializados e versionados na ativacao.
@@ -95,7 +106,7 @@ def load(path,legacy=None):
     return combine(old,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])
 
 def render_partition(name,rows,updated):
-    head=json.dumps({'schema_version':PARTITION_SCHEMA,'shadow_only':True,'mes':name,'atualizado_em':updated},ensure_ascii=False)[:-1]
+    head=json.dumps({'schema_version':PARTITION_SCHEMA,'shadow_only':True,partition_field(name):name,'atualizado_em':updated},ensure_ascii=False)[:-1]
     lines=',\n'.join(json.dumps(p,ensure_ascii=False,allow_nan=False,separators=(',',':')) for p in rows)
     return head+',"registros":[\n'+lines+'\n]}\n'
 
@@ -115,8 +126,10 @@ def save(path,before,after,legacy=None):
     if path.suffix=='.json':
         C.write(path,after);return [path]
     groups={}
-    for p in after['registros']:groups.setdefault(month(p),[]).append(p)
-    stale={f.stem for f in partition_files(path)}-set(groups)
+    for p in after['registros']:groups.setdefault(day(p),[]).append(p)
+    existing={f.stem for f in partition_files(path)}
+    monthly={n for n in existing if partition_field(n)=='mes'}
+    stale=existing-monthly-set(groups)
     if stale:raise ValueError('Particao existente sem registros no novo historico: '+', '.join(sorted(stale)))
     path.mkdir(parents=True,exist_ok=True)
     for name,rows in sorted(groups.items()):
@@ -124,10 +137,13 @@ def save(path,before,after,legacy=None):
         if target.exists() and json.loads(target.read_text(encoding='utf-8')).get('registros')==rows:continue
         tmp=target.with_suffix('.json.tmp')
         tmp.write_text(render_partition(name,rows,after.get('atualizado_em')),encoding='utf-8');tmp.replace(target)
-    if legacy and Path(legacy).exists():
-        if combine(None,[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path)])['registros']!=after['registros']:
-            raise ValueError('Particoes gravadas nao reproduzem o historico; legado mantido')
-        Path(legacy).unlink()
+    if monthly or (legacy and Path(legacy).exists()):
+        # Migracao: o legado e as particoes mensais so saem quando as diarias reproduzem o historico.
+        daily=[(f.stem,json.loads(f.read_text(encoding='utf-8'))) for f in partition_files(path) if partition_field(f.stem)=='dia']
+        if combine(None,daily)['registros']!=after['registros']:
+            raise ValueError('Particoes diarias nao reproduzem o historico; legado/mensais mantidos')
+        for name in monthly:(path/f'{name}.json').unlink()
+        if legacy and Path(legacy).exists():Path(legacy).unlink()
     return partition_files(path)
 
 def runtime_versions():
@@ -136,6 +152,48 @@ def runtime_versions():
         try:packages[name]=version(name)
         except PackageNotFoundError:packages[name]=None
     return packages
+
+INDEX_V1 = 'stz_shadow_archive_index_v1'          # indice unico (formato antigo)
+INDEX_MANIFEST = 'stz_shadow_archive_index_v2'    # manifesto com um indice por dia
+INDEX_DAY = 'stz_shadow_archive_day_index_v1'
+
+def read_archive_index(root=None,reader=None):
+    """Entradas do arquivo de ciclos em ordem de insercao, no formato antigo ou por dia.
+
+    O indice unico chegou a 3,6 MB e era regravado a cada ciclo; o manifesto aponta um
+    indice por dia, e cada ciclo so regrava o do dia corrente. reader(rel) devolve o JSON
+    de um caminho relativo a raiz do arquivo (ou None), para ler tambem o HEAD do git."""
+    root=Path(root or ARCHIVE)
+    reader=reader or (lambda rel:C.read(root/rel))
+    index=reader('index.json')
+    if index is None:return None
+    if not isinstance(index,dict):raise ValueError('Indice de arquivo invalido')
+    if index.get('schema_version')==INDEX_V1 and isinstance(index.get('arquivos'),list):
+        return list(index['arquivos'])
+    if index.get('schema_version')!=INDEX_MANIFEST or not isinstance(index.get('dias'),list):
+        raise ValueError('Indice de arquivo invalido')
+    entries=[]
+    for day in index['dias']:
+        part=reader(day['arquivo'])
+        if (not isinstance(part,dict) or part.get('schema_version')!=INDEX_DAY or part.get('dia')!=day['dia']
+                or not isinstance(part.get('arquivos'),list) or len(part['arquivos'])!=day['n']
+                or any(a['arquivo'].split('/',1)[0]!=day['dia'] for a in part['arquivos'])):
+            raise ValueError('Indice diario ausente ou divergente: '+str(day.get('dia')))
+        entries.extend(part['arquivos'])
+    return entries
+
+def write_archive_index(root,entries,updated):
+    """Grava um indice por dia (so os que mudaram) e o manifesto."""
+    root=Path(root)
+    groups={}
+    for entry in entries:groups.setdefault(entry['arquivo'].split('/',1)[0],[]).append(entry)
+    days=[]
+    for day,rows in groups.items():
+        rel=f'{day}/index.json'
+        payload={'schema_version':INDEX_DAY,'dia':day,'arquivos':rows}
+        if C.read(root/rel)!=payload:C.write(root/rel,payload,compact=True)
+        days.append({'dia':day,'arquivo':rel,'n':len(rows)})
+    C.write(root/'index.json',{'schema_version':INDEX_MANIFEST,'dias':days,'atualizado_em':updated})
 
 def archive(source,now,predictions,levels,rain,before,after,root=None,provenance=None):
     preserve(before,after)
@@ -147,9 +205,8 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
     index_path=root/'index.json'
     if not index_path.exists() and any(root.rglob('*.json.gz')):
         raise ValueError('Indice de arquivo ausente; nao recriar sobre ciclos existentes')
-    index=C.read(index_path,{'schema_version':'stz_shadow_archive_index_v1','arquivos':[]})
-    if not isinstance(index,dict) or index.get('schema_version')!='stz_shadow_archive_index_v1' or not isinstance(index.get('arquivos'),list):
-        raise ValueError('Indice de arquivo invalido')
+    entries=read_archive_index(root)
+    if entries is None:entries=[]
     old={key(p):p for p in before['registros']}
     changes=[p for p in after['registros'] if key(p) not in old or p!=old[key(p)]]
     payload={'schema_version':'stz_shadow_cycle_v1','fonte':source,'emitida_em':C.stamp(now),
@@ -157,7 +214,7 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
              'previsoes':predictions,'alteracoes_historico':changes,
              'historico_n':len(after['registros']),
              'historico_sha256_canonico':hashlib.sha256(json.dumps(after,sort_keys=True,ensure_ascii=False,allow_nan=False).encode()).hexdigest().upper(),
-             'historico_inicial':before if not any(a['fonte']==source for a in index['arquivos']) else None,
+             'historico_inicial':before if not any(a['fonte']==source for a in entries) else None,
              'contrato_sha256':(provenance or {}).get('contrato_sha256') or C.sha(C.ROOT/'assets/data/stz_n5_sombra_contrato.json'),
              'manifesto_sha256':C.sha(C.ROOT/'assets/data/stz_user_models/manifest.json'),
              'runtime':{'python':sys.version,'pacotes':runtime_versions()},
@@ -176,8 +233,8 @@ def archive(source,now,predictions,levels,rain,before,after,root=None,provenance
     info={'arquivo':str(path.relative_to(root)).replace('\\','/'),'sha256':digest,'bytes':len(body),
           'fonte':source,'emitida_em':C.stamp(now),'previsoes_n':len(predictions),
           'disponiveis_n':sum(p['disponivel'] for p in predictions),'alteracoes_n':len(changes),'historico_n':len(after['registros'])}
-    existing=next((a for a in index['arquivos'] if a['arquivo']==info['arquivo']),None)
+    existing=next((a for a in entries if a['arquivo']==info['arquivo']),None)
     if existing and existing!=info:raise ValueError('Indice de arquivo imutavel divergente')
-    if not existing:index['arquivos'].append(info)
-    index['atualizado_em']=C.stamp(now);C.write(index_path,index)
+    if not existing:entries.append(info)
+    write_archive_index(root,entries,C.stamp(now))
     return dict(info,arquivo='assets/data/stz_shadow_archive/'+info['arquivo'])
