@@ -7,7 +7,7 @@
 </style></head><body>
 <header><h1>Porto Alegre · localização de domicílios</h1><p>PREVINE · conferência CNEFE 2022 × edificações OSM · coordenadas originais preservadas</p></header>
 <main><aside>
-<div class="card" id="datasetStatus" aria-live="polite">Carregando pontos reais do IBGE/CNEFE de Porto Alegre…</div><label for="csv">Importar outro arquivo CSV (opcional)</label><input type="file" id="csv" accept=".csv,text/csv">
+<div class="card" id="datasetStatus" aria-live="polite">Carregando coordenadas CNEFE de Porto Alegre (amostra distribuída pela cidade)…</div><label for="csv">Importar outro arquivo CSV (opcional)</label><input type="file" id="csv" accept=".csv,text/csv">
 <label for="geojson">Abrir footprints de edificações próximas (opcional)</label><input type="file" id="geojson" accept=".geojson,.json,application/geo+json"><div class="card" id="stats">O mapa carrega automaticamente uma amostra da auditoria. Os pontos não foram validados individualmente; nenhuma alteração será feita nos dados do IBGE.</div>
 <div class="small"><span class="swatch red"></span>Localização IBGE original &nbsp;<span class="swatch blue"></span>Edificação proposta</div>
 <label for="filter">Filtrar candidatos</label><select id="filter"><option value="all">Todos</option><option value="esquina_ou_aglomerado_revisar">Esquinas / coordenadas compartilhadas</option><option value="candidato_forte_revisao_visual">Mesmo logradouro e número</option><option value="candidato_incertamente_residencial">Associação incerta</option></select>
@@ -49,7 +49,7 @@ function render(){layer.clearLayers();const f=$('filter').value;const b=L.latLng
   if(p.getLatLng().distanceTo(L.latLng(q))>2)L.polyline([[la,lo],q],{color:'#788992',weight:1,opacity:.6,interactive:false}).addTo(layer);
  }});
  if(b.isValid())map.fitBounds(b.pad(.04),{maxZoom:15});
- $('stats').textContent=(resumoMunicipal?'Universo municipal: '+Number(resumoMunicipal.domicilios_particulares_cnefe).toLocaleString('pt-BR')+' domicílios IBGE 2022. ':'')+'Amostra em análise: '+data.length+' registros; '+shown+' visíveis neste filtro. '+decisions.size+' revisão(ões) registrada(s). Pontos de edificação são hipóteses, não moradias confirmadas.';
+ $('stats').textContent=(resumoMunicipal?'Universo municipal: '+Number(resumoMunicipal.domicilios_particulares_cnefe).toLocaleString('pt-BR')+' domicílios IBGE 2022. ':'')+'Amostra de coordenadas únicas no mapa: '+data.length+' pontos; '+shown+' visíveis neste filtro. '+decisions.size+' revisão(ões) registrada(s). Pontos de edificação são hipóteses, não moradias confirmadas. Se várias unidades CNEFE compartilham coordenada, aparece uma única posição sobreposta.';
  $('items').replaceChildren();data.forEach((r,i)=>{if(f!=='all'&&r.status!==f)return;if($('items').children.length>=350)return;
  const d=document.createElement('div');d.className='item';d.textContent=(i+1)+'. '+r.rua_ibge+' '+r.numero_ibge+' · '+r.status+' · '+r.quantidade_mesmo_ponto+' no ponto';d.onclick=()=>activate(i);$('items').appendChild(d);
  });$('export').disabled=decisions.size===0;
@@ -77,7 +77,7 @@ async function carregarAmostraAutomatica(){
  const s=$('datasetStatus');
  try{
   const base='../assets/data/porto_alegre/';
-  const [pr,sr]=await Promise.all([fetch(base+'fila_amostra.json'),fetch(base+'resumo.json')]);
+  const [pr,sr]=await Promise.all([fetch(base+'fila_amostra.json?v=20261024-13156',{cache:'no-store'}),fetch(base+'resumo.json?v=20261024-13156',{cache:'no-store'})]);
   if(!pr.ok||!sr.ok)throw Error('arquivos ainda não disponíveis no site ('+pr.status+'/'+sr.status+')');
   const [payload,resumo]=await Promise.all([pr.json(),sr.json()]);
   if(!Array.isArray(payload.dados)||!payload.dados.length)throw Error('arquivo de pontos vazio');
