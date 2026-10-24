@@ -1,0 +1,97 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PREVINE | Porto Alegre — 686.846 domicílios e numeração predial</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eff3f5;font:14px system-ui,sans-serif;color:#153549}header{padding:12px 16px;background:#12364a;color:#fff}h1{font-size:18px;margin:0}header p{font-size:12px;margin:4px 0 0;opacity:.9}main{display:grid;grid-template-columns:minmax(260px,315px) minmax(0,1fr);height:calc(100dvh - 73px)}aside{background:#fff;overflow:auto;padding:14px;z-index:300}#map{height:100%;min-height:450px;width:100%}.panel{padding:11px;margin:10px 0;background:#edf5fa;border-radius:8px;line-height:1.5}.warn{background:#fff1d9}.legend{display:flex;flex-direction:column;gap:8px}.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;border:1px solid #fff;box-shadow:0 0 1px #555}label{font-weight:600;display:block;margin-top:12px}input,button,select{width:100%;font:inherit;border-radius:6px;border:1px solid #bbcdd8;padding:8px}button{background:#14657c;color:white;border:none;cursor:pointer;margin-top:6px}button:disabled{opacity:.5}.muted{font-size:12px;color:#4d6570}.counts{font-size:27px;font-weight:750;color:#0d716d}#resultados{max-height:210px;overflow:auto}#resultados button{text-align:left;background:#eef6fa;color:#183549;border:1px solid #d5e2e6;margin:3px 0}#info a{color:#0866a3}#status{margin-top:6px;color:#315c77}#tip{font-size:12px;color:#475a66}@media(max-width:780px){main{display:flex;flex-direction:column;height:auto}#map{height:59vh;min-height:350px;order:0}aside{order:1}header{padding:10px 12px}h1{font-size:16px}}
+</style></head><body>
+<header><h1>Porto Alegre — domicílios e numeração predial</h1><p>PREVINE · CNEFE/IBGE 2022 · Referências de numeração da Prefeitura · Associações propostas, não verificadas em fachada</p></header>
+<main><aside><div class="panel"><div class="counts" id="counter">Carregando…</div><b>registros de domicílios do CNEFE</b><p class="muted" id="subcounter">Carregando posições originais, referências municipais e propostas de deslocamento.</p></div>
+<div class="panel warn"><b>Leitura importante:</b> ponto <b>azul</b> é a coordenada original do IBGE, que pode representar várias casas na esquina; ponto <b>roxo</b> é a referência do número predial da Prefeitura; ponto <b>verde</b> é uma associação proposta. <b>Nenhum ponto verde foi confirmado como a casa correta por fachada.</b></div>
+<div class="panel legend"><b>Camadas do mapa</b><label><input id="src" type="checkbox" checked style="width:auto"> <span class="dot" style="background:#2980b9"></span> CNEFE original — todas as coordenadas</label><label><input id="num" type="checkbox" checked style="width:auto"> <span class="dot" style="background:#7c4ac4"></span> Numeração da Prefeitura — 162.834 referências</label><label><input id="prop" type="checkbox" checked style="width:auto"> <span class="dot" style="background:#0da15b"></span> Propostas — 8.509 posições</label></div>
+<label for="search">Buscar rua ou número do CNEFE</label><input type="search" id="search" placeholder="Ex.: RUA PEDRO VELHO 752"><button id="find">Localizar endereço</button><div id="resultados"></div>
+<div class="panel" id="info"><b>Como usar:</b> aproxime o mapa até o nível 17 ou mais e clique em um ponto. Todos os registros do CNEFE permanecem no conjunto. Abaixo desse nível, círculos grandes mostram a quantidade agregada por área.</div><div id="status" role="status" aria-live="polite"></div><p id="tip">Os agrupamentos em uma esquina não são distribuídos aleatoriamente por telhados. Para indicar um domicílio real, é necessário validar endereço, número e edificação. Este não é um mapa de evacuação.</p></aside><div id="map" aria-label="Mapa de pontos CNEFE Porto Alegre"></div></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+'use strict';
+const ENC='';
+async function obterDados(){const base='../assets/data/porto_alegre/cnefe_raw_by_point_v1/parte_';const nomes=Array.from({length:20},(_,i)=>base+String(i).padStart(2,'0')+'.txt');const responses=await Promise.all(nomes.map(u=>fetch(u,{cache:'force-cache'})));for(let i=0;i<responses.length;i++){if(!responses[i].ok)throw Error('Parte '+i+' dos registros não disponível (HTTP '+responses[i].status+')');}return (await Promise.all(responses.map(r=>r.text()))).join('');}
+const $=s=>document.getElementById(s),fmt=v=>Number(v).toLocaleString('pt-BR');
+const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let db,m,sourceLayer,municipalLayer,proposalLayer,gridLayer,sharedRenderer;
+const status=t=>{$('status').textContent=t;};
+function tileBase(map){
+ const aerial=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens © Esri e fornecedores'}).addTo(map);
+ const topo=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri e fornecedores'});
+ const carto=L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{subdomains:'abcd',maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>'});
+ L.control.layers({'Aérea (Esri)':aerial,'Ruas (Esri)':topo,'Ruas (CARTO)':carto},null,{collapsed:true}).addTo(map);
+ let n=0;aerial.on('tileerror',()=>{if(map.hasLayer(aerial)&&++n>=4){map.removeLayer(aerial);topo.addTo(map);status('Imagem aérea temporariamente indisponível: ruas Esri ativadas.');}});
+ topo.on('tileerror',()=>{if(map.hasLayer(topo)){map.removeLayer(topo);carto.addTo(map);status('Mapa de ruas alternativo ativado.');}});
+}
+const co=n=>n/1000000;
+function mapBound(){const b=m.getBounds();return [Math.round(b.getSouth()*1e6),Math.round(b.getWest()*1e6),Math.round(b.getNorth()*1e6),Math.round(b.getEast()*1e6)];}
+function inside(la,lo,b){return la>=b[0]&&la<=b[2]&&lo>=b[1]&&lo<=b[3];}
+const address=(id,n)=>db.ruas[id]+' '+n;
+function goTo(lat,lon,z=18){m.setView([co(lat),co(lon)],z);}
+function selectedCnefe(item){const [la,lo,n,adds]=item;
+ const shown=adds.slice(0,20).map(a=>'<li>'+escapeHtml(address(a[0],a[1]))+'</li>').join('');
+ $('info').innerHTML='<b>Ponto original CNEFE</b><p><strong>'+fmt(n)+' registro(s)</strong> com a mesma coordenada. Esta posição pode ser uma esquina, um prédio ou uma localização agregada.</p><ul>'+shown+'</ul>'+(adds.length>=20?'<p>Há mais endereços nesta coordenada; lista limitada a 20.</p>':'')+'<a target="_blank" rel="noopener" href="https://www.google.com/maps?q='+co(la)+','+co(lo)+'">Ver a posição no Google Maps</a>';
+}
+function selectedMunicipal(p){const [la,lo,num]=p;$('info').innerHTML='<b>Referência da Prefeitura</b><p>Número predial: <strong>'+escapeHtml(num)+'</strong>. É a posição da anotação cartográfica do número, não a comprovação da entrada de uma casa.</p>';
+}
+function selectedProposal(p){const [oLa,oLo,la,lo,rua,num,met,dist]=p;
+ L.polyline([[co(oLa),co(oLo)],[co(la),co(lo)]],{color:'#166e91',dashArray:'4,6',weight:2}).addTo(proposalLayer);
+ $('info').innerHTML='<b>Proposta de reposicionamento</b><p>'+escapeHtml(rua)+' '+escapeHtml(num)+'</p><p>Origem: '+escapeHtml(met)+'. Deslocamento: '+fmt(dist)+' m. A correspondência por número e vizinhança <b>não comprova a casa por fachada</b>.</p><a target="_blank" rel="noopener" href="https://www.google.com/maps?q='+co(la)+','+co(lo)+'">Conferir no Google Maps</a>';m.setView([co(la),co(lo)],18);
+}
+function render(){if(!db)return;
+ sourceLayer.clearLayers();municipalLayer.clearLayers();proposalLayer.clearLayers();gridLayer.clearLayers();
+ const b=mapBound(),zoom=m.getZoom(),detailed=zoom>=17;
+ let sr=0,unit=0,mun=0,pro=0,gr=0;
+ if(!detailed){
+  for(const p of db.grade){if(!inside(p[0],p[1],b))continue;
+   L.circleMarker([co(p[0]),co(p[1])],{renderer:sharedRenderer,radius:Math.max(5,Math.min(26,Math.sqrt(p[2])/1.6)),color:'#22639a',weight:1,fillColor:'#2276b8',fillOpacity:.32}).addTo(gridLayer).bindTooltip(fmt(p[2])+' registros CNEFE nesta célula de ~300m');gr++;
+  }
+ }else{
+  if($('src').checked){for(const p of db.cnefe){if(!inside(p[0],p[1],b))continue;
+   const radius=p[2]>1?7:4.5;
+   L.circleMarker([co(p[0]),co(p[1])],{renderer:sharedRenderer,radius,color:'#fff',weight:.5,fillColor:'#1982c4',fillOpacity:.85}).addTo(sourceLayer).on('click',()=>selectedCnefe(p));sr++;unit+=p[2];
+   if(sr>=15000)break;
+  }}
+  if($('num').checked){for(const p of db.numeros){if(!inside(p[0],p[1],b))continue;
+   L.circleMarker([co(p[0]),co(p[1])],{renderer:sharedRenderer,radius:4,color:'#fff',weight:.4,fillColor:'#8e5abc',fillOpacity:.8}).addTo(municipalLayer).on('click',()=>selectedMunicipal(p));mun++;
+   if(mun>=15000)break;
+  }}
+ }
+ if($('prop').checked){for(const p of db.propostas){if(!inside(p[2],p[3],b))continue;
+   L.circleMarker([co(p[2]),co(p[3])],{renderer:sharedRenderer,radius:detailed?6:3,color:'#fff',weight:1,fillColor:'#08a764',fillOpacity:.9}).addTo(proposalLayer).on('click',()=>selectedProposal(p));pro++;}}
+ if(!detailed)status('Visão por áreas: '+fmt(gr)+' células; '+fmt(pro)+' propostas verdes. Aproxime o mapa até zoom 17 para ver cada coordenada e os números prediais.');
+ else status('Nesta janela: '+fmt(sr)+' coordenadas originais ('+fmt(unit)+' registros), '+fmt(mun)+' números municipais, '+fmt(pro)+' propostas.'+(sr>=15000||mun>=15000?' Amplie mais para mostrar todos os pontos.':''));
+}
+let searchHits=[];
+function normalize(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();}
+function lookup(){const text=normalize($('search').value);if(text.length<3){$('resultados').textContent='Digite pelo menos 3 caracteres.';return;}
+ const streetmatch=new Set();for(let i=0;i<db.ruas.length;i++)if(normalize(db.ruas[i]).includes(text)||text.includes(normalize(db.ruas[i])+' '))streetmatch.add(i);
+ // Quando nome+número forem digitados, usar identificador de rua e número separadamente.
+ const toks=text.split(' '),num=/^\d+[A-Z]?$/.test(toks[toks.length-1])?toks[toks.length-1]:'';
+ const stTerm=num?text.slice(0,-num.length).trim():text;
+ const stMatch=new Set();for(let i=0;i<db.ruas.length;i++)if(normalize(db.ruas[i]).includes(stTerm))stMatch.add(i);
+ const out=[];for(const p of db.cnefe){if(out.length>=120)break;
+  for(const [i,n] of p[3]){if(stMatch.has(i)&&(!num||n===num)){out.push([p,address(i,n)]);break;}}
+ }searchHits=out;
+ const wrap=$('resultados');wrap.replaceChildren();if(!out.length){wrap.textContent='Nenhuma correspondência nesta pesquisa.';return;}
+ const p=document.createElement('p');p.className='muted';p.textContent=out.length===120?'Exibindo 120 primeiras ocorrências: refine pelo número.':fmt(out.length)+' pontos encontrados.';wrap.appendChild(p);
+ out.slice(0,35).forEach(([r,txt],i)=>{const btn=document.createElement('button');btn.textContent=txt+' · '+r[2]+' registro(s)';btn.onclick=()=>{goTo(r[0],r[1]);selectedCnefe(r)};wrap.appendChild(btn)});
+}
+async function start(){if(!window.L){status('Não foi possível carregar Leaflet (internet indisponível).');return;}
+ m=L.map('map',{preferCanvas:true}).setView([-30.043,-51.185],13);sharedRenderer=L.canvas({padding:0.3});tileBase(m);
+ sourceLayer=L.layerGroup().addTo(m);municipalLayer=L.layerGroup().addTo(m);proposalLayer=L.layerGroup().addTo(m);gridLayer=L.layerGroup().addTo(m);
+ m.on('moveend zoomend',()=>{if(db)render();});['src','num','prop'].forEach(x=>$(x).addEventListener('change',render));$('find').onclick=lookup;$('search').addEventListener('keydown',e=>{if(e.key==='Enter')lookup()});
+ try{
+  if(typeof DecompressionStream==='undefined')throw Error('Navegador sem descompactação GZIP');
+  const raw=Uint8Array.from(atob(ENC || await obterDados()),c=>c.charCodeAt(0));
+  const out=await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  db=JSON.parse(new TextDecoder().decode(out));
+  $('counter').textContent=fmt(db.meta.cnefe);$('subcounter').textContent=fmt(db.meta.coordenadas)+' coordenadas originais · '+fmt(db.meta.num_prefeitura)+' referências municipais · '+fmt(db.meta.propostas)+' propostas de reposicionamento.';
+  render();
+ }catch(e){status('Não foi possível carregar o conjunto: '+e.message);console.error(e);}
+}
+start();
+</script></body></html>
