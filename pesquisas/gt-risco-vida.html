@@ -287,12 +287,15 @@ function rotaParaTerrenoAlto(doc,orig,campos,n,margem){
   adj[a].push([b,metros,ei]);adj[b].push([a,metros,ei]);
  }
  const dist=Array(nn).fill(Infinity),prev=Array(nn).fill(-1),edgePrev=Array(nn).fill(-1),h=[];
+ // Não escolher um local mais baixo do que a rua de origem se ela já é alta.
+ const cotaAlvo=Math.max(n+2,Number(doc.cota_no[no]));
+ const percursoMinimo=Number(doc.cota_no[no])>=n+2?25:0;
  dist[no]=0;heapPush(h,[0,no]);let saida=-1;
  while(h.length){
   const [c,u]=heapPop(h);if(c>dist[u]+1e-8)continue;
   // Um ponto alto precisa ter continuidade por ao menos duas ligações de rua
   // elegíveis. Não o confundir com um abrigo, uma edificação ou um refúgio vistoriado.
-  if(c>=60&&doc.cota_no[u]>=n+2&&adj[u].length>=2){saida=u;break}
+  if(c>=percursoMinimo&&c>0&&doc.cota_no[u]>=cotaAlvo&&adj[u].length>=2){saida=u;break}
   for(const [v,w,ei] of adj[u])if(c+w+1e-8<dist[v]){
    dist[v]=c+w;prev[v]=u;edgePrev[v]=ei;heapPush(h,[dist[v],v]);
   }
