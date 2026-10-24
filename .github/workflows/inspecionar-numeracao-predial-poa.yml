@@ -1,0 +1,29 @@
+name: Inspecionar numeração predial oficial de Porto Alegre
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/inspecionar-numeracao-predial-poa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  numeracao:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Consultar dados municipais SMAMUS por API pública
+        run: |
+          python - <<'PY'
+          import json, urllib.parse, urllib.request
+          root='https://gis-smamus.portoalegre.rs.gov.br/server/rest/services/01_PUBLICACOES/nro_imovel/FeatureServer/0/query'
+          for name, params in [
+              ('count', {'where':'1=1','returnCountOnly':'true','f':'json'}),
+              ('sample',{'where':'1=1','outFields':'objectid,textstring,setor,quarteirao','resultRecordCount':8,'orderByFields':'objectid','returnGeometry':'true','outSR':4326,'f':'geojson'}),
+              ('few',{'where':'textstring IS NOT NULL','outFields':'objectid,textstring,setor,quarteirao','resultRecordCount':8,'orderByFields':'objectid','returnGeometry':'true','outSR':4326,'f':'json'})]:
+              u=root+'?'+urllib.parse.urlencode(params)
+              with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'Previne-research/1.0'}),timeout=90) as r:
+                  result=json.load(r)
+              print(name, json.dumps({'count':result.get('count'),'error':result.get('error'),
+                      'features':result.get('features',[])[:8]},ensure_ascii=False)[:10000])
+          PY
