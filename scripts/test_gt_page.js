@@ -12,7 +12,7 @@ function elem(id){return els[id]||(els[id]={...node(),
   value:id==='cidade'?'santa_tereza':id==='politica'?'exploratoria':id==='cota'?'13.4':undefined,
   checked:true,style:{},textContent:'',innerHTML:'',addEventListener(){}
 });}
-const geo={addTo(){return this},on(){return this},bindPopup(){return this}};
+const geo={addTo(){return this},on(){return this},bindPopup(){return this},bindTooltip(){return this},getBounds(){return bounds}};
 const bounds={extend(){return this},isValid(){return true},pad(){return this}};
 const L={
   map(){return {setView(){return this},fitBounds(){return this},removeLayer(){return this}}},
@@ -28,4 +28,11 @@ elem('cidade').value='mucum';
 vm.runInNewContext("mudaCidade()",context,{timeout:20000});
 assert(/Muçum/.test(elem('resumo').innerHTML),'Muçum not rendered');
 assert(/1937/.test(elem('resumo').innerHTML),'No 1937 points in Muçum summary');
+assert(/Muçum/.test(elem('visaoResumo').textContent),'Floating map summary not rendered');
+assert(/Origem/.test(elem('visaoDestino').textContent),'Example route not visible on map summary');
+elem('cidade').value='santa_tereza';
+vm.runInNewContext("mudaCidade()",context,{timeout:20000});
+vm.runInNewContext("selecionada=388;rede(18.9,'exploratoria')",context,{timeout:20000});
+assert(/EDIFICAÇÃO ATINGIDA/.test(elem('visaoDestino').textContent),'Flooded origin should not suggest a route');
+assert(elem('voltarCota').hidden===false,'Earlier access scenario should be available for origin 388');
 console.log('OK GT map renders both cities + points without network fetch');
