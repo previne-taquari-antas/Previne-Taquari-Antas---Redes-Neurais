@@ -33,6 +33,8 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <label><input id="mdt" type="checkbox" style="width:auto" checked> MDT LiDAR Santa Tereza (~10 m; imagem georreferenciada)</label>
 <label for="opacityMdt">Opacidade MDT <span id="opacityVal">65%</span></label><input id="opacityMdt" type="range" min="0" max="100" value="65" step="5">
 <div class="meta" id="mdtInfo">MDT LiDAR disponível para Santa Tereza; Muçum necessita camada equivalente preparada para esta página.</div>
+<label><input id="todasOrigens" type="checkbox" style="width:auto"> Exibir todas as edificações OSM, inclusive pontos sem correspondência residencial próxima (auditoria)</label>
+<div class="meta" id="qaResidencias">As posições ainda não foram verificadas nas imagens ou em campo. Por padrão ocultamos pontos sem evidência mínima CNEFE em Santa Tereza.</div>
 <h2>Legenda: edificações OSM</h2>
 <div class="legend">
 <div><i class="key" style="background:#c0392b"></i>Na mancha modelada</div>
@@ -114,6 +116,10 @@ function corteAproximado(i,f){
   if(t===-1||water>0)return levels[k];}
  return null;
 }
+// Triagem preliminar do CNEFE 2022: índice OSM com ponto domiciliar a até 10 m
+// do centróide. NÃO confirma que o ponto esteja dentro do polígono, nem uso atual.
+// Lista gerada do artefato GitHub Actions gt-risco-vida-20261024-final.zip.
+const CNEFE_ST_10M=new Set([4,9,23,32,33,35,42,44,58,76,79,82,86,108,120,122,124,129,131,132,135,136,141,143,160,163,164,176,193,194,203,210,211,221,222,231,233,236,237,240,241,242,247,261,262,268,271,281,283,286,291,292,295,296,307,308,317,326,327,329,330,331,334,338,344,353,355,362,364,366,370,372,377,382,386,388,400,402,405,417,426,428,430,434,453,454,457,459,463,467,485,489,501,553,555,557,558,561,562]);
 function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
  camadas.clearLayers();linhas.clearLayers();let classes={};
@@ -121,7 +127,13 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  d.edges.forEach(e=>{let a=e[0],b=e[1],z=e[4],state=z==null?'incerto':z<=n?'alagado':'sem_alagamento';
  L.polyline([d.nos[a],d.nos[b]],{color:state==='alagado'?'#bd3841':state==='incerto'?'#e2a33e':'#7397a0',
  weight:state==='alagado'?2.4:1.1,opacity:state==='alagado'?.78:.4,dashArray:state==='incerto'?'3 5':undefined}).addTo(linhas)});
- d.casas.forEach((orig,i)=>{const lat=orig[f.lat],lon=orig[f.lon],v=cor(orig,f,o,c,alt,n);
+ let exibidos=0;
+ d.casas.forEach((orig,i)=>{
+  // Evita chamar edificações genéricas de casas. Muçum mantém zero pontos
+  // por padrão até ser incorporada a verificação residencial correspondente.
+  if(!$('todasOrigens').checked && !(d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i)))return;
+  exibidos++;
+  const lat=orig[f.lat],lon=orig[f.lon],v=cor(orig,f,o,c,alt,n);
   classes[v[1]]=(classes[v[1]]||0)+1;
   let marker=L.circleMarker([lat,lon],{radius:3.6,color:'#25332f',weight:0.35,fillColor:v[0],fillOpacity:.87}).addTo(camadas);
   marker.on('click',()=>{selecionada=i;mostra(i,orig,f,v,o,c,alt,n)});bb.extend([lat,lon])});
@@ -135,6 +147,9 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
     {color:'#a82d7c',weight:5,opacity:.77}).addTo(linhas)
     .bindPopup('Aresta OSM '+ix+' • '+count+' origens usam este segmento em rota inicial. Não é contagem de isolados.')}
  }
+ $('qaResidencias').textContent=d.meta.municipio==='Santa Tereza'?
+  'Pontos exibidos: '+exibidos+' de '+d.casas.length+' edificações OSM. Triagem inicial: somente '+CNEFE_ST_10M.size+' com endereço CNEFE a até 10 m do centróide; proximidade NÃO é validação de moradia ou posição na construção. Para investigar os demais, marque Exibir todas.':
+  'Muçum: os pontos OSM estão ocultos por padrão enquanto não forem classificados individualmente. Use Exibir todas para auditoria, sem interpretar como casas.';
  const levelGauge=n+d.meta.bankfull_m;
  $('nivel').textContent=n.toFixed(1).replace('.',',')+' m HAND • régua aprox. '+levelGauge.toFixed(1).replace('.',',')+' m';
  $('resumo').innerHTML='<b>'+d.meta.municipio+'</b><br>'+d.casas.length+' origens OSM, '+d.edges.length+' trechos de rede; '+d.abrigos.length+' locais cadastrados.<br>'+
@@ -176,7 +191,7 @@ async function mudaCidade(){
  }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
 }
 $('cidade').addEventListener('change',mudaCidade);
-['cota','politica','candidatos','trechos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
+['cota','politica','candidatos','trechos','todasOrigens'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
 $('mdt').addEventListener('change',atualizaMDT);
 $('opacityMdt').addEventListener('input',atualizaMDT);
 mudaCidade();
