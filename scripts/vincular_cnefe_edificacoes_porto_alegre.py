@@ -155,7 +155,8 @@ def _ler_cnefe_stream(fh):
                "linha": i+2, "lat": la, "lon": lo, "nv": str(field(row, "NV_GEO_COORD")),
                "rua": endereco(row), "numero": num(row),
                "cep": str(field(row, "CEP")),
-               "setor": str(field(row, "COD_SETOR"))}
+               "setor": str(field(row, "COD_SETOR")),
+               "tipo_domicilio": str(field(row, "COD_TIPO_ESPECIE"))}
 
 
 def pontuar(addr, building, distancia, dentro):
@@ -189,6 +190,9 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
     out = Path(saida)
     out.mkdir(parents=True, exist_ok=True)
     status_counts = Counter()
+    nv_counts = Counter(r["nv"] for r in rows)
+    tipo_counts = Counter(r["tipo_domicilio"] for r in rows)
+    shared_groups = sum(v>1 for v in seen.values())
     links = Counter()
     aprovadas = {}
     if revisoes:
@@ -206,7 +210,7 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
     candidatos = []
     with (out/"associacoes_auditoria.csv").open("w", newline="", encoding="utf-8-sig") as f:
         wr = csv.DictWriter(f, fieldnames=["id_cnefe", "linha_origem", "nv_geo_coord", "setor",
-                           "rua_ibge", "numero_ibge", "lat_original", "lon_original",
+                           "rua_ibge", "numero_ibge", "tipo_domicilio_ibge", "lat_original", "lon_original",
                            "endereco_agrupado", "quantidade_mesmo_ponto", "status", "osm_candidato",
                            "distancia_footprint_m", "tipo_osm", "candidatos_competidores",
                            "justificativa", "lat_proposta", "lon_proposta", "street_view_url"])
@@ -217,7 +221,7 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
             agrupado = cluster > 1
             base = {"id_cnefe": r["chave"], "linha_origem": r["linha"],
                     "nv_geo_coord": r["nv"], "setor": r["setor"],
-                    "rua_ibge": r["rua"], "numero_ibge": r["numero"],
+                    "rua_ibge": r["rua"], "numero_ibge": r["numero"], "tipo_domicilio_ibge": r["tipo_domicilio"],
                     "lat_original": lat, "lon_original": lon, "endereco_agrupado": int(agrupado),
                     "quantidade_mesmo_ponto": cluster, "status": "pendente", "osm_candidato": "",
                     "distancia_footprint_m": "", "tipo_osm": "",
@@ -252,9 +256,12 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
                     else:
                         base["status"] = "candidato_incertamente_residencial"
                         base["justificativa"] = "sem endereço OSM completo, uso ambíguo ou competidores próximos"
-                    if agrupado and (r["nv"] in {"3","4","5","6"} or not (numero_ok and rua_ok)):
+                    if agrupado and (r["nv"] in {"3","4","5","6"} or not (numero_ok and rua_ok)) and not (r["nv"] == "2" and r["tipo_domicilio"] == "103"):
                         base["status"] = "esquina_ou_aglomerado_revisar"
                         base["justificativa"] = "várias unidades na mesma coordenada; não redistribuir sem identificação"
+                    if agrupado and r["nv"] == "2" and r["tipo_domicilio"] == "103":
+                        base["status"] = "apartamentos_mesmo_edificio_revisar"
+                        base["justificativa"] = "agrupamento legítimo de apartamentos em edifício; não espalhar unidades"
                     # Sugestão interna, não localização corrigida confirmada.
                     dest = b["centro"]
                     lon2, lat2 = transform(TO_GEO, dest).coords[0]
@@ -266,6 +273,9 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
                 else:
                     base["status"] = "sem_edificacao_compativel"
                     base["justificativa"] = "nenhuma geometria candidata no raio/sem divergência cadastral"
+            if lat is not None and not base["street_view_url"]:
+                base["street_view_url"] = ("https://www.google.com/maps/@?api=1&map_action=pano"
+                    f"&viewpoint={lat:.7f}%2C{lon:.7f}")
             rev = aprovadas.get(r["chave"])
             if rev:
                 conf = ids_b.get(rev["osm_id"])
@@ -286,7 +296,7 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
             status_counts[base["status"]] += 1
             wr.writerow(base)
             if base["status"] in ("candidato_forte_revisao_visual", "esquina_ou_aglomerado_revisar",
-                                  "candidato_incertamente_residencial"):
+                                  "candidato_incertamente_residencial", "apartamentos_mesmo_edificio_revisar", "sem_edificacao_compativel"):
                 # Amostragem determinística para revisão visual prioritária.
                 if len(candidatos) < revisao_max or base["status"] == "esquina_ou_aglomerado_revisar":
                     candidatos.append(base)
@@ -298,6 +308,7 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
                                                         "unidades_mesmo_ponto":cluster,
                                                         "osm_sugerido":base["osm_candidato"]}})
     candidatos.sort(key=lambda x: (x["status"] != "esquina_ou_aglomerado_revisar",
+                                    x["status"] != "apartamentos_mesmo_edificio_revisar",
                                     -int(x["quantidade_mesmo_ponto"] or 0)))
     with (out/"revisao_street_view.csv").open("w", newline="", encoding="utf-8-sig") as f:
         wr = csv.DictWriter(f, fieldnames=list(candidatos[0]) if candidatos else
@@ -312,6 +323,10 @@ def processar(cnefe, osm, saida, max_dist=40, revisao_max=2500, revisoes=None):
                  "data_processamento":date.today().isoformat(),
                  "domicilios_particulares_cnefe":len(rows),
                  "edificacoes_osm_candidatas":len(predios),
+                 "pontos_cnefe_distintos_com_coordenada":len(seen),
+                 "coordenadas_compartilhadas_grupos":shared_groups,
+                 "por_nivel_geocodificacao_ibge":dict(nv_counts),
+                 "por_tipo_domicilio_ibge":dict(tipo_counts),
                  "domicilios_em_pontos_compartilhados":sum(seen[(round(r['lat'],6),round(r['lon'],6))]>1
                      for r in rows if r['lat'] is not None),
                  "status":dict(status_counts), "edificacoes_com_cnefe_candidato":len(links),
