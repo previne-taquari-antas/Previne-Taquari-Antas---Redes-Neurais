@@ -22,7 +22,8 @@ BRT=timezone(timedelta(hours=-3))
 LABELS={'V3_conceptual_reference':'V3 · retenção conceitual',
  'unmodified_upstream_no_extra_storage':'Canal recalibrado · sem retenção externa',
  'local_terrain_Modified_Puls':'Canal + planície local · pico refinado',
- 'previous_local_terrain_Modified_Puls':'Planície local · calibração anterior'}
+ 'previous_local_terrain_Modified_Puls':'Planície local · calibração anterior',
+ 'reach_lateral_capacity_constrained':'Trecho com armazenamento lateral limitado'}
 
 def write_csv(path,rows):
     stream=io.StringIO(newline='');w=csv.DictWriter(stream,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows);atomic_bytes(path,stream.getvalue().encode())
@@ -50,12 +51,18 @@ def main():
         previous=copy.deepcopy(next(r for r in json.loads(prior_path.read_text())['models'] if r['name']=='local_terrain_Modified_Puls'))
         if previous['result_file']!=next(r for r in models if r['name']=='local_terrain_Modified_Puls')['result_file']:
             previous['name']='previous_local_terrain_Modified_Puls';models.append(previous)
+    lateral=geo.OUT/'lateral_reach_hypothesis/verified_isolated/result.json'
+    if lateral.exists():
+        ld=json.loads(lateral.read_text())
+        if not ld.get('quality_gate_passed') or not ld['isolated_lateral_audit'].get('regional_incremental_capacity',{}).get('passed'):raise RuntimeError('Lateral case lacks independent capacity verification')
+        models.append(dict(name='reach_lateral_capacity_constrained',result_file=str(lateral.relative_to(geo.ROOT)),scores=ld['scores'],strict_scores=ld['strict_scores'],
+            parameters=dict(channel=json.loads((lateral.parents[1]/'channel_parameters.json').read_text()),lateral=ld['parameters_lateral']),isolated_compute_verified=True))
     for row in models:
         result=geo.ROOT/row['result_file'];d=json.loads(result.read_text());sim=independent.model(result.parent/'project/hec_output_values.csv','86510000')
         pp=independent.independent_pairs(sim,raw,'86510000',d['window']);mm=independent.metrics(pp);sm=independent.metrics(independent.independent_pairs(sim,strict,'86510000',d['window']));qm=independent.metrics(independent.independent_pairs(sim,qa,'86510000',d['window']))
         for k in ['nse','kge','pbias_pct','rmse_m3s']:
             if abs(mm[k]-row['scores']['86510000'][k])>1e-8:raise RuntimeError('Independent raw-clock mismatch '+row['name']+' '+k)
-        peak_t,peak_q=max(sim,key=lambda z:z[1]);crest=hms.utc('2023-11-19T02:00:00Z')
+        peak_t,peak_q=max(sim,key=lambda z:z[1]);crest=field_time
         rise=[(o,q) for t,o,q in pp if 0<=(crest-t).total_seconds()/3600<=24];fall=[(o,q) for t,o,q in pp if t>crest]
         record=dict(model=row['name'],clock_offset_minutes=0,pairs=mm['pairs'],NSE_raw_clock=mm['nse'],KGE_raw_clock=mm['kge'],bias_pct=mm['pbias_pct'],NSE_strict_15m_raw_clock=sm['nse'],
             peak_error_vs_available_telemetry_pct=100*(peak_q/max(o for t,o,q in pp)-1),peak_minus_SGB_reported_time_h=(peak_t-field_time).total_seconds()/3600,
@@ -67,13 +74,13 @@ def main():
         record.update(peak_stage_from_dated_rating_m=stage,stage_difference_vs_SGB_sensor_23_02_m=stage-23.02)
         records.append(record);simulations[row['name']]=sim
         for t,o,q in pp:pairs_out.append(dict(model=row['name'],time_utc=independent.iso(t),observed_telemetry_Q_m3s=o,simulated_Q_m3s=q))
-        name={'V3_conceptual_reference':'REFERENCIA_V3_CONCEITUAL','unmodified_upstream_no_extra_storage':'CANAL_SEM_RETENCAO_EXTERNA','local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_NATIVO','previous_local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_ANTERIOR'}[row['name']]
+        name={'V3_conceptual_reference':'REFERENCIA_V3_CONCEITUAL','unmodified_upstream_no_extra_storage':'CANAL_SEM_RETENCAO_EXTERNA','local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_NATIVO','previous_local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_ANTERIOR','reach_lateral_capacity_constrained':'HEC_ARMAZENAMENTO_LATERAL_LIMITADO'}[row['name']]
         case=pack/name;shutil.copytree(result.parent/'project',case)
         for f in case.iterdir():
             if f.is_file() and (f.name=='run.script' or f.suffix in ['.log','.access','.pending']):f.unlink()
         geo.save(case/'parametros_resultados.json',dict(parameters=row['parameters'],metrics=record,native_result=d,research_only=True))
     write_csv(pack/'comparacao_modelos_mesma_base.csv',records);write_csv(pack/'pares_observado_simulado_relogio_bruto.csv',pairs_out)
-    geo.save(pack/'manifesto_modelos.json',summary)
+    geo.save(pack/'manifesto_modelos.json',dict(summary,models=models))
     r=next(r for r in summary['models'] if r['name']=='local_terrain_Modified_Puls');rp=geo.ROOT/r['result_file'];script=(rp.parent/'project/run.script').read_text();source=ast.literal_eval(next(l for l in script.splitlines() if l.startswith('source_values=')).split('=',1)[1])['86472000']
     native=json.loads(rp.read_text());axis=hms.hourly_axis(hms.utc(native['window']['start_utc']),hms.utc(native['window']['end_utc']));original=hms.source_hourly(raw,'86472000',axis)
     if any(a!=b for a,b in zip(source,original)):raise RuntimeError('Native geometry case modified upstream Q')
@@ -86,6 +93,12 @@ def main():
     for f in ['archived_rating_consistency_audit.json','archived_rating_comparison.csv','peak_timing_selection.json','peak_timing_selected_parameters.json','balanced_selection.json','balanced_selected_parameters.json']:
         if (geo.OUT/f).exists():shutil.copy2(geo.OUT/f,pack/f)
     if (geo.OUT/'peak_timing_search/evaluations.json').exists():shutil.copy2(geo.OUT/'peak_timing_search/evaluations.json',pack/'busca_parametros_resultados.json')
+    if lateral.exists():
+        reach=pack/'HIPOTESE_TRECHO';reach.mkdir();source=lateral.parents[1]
+        for name in ['screening.json','isolated_verification.json','regional_capacity_screening.json','regional_hourly_capacity.json','regional_terrain_MAPGEO2015_30m.tif','unconstrained_screening.json','unconstrained_isolated_verification.json','unconstrained_regional_capacity_screening.json']:
+            shutil.copy2(source/name,reach/name)
+        for name in ['anadem_reach_egm2008.tif','anadem_reach_egm2008.tif.source.json','egm2008_local_geoid.tif','egm2008_local_geoid.tif.source.json']:
+            shutil.copy2(geo.ROOT.parent/'inputs'/name,reach/name)
     geo.save(geo.OUT/'independent_model_comparison.json',records)
     # Figure: show the actual mapped footprint, capacity envelope and raw-clock
     # hydrograph. The volume bars explicitly retain their different domains.
@@ -159,7 +172,7 @@ Todos os modelos abaixo foram reavaliados com os horários brutos originais. Nã
 | --- | --- | --- | --- | --- |
 {table}
 
-O cenário com planície mantém **todas as vazões observadas de montante intactas**. O gerador não aplica a retenção externa da V3. A área e a curva de armazenamento são fixadas pelo terreno; somente a propagação do canal e os parâmetros de perdas/transformação/recessão das áreas incrementais foram calibrados na busca. A curva de descarga foi tomada dos segmentos ANA arquivados com vigência 06/09–31/12/2023, em metros, sem ajustar seus coeficientes ao hidrograma alvo. Os rótulos derivados h0_cm/h0_m desse arquivo têm ambiguidade de unidade; foram usados os coeficientes brutos e a equação A(h−h0)^n. Trata-se de vazão extrema condicionada à curva-chave, não medição independente de cheia.
+O cenário de planície local mantém **todas as vazões observadas de montante intactas**. O gerador não aplica a retenção externa da V3. Nesse teste de planície local, a área e a curva de armazenamento são fixadas pelo terreno; somente a propagação do canal e os parâmetros de perdas/transformação/recessão das áreas incrementais foram calibrados na busca. A curva de descarga foi tomada dos segmentos ANA arquivados com vigência 06/09–31/12/2023, em metros, sem ajustar seus coeficientes ao hidrograma alvo. Os rótulos derivados h0_cm/h0_m desse arquivo têm ambiguidade de unidade; foram usados os coeficientes brutos e a equação A(h−h0)^n. Trata-se de vazão extrema condicionada à curva-chave, não medição independente de cheia.
 
 ## Verificação nativa e abertura
 
@@ -190,6 +203,15 @@ Os scripts `build_mucum_floodplain_storage.py`, `refine_mucum_native_rawclock.py
         balanced=json.loads(balanced_path.read_text())
         if balanced['selected'] is None:
             notes+=f"\nTambém foram testadas {balanced['additional_cases']} combinações adicionais próximas à calibração anterior, totalizando {balanced['evaluations_total']} casos de canal. Nenhuma satisfez simultaneamente a redução do erro do pico, NSE do canal ≥0,986, NSE até 15 m ≥0,9675 e desvio do horário do pico ≤15 min. Isso descreve esta busca limitada, sem provar impossibilidade de outro ajuste. Por isso a alternativa de pico refinado não substitui silenciosamente a versão anterior como melhor modelo global.\n"
+    if lateral.exists():
+        ld=json.loads(lateral.read_text());lm=ld['independent_metrics'];la=ld['isolated_lateral_audit'];cap=la['regional_incremental_capacity'];lp=ld['parameters_lateral']
+        notes+=f'''\n## Nova hipótese: armazenamento lateral limitado no trecho completo\n\nA alternativa **HEC_ARMAZENAMENTO_LATERAL_LIMITADO** melhora conjuntamente o pico, a subida, a recessão e o ajuste global neste evento. Ela conserva a entrada original de Linha José Júlio e o relógio bruto, e mantém a curva da planície local. Uma bifurcação nativa Inflow-Diversion Table envia uma fração de Q acima do limiar a um reservatório Modified Puls nativo. A água retorna ao mesmo sistema fluvial por uma junção, antes da propagação no canal. Trata-se de representação concentrada de armazenamento lateral do trecho, não de uma barragem real nem de localização hidráulica dos intercâmbios.\n\nO limiar calibrado é {lp['threshold_m3s']:.1f} m³/s, a fração acima do limiar é {lp['fraction']:.4f} e o tempo de retorno linear é {lp['tau_h']:.2f} h. A propagação total JJ–Muçum foi recalibrada para {lp['k_g1']:.3f} h. O limiar de intercâmbio não é uma margem medida. A tabela de armazenamento usa retorno linear até 99% da capacidade do cenário; acima desse ponto, representa retorno de emergência ao rio, impedindo tratar o reservatório como armazenamento ilimitado. Esse ramo de emergência não foi acionado no evento calibrado.\n\nA hipótese inicialmente otimizada, sem limite regional, reproduziu muito bem o hidrograma mas exigiu cerca de 82,02 milhões de m³ adicionais. Ela foi rejeitada como escolha final diante do teste geométrico incremental e permanece documentada apenas como diagnóstico. A seleção final foi reotimizada com limite de armazenamento.\n\nPara esse limite foi recuperado um recorte regional **ANADEM de 30 m**, sem misturá-lo ao drone. A referência EGM2008 foi convertida explicitamente: H_MAPGEO2015 = H_ANADEM_EGM2008 + N_EGM2008 − N_MAPGEO2015, usando a grade EGM2008 distribuída pelo PROJ e a MAPGEO2015 do IBGE. O perfil longitudinal da água é uma interpolação linear entre os níveis observados nas duas réguas, com zeros SGB 61,140 m em JJ e 33,985 m em Muçum. As faixas de canal de ±50/100/150 m e desvios verticais de ±1 m estão no teste de sensibilidade. ANADEM, resolução de 30 m e perfil linear são triagem geométrica, não levantamento de margens, batimetria ou solução de remanso. A permanência dos zeros entre a época do evento e a referência publicada e as mudanças morfológicas do vale ainda dependem de controle histórico.\n\nO cenário central tem máximo horário de {cap['max_event_land_volume_m3']/1e6:.2f} milhões de m³ fora da faixa do canal. Antes da primeira derivação, {cap['reference_at_first_diversion_m3']/1e6:.2f} milhões de m³ já estavam preenchidos. Portanto, o limite adicional é {cap['additional_capacity_m3']/1e6:.2f} milhões de m³, com orçamento de {cap['budget_with_two_percent_margin_m3']/1e6:.2f} milhões após margem computacional de 2%, que não representa a incerteza do levantamento. O máximo nativo final foi {cap['required_native_max_storage_m3']/1e6:.2f} milhões de m³ adicionais. Não se comparou armazenamento novo a volume total já inundado. O limite usa a capacidade máxima do evento; a retenção na recessão pressupõe histerese/água represada na planície. A superfície real da água armazenada e a troca dinâmica com o rio ainda não foram validadas.\n\nResultado do recálculo isolado: NSE {lm['nse']:.5f}; KGE {lm['kge']:.5f}; NSE até 15 m {lm['strict_NSE']:.5f}; erro do pico {lm['peak_error_pct']:+.2f}%; pico menos horário publicado pelo SGB {lm['peak_time_minus_SGB_h']:+.2f} h; viés {lm['pbias_pct']:+.2f}%; erro relativo médio na subida {lm['rise_NMAE']*100:.2f}% e na recessão {lm['recession_NMAE']*100:.2f}%. A hora observada provém de publicação e a série é horária: o passo de 3 min do modelo não cria precisão observacional de 3 min.\n\nO projeto entregue foi copiado e computado com os DSS existentes, **sem reescrever a entrada nem as tabelas**. As 4.781 amostras de cada série se repetiram, a diferença da entrada original foi zero, o resíduo máximo da divisão de vazões foi {la['diversion_split_max_residual_m3s']:.3g} m³/s e o balanço do armazenamento adicional apresentou resíduo de {la['FP_REACH']['balance_residual_m3']:.3g} m³. A água derivada entra no reservatório e toda a descarga retornada entra na junção, com armazenamento remanescente explicitado.\n\nOs critérios de bom ajuste adotados antes da escolha final foram: NSE ≥0,99, KGE ≥0,95, NSE até 15 m ≥0,97, módulo do erro do pico ≤5%, desvio do pico ≤1 h, módulo do viés ≤3% e erros relativos na subida/recessão ≤5%. Todos foram atendidos no evento de calibração. Isso é calibração específica de Muçum/novembro de 2023, condicionada aos dados de vazão e às hipóteses geométricas, **sem validação independente em outro evento ou comprovação hidráulica de campo**. Estrela mantém modelos separados.\n\nFontes regionais: ANADEM/UFRGS/ANA, https://hge-iph.github.io/anadem/ ; Nota Técnica ANA nº 3/2025/CCOGI/SHE-SEI (referência vertical EGM2008), https://metadados.snirh.gov.br/geonetwork/srv/api/records/93664c15-1ff8-4e87-bbed-2bb69d321309/attachments/SEI_0031152_Nota_Tecnica_3.pdf ; grade EGM2008, https://cdn.proj.org/us_nga_egm08_25.tif ; documentação USACE sobre desvio e retorno nativo, https://www.hec.usace.army.mil/confluence/hmsdocs/hmsum/4.13/source-junction-diversion-and-sink-elements/diversion .\n'''
+        # Keep the earlier terrain figure inside the package; the main preview
+        # now shows the actual calibration improvement and storage constraint.
+        shutil.copy2(image,pack/'Geometria_local_etapa_anterior.png')
+        from plot_mucum_lateral_calibration import make_figure
+        content=make_figure(records,simulations,raw,ld,lateral.parent/'project/lateral_native_values.csv')
+        atomic_bytes(image,content);atomic_bytes(pack/image.name,content)
     atomic_bytes(pack/'LEIA-ME.md',notes.encode());atomic_bytes(geo.ROOT/'docs/HEC_MUCUM_PLANICIE_20261024.md',notes.encode())
     geo.save(pack/'sha256.json',{str(p.relative_to(pack)):hashlib.sha256(p.read_bytes()).hexdigest() for p in pack.rglob('*') if p.is_file()})
     archive=dest/(pack.name+'.zip');pending=archive.with_suffix('.zip.pending')
