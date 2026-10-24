@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GT Vulnerabilidades · Risco à vida e isolamento | PREVINE pesquisa</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--ink:#172834;--soft:#577082;--line:#dbe5ea;--paper:#fff;--bg:#f3f6f8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Arial,sans-serif}
+header{padding:14px clamp(14px,3vw,28px);border-bottom:1px solid var(--line);background:white;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:19px;margin:0;line-height:1.3}h1 small{display:block;font-weight:450;color:var(--soft);font-size:12px;margin-bottom:3px;letter-spacing:.03em}
+.flag{border-radius:16px;padding:5px 10px;background:#f0e4c7;color:#714b0c;font-size:12px;font-weight:650}
+.layout{display:grid;grid-template-columns:minmax(305px,350px) 1fr;min-height:calc(100vh - 72px)}
+aside{padding:17px;background:white;border-right:1px solid var(--line);max-height:calc(100vh - 72px);overflow:auto}
+#map{height:calc(100vh - 72px);min-height:550px;background:#e6eff1}
+h2{font-size:15px;margin:4px 0 11px}h3{font-size:13px;margin:16px 0 6px}
+.group{margin:11px 0 16px}.group label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}
+select,input[type=range],button{font:inherit}select{width:100%;padding:9px 10px;border-radius:8px;border:1px solid #b6c8d2;background:white}
+.row{display:flex;align-items:center;gap:8px}.row input{flex:1}button{border:1px solid #b4c8d2;border-radius:8px;background:#f4f7f8;padding:7px 9px;cursor:pointer}button:hover{background:#e6eff1}
+.level{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+.level strong{font-size:19px}.level span{font-size:11px;color:var(--soft)}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.metric{border:1px solid var(--line);background:#f9fbfc;padding:10px;border-radius:10px}.metric b{font-size:20px;font-variant-numeric:tabular-nums;display:block}
+.metric span{display:block;font-size:11px;color:var(--soft);min-height:32px}
+.hint{padding:11px;border:1px solid #e6dcce;background:#fffaf2;border-radius:9px;color:#654c32;font-size:12px}
+.legend{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:12px}
+.legend div{display:flex;align-items:center;gap:8px}
+.dot{width:12px;height:12px;border-radius:50%;border:1px solid #597081;flex:0 0 auto}
+.line{width:24px;height:4px;display:inline-block;flex:0 0 auto}
+#status{font-size:12px;color:#4e697a;margin-top:8px}
+.footer-note{font-size:11px;color:#607381;margin-top:15px}
+.leaflet-popup-content{font-size:12px;max-width:260px;line-height:1.5}
+.leaflet-popup-content b{font-size:14px}
+@media(max-width:780px){header{padding:10px 14px}.layout{display:flex;flex-direction:column}aside{max-height:none;border-right:0;order:2;padding:13px}#map{order:1;height:55vh;min-height:320px}.cards{grid-template-columns:repeat(3,minmax(0,1fr))}.metric{padding:7px}.metric b{font-size:17px}.metric span{min-height:40px}}
+</style>
+</head>
+<body>
+<header>
+  <h1><small>GT VULNERABILIDADES E RISCOS · PREVINE</small>Risco à vida e perda de acessibilidade</h1>
+  <span class="flag">Pesquisa · rotas não validadas</span>
+</header>
+<div class="layout">
+<aside>
+ <h2>Estudos municipais</h2>
+ <div class="group"><label for="cidade">Município</label><select id="cidade"><option value="santa_tereza">Santa Tereza</option><option value="mucum">Muçum</option></select></div>
+ <div class="group"><label for="modo">Destinos considerados</label><select id="modo"><option value="oficiais">Apenas destinos cadastrados nas rotas</option><option value="com_candidatos">Cadastrados + pontos elevados candidatos</option></select></div>
+ <div class="group">
+  <label for="nivel">Cenário de nível da água</label>
+  <div class="level"><strong id="nivelRegua">—</strong><span id="nivelHand">—</span></div>
+  <div class="row"><input type="range" id="nivel" min="0" max="25" step="1" value="13" aria-label="Selecionar nível HAND do cenário"><button id="cen">Referência</button><button id="play">▶</button></div>
+  <div class="footer-note">Os quadros representam níveis simulados, não uma previsão temporal. A animação não representa velocidade de subida.</div>
+ </div>
+ <div class="cards">
+  <div class="metric"><b id="mTotal">—</b><span>Edificações OSM analisadas (não domicílios confirmados)</span></div>
+  <div class="metric"><b id="mAtingidas">—</b><span>Na mancha simulada</span></div>
+  <div class="metric"><b id="mSemAcesso">—</b><span>Secas, sem ligação ao destino no grafo</span></div>
+  <div class="metric"><b id="mCond">—</b><span>Secas, ligação possível com dados incertos</span></div>
+  <div class="metric"><b id="mEstrito">—</b><span>Secas, ligação apenas por trechos com cotas conhecidas</span></div>
+  <div class="metric"><b id="mSemCota">—</b><span>Edificações sem cota definida no dado</span></div>
+ </div>
+ <h3>Como ler</h3>
+ <div class="legend">
+  <div><i class="dot" style="background:#187963"></i>Ligação ainda modelada (condicional)</div>
+  <div><i class="dot" style="background:#b0792e"></i>Rota depende de dados indeterminados</div>
+  <div><i class="dot" style="background:#ba4343"></i>Perda de acesso a destino</div>
+  <div><i class="dot" style="background:#2676ba"></i>Edificação alcançada pela mancha</div>
+  <div><i class="dot" style="background:#8896a3"></i>Sem cota, origem não ligada ou sem inventário suficiente</div>
+  <div><i class="line" style="background:#ba4343"></i>Trecho com inundação modelada</div>
+  <div><i class="line" style="background:#b0792e"></i>Trecho sem limiar de alagamento resolvido</div>
+ </div>
+ <p class="hint"><b>Importante:</b> cor verde indica somente conectividade simulada da malha. Não comprova rua transitável, ponte íntegra ou abrigo aberto. Os pontos candidatos não são destinos autorizados. Confira condições e plano vigente com a Defesa Civil.</p>
+ <label><input id="vias" type="checkbox" checked> Mostrar ruas e trechos críticos</label>
+ <div id="status" aria-live="polite">Carregando bases publicadas...</div>
+ <p class="footer-note">Dados de origem: painéis do PREVINE gerados em 09/10/2026; OSM, HAND/MDT e cadastro municipal. Endereços CNEFE e validação de campo ainda não foram incorporados. O painel não exibe vulnerabilidades individuais.</p>
+</aside>
+<div id="map" role="application" aria-label="Mapa experimental de conectividade das casas e vias por nível de inundação"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="../assets/risco_vida_isolamento.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id),fmt=v=>(v==null?"—":Number(v).toLocaleString("pt-BR"));
+const map=L.map("map",{preferCanvas:true}).setView([-29.170,-51.735],13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
+const homes=L.layerGroup().addTo(map), roads=L.layerGroup().addTo(map),destinos=L.layerGroup().addTo(map);
+let data=null,origin=null,inv=null,timer=null,requestId=0;
+const esc=s=>String(s??"—").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function draw(){
+ if(!data)return;
+ const selected=data[$("modo").value],levels=selected.series;
+ let row=levels[Number($("nivel").value)]||levels[0],n=row.hand_m;
+ $("nivelRegua").textContent=row.regua_m==null?"Sem referência":row.regua_m.toLocaleString("pt-BR",{maximumFractionDigits:1})+" m na régua";
+ $("nivelHand").textContent="HAND "+n.toLocaleString("pt-BR",{maximumFractionDigits:1})+" m";
+ const metrics={mTotal:selected.summary.n_edificacoes_proxy,mAtingidas:row.edificacoes_atingidas,mSemAcesso:row.perderam_acesso_condicional,mCond:row.conectadas_condicional,mEstrito:row.conectadas_estrito,mSemCota:row.cota_desconhecida};
+ for(const [id,v]of Object.entries(metrics))$(id).textContent=fmt(v);
+ homes.clearLayers();roads.clearLayers();destinos.clearLayers();
+ const scenarioN=data.meta.cenario_hand_m,same=Math.abs(n-scenarioN)<1e-7;
+ for(const pt of selected.casas){
+   let color;
+   if(pt.cota_alaga_hand_m==null)color="#8896a3";
+   else if(pt.cota_alaga_hand_m<=n)color="#2676ba";
+   else if(!pt.ponto_conexao_via)color="#8896a3";
+   else if(pt.primeira_perda_acesso&&pt.primeira_perda_acesso.hand_limite_superior_m<=n)color="#ba4343";
+   else if(same&&!pt.acesso_estrito&&pt.acesso_condicional)color="#b0792e";
+   else if(same&&!pt.acesso_condicional)color="#ba4343";
+   else if(same&&pt.acesso_estrito)color="#187963";
+   else if(pt.primeira_perda_acesso==null&&!pt.acesso_condicional)color="#8896a3";
+   else color="#187963";
+   const p=L.circleMarker([pt.lat,pt.lon],{renderer:L.canvas(),radius:3.3,color:"#ffffff",weight:.4,fillColor:color,fillOpacity:.9});
+   const cut=pt.primeira_perda_acesso;
+   const cutText=cut?("perde acesso em HAND entre "+(cut.hand_limite_inferior_m??"abaixo de 0")+" e "+cut.hand_limite_superior_m+" m"):"sem perda identificada entre níveis analisados / sem conexão inicial";
+   p.bindPopup("<b>Edificação OSM (uso residencial não confirmado)</b>"+
+      "<p>Estado do modelo no nível selecionado: <b>"+esc(color==="#ba4343"?"sem destino ligado pelo grafo":color==="#2676ba"?"área inundada":color==="#8896a3"?"informação insuficiente":"ligação condicional")+"</b></p>"+
+      "<p>Limiar da edificação (HAND): "+esc(pt.cota_alaga_hand_m)+" m<br>"+esc(cutText)+"</p>"+
+      "<p>Destino estimado somente no cenário de referência: "+esc(pt.destino_modelado)+"</p>"+
+      "<small>Não é uma rota individual validada. Via da porta, calçadas e travessias dependem de verificação.</small>");
+   homes.addLayer(p);
+ }
+ if($("vias").checked&&origin){
+   for(const e of origin.edges){
+      const [a,b,,foot,z]=e;if(!origin.nos[a]||!origin.nos[b])continue;
+      const col=z==null?"#b0792e":z<=n?"#ba4343":"#5c8774";
+      roads.addLayer(L.polyline([origin.nos[a],origin.nos[b]],{color:col,weight:z==null?1.9:1.6,opacity:.65,dashArray:z==null?"3 5":null,interactive:false}));
+   }
+ }
+ if(inv){
+   const city=$("cidade").value,things=inv[city].abrigos.concat($("modo").value==="com_candidatos"?inv[city].candidatos:[]);
+   for(const d of things){
+     if(d.lat==null||d.lon==null)continue;
+     const candidate=d.categoria==="candidato_sem_validacao";
+     const marker=L.circleMarker([d.lat,d.lon],{radius:7,color:"white",weight:2,fillColor:candidate?"#8a62b7":"#203c56",fillOpacity:.96});
+     marker.bindPopup("<b>"+esc(d.nome)+"</b><p>"+esc(candidate?"Ponto candidato, não vistoriado":"Destino cadastrado, status operacional não confirmado")+"</p><p>Limiar HAND no produto: "+esc(d.cota_hand)+"</p>");
+     destinos.addLayer(marker);
+   }
+ }
+ $("status").textContent="Estudo de "+data.meta.municipio+" · referência "+data.meta.origem_gerado_em+" · "+fmt(row.fontes_condicional)+" destino(s) no grafo na hipótese condicional · nenhuma rota certificada";
+}
+function resetTimer(){if(timer){clearInterval(timer);timer=null;$("play").textContent="▶";}}
+async function load(){
+ resetTimer();let id=++requestId;const city=$("cidade").value;
+ $("status").textContent="Carregando "+city+"...";
+ try{
+  const urls=["../assets/data/risco_vida/"+city+"_isolamento_estudo.json","../"+city+"_painel_casas.html","../assets/data/risco_vida/destinos_pilotos.json"];
+  const responses=await Promise.all(urls.map(u=>fetch(u)));
+  for(let i=0;i<responses.length;i++)if(!responses[i].ok)throw Error("Recurso não encontrado: "+urls[i]);
+  const [raw,text,locations]=await Promise.all([responses[0].json(),responses[1].text(),responses[2].json()]);
+  if(id!==requestId)return;
+  const original=window.PreVineIsolamento.decodePanel(text);
+  if(raw.oficiais.casas.length!==original.casas.length)throw Error("O painel original mudou; necessário recalcular diagnóstico de pesquisa.");
+  data=raw;origin=original;inv=locations;
+  const lv=data.oficiais.series;
+  $("nivel").max=String(lv.length-1);
+  const j=lv.findIndex(q=>Math.abs(q.hand_m-data.meta.cenario_hand_m)<1e-7);
+  $("nivel").value=String(Math.max(0,j));
+  draw();
+  const coords=data.oficiais.casas.map(c=>[c.lat,c.lon]);
+  if(coords.length)map.fitBounds(L.latLngBounds(coords),{padding:[18,18]});
+ }catch(e){$("status").textContent="Falha ao carregar estudo: "+e.message;console.error(e);}
+}
+$("cidade").addEventListener("change",load);
+$("modo").addEventListener("change",draw);
+$("nivel").addEventListener("input",draw);
+$("vias").addEventListener("change",draw);
+$("cen").addEventListener("click",()=>{if(!data)return;resetTimer();$("nivel").value=String(data.oficiais.series.findIndex(q=>Math.abs(q.hand_m-data.meta.cenario_hand_m)<1e-7));draw();});
+$("play").addEventListener("click",()=>{if(timer){resetTimer();return;}if(!data)return;$("play").textContent="❚❚";timer=setInterval(()=>{const next=Number($("nivel").value)+1;if(next>Number($("nivel").max)){resetTimer();return;}$("nivel").value=String(next);draw();},700);});
+load();
+</script>
+</body>
+</html>
