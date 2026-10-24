@@ -33,7 +33,7 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <select id="cidade"><option value="santa_tereza">Santa Tereza</option><option value="mucum">Muçum</option></select>
 <label for="cota">Nível HAND hipotético: <span id="nivel">—</span></label>
 <input id="cota" type="range" min="0" max="25" step="0.5" value="13.5">
-<label for="politica">Tratamento dos trechos sem cota</label>
+<label for="politica">Tratamento de trechos sem cota nas análises auxiliares (a rota azul sempre os exclui)</label>
 <select id="politica"><option value="exploratoria">Exploratório: trechos sem informação permanecem (incertos)</option><option value="conservadora">Conservador: trechos sem cota ficam bloqueados</option></select>
 <label><input id="candidatos" type="checkbox" style="width:auto" checked> Incluir locais elevados candidatos (não são abrigos confirmados)</label>
 <div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
@@ -46,9 +46,9 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <label><input id="mostrarDestinos" type="checkbox" style="width:auto"> Mostrar abrigos e candidatos cadastrados (comparação)</label>
 <div class="legend"><div><i class="key" style="background:#23846b"></i>Trecho potencialmente transitável (modelo)</div><div><i class="key" style="background:#d89a27"></i>Trecho com dados altimétricos insuficientes</div><div><i class="key" style="background:#c33943"></i>Trecho atingido no cenário</div><div><i class="key" style="background:#a82d7c"></i>Trecho de uso concentrado nas rotas (opcional)</div></div>
 <div class="meta" id="viasInfo">Classificação de ruas baseada no grafo OSM e nas cotas modeladas, não em vistorias.</div>
-<h2>Destinos cadastrados (não determinam a saída mais próxima)</h2>
+<div id="cadastroDestinos" hidden><h2>Destinos cadastrados (não determinam a saída mais próxima)</h2>
 <div class="meta" id="destinosInfo">Calculando destinos para este nível…</div>
-<div id="destinosLista"></div>
+<div id="destinosLista"></div></div>
 <p>Clique numa edificação: a rota azul liga sua rua ao ponto mais alto acessível, quando os dados permitem calculá-la. O acesso do imóvel à via é mostrado separadamente e não foi vistoriado.</p>
 <h2>Terreno e camadas</h2>
 <label><input id="mdt" type="checkbox" style="width:auto"> Visualizar MDT do município (imagem georreferenciada, ~10 m)</label>
@@ -65,10 +65,10 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <h2>Legenda: edificações OSM</h2>
 <div class="legend">
 <div><i class="key" style="background:#c0392b"></i>Na mancha modelada</div>
-<div><i class="key" style="background:#67409a"></i>Seca, sem conexão no grafo</div>
-<div><i class="key" style="background:#df981e"></i>Conectada apenas com trecho sem cota</div>
-<div><i class="key" style="background:#21836d"></i>Conexão na rede modelada (provisória)</div>
-<div><i class="key" style="background:#7e8992"></i>Conexão da casa/qualidade não definida</div>
+<div><i class="key" style="background:#67409a"></i>Sem saída alta pelo grafo com cotas conhecidas</div>
+<div><i class="key" style="background:#df981e"></i>Saída sem folga altimétrica ou origem com cota desconhecida</div>
+<div><i class="key" style="background:#21836d"></i>Saída até ponto alto com margem modelada (provisória)</div>
+<div><i class="key" style="background:#7e8992"></i>Sem cota no nó de rua ou acesso não definido</div>
 </div>
 <label><input id="trechos" type="checkbox" style="width:auto"> Destacar trechos com maior uso nas rotas modeladas (não equivalem a isolamento causal)</label>
 <div id="cnefe" class="meta"></div>
@@ -157,9 +157,36 @@ const CNEFE_ST_10M=new Set([4,9,23,32,33,35,42,44,58,76,79,82,86,108,120,122,124
 // Aproximação espacial: NÃO representa residência validada.
 const CNEFE_MUCUM_10M=new Set([2,5,16,24,25,27,30,32,34,37,38,39,41,42,45,47,50,52,53,54,61,65,72,114,115,117,119,124,125,126,127,128,134,143,144,149,150,152,153,154,156,157,161,169,170,171,172,173,178,181,189,191,198,199,202,204,207,208,210,213,215,217,218,220,221,222,231,236,238,242,245,254,255,269,270,272,273,274,279,284,286,291,296,304,305,306,309,310,311,312,313,318,331,336,339,340,341,342,343,344,346,353,369,373,374,377,382,384,391,394,395,400,402,404,406,407,408,409,410,412,422,424,437,439,440,453,454,455,464,472,478,479,482,484,487,501,502,507,510,513,519,521,522,524,550,554,556,559,560,561,567,570,571,572,574,576,577,578,579,582,585,587,595,598,599,600,601,602,603,606,607,611,612,615,616,617,619,621,624,627,629,630,632,633,641,643,645,646,647,650,656,660,668,674,675,676,679,684,685,692,698,708,712,713,714,733,735,742,744,747,750,752,753,754,758,759,761,773,774,776,778,779,799,805,808,813,819,820,822,823,824,827,829,830,835,837,840,842,844,849,852,866,874,1043,1044,1047,1048,1050,1053,1057,1068,1072,1083,1096,1097,1098,1099,1100,1103,1119,1120,1125,1129,1133,1134,1135,1136,1138,1161,1176,1177,1179,1180,1182,1186,1188,1191,1192,1199,1208,1209,1210,1211,1212,1214,1216,1218,1219,1221,1224,1226,1227,1229,1231,1232,1244,1250,1262,1265,1267,1268,1270,1271,1272,1273,1284,1285,1286,1289,1290,1291,1292,1293,1297,1298,1304,1307,1309,1314,1318,1319,1324,1325,1327,1329,1330,1336,1338,1339,1341,1342,1349,1355,1360,1361,1363,1364,1365,1366,1367,1371,1372,1373,1374,1376,1385,1386,1391,1393,1398,1401,1402,1403,1406,1412,1414,1418,1420,1421,1422,1423,1424,1425,1426,1427,1428,1429,1434,1439,1441,1442,1443,1444,1445,1448,1450,1453,1454,1455,1460,1469,1473,1479,1494,1512,1517,1521,1528,1536,1537,1538,1539,1540,1541,1545,1547,1549,1550,1551,1553,1554,1555,1556,1558,1571,1572,1575,1580,1582,1584,1585,1587,1589,1591,1592,1593,1594,1595,1597,1598,1602,1604,1605,1606,1608,1611,1614,1615,1620,1627,1629,1636,1638,1641,1646,1651,1653,1658,1659,1660,1666,1670,1672,1677,1686,1688,1689,1692,1693,1699,1700,1702,1703,1708,1711,1718,1719,1721,1722,1725,1727,1728,1733,1744,1745,1755,1759,1762,1767,1772,1774,1782,1783,1787,1789,1790,1799,1810,1815,1816,1817,1829,1830,1834,1836,1838,1839,1844,1845,1846,1849,1850,1851,1860,1861,1864,1865,1866,1870,1873,1879,1882,1895,1896,1900,1903,1908,1928]);
 function avaliaTrecho(e,n){
+ if(e[3])return 'incerto'; // Ponte sem inspeção: nunca classificar como rua liberada.
  const a=d.cota_no[e[0]],b=d.cota_no[e[1]],z=e[4];
  if([a,b,z].some(v=>v==null||!Number.isFinite(Number(v))))return 'incerto';
  return [a,b,z].some(v=>Number(v)<=n+1e-9)?'atingido':'possivel';
+}
+// A classificação dos pontos usa os MESMOS requisitos de cotas
+// e restrição de pontes empregados nas rotas individuais.
+function alcanceAoTerrenoAlto(doc,n,margem){
+ const nn=doc.nos.length,adj=Array.from({length:nn},()=>[]),vis=Array(nn).fill(false);
+ for(const e of doc.edges){
+  const a=e[0],b=e[1],z=e[4],ca=doc.cota_no[a],cb=doc.cota_no[b];
+  if(e[3]||z==null||ca==null||cb==null)continue;
+  if(Number(z)<=n+margem||Number(ca)<=n+margem||Number(cb)<=n+margem)continue;
+  adj[a].push(b);adj[b].push(a);
+ }
+ const q=[];
+ for(let no=0;no<nn;no++)if(doc.cota_no[no]!=null&&doc.cota_no[no]>=n+2&&adj[no].length>=2){
+  vis[no]=true;q.push(no);
+ }
+ for(let i=0;i<q.length;i++)for(const v of adj[q[i]])if(!vis[v]){vis[v]=true;q.push(v)}
+ return vis;
+}
+function corSaida(orig,f,n,comFolga,semFolga){
+ const no=orig[f.no],agua=orig[f.cota_alaga];
+ if(agua!=null&&Number(agua)<=n+1e-9)return ['#c0392b','edificação atingida na simulação'];
+ if(!Number.isInteger(no)||no<0||no>=d.nos.length||d.cota_no[no]==null)return ['#7e8992','sem nó de rua com cota conhecida'];
+ if(agua==null)return ['#dd9d2b','sem cota da edificação, verificação pendente'];
+ if(comFolga[no])return ['#21836d','conectável a trecho mais alto com margem altimétrica modelada'];
+ if(semFolga[no])return ['#dd9d2b','conectável a trecho mais alto sem margem de 1 m'];
+ return ['#67409a','sem saída alta demonstrável na rede conhecida'];
 }
 function mostraDestinos(n,policy,rotas){
  const lista=d.abrigos.map(a=>({...a,tipo:'Abrigo cadastrado'}))
@@ -192,6 +219,7 @@ function mostraDestinos(n,policy,rotas){
  });
 }
 function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
+ const boa=alcanceAoTerrenoAlto(d,n,1),possivel=alcanceAoTerrenoAlto(d,n,0);
  let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
  camadas.clearLayers();linhas.clearLayers();rotaSelecionada.clearLayers();let classes={};
  const bb=L.latLngBounds();
@@ -202,7 +230,7 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  weight:state==='atingido'?2.1:2.8,opacity:state==='atingido'?.54:.8,dashArray:state==='incerto'?'4 6':undefined})
  .addTo(linhas).bindPopup('Trecho OSM #'+i+' — '+(state==='atingido'?'atingido no cenário':state==='incerto'?'altimetria insuficiente':'potencialmente transitável no cenário')+'. A condição física e hidráulica não foi validada.');});
  $('viasInfo').textContent=counts.possivel+' trechos potencialmente transitáveis; '+counts.incerto+' incertos; '+counts.atingido+' atingidos. Segmentos verdes não representam ruas certificadas como seguras.';
- $('visaoResumo').textContent=d.meta.municipio+' · HAND '+n.toFixed(1).replace('.',',')+' m | '+counts.possivel+' trechos possíveis, '+counts.incerto+' incertos, '+counts.atingido+' atingidos.';
+ $('visaoResumo').textContent=d.meta.municipio+' · HAND '+n.toFixed(1).replace('.',',')+' m | '+counts.possivel+' trechos fora da mancha, '+counts.incerto+' incertos, '+counts.atingido+' atingidos.';
  if(selecionada<0){$('visaoDestino').textContent='Clique em um ponto de edificação para traçar a saída mais próxima até rua mais alta, quando existir caminho com cotas conhecidas.';$('voltarCota').hidden=true;}
  let exibidos=0;
  d.casas.forEach((orig,i)=>{
@@ -210,7 +238,7 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
   // um filtro espacial e não confirmação de ocupação residencial.
   if(!$('todasOrigens').checked && !((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i))))return;
   exibidos++;
-  const lat=orig[f.lat],lon=orig[f.lon],v=cor(orig,f,o,c,alt,n);
+  const lat=orig[f.lat],lon=orig[f.lon],v=corSaida(orig,f,n,boa,possivel);
   classes[v[1]]=(classes[v[1]]||0)+1;
   let marker=L.circleMarker([lat,lon],{radius:3.6,color:'#25332f',weight:0.35,fillColor:v[0],fillOpacity:.87}).addTo(camadas);
   marker.on('click',()=>{selecionada=i;mostra(i,orig,f,v,o,c,alt,n)});bb.extend([lat,lon])});
@@ -227,13 +255,14 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  $('qaResidencias').textContent=d.meta.municipio==='Santa Tereza'?
   'Pontos exibidos: '+exibidos+' de '+d.casas.length+' edificações OSM. Dessas edificações, '+CNEFE_ST_10M.size+' têm endereço CNEFE a até 10 m do centróide. As demais permanecem visíveis; falta de vínculo não significa imóvel desocupado.':
   'Muçum: '+exibidos+' de '+d.casas.length+' edificações OSM exibidas, das quais '+CNEFE_MUCUM_10M.size+' apresentam proximidade preliminar ao CNEFE de até 10 m. As demais continuam visíveis e nenhuma correspondência foi validada como residência.';
- mostraDestinos(n,policy,alt);
+ $('cadastroDestinos').hidden=!$('mostrarDestinos').checked;
+ if($('mostrarDestinos').checked)mostraDestinos(n,policy,alt);
  const levelGauge=n+d.meta.bankfull_m;
  $('nivel').textContent=n.toFixed(1).replace('.',',')+' m HAND • régua aprox. '+levelGauge.toFixed(1).replace('.',',')+' m';
  $('resumo').innerHTML='<b>'+d.meta.municipio+'</b><br>'+d.casas.length+' origens OSM, '+d.edges.length+' trechos de rede; '+d.abrigos.length+' locais cadastrados.<br>'+
  Object.entries(classes).map(([x,v])=>'<b>'+v+'</b> • '+x).join('<br>')+
  '<br><small>Insumos de '+(d.meta.gerado_em||'data desconhecida')+'; saída recalculada no navegador. Não é previsão ao vivo.</small>';
- if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,cor(z,f,o,c,alt,n),o,c,alt,n)}else $('orientacao').textContent='Selecione um ponto de edificação ou clique no exemplo. Ruas verdes são apenas trechos potencialmente transitáveis no modelo, não vias liberadas.';
+ if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,corSaida(z,f,n,boa,possivel),o,c,alt,n)}else $('orientacao').textContent='Selecione um ponto de edificação ou clique no exemplo. Ruas verdes são apenas trechos potencialmente transitáveis no modelo, não vias liberadas.';
  return bb;
 }
 // O MDT/HAND informa a cota relativa de cada nó e a menor cota por trecho.
@@ -356,7 +385,7 @@ function exemploRota(){
  if(id==null){$('visaoDestino').textContent='Neste nível o modelo não encontrou exemplo com acesso preliminar de até 60 m e ruas com cotas conhecidas. Selecione outra cota ou um ponto no mapa.';return}
  selecionada=id;
  const orig=d.casas[id],o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
- mostra(id,orig,f,cor(orig,f,o,c,alt,n),o,c,alt,n);
+ mostra(id,orig,f,corSaida(orig,f,n,alcanceAoTerrenoAlto(d,n,1),alcanceAoTerrenoAlto(d,n,0)),o,c,alt,n);
 }
 $('exemploRota').addEventListener('click',exemploRota);
 $('exemploMapa').addEventListener('click',exemploRota);
