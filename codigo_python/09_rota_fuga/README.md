@@ -295,7 +295,19 @@ saída (vale a melhor das duas; ver Locais altos).
 O slider mostra o nível em **régua** (HAND entre parênteses). A paleta separa
 urgente (escuro) de folgado (claro); o par de classes mais próximo fica a
 distância de cor ≥ 17 (Lab) também em deuteranopia, protanopia e tritanopia
-(simulação de Machado et al. 2009). No celular o painel começa recolhido.
+(simulação de Machado et al. 2009).
+
+**Abertura e celular** (painel): Santa Tereza abre na aba Rotas, com o cartão
+da casa clicada no alto (sua casa, para onde ir, quando sair, evite) e as
+outras camadas recolhidas em "Mais camadas"; os contornos HAND só são baixados
+na primeira vez que se abre Quem sai. Muçum continua abrindo em Quem sai. Até
+700 px o painel vira folha inferior, começa recolhido ("Ver instruções ▲") e
+abre no cartão quando se toca numa casa; o zoom fica no canto superior direito.
+Se o Leaflet não carregar (unpkg, com reserva no jsDelivr), aparece um aviso e
+fica a "Lista dos pontos altos", que é sempre gerada em texto. "Rio agora" lê
+`previsao_ao_vivo*.json` do main pelo raw.githubusercontent (o Pages não
+publica esse JSON); leitura com mais de 3 h aparece como atrasada e não entra
+no "quando sair", que diz "agora" quando o rio já passou da régua de saída.
 Os painéis por grade (`*_painel_evacuacao.html`) também abrem em 90 cm/h.
 
 ## Cobertura OSM × IBGE
