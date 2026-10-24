@@ -191,7 +191,7 @@ function corSaida(orig,f,n,comFolga,semFolga){
  const distAcesso=hav([orig[f.lat],orig[f.lon]],d.nos[no]);
  if(!Number.isFinite(distAcesso)||distAcesso>60)return ['#7e8992','acesso entre edificação e rua maior que 60 m ou não calculável; ligação bloqueada'];
  if(Number(agua)<=n+1)return ['#dd9d2b','edificação seca na simulação, mas sem margem altimétrica mínima de 1 m'];
- if(comFolga[no])return ['#21836d','conectável a trecho mais alto com margem altimétrica modelada; acesso não vistoriado'];
+ if(comFolga[no])return ['#21836d','próximo de trecho alto conectado no modelo; clique para confirmar se o grafo encontra percurso, acesso não vistoriado'];
  if(semFolga[no])return ['#dd9d2b','conectável a trecho mais alto sem margem de 1 m'];
  return ['#67409a','sem saída alta demonstrável na rede conhecida'];
 }
@@ -464,7 +464,7 @@ function exemploRota(automatico=false){
   const resultado=saidaMaisProxima(d,orig,f,n),r=resultado.rota;
   return resultado.classe==='com_folga'&&r&&r.metros>=40&&r.acessoM<=40;
  });
- if(id==null){$('visaoDestino').textContent='Neste nível não há exemplo com margem altimétrica mínima modelada de 1 m e ligação de até 40 m ao nó da rua entre as edificações com vínculo CNEFE preliminar. Selecione outra cota ou ponto no mapa.';return}
+ if(id==null){$('verDestinoOSM').hidden=true;$('visaoDestino').textContent='Neste nível não há exemplo com margem altimétrica mínima modelada de 1 m e ligação de até 40 m ao nó da rua entre as edificações com vínculo CNEFE preliminar. Selecione outra cota ou ponto no mapa.';return}
  selecionada=id;
  const orig=d.casas[id],o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
  mostra(id,orig,f,corSaida(orig,f,n,alcanceAoTerrenoAlto(d,n,1),alcanceAoTerrenoAlto(d,n,0)),o,c,alt,n);
@@ -481,7 +481,7 @@ async function mudaCidade(){
  let slug=$('cidade').value;
  try{
  if(!sources[slug])sources[slug]=DADOS_INTEGRADOS[slug];
- d=sources[slug];selecionada=-1;anterior=slug;atualizaMDT();
+ d=sources[slug];selecionada=-1;anterior=slug;$('verDestinoOSM').hidden=true;atualizaMDT();
  const options=(d.meta.cheias_ref||[]).map((ev,i)=>'<option value="'+i+'">'+String(ev.rotulo)+' — '+Number(ev.regua_m).toFixed(2)+' m</option>').join('');
  $('evento').innerHTML='<option value="">Selecionar cenário registrado</option>'+options;
  $('evento').value='';
