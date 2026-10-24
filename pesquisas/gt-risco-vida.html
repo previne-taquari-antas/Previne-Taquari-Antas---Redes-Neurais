@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GT | Risco à vida e perda de acessibilidade — PREVINE</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,sans-serif;color:#17312b;background:#f5f7f4}
+*{box-sizing:border-box}body{margin:0}header{background:#102c36;color:white;padding:13px 18px}
+header h1{font-size:18px;margin:2px 0}header small{color:#b8d3ce}main{display:grid;grid-template-columns:325px minmax(0,1fr);height:calc(100dvh - 88px)}
+aside{padding:15px;overflow:auto;background:#fff;box-shadow:1px 0 6px #ccd1cf;z-index:500}
+#map{height:100%;width:100%}h2{font-size:15px;margin:18px 0 8px}p{line-height:1.45;font-size:13px}
+label{display:block;font-weight:650;font-size:12px;margin:10px 0 5px}select,input{width:100%}
+select{padding:7px;border-radius:7px;border:1px solid #afc1b9;background:white}
+input[type=range]{accent-color:#14786a}#nivel{font-weight:bold}#resumo{font-size:13px;line-height:1.6}
+.meta{font-size:12px;background:#f0f4f2;border:1px solid #d7e3dd;padding:10px;border-radius:8px;margin-top:10px}
+.key{display:inline-block;height:12px;width:12px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.legend{display:grid;gap:6px;font-size:12px;margin:10px 0}
+button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
+#detail{white-space:pre-wrap;line-height:1.55;font-size:12px;padding:10px;border:1px solid #cbdad3;border-radius:8px;min-height:55px}
+@media(max-width:700px){main{grid-template-columns:1fr;height:calc(100dvh - 79px);grid-template-rows:minmax(232px,40%) 1fr}aside{grid-row:2;padding:10px}#map{grid-row:1}}
+</style></head>
+<body><header><h1>GT Vulnerabilidades e Riscos | Acessibilidade na cheia</h1>
+<small>Santa Tereza e Muçum • estudo espacial de risco à vida • pesquisa pré-validação</small></header>
+<main><aside>
+<label for="cidade">Município</label>
+<select id="cidade"><option value="santa_tereza">Santa Tereza</option><option value="mucum">Muçum</option></select>
+<label for="cota">Nível HAND hipotético: <span id="nivel">—</span></label>
+<input id="cota" type="range" min="0" max="25" step="0.5" value="13.5">
+<label for="politica">Tratamento dos trechos sem cota</label>
+<select id="politica"><option value="exploratoria">Exploratório: trechos sem informação permanecem (incertos)</option><option value="conservadora">Conservador: trechos sem cota ficam bloqueados</option></select>
+<label><input id="candidatos" type="checkbox" style="width:auto" checked> Incluir locais elevados candidatos (não são abrigos confirmados)</label>
+<div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
+<h2>Legenda: edificações OSM</h2>
+<div class="legend">
+<div><i class="key" style="background:#c0392b"></i>Na mancha modelada</div>
+<div><i class="key" style="background:#67409a"></i>Seca, sem conexão no grafo</div>
+<div><i class="key" style="background:#df981e"></i>Conectada apenas com trecho sem cota</div>
+<div><i class="key" style="background:#21836d"></i>Conexão na rede modelada (provisória)</div>
+<div><i class="key" style="background:#7e8992"></i>Conexão da casa/qualidade não definida</div>
+</div>
+<h2>Inspeção de uma origem</h2>
+<div id="detail">Toque em um ponto para explorar como seu acesso varia com a cota.</div>
+<p><strong>Limites:</strong> pontos OSM ainda não conferidos pelo CNEFE; origem→rua não validada; cotas verticais, pontes, capacidade, correnteza, encostas e condições reais dos abrigos pendentes. O tempo calculado é em terreno plano e serve apenas para comparação. Nenhuma linha exibida é orientação de deslocamento em emergência.</p>
+<p><a href="../docs/gt-vulnerabilidades-risco-vida-isolamento-20261024.md">Metodologia e pendências</a></p>
+</aside><div id="map" aria-label="Mapa exploratório de isolamento por inundação"></div></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const FILES={santa_tereza:"../santa_tereza_painel_casas.html",mucum:"../mucum_painel_casas.html"};
+const $=id=>document.getElementById(id), map=L.map('map').setView([-29.169,-51.735],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+let sources={},d=null,camadas=L.layerGroup().addTo(map),linhas=L.layerGroup().addTo(map),selecionada=-1,anterior=null;
+function popup(s){$('detail').textContent=s}
+function hav(a,b){let r=Math.PI/180,da=(b[0]-a[0])*r,db=(b[1]-a[1])*r,z=Math.sin(da/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(db/2)**2;return 12742000*Math.asin(Math.min(1,Math.sqrt(z)))}
+function aberto(v,n,policy){return v==null?policy==='exploratoria':Number(v)>n+1e-9}
+function heapPush(h,val){h.push(val);let i=h.length-1;while(i>0){let p=(i-1)>>1;if(h[p][0]<=val[0])break;h[i]=h[p];i=p}h[i]=val}
+function heapPop(h){let top=h[0],v=h.pop();if(!h.length)return top;let i=0;while(true){let j=2*i+1;if(j>=h.length)break;if(j+1<h.length&&h[j+1][0]<h[j][0])j++;if(h[j][0]>=v[0])break;h[i]=h[j];i=j}h[i]=v;return top}
+function calcula(doc,nivel,policy,withCands){
+ const nn=doc.nos.length,adj=Array.from({length:nn},()=>[]);
+ const seca=e=>aberto(e[4],nivel,policy)&&aberto(doc.cota_no[e[0]],nivel,policy)&&aberto(doc.cota_no[e[1]],nivel,policy);
+ for(const e of doc.edges){if(!seca(e))continue;let [a,b]=e,t=hav(doc.nos[a],doc.nos[b])/.9*(e[3]?1.5:1);if(t<=0||!Number.isFinite(t))continue;adj[a].push([b,t]);adj[b].push([a,t])}
+ let sources=doc.abrigos.concat(withCands?doc.candidatos:[]),dist=Array(nn).fill(Infinity),dest=Array(nn).fill(null),next=Array(nn).fill(-1),h=[];
+ for(const a of sources){let x=a.node;if(!Number.isInteger(x)||x<0||x>=nn)continue;
+  if(!aberto(a.cota_alaga_m,nivel,policy)||!aberto(doc.cota_no[x],nivel,policy))continue;
+  dist[x]=0;dest[x]=a.id;next[x]=x;heapPush(h,[0,x])}
+ while(h.length){let [cost,x]=heapPop(h);if(cost>dist[x]+1e-8)continue;
+ for(const [y,t] of adj[x])if(cost+t+1e-8<dist[y]){dist[y]=cost+t;dest[y]=dest[x];next[y]=x;heapPush(h,[dist[y],y])}}
+ return {dist,dest,next};
+}
+function cor(origem,form,otimo,estrito,alternativo,n){
+ const node=origem[form.no],cf=origem[form.cota_alaga];
+ if(cf!=null&&cf<=n)return ['#c0392b','edificação na mancha'];
+ if(node<0||node>=d.nos.length)return ['#7e8992','nó de acesso ausente'];
+ if(Number.isFinite(estrito.dist[node]))return ['#21836d','conexão na rede conhecida, acesso porta–rua não vistoriado'];
+ if(Number.isFinite(otimo.dist[node]))return ['#df981e','conexão depende de informações ausentes'];
+ if(Number.isFinite(alternativo.dist[node]))return ['#df981e','somente ponto candidato, não validado'];
+ return ['#67409a','sem ligação seca na rede modelada'];
+}
+function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
+ let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
+ camadas.clearLayers();linhas.clearLayers();let classes={};
+ const bb=L.latLngBounds();
+ d.edges.forEach(e=>{let a=e[0],b=e[1],z=e[4],state=z==null?'incerto':z<=n?'alagado':'sem_alagamento';
+ L.polyline([d.nos[a],d.nos[b]],{color:state==='alagado'?'#bd3841':state==='incerto'?'#e2a33e':'#7397a0',
+ weight:state==='alagado'?2.4:1.1,opacity:state==='alagado'?.78:.4,dashArray:state==='incerto'?'3 5':undefined}).addTo(linhas)});
+ d.casas.forEach((orig,i)=>{const lat=orig[f.lat],lon=orig[f.lon],v=cor(orig,f,o,c,alt,n);
+  classes[v[1]]=(classes[v[1]]||0)+1;
+  let marker=L.circleMarker([lat,lon],{radius:3.6,color:'#25332f',weight:0.35,fillColor:v[0],fillOpacity:.87}).addTo(camadas);
+  marker.on('click',()=>{selecionada=i;mostra(i,orig,f,v,o,c,alt,n)});bb.extend([lat,lon])});
+ d.abrigos.forEach(a=>{L.circleMarker([a.lat,a.lon],{radius:7,color:'#153f7b',fillColor:'#40a8e8',weight:2,fillOpacity:.92})
+  .addTo(camadas).bindPopup('<b>'+a.nome+'</b><p>Abrigo ou ponto cadastrado. Estado operacional a confirmar.</p>')});
+ d.candidatos.forEach(a=>{L.circleMarker([a.lat,a.lon],{radius:6,color:'#63358b',fillColor:'#cba6e9',weight:2,fillOpacity:.9})
+ .addTo(camadas).bindPopup('Local elevado candidato de pesquisa, sujeito a verificação.')});
+ const levelGauge=n+d.meta.bankfull_m;
+ $('nivel').textContent=n.toFixed(1).replace('.',',')+' m HAND • régua aprox. '+levelGauge.toFixed(1).replace('.',',')+' m';
+ $('resumo').innerHTML='<b>'+d.meta.municipio+'</b><br>'+d.casas.length+' origens OSM, '+d.edges.length+' trechos de rede; '+d.abrigos.length+' locais cadastrados.<br>'+
+ Object.entries(classes).map(([x,v])=>'<b>'+v+'</b> • '+x).join('<br>')+
+ '<br><small>Insumos de '+(d.meta.gerado_em||'data desconhecida')+'; saída recalculada no navegador. Não é previsão ao vivo.</small>';
+ if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,cor(z,f,o,c,alt,n),o,c,alt,n)}
+ return bb;
+}
+function mostra(i,orig,f,descr,o,c,alt,n){
+ const node=orig[f.no],valid=node>=0&&node<d.nos.length;
+ const ok=valid&&Number.isFinite(o.dist[node]),isAlt=valid&&Number.isFinite(alt.dist[node]);
+ const escolha=ok?o:(isAlt?alt:null);
+ const fonte=escolha?.dest[node]||'nenhum destino conectado neste cenário';
+ const minutos=escolha?(escolha.dist[node]/60).toFixed(1):'—';
+ const flood=orig[f.cota_alaga];
+ popup('Origem OSM #'+i+'\nSituação modelada: '+descr[1]+'\nCota da água na origem (HAND): '+(flood==null?'não determinada':flood+' m')+
+  '\nDestino da rede: '+fonte+'\nCaminhada sobre nós (estimativa plana): '+minutos+' min'+
+  '\nTrecho origem–rua, cota e acessibilidade do destino: NÃO VALIDADOS.');
+ linhas.clearLayers();
+ if(escolha){let chain=[],cur=node,visited=new Set();
+ while(cur>=0&&!visited.has(cur)&&chain.length<d.nos.length){visited.add(cur);chain.push(d.nos[cur]);let x=escolha.next[cur];if(x===cur)break;cur=x}
+ if(chain.length>1)L.polyline(chain,{color:'#136e8c',weight:4,opacity:.85,dashArray:'8 5'}).addTo(linhas)}
+}
+async function mudaCidade(){
+ let slug=$('cidade').value;
+ try{
+ if(!sources[slug]){let s=await (await fetch(FILES[slug],{cache:'no-cache'})).text();let idx=s.indexOf('const D=');if(idx<0)throw Error('sem payload const D');
+  let ini=idx+'const D='.length,fi=s.indexOf('}, M=D.meta',ini);if(fi<0)throw Error('separador nao encontrado');sources[slug]=JSON.parse(s.slice(ini,fi+1))}
+ d=sources[slug];selecionada=-1;anterior=slug;
+ $('cota').value=Number(d.meta.nivel_projeto_m).toFixed(1);let bb=rede(+($('cota').value),$('politica').value);
+ if(bb.isValid())map.fitBounds(bb.pad(.07));
+ }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
+}
+$('cidade').addEventListener('change',mudaCidade);
+['cota','politica','candidatos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
+mudaCidade();
+</script></body></html>

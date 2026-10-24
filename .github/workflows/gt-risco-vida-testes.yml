@@ -1,0 +1,37 @@
+name: GT risco à vida - testes de pesquisa
+on:
+  push:
+    branches:
+      - pesquisa/gt-risco-vida-isolamento-20261024
+    paths:
+      - "assets/risco_vida_isolamento.js"
+      - "codigo_python/09_rota_fuga/preparar_cnefe_pilotos.py"
+      - "tests/test_risco_vida_isolamento.cjs"
+      - "tests/test_preparar_cnefe_pilotos.py"
+      - ".github/workflows/gt-risco-vida-testes.yml"
+  pull_request:
+    paths:
+      - "assets/risco_vida_isolamento.js"
+      - "codigo_python/09_rota_fuga/preparar_cnefe_pilotos.py"
+      - "tests/test_risco_vida_isolamento.cjs"
+      - "tests/test_preparar_cnefe_pilotos.py"
+      - ".github/workflows/gt-risco-vida-testes.yml"
+permissions:
+  contents: read
+jobs:
+  unidade-isolamento:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Cenários sintéticos de bloqueios por água e cotas incertas
+        run: node tests/test_risco_vida_isolamento.cjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compilar importador CNEFE
+        run: python -m py_compile codigo_python/09_rota_fuga/preparar_cnefe_pilotos.py
+      - name: Testar classificação residencial IBGE CNEFE
+        run: python -m unittest discover -s tests -p test_preparar_cnefe_pilotos.py -v
