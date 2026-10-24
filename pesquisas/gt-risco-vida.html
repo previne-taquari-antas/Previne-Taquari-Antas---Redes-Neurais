@@ -123,6 +123,9 @@ function corteAproximado(i,f){
 // do centróide. NÃO confirma que o ponto esteja dentro do polígono, nem uso atual.
 // Lista gerada do artefato GitHub Actions gt-risco-vida-20261024-final.zip.
 const CNEFE_ST_10M=new Set([4,9,23,32,33,35,42,44,58,76,79,82,86,108,120,122,124,129,131,132,135,136,141,143,160,163,164,176,193,194,203,210,211,221,222,231,233,236,237,240,241,242,247,261,262,268,271,281,283,286,291,292,295,296,307,308,317,326,327,329,330,331,334,338,344,353,355,362,364,366,370,372,377,382,386,388,400,402,405,417,426,428,430,434,453,454,457,459,463,467,485,489,501,553,555,557,558,561,562]);
+// Filtro municipal preliminar de correspondência CNEFE–OSM até 10 m, outubro de 2026.
+// Aproximação espacial: NÃO representa residência validada.
+const CNEFE_MUCUM_10M=new Set([2,5,16,24,25,27,30,32,34,37,38,39,41,42,45,47,50,52,53,54,61,65,72,114,115,117,119,124,125,126,127,128,134,143,144,149,150,152,153,154,156,157,161,169,170,171,172,173,178,181,189,191,198,199,202,204,207,208,210,213,215,217,218,220,221,222,231,236,238,242,245,254,255,269,270,272,273,274,279,284,286,291,296,304,305,306,309,310,311,312,313,318,331,336,339,340,341,342,343,344,346,353,369,373,374,377,382,384,391,394,395,400,402,404,406,407,408,409,410,412,422,424,437,439,440,453,454,455,464,472,478,479,482,484,487,501,502,507,510,513,519,521,522,524,550,554,556,559,560,561,567,570,571,572,574,576,577,578,579,582,585,587,595,598,599,600,601,602,603,606,607,611,612,615,616,617,619,621,624,627,629,630,632,633,641,643,645,646,647,650,656,660,668,674,675,676,679,684,685,692,698,708,712,713,714,733,735,742,744,747,750,752,753,754,758,759,761,773,774,776,778,779,799,805,808,813,819,820,822,823,824,827,829,830,835,837,840,842,844,849,852,866,874,1043,1044,1047,1048,1050,1053,1057,1068,1072,1083,1096,1097,1098,1099,1100,1103,1119,1120,1125,1129,1133,1134,1135,1136,1138,1161,1176,1177,1179,1180,1182,1186,1188,1191,1192,1199,1208,1209,1210,1211,1212,1214,1216,1218,1219,1221,1224,1226,1227,1229,1231,1232,1244,1250,1262,1265,1267,1268,1270,1271,1272,1273,1284,1285,1286,1289,1290,1291,1292,1293,1297,1298,1304,1307,1309,1314,1318,1319,1324,1325,1327,1329,1330,1336,1338,1339,1341,1342,1349,1355,1360,1361,1363,1364,1365,1366,1367,1371,1372,1373,1374,1376,1385,1386,1391,1393,1398,1401,1402,1403,1406,1412,1414,1418,1420,1421,1422,1423,1424,1425,1426,1427,1428,1429,1434,1439,1441,1442,1443,1444,1445,1448,1450,1453,1454,1455,1460,1469,1473,1479,1494,1512,1517,1521,1528,1536,1537,1538,1539,1540,1541,1545,1547,1549,1550,1551,1553,1554,1555,1556,1558,1571,1572,1575,1580,1582,1584,1585,1587,1589,1591,1592,1593,1594,1595,1597,1598,1602,1604,1605,1606,1608,1611,1614,1615,1620,1627,1629,1636,1638,1641,1646,1651,1653,1658,1659,1660,1666,1670,1672,1677,1686,1688,1689,1692,1693,1699,1700,1702,1703,1708,1711,1718,1719,1721,1722,1725,1727,1728,1733,1744,1745,1755,1759,1762,1767,1772,1774,1782,1783,1787,1789,1790,1799,1810,1815,1816,1817,1829,1830,1834,1836,1838,1839,1844,1845,1846,1849,1850,1851,1860,1861,1864,1865,1866,1870,1873,1879,1882,1895,1896,1900,1903,1908,1928]);
 function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
  camadas.clearLayers();linhas.clearLayers();rotaSelecionada.clearLayers();let classes={};
@@ -132,9 +135,9 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  weight:state==='alagado'?2.4:1.1,opacity:state==='alagado'?.78:.4,dashArray:state==='incerto'?'3 5':undefined}).addTo(linhas)});
  let exibidos=0;
  d.casas.forEach((orig,i)=>{
-  // Evita chamar edificações genéricas de casas. Muçum mantém zero pontos
-  // por padrão até ser incorporada a verificação residencial correspondente.
-  if(!$('todasOrigens').checked && !(d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i)))return;
+  // Evita chamar edificações genéricas de casas. Muçum exibe apenas pontos com endereço CNEFE a até 10 m,
+  // um filtro espacial e não confirmação de ocupação residencial.
+  if(!$('todasOrigens').checked && !((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i))))return;
   exibidos++;
   const lat=orig[f.lat],lon=orig[f.lon],v=cor(orig,f,o,c,alt,n);
   classes[v[1]]=(classes[v[1]]||0)+1;
@@ -169,7 +172,7 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  const minutos=escolha?(escolha.dist[node]/60).toFixed(1):'—';
  const flood=orig[f.cota_alaga],cut=corteAproximado(i,f);
  const registro='Evidência de endereço CNEFE a até 10 m do ponto OSM (não valida uso residencial)';
- const confianca=d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i)?registro:'Sem correspondência próxima verificada nesta visualização';
+ const confianca=((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i)))?registro:'Sem correspondência próxima verificada nesta visualização';
  const cutGauge=cut==null?'não determinado':(cut+d.meta.bankfull_m).toFixed(1)+' m (aproximação)';
  const delta=(cut!=null&&flood!=null)?(flood-cut).toFixed(1)+' m':'indeterminada';
  popup('Origem OSM #'+i+'\nSituação modelada: '+descr[1]+'\nCota da água na origem (HAND): '+(flood==null?'não determinada':flood+' m')+
