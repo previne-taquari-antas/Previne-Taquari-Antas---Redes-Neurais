@@ -37,6 +37,8 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <div><i class="key" style="background:#21836d"></i>Conexão na rede modelada (provisória)</div>
 <div><i class="key" style="background:#7e8992"></i>Conexão da casa/qualidade não definida</div>
 </div>
+<label><input id="trechos" type="checkbox" style="width:auto" checked> Destacar trechos com maior uso nas rotas modeladas (não equivalem a isolamento causal)</label>
+<div id="cnefe" class="meta"></div>
 <h2>Inspeção de uma origem</h2>
 <div id="detail">Toque em um ponto para explorar como seu acesso varia com a cota.</div>
 <p><strong>Limites:</strong> pontos OSM ainda não conferidos pelo CNEFE; origem→rua não validada; cotas verticais, pontes, capacidade, correnteza, encostas e condições reais dos abrigos pendentes. O tempo calculado é em terreno plano e serve apenas para comparação. Nenhuma linha exibida é orientação de deslocamento em emergência.</p>
@@ -74,6 +76,25 @@ function cor(origem,form,otimo,estrito,alternativo,n){
  if(Number.isFinite(alternativo.dist[node]))return ['#df981e','somente ponto candidato, não validado'];
  return ['#67409a','sem ligação seca na rede modelada'];
 }
+function gargalosRotas(doc){
+ const f=Object.fromEntries(doc.meta.casas_campos.map((k,i)=>[k,i]));
+ const r=calcula(doc,0,'exploratoria',false),hits=new Map();
+ const ids=new Map(doc.edges.map((e,i)=>[[Math.min(e[0],e[1]),Math.max(e[0],e[1])].join(':'),i]));
+ for(const home of doc.casas){let node=home[f.no],seen=new Set();
+  if(!Number.isInteger(node)||node<0||node>=doc.nos.length||!Number.isFinite(r.dist[node]))continue;
+  while(!seen.has(node)){seen.add(node);let next=r.next[node];if(next<0||next===node)break;
+   let k=[Math.min(node,next),Math.max(node,next)].join(':'),ix=ids.get(k);
+   if(ix!=null)hits.set(ix,(hits.get(ix)||0)+1);
+   node=next;
+  }}
+ return [...hits].sort((a,b)=>b[1]-a[1]).slice(0,20);
+}
+function corteAproximado(i,f){
+ const levels=d.niveis?.hand_m||[],series=d.niveis?.casa_tempo_s||[],wet=d.niveis?.casa_agua_m||[];
+ for(let k=0;k<levels.length;k++){let t=series[k]?.[i],water=wet[k]?.[i];
+  if(t===-1||water>0)return levels[k];}
+ return null;
+}
 function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
  camadas.clearLayers();linhas.clearLayers();let classes={};
@@ -89,6 +110,12 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
   .addTo(camadas).bindPopup('<b>'+a.nome+'</b><p>Abrigo ou ponto cadastrado. Estado operacional a confirmar.</p>')});
  d.candidatos.forEach(a=>{L.circleMarker([a.lat,a.lon],{radius:6,color:'#63358b',fillColor:'#cba6e9',weight:2,fillOpacity:.9})
  .addTo(camadas).bindPopup('Local elevado candidato de pesquisa, sujeito a verificação.')});
+ if($('trechos').checked && d.meta.municipio==='Santa Tereza'){
+   const top=gargalosRotas(d);
+   for(const [ix,count] of top){let e=d.edges[ix];L.polyline([d.nos[e[0]],d.nos[e[1]]],
+    {color:'#a82d7c',weight:5,opacity:.77}).addTo(linhas)
+    .bindPopup('Aresta OSM '+ix+' • '+count+' origens usam este segmento em rota inicial. Não é contagem de isolados.')}
+ }
  const levelGauge=n+d.meta.bankfull_m;
  $('nivel').textContent=n.toFixed(1).replace('.',',')+' m HAND • régua aprox. '+levelGauge.toFixed(1).replace('.',',')+' m';
  $('resumo').innerHTML='<b>'+d.meta.municipio+'</b><br>'+d.casas.length+' origens OSM, '+d.edges.length+' trechos de rede; '+d.abrigos.length+' locais cadastrados.<br>'+
@@ -103,9 +130,13 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  const escolha=ok?o:(isAlt?alt:null);
  const fonte=escolha?.dest[node]||'nenhum destino conectado neste cenário';
  const minutos=escolha?(escolha.dist[node]/60).toFixed(1):'—';
- const flood=orig[f.cota_alaga];
+ const flood=orig[f.cota_alaga],cut=corteAproximado(i,f);
+ const cutGauge=cut==null?'não determinado':(cut+d.meta.bankfull_m).toFixed(1)+' m (aproximação)';
+ const delta=(cut!=null&&flood!=null)?(flood-cut).toFixed(1)+' m':'indeterminada';
  popup('Origem OSM #'+i+'\nSituação modelada: '+descr[1]+'\nCota da água na origem (HAND): '+(flood==null?'não determinada':flood+' m')+
-  '\nDestino da rede: '+fonte+'\nCaminhada sobre nós (estimativa plana): '+minutos+' min'+
+  '\nPrimeira ruptura/trecho alagado (série legada): '+cutGauge+
+  '\nDiferença inundação da casa menos ruptura: '+delta+
+  '\nAviso: ruptura da série legada não demonstra desconexão completa.\nDestino da rede: '+fonte+'\nCaminhada sobre nós (estimativa plana): '+minutos+' min'+
   '\nTrecho origem–rua, cota e acessibilidade do destino: NÃO VALIDADOS.');
  linhas.clearLayers();
  if(escolha){let chain=[],cur=node,visited=new Set();
@@ -118,11 +149,15 @@ async function mudaCidade(){
  if(!sources[slug]){let s=await (await fetch(FILES[slug],{cache:'no-cache'})).text();let idx=s.indexOf('const D=');if(idx<0)throw Error('sem payload const D');
   let ini=idx+'const D='.length,fi=s.indexOf('}, M=D.meta',ini);if(fi<0)throw Error('separador nao encontrado');sources[slug]=JSON.parse(s.slice(ini,fi+1))}
  d=sources[slug];selecionada=-1;anterior=slug;
+ $('cnefe').textContent=slug==='santa_tereza'?
+  'IBGE CNEFE 2022: 890 unidades domiciliares, 885 pontos; 318 pontos até 30 m de uma edificação OSM; 567 sem correspondência nesse raio no recorte municipal. Proximidade não comprova moradia.':
+  'IBGE CNEFE 2022: 2.270 unidades domiciliares, 2.061 pontos; 1.452 pontos até 30 m de uma edificação OSM; 609 sem correspondência nesse raio no recorte municipal. Não confundir domicílios com footprints.';
+
  $('cota').value=Number(d.meta.nivel_projeto_m).toFixed(1);let bb=rede(+($('cota').value),$('politica').value);
  if(bb.isValid())map.fitBounds(bb.pad(.07));
  }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
 }
 $('cidade').addEventListener('change',mudaCidade);
-['cota','politica','candidatos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
+['cota','politica','candidatos','trechos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
 mudaCidade();
 </script></body></html>
