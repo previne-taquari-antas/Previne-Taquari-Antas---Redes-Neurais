@@ -64,4 +64,15 @@ jobs:
           git add assets/data/porto_alegre/fila_amostra.json assets/data/porto_alegre/resumo.json assets/data/porto_alegre/amostra_mapa.geojson
           if git diff --cached --quiet; then echo "Sem diferenças"; exit 0; fi
           git commit -m "Publicar amostra auditável dos endereços de Porto Alegre"
-          git push origin HEAD:main
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "Dados cartográficos publicados no main"
+              exit 0
+            fi
+            echo "Main recebeu alterações concorrentes: repetindo sincronização ($attempt/8)"
+            sleep 3
+          done
+          echo "Falha ao publicar após oito tentativas" >&2
+          exit 1
