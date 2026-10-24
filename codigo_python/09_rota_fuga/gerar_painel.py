@@ -26,6 +26,7 @@ Uso:
   python codigo_python/09_rota_fuga/gerar_painel.py --cidade mucum --republicar
 """
 import os, sys, json, math, argparse
+from functools import lru_cache
 from shapely.geometry import shape, Point, Polygon, box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
@@ -58,7 +59,9 @@ CFG = {
                          {"rotulo": "set/2023", "regua_m": 23.65, "data": "2023-09-04",
                           "nota": "telemetria ANA; o SGB nivelou o pico em 24,04 m"},
                      ],
-                     "locais_altos": "santa_tereza",
+                     "locais_altos": "santa_tereza", "exige_eixo_principal": True,
+                     # página de rotas no pico até qualquer trecho alto, com os mesmos dados do painel
+                     "rotas_altas_json": os.path.join(RAIZ, "assets", "data", "rota_fuga", "santa_tereza_rotas_altas_set2023.json"),
                      "link_extra": {"href": "santa_tereza_rotas_altas_set2023.html",
                                     "texto": "Rotas para qualquer trecho alto · setembro/2023 (página exploratória) →"}},
     "mucum": {"cod": "4312609", "rf": "rota_fuga_ruas_mucum_cenario.json",
@@ -95,9 +98,26 @@ def capacidades_plano(cfg):
     return out
 
 
+@lru_cache(maxsize=2)
+def _contornos(cidade):
+    return json.load(open(rf_mod.CIDADES[cidade]["contornos"], encoding="utf-8"))
+
+
+# Santa Tereza: os contornos publicados são anteriores à auditoria do Marrecão (README de
+# santa_tereza_inundacao); enquanto o produto novo não trouxer o eixo dominante, o painel avisa.
+EIXO_VALIDADO = "eixo_dominante_taquari_D8"
+AVISO_ESTUDO = ("Estudo em validação: a mancha do modelo é anterior à revisão do Arroio Marrecão e está "
+                "sendo refeita. Use como apoio e siga sempre a Defesa Civil (199).")
+
+
+def aviso_estudo(cidade):
+    meta = _contornos(cidade).get("metadata") or {}
+    return None if meta.get("river_reference_method") == EIXO_VALIDADO else AVISO_ESTUDO
+
+
 def contorno_hand(cidade, nivel_hand):
     """União dos contornos HAND no primeiro nível >= nivel_hand (passo 0,1 m) e o nível usado."""
-    d = json.load(open(rf_mod.CIDADES[cidade]["contornos"], encoding="utf-8"))
+    d = _contornos(cidade)
     niveis = sorted({f["properties"]["nivel_m"] for f in d["features"]})
     nv = min((v for v in niveis if v >= nivel_hand - 1e-6), default=niveis[-1])
     return unary_union([shape(f["geometry"]) for f in d["features"] if abs(f["properties"]["nivel_m"] - nv) < 1e-6]), nv
@@ -149,13 +169,14 @@ def completa(doc, cidade, taxa_cm_h=TAXA_PADRAO_CM_H):
     doc["meta"]["cheias_ref"] = cfg["cheias_ref"]
     doc["meta"]["taxa_cm_h"] = taxa_cm_h
     doc["meta"]["link_extra"] = cfg.get("link_extra")
+    doc["meta"]["aviso_estudo"] = aviso_estudo(cidade) if cfg.get("exige_eixo_principal") else None
     cap = capacidades_plano(cfg)
     for a in doc["abrigos"]:
         a["capacidade_plano"] = cap.get(a["id"])
     if cfg.get("locais_altos"):
         cla = locais_altos.CIDADES[cfg["locais_altos"]]
         mancha = mancha_cheia(cidade, cla["cheia"]["hand_m"], doc["nos"])
-        alt = locais_altos.calcula(doc, mancha["poligonos"], cfg["locais_altos"])
+        alt = locais_altos.calcula(doc, mancha, cfg["locais_altos"])
         alt["mancha_cheia"] = mancha
         crit = alt["meta"]["criterios"]
         folga, _nv = contorno_hand(cidade, crit["celula_hand_min_m"])
@@ -168,6 +189,10 @@ def completa(doc, cidade, taxa_cm_h=TAXA_PADRAO_CM_H):
 
 def escreve(doc, saida):
     open(saida, "w", encoding="utf-8").write(_TEMPLATE.replace("__DADOS__", json.dumps(doc, ensure_ascii=False, separators=(",", ":"))))
+    cfg = next((c for c in CFG.values() if c["html"] == saida), {})
+    if doc.get("altos") and cfg.get("rotas_altas_json"):
+        with open(cfg["rotas_altas_json"], "w", encoding="utf-8") as f:
+            json.dump(locais_altos.pagina_rotas_altas(doc), f, ensure_ascii=False, separators=(",", ":"))
 
 
 def payload_publicado(saida):
@@ -280,6 +305,10 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
  .cheias{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:2px 0 6px;font-size:12px;color:#4a5a52}
  .cheias button{border:1px solid #c9d6cf;background:#f4f7f5;border-radius:12px;padding:3px 9px;font-weight:600;font-size:12px;font-family:inherit;cursor:pointer;min-height:28px}
  #selPrep{font:inherit;font-size:13px;margin-top:2px}
+ .cartao p{margin:5px 0}
+ .cartao .nota,.rota details{color:#4a5a52;font-size:12.5px}
+ .rota details{margin-top:8px}
+ .rota summary{cursor:pointer;font-weight:600;color:#0f6b4a}
  .extra{margin:0 14px 8px;padding:8px 10px;border:1px solid #bbd4c6;border-radius:9px;background:#f3faf6;font-size:13px;line-height:1.4}
  .extra a{color:#075d40;font-weight:600}
  .alto-ic{filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 2px rgba(0,0,0,.5))}
@@ -293,6 +322,7 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
   <button class="dobra" onclick="document.getElementById('hud').classList.toggle('min')">–</button>
   <h1><span id="tit"></span> · <span id="cid"></span></h1>
   <div class="canais">Em emergência: <b>193</b> (Bombeiros) · <b>199</b> (Defesa Civil) · alertas por SMS: envie seu CEP para <b>40199</b>.</div>
+  <div class="aviso hide" id="avisoEstudo" role="note" style="margin:0 14px 8px"></div>
   <div class="corpo">
   <div class="extra hide" id="extra"></div>
   <div class="tabs" id="tabs"></div>
@@ -316,6 +346,7 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
 const D=__DADOS__, M=D.meta, NV=D.niveis, ZR=M.bankfull_m;
 const CF=Object.fromEntries(M.casas_campos.map((k,i)=>[k,i]));
 document.getElementById('cid').textContent=M.municipio;
+if(M.aviso_estudo){const e=document.getElementById('avisoEstudo');e.textContent=M.aviso_estudo;e.classList.remove('hide');}
 document.getElementById('tit').textContent=M.titulo||'Evacuação';
 let taxaCmH=M.taxa_cm_h,prepMin=30;
 const map=L.map('map');
@@ -343,14 +374,14 @@ function avisoCheia(){if(!PIOR)return '';const h=PIOR.regua_m-ZR;
   if(nc)ab.push(`${nc} de ${D.candidatos.length} locais candidatos`);
   const qual=PIOR.tipo==='referencia'?'Na cheia de referência mais alta':'Na maior cheia registrada';
   return ab.length?`<div class="aviso">${qual} (${PIOR.rotulo}, régua ${fm2(PIOR.regua_m)} m) alagariam: ${ab.join(', ')}.`+
-    (AL?` Os ${AL.locais.length} locais altos sugeridos (▲) ficam fora dela.`:'')+'</div>':'';}
+    (AL?` Os ${AL.locais.length} pontos altos sugeridos (▲) ficam fora dela.`:'')+'</div>':'';}
 // cores com luminância bem diferente entre urgente (escuro) e folgado (claro); par mais
 // próximo com distância de cor >= 17 (Lab) também em deuteranopia, protanopia e tritanopia
 // (antes "já na água" e "ilhada" ficavam a 2,0 na protanopia)
 const CORES={alagada:'#1f4e9c',ilhada:'#9d4edd',isolada:'#2b2b2b',sem_abrigo:'#6b6b6b',critica:'#9e1b1b',apertada:'#e66100',atencao:'#f6c445',confortavel:'#4fb38a',seguro:'#c9cfcc',sem_rota:'#ffffff'};
 const ROT={alagada:'já na água',ilhada:'ilhada — rota já cruza água',critica:'crítica — não sai a pé a tempo',apertada:'apertada (menos de 15 min)',atencao:'atenção (menos de 1 h)',confortavel:'confortável (mais de 1 h)',seguro:'rota não alaga',isolada:'isolada — a água cortou o caminho até abrigo seco',sem_abrigo:'sem abrigo oficial seco neste nível',sem_rota:'sem rota (sem via mapeada ou sem abrigo seco)'};
 const ORDEM=['alagada','ilhada','isolada','sem_abrigo','critica','apertada','atencao','confortavel','seguro','sem_rota'];
-if(D.altos)ROT.seguro='seguro: casa no alto ou caminho que não alaga';
+if(D.altos){ROT.seguro='seguro: casa no alto ou caminho que não alaga';ROT.sem_rota='sem avaliação (sem casa ou rua mapeada)';}
 const URG=k=>ORDEM.indexOf(k);
 const pior=(x,y)=>URG(x)<=URG(y)?x:y;
 // ---------- margem pela rota inteira ----------
@@ -378,6 +409,12 @@ const semAbrigoSeco=A=>D.abrigos.every(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=
 const semRota=(agora,rioBaixo,A)=>agora<0?(rioBaixo<0?'sem_rota':semAbrigoSeco(A)?'sem_abrigo':'isolada'):null;
 function classeNo(i,A){if(A.T[i]<0)return semRota(A.T[i],NV.tempo_s[0][i],A);const c=D.cota_no[i];
   if(c!=null&&c<=A.h)return 'alagada'; if(A.g[i]<=A.h)return 'ilhada'; return faixa(A.f[i]-A.T[i]/60);}
+// Margem com locais altos: a rua vale pela melhor saída (abrigo oficial ou ponto alto), como as casas
+function classeNoAlto(i,A){if(AL.no_alto[i])return 'seguro';const m=AL.margem_nos[i];if(!m)return null;
+  const c=D.cota_no[i],lim=m[1]==null?c:c==null?m[1]:Math.min(m[1],c);if(lim==null)return 'seguro';
+  return lim<=A.h?'ilhada':faixa((lim-A.h)/A.taxa-m[0]/60);}
+function classeNoMelhor(i,A){const k=classeNo(i,A);if(!AL||k==='alagada')return k;
+  const ka=classeNoAlto(i,A);return ka&&(k==='sem_rota'||URG(ka)>URG(k))?ka:k;}
 function classeOficial(ci,A){const c=D.casas[ci],cota=c[CF.cota_alaga];
   if(cota!=null&&cota<=A.h)return 'alagada';
   const no=NV.casa_no[A.k][ci],Tc=NV.casa_tempo_s[A.k][ci];
@@ -401,6 +438,9 @@ function classeCel(c,ci,A){
   if(c.casas.length){const cnt={};c.casas.forEach(ci=>{const k=classeCasa(ci,A);cnt[k]=(cnt[k]||0)+1;});return cnt;}
   const no=c.no;let k;
   if(AL&&AL.cel_alta[ci]&&(c.cota==null||c.cota>A.h))return {seguro:1};
+  // com locais altos, célula sem casa mapeada (rural) não vai mais ao abrigo oficial por um nó a km
+  // de distância: fica sem avaliação, fora da contagem de risco, a não ser que o centro alague
+  if(AL&&!(c.cota!=null&&c.cota<=A.h))return {sem_rota:1};
   if(c.cota!=null&&c.cota<=A.h)k='alagada';else if(A.T[no]<0)k=semRota(A.T[no],NV.tempo_s[0][no],A);else if(A.g[no]<=A.h)k='ilhada';
   else k=faixa(Math.min(c.cota==null?Infinity:(c.cota-A.h)/A.taxa,A.f[no]-A.T[no]/60));
   return {[k]:1};}
@@ -512,21 +552,29 @@ const TER=AL?{alto:['#1b7f3b','terreno alto: fora da água de '+AL.meta.cheia.ro
   abaixo_da_agua:['#c62828','fora da mancha, mas abaixo do nível da água (aterro ou barreira no modelo): pode ter alagado']}:{};
 const terrenoLayer=AL&&AL.terreno?L.imageOverlay(AL.terreno.png,AL.terreno.limites,{interactive:false,alt:'Terreno alto e baixo fora da mancha de '+AL.meta.cheia.rotulo}):L.layerGroup();
 const fmMin=m=>m==null?'—':fmin(m*60);
+const reg=h=>fm(h+ZR)+' m';
+const fmDist=m=>m<1000?Math.round(m/10)*10+' m':fm2(m/1000)+' km';
+// nível da ilha: null = não vira ilha até o topo do modelo; -1 = sem rua mapeada até uma saída da cidade
+const ilhaTxt=v=>v<0?'não tem rua mapeada até o resto da cidade':'vira ilha com o rio em '+reg(v);
+const ilhado=v=>v!=null&&v<=AL.meta.nivel_mancha_m;
+const PERTO={dentro:' — alagou em 2023',abaixo_da_agua:' — pode ter alagado em 2023',sem_folga:' — a água passou perto em 2023'};
 function txtAlto(l,j){const ch=AL.meta.cheia;
-  return `<b>Local alto ${j+1}</b>${l.rua?' · '+l.rua:''}`+
-    (l.perto.length?`<br>Perto de: ${l.perto.map(p=>`${p.nome} (${p.m} m)`).join(', ')}.`:'')+
-    `<br>Fora da mancha de <b>${ch.rotulo}</b>, a maior cheia registrada (régua ${fm2(ch.regua_m)} m; ${fm2(ch.regua_sgb_m)} m pelo SGB):`+
-    `<br>· no MDT, terreno a ${fm(l.altitude_m)} m, <b>${fm(l.acima_agua_m)} m acima do nível da água</b> de 2023 (${fm(l.agua_m)} m);`+
-    `<br>· pelo HAND, ${l.cota_alaga_m==null?`não alaga até o topo do modelo, ${txtNivel(M.nivel_max_m)}`:`alaga só a partir de ${txtNivel(l.cota_alaga_m)}`}.`+
-    `<br>Mais perto para ${l.n_casas} casas (~${l.pessoas} pessoas, IBGE 2022): mediana ${fmMin(l.tempo_mediano_min)}, pior ${fmMin(l.tempo_max_min)} a pé (idoso).`+
-    '<br><i>Sugestão técnica do PREVINE. Não é abrigo oficial: espaço, acesso e uso dependem da Defesa Civil.</i>';}
-const altosLayer=L.layerGroup(AL?AL.locais.map((l,j)=>L.marker([l.lat,l.lon],{title:'Local alto '+(j+1),alt:'Local alto '+(j+1),
+  return `<b>Ponto alto ${j+1}</b>${l.rua?' · '+l.rua:''}`+
+    (l.perto.length?`<br>Perto de: ${l.perto.map(p=>`${p.nome} (${p.m} m${PERTO[p.terreno]||''})`).join(', ')}.`:'')+
+    `<br>Em ${ch.rotulo}, a maior cheia registrada, a água parou <b>${fm(l.acima_agua_m)} m abaixo</b> deste ponto.`+
+    (ilhado(l.ilha_m)?`<br><b style="color:#9e1b1b">Atenção: ${ilhaTxt(l.ilha_m)}.</b> Quem ficar aqui fica sem saída seca até a água baixar.`:'')+
+    `<br>É o ponto alto mais perto para ${l.n_casas} casas (~${l.pessoas} pessoas no Censo 2022): mediana de ${fmMin(l.tempo_mediano_min)}, no máximo ${fmMin(l.tempo_max_min)} a pé no passo de um idoso.`+
+    '<br><b>Não é abrigo oficial:</b> não tem garantia de espaço, cobertura ou atendimento. Em perigo: 199 (Defesa Civil) ou 193.'+
+    `<details><summary>Detalhes técnicos</summary>Terreno a ${fm(l.altitude_m)} m (LiDAR 10 m); água de referência de ${ch.rotulo} ${fm(l.agua_m)} m `+
+    `(régua ${fm2(ch.regua_m)} m na telemetria; ${fm2(ch.regua_sgb_m)} m pelo SGB). Pelo HAND, ${l.cota_alaga_m==null?`não alaga até o topo do modelo, ${txtNivel(M.nivel_max_m)}`:`alaga a partir de ${txtNivel(l.cota_alaga_m)}`}. `+
+    'Sugestão técnica do PREVINE para a Defesa Civil avaliar.</details>';}
+const altosLayer=L.layerGroup(AL?AL.locais.map((l,j)=>L.marker([l.lat,l.lon],{title:'Ponto alto '+(j+1),alt:'Ponto alto '+(j+1),
   icon:L.divIcon({className:'alto-ic',html:`<i></i><b>${j+1}</b>`,iconSize:[24,22],iconAnchor:[12,19],popupAnchor:[0,-17]})}).bindPopup(()=>txtAlto(l,j))):[]);
 const cheiaLayer=L.layerGroup(AL&&AL.mancha_cheia?AL.mancha_cheia.poligonos.map(p=>L.polygon(p,{color:'#0b3d91',weight:2,dashArray:'6 4',fill:false,interactive:false})):[]);
 if(AL)AL.locais.forEach(l=>b.extend([l.lat,l.lon]));
 const ex=document.getElementById('extra');
 if(AL||M.link_extra){ex.classList.remove('hide');
-  ex.innerHTML=(AL?`<b>Terreno alto</b> (verde, aba Rotas): o que ficou fora da mancha de ${AL.meta.cheia.rotulo}, a maior cheia registrada, pelo menos ${fm(AL.meta.folga_m)} m acima da água no MDT. <b>▲</b> ${AL.locais.length} locais sugeridos; toque numa casa para ver o caminho.`:'')+
+  ex.innerHTML=(AL?`<b>Terreno alto</b> (verde, aba Rotas): o que ficou fora da mancha de ${AL.meta.cheia.rotulo}, a maior cheia registrada, pelo menos ${fm(AL.meta.folga_m)} m acima da água no MDT. <b>▲</b> ${AL.locais.length} pontos altos sugeridos (não são abrigos); toque numa casa para ver para onde ir e quando sair.`:'')+
     (M.link_extra?`${AL?'<br>':''}<a href="${M.link_extra.href}">${M.link_extra.texto}</a>`:'');}
 const EST={excede:['#6b1a1a','#c0392b'],ilhada:['#4b2c78','#a689d6'],sem_rota:['#666','#c5c5c5']};
 const casasLayer=L.layerGroup(D.casas.map(c=>{b.extend([c[CF.lat],c[CF.lon]]);const st=c[CF.situacao]||'ok',dn=c[CF.na_mancha];
@@ -541,19 +589,19 @@ document.getElementById('selPrep').value=String(prepMin);sld.setAttribute('aria-
 document.getElementById('cheias').innerHTML=CHEIAS.length?'<span>Cheias:</span>'+CHEIAS.map((c,i)=>
   `<button type="button" data-i="${i}" title="${c.nota||''}">${c.rotulo} · ${fm2(c.regua_m)} m</button>`).join(''):'';
 document.querySelectorAll('#cheias button').forEach(bt=>bt.onclick=()=>{
-  sld.value=Math.min(+sld.max,Math.round((CHEIAS[+bt.dataset.i].regua_m-ZR)*10));redraw();});
+  sld.value=Math.min(+sld.max,Math.ceil((CHEIAS[+bt.dataset.i].regua_m-ZR)*10-1e-6));redraw();});
 function nivelAtual(){return sld.value/10;}
 function legenda(cnt,fmt){return ORDEM.filter(k=>cnt[k]>0).map(k=>`<div class="row"><span><span class="sw" style="background:${CORES[k]}"></span>${ROT[k]}</span><b>${fmt(cnt[k])}</b></div>`).join('');}
 function renderRotas(){
   ruas.forEach(r=>r.pl.setStyle({color:r.ag?'#b3382c':'#8fa7b8',weight:r.ag?2.5:1.5,opacity:r.ag?.75:.55,dashArray:r.pe?'3 4':null}));
   document.getElementById('painel').innerHTML=`<div class="sub">Cenário: ${M.rotulo_nivel||txtNivel(M.nivel_projeto_m)}. Toque numa casa para ver a rota a pé (idoso, com subidas) até o abrigo mais próximo${AL?' e até o local alto mais próximo':''}.</div>${avisoCheia()}<div class="leg-rota"><span><i style="background:#0f8b46"></i>rota sem água</span><span><i class="tr"></i>trecho que alaga</span>`+
     ((D.candidatos||[]).length?'<span><i style="background:#5b2a86"></i>até local candidato (não oficial)</span>':'')+
-    (AL?`<span><i style="background:#5b2a86"></i>até local alto (não oficial)</span><span><i class="tri"></i>local alto sugerido</span><span><i class="c23"></i>limite da água em ${AL.meta.cheia.rotulo}</span>`+
+    (AL?`<span><i style="background:#5b2a86"></i>até o ponto alto (não oficial)</span><span><i class="tri"></i>ponto alto sugerido</span><span><i class="c23"></i>limite da água em ${AL.meta.cheia.rotulo}</span>`+
       Object.values(TER).map(([c,t])=>`<span><i style="background:${c};height:10px;opacity:.75"></i>${t}</span>`).join(''):'')+
     '<span><i style="background:#2a81cb"></i>abrigo oficial (pino azul)</span></div><div class="rota" id="rota">—</div>';
 }
 function renderMargem(){const A=avalia(nivelAtual());const cnt={};
-  const cl=D.nos.map((_,i)=>classeNo(i,A));
+  const cl=D.nos.map((_,i)=>classeNoMelhor(i,A));
   ruas.forEach(r=>{let k=pior(cl[r.a],cl[r.c]);if(r.cz!=null&&r.cz<=A.h)k='alagada';cnt[k]=(cnt[k]||0)+1;
     r.pl.setStyle({color:CORES[k],weight:k==='seguro'?1.5:3,opacity:.9,dashArray:null});});
   document.getElementById('nvtxt').textContent=txtNivel(A.h);
@@ -584,7 +632,7 @@ function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h)
   const al=D.abrigos.filter(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=NV.hand_m[k]).map(a=>a.nome);
   if(al.length)document.getElementById('painel').insertAdjacentHTML('afterbegin',
     `<div class="aviso">${al.length===D.abrigos.length?'<b>Nenhum abrigo oficial fica seco neste nível.</b> ':''}Alaga(m): ${al.join(', ')}.`+
-    (AL?` Locais altos sugeridos (▲) secos neste nível: ${AL.locais.filter(l=>l.cota_alaga_m==null||l.cota_alaga_m>NV.hand_m[k]).length} de ${AL.locais.length}.`:'')+'</div>');
+    (AL?` Pontos altos (▲) secos neste nível: ${AL.locais.filter(l=>l.cota_alaga_m==null||l.cota_alaga_m>NV.hand_m[k]).length} de ${AL.locais.length}.`:'')+'</div>');
   if(h>=M.nivel_max_m)document.getElementById('painel').insertAdjacentHTML('afterbegin',
     `<div class="aviso">Acima de ${txtNivel(M.nivel_max_m)} o modelo não tem mancha: a área que alaga fica subestimada.</div>`);}
 function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').textContent=taxaCmH;sld.setAttribute('aria-valuetext',txtNivel(nivelAtual()));
@@ -609,26 +657,51 @@ function cortaNoNivel(ci,k){const no=NV.casa_no[k][ci];if(no<0||NV.casa_agua_m[k
   const P=NV.prox[k];let j=no,g=0;
   while(j>=0&&g++<6000){const c=D.cota_no[j];if(c!=null&&c<=NV.hand_m[k])return true;const nx=P[j];if(nx===j||nx<0)break;j=nx;}
   return false;}
-// caminho até o local alto: seco pelo menos até a água chegar na casa; quando a água corta
-// antes (corte_m abaixo da cota da casa), a casa precisa sair antes desse nível
-function rotaAlto(casa,ci){const a=AL.casas[ci],st=AL.meta.estados[a[ACF.estado]],ch=AL.meta.cheia;
-  const ter=AL.meta.classes_terreno[a[ACF.terreno]],ac=a[ACF.acima_agua_m];
-  if(st==='no_alto')return {txt:`<br><span style="color:#14532d"><b>Casa em terreno alto:</b> fora da mancha de ${ch.rotulo} e, no MDT, ${fm(ac)} m acima do nível da água.</span>`};
-  const onde=ter==='dentro'?`<br>Na cheia de ${ch.rotulo} a água chegou aqui.`:
-    ter==='abaixo_da_agua'?`<br><b>Fora da mancha, mas o terreno fica abaixo do nível da água de ${ch.rotulo}</b> (aterro ou barreira no modelo): pode ter alagado.`:
-    ter==='sem_folga'?`<br>Fora da mancha de ${ch.rotulo}, mas a menos de ${fm(AL.meta.folga_m)} m do nível da água.`:'';
-  if(st!=='rota')return {txt:onde+'<br>Sem ligação pelas ruas mapeadas até um local alto.'};
-  const j=a[ACF.local],l=AL.locais[j],cota=casa[CF.cota_alaga],corte=a[ACF.corte_m];
-  const lim=corte==null?cota:cota==null?corte:Math.min(corte,cota);
-  const pts=[[casa[CF.lat],casa[CF.lon]],[casa[CF.proj_lat],casa[CF.proj_lon]],...a[ACF.rota].map(i=>D.nos[i])];
-  return {cam:L.polyline(pts,{color:'#5b2a86',weight:5,opacity:.9}),
-    txt:onde+`<br><span style="color:#4b2c78"><b>Até ${l?'o local alto '+(j+1)+(l.rua?' ('+l.rua+')':''):'o trecho alto mais próximo'}</b> (linha roxa): `+
-      `${fm2(a[ACF.dist_m]/1000)} km · <b>${fmin(a[ACF.tempo_s])}</b> (idoso).</span>`+
-      (corte==null?' O caminho não alaga até o topo do modelo.':
-       cota==null||corte<cota?` <b>A água corta este caminho antes de chegar na casa: sair antes de ${txtNivel(corte)}.</b>`:
-       ` O caminho fica seco até a água chegar na casa (${txtNivel(cota)}): sair antes disso.`)+
-      (ter==='dentro'||ter==='abaixo_da_agua'||(lim!=null&&lim<=ch.hand_m)?` Numa cheia como a de ${ch.rotulo}, esta casa precisaria sair.`:
-       ` Numa cheia maior que a de ${ch.rotulo}, ir ao local alto.`)};}
+// nível da régua para sair: onde a água corta o caminho (ou chega na casa) menos o erro do modelo
+// e menos o que o rio sobe durante o preparo e a caminhada (seletor de preparo e subida do painel)
+function regSair(lim,tempoS){const y=lim-AL.meta.margem_corte_m-(prepMin+tempoS/60)/60*(taxaCmH/100);
+  return Math.floor((y+ZR)*10)/10;}
+// nível em que a água corta o caminho até o abrigo oficial (rotas por nível); null = não corta
+function corteOficial(ci){const hs=NV.hand_m;let k=0;while(k<hs.length&&!cortaNoNivel(ci,k))k++;
+  return k>=hs.length?null:k>0?hs[k-1]:0;}
+// cartão da casa: uma instrução só, em ordem de decisão; o abrigo oficial e os números vão para os detalhes
+function cartao(casa,ci){const a=AL.casas[ci],st=AL.meta.estados[a[ACF.estado]],ch=AL.meta.cheia,fol=AL.meta.folga_m;
+  const ter=AL.meta.classes_terreno[a[ACF.terreno]],ac=a[ACF.acima_agua_m],cota=casa[CF.cota_alaga],il=a[ACF.ilha_m];
+  const ab=D.abrigos[0],abAlaga=ab&&ab.cota_alaga_m!=null&&ab.cota_alaga_m<=AL.meta.nivel_mancha_m;
+  let sua=st==='no_alto'?`Fica no alto. Em ${ch.rotulo}, a maior cheia registrada, a água parou ${fm(ac)} m abaixo daqui.`:
+    ter==='dentro'?`Em ${ch.rotulo}, a maior cheia registrada, a água chegou aqui`+(ac!=null&&ac<0?` (cerca de ${fm(-ac)} m de água)`:'')+'.':
+    ter==='abaixo_da_agua'?`Fica fora da mancha do modelo, mas abaixo do nível da água de ${ch.rotulo}: pode ter alagado.`:
+    ter==='sem_folga'?(ac!=null&&ac<0?`Fica abaixo da maior água medida em ${ch.rotulo}: pode ter alagado.`:`Em ${ch.rotulo} a água passou a menos de ${fm(fol)} m daqui.`):'Sem dado de terreno.';
+  if(cota!=null&&st!=='no_alto')sua+=` Alaga com o rio em ${reg(cota)} na régua.`;
+  let para,quando,evite='',cam=null,tec='';
+  if(st==='no_alto'){
+    if(ilhado(il))sua+=` A rua ${ilhaTxt(il)}: tenha água, comida e remédios para alguns dias.`;
+    para='fique em casa ou num lugar alto perto. Não desça para as partes baixas.';
+    quando=`numa cheia como a de ${ch.rotulo}, não precisa sair.`+(ilhado(il)&&il>=0?` Quem depende de remédio, oxigênio ou diálise deve sair antes de o rio chegar a ${fm(regSair(il,0))} m.`:'');
+    if(ab)evite=`descer até o ${ab.nome}`+(abAlaga?`: ele fica dentro da água de ${ch.rotulo}.`:'.');
+  }else if(st!=='rota'){
+    para='não há rua mapeada até um ponto alto. Combine a saída com a Defesa Civil (199).';
+    quando='quando a Defesa Civil mandar.';
+  }else{
+    const j=a[ACF.local],l=AL.locais[j],corte=a[ACF.corte_m],lim=corte==null?cota:cota==null?corte:Math.min(corte,cota);
+    cam=L.polyline([[casa[CF.lat],casa[CF.lon]],[casa[CF.proj_lat],casa[CF.proj_lon]],...a[ACF.rota].map(i=>D.nos[i])],{color:'#5b2a86',weight:5,opacity:.9});
+    para=`<b>ponto alto ${j+1}</b>${l&&l.rua?' ('+l.rua+')':''}, a ${fmDist(a[ACF.dist_m])}: cerca de ${fmin(a[ACF.tempo_s])} a pé no passo de um idoso (linha roxa).`+
+      (l&&ilhado(l.ilha_m)?` Atenção: ele ${ilhaTxt(l.ilha_m)}.`:'')+
+      (a[ACF.alt_local]!=null?` Se der tempo, prefira o ponto ${a[ACF.alt_local]+1} (${fmin(a[ACF.alt_tempo_s])}), que não fica ilhado.`:'');
+    if(lim==null)quando='o caminho não alaga até o topo do modelo: saia quando a Defesa Civil mandar.';
+    else{const y=regSair(lim,a[ACF.tempo_s]);
+      quando=(y<=ZR?'<b>assim que houver alerta de cheia</b>: o caminho alaga cedo.':`<b>quando o rio chegar a ${fm(y)} m na régua</b>, ou antes se a Defesa Civil mandar.`)+
+        (lim>AL.meta.nivel_mancha_m?` Numa cheia como a de ${ch.rotulo} a água chega perto: saia por precaução.`:'')+
+        `<br><span class="nota">A água corta o caminho com o rio em ${reg(lim)}; já estão descontados ${prepMin} min de preparo, a caminhada, a subida de ${taxaCmH} cm/h e ${fm(AL.meta.margem_corte_m)} m de erro do modelo.</span>`;
+      tec=`<br>Ponto alto: caminho cortado em ${txtNivel(lim)}${corte!=null&&cota!=null&&corte<cota?' (antes de a água chegar na casa)':''}.`;}
+    if(ab){const co=casa[CF.no]<0?null:corteOficial(ci);
+      evite=casa[CF.no]<0?`ir até o ${ab.nome}: não há rua mapeada até ele daqui.`:
+        `ir a pé até o ${ab.nome}`+(abAlaga?`: ele fica dentro da água de ${ch.rotulo}`:'')+(co!=null&&(lim==null||co<lim)?`${abAlaga?',':':'} e o caminho até ele alaga antes, com o rio em ${reg(co)}`:'')+'.';}
+  }
+  if(ac!=null)tec+=`<br>Terreno da casa: ${ac>=0?fm(ac)+' m acima':fm(-ac)+' m abaixo'} da água de referência de ${ch.rotulo} (LiDAR 10 m).`;
+  return {cam,tec,html:`<div class="cartao"><p><b>Sua casa:</b> ${sua}</p><p><b>Para onde ir:</b> ${para}</p><p><b>Quando sair:</b> ${quando}</p>`+
+    (evite?`<p><b>Evite:</b> ${evite}</p>`:'')+
+    '<p class="nota">O ponto alto não é abrigo oficial: não tem garantia de espaço, cobertura ou atendimento. Chegando lá, avise a Defesa Civil (199).</p></div>'};}
 // a casa é ilhada no cenário: o corte nunca fica acima do nível do cenário
 function txtCorte(ci){const hs=NV.hand_m,kp=kNivel(M.nivel_projeto_m);let k=0;
   while(k<kp&&!cortaNoNivel(ci,k))k++;
@@ -638,24 +711,27 @@ map.on('click',e=>{if(modo!=='rotas')return;
   D.casas.forEach((c,i)=>{const d=m2(la,lo,c[CF.lat],c[CF.lon]);if(d<bc){bc=d;casa=c;ci=i;}});
   if(!casa||Math.sqrt(bc)>60){document.getElementById('rota').textContent='Nenhuma casa a menos de 60 m deste ponto.';return;}
   [cam,camC,camA,orig].forEach(l=>{if(l)map.removeLayer(l);});cam=camC=camA=null;
-  const RA=AL?rotaAlto(casa,ci):{txt:''};if(RA.cam)camA=RA.cam.addTo(map);
+  const RA=AL?cartao(casa,ci):null;if(RA&&RA.cam)camA=RA.cam.addTo(map);
+  const saida=html=>{document.getElementById('rota').innerHTML=RA?RA.html+
+    `<details><summary>Abrigo oficial e detalhes técnicos</summary>${html}${RA.tec}</details>`:html;};
   orig=L.circleMarker([casa[CF.lat],casa[CF.lon]],{radius:7,color:'#0f8b46',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
   const base=()=>[[casa[CF.lat],casa[CF.lon]],[casa[CF.proj_lat],casa[CF.proj_lon]]];
   let txtC='';
   if(casa[CF.cand]&&D.rota_cand&&casa[CF.no_cand]!=null){camC=L.polyline(cadeia(casa[CF.no_cand],D.rota_cand.prox,base()),{color:'#5b2a86',weight:4,opacity:.9,dashArray:'6 6'}).addTo(map);
     txtC=`<br><span style="color:#4b2c78">Até o local candidato (linha roxa, não oficial; capacidade não avaliada): <b>${fmin(casa[CF.tempo_cand_s])}</b>.</span>`;}
-  if(casa[CF.no]<0){document.getElementById('rota').innerHTML=casa[CF.proj_lat]==null
+  if(casa[CF.no]<0){saida(casa[CF.proj_lat]==null
     ?'<b>Casa sem rota</b><br>A via mapeada mais próxima fica longe demais.'
-    :'<b>Sem caminho até abrigo oficial</b><br>As ruas desta casa não se ligam, no mapa, às do abrigo (outra margem do rio ou trecho isolado).'+txtC+RA.txt;return;}
+    :'<b>Sem caminho até abrigo oficial</b><br>As ruas desta casa não se ligam, no mapa, às do abrigo (outra margem do rio ou trecho isolado).'+txtC);return;}
   const molha=(casa[CF.agua_m]||0)>0;
-  cam=rotaPorTrecho(casa,molha&&camC?.55:.95).addTo(map);
+  // com o cartão do ponto alto, a rota oficial fica de fundo (mais fina e clara)
+  cam=rotaPorTrecho(casa,RA?.4:molha&&camC?.55:.95).addTo(map);if(camA)camA.bringToFront();
   if(molha&&camC){camC.setStyle({weight:6,dashArray:null});camC.bringToFront();}
   const ab=D.abrigos.find(x=>x.id===casa[CF.abrigo])||D.abrigos[0];
   const ag=casa[CF.agua_m]||0,st=casa[CF.situacao],cota=casa[CF.cota_alaga];
-  document.getElementById('rota').innerHTML=`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>A pé: <b>${(casa[CF.dist_m]/1000).toFixed(2)} km</b> · <b>${fmin(casa[CF.tempo_s])}</b> (idoso)`+
+  saida(`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>A pé: <b>${fm2(casa[CF.dist_m]/1000)} km</b> · <b>${fmin(casa[CF.tempo_s])}</b> (idoso)`+
     (cota!=null?`<br>A casa alaga a partir de ${txtNivel(cota)}.`:'<br>A casa não alaga até o nível mapeado.')+
     (st==='ilhada'?`<br><span style="color:#4b2c78"><b>Ilhada</b>: não há caminho seco até o abrigo oficial neste cenário.${txtCorte(ci)}</span>`:'')+
-    (ag>0?`<br><span style="color:#9e1b1b">⚠ A rota até o abrigo oficial atravessa ${Math.round(ag)} m de área que alaga (trecho vermelho): não é caminho seguro a pé neste cenário.</span>`:'<br><span style="color:#0f8b46">Rota fora da área que alaga.</span>')+txtC+RA.txt;});
+    (ag>0?`<br><span style="color:#9e1b1b">⚠ A rota até o abrigo oficial atravessa ${Math.round(ag)} m de área que alaga (trecho vermelho): não é caminho seguro a pé neste cenário.</span>`:'<br><span style="color:#0f6b4a">Rota fora da área que alaga.</span>')+txtC);});
 // ---------- abas ----------
 const NOMES={rotas:'Rotas',margem:'Margem',impacto:'Quem sai'};
 const tabs=document.getElementById('tabs');
