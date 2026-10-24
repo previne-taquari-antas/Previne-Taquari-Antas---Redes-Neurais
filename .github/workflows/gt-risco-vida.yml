@@ -5,6 +5,7 @@ on:
       - "scripts/gt_risco_vida.py"
       - "scripts/gt_cnefe_residencias.py"
       - "scripts/gt_auditar_residencias.py"
+      - "scripts/gt_destinos.py"
       - "tests/test_gt_risco_vida.py"
       - "santa_tereza_painel_casas.html"
       - "mucum_painel_casas.html"
@@ -35,6 +36,8 @@ jobs:
         run: python scripts/gt_auditar_residencias.py --cidade santa_tereza --pasta artifacts/gt_risco_vida
       - name: Auditar CNEFE x OSM Mucum
         run: python scripts/gt_auditar_residencias.py --cidade mucum --pasta artifacts/gt_risco_vida
+      - name: Conferir inventario de abrigos e capacidades
+        run: python scripts/gt_destinos.py --saida artifacts/gt_risco_vida
       - name: Arquivar resultados de pesquisa - nao operacionais
         uses: actions/upload-artifact@v4
         with:
