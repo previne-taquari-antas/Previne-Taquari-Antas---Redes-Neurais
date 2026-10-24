@@ -14,8 +14,8 @@ function elem(id){return els[id]||(els[id]={
 const geo={addTo(){return this},on(){return this},bindPopup(){return this}};
 const bounds={extend(){return this},isValid(){return true},pad(){return this}};
 const L={
-  map(){return {setView(){return this},fitBounds(){return this}}},
-  tileLayer(){return {...geo}},layerGroup(){return {addTo(){return this},clearLayers(){}}},
+  map(){return {setView(){return this},fitBounds(){return this},removeLayer(){return this}}},
+  tileLayer(){return {...geo}},imageOverlay(){return {...geo}},layerGroup(){return {addTo(){return this},clearLayers(){}}},
   polyline(){return {...geo}},circleMarker(){return {...geo}},latLngBounds(){return {...bounds}}
 };
 const context={L,document:{getElementById:elem},console,Number,Math,Set,Map,Error,JSON,Array};
