@@ -115,6 +115,72 @@ que ele alaga, a rampa e a **demanda**, além da rota até ele (`rota_cand`) e,
 por casa, `cand`, `tempo_cand_s` e `no_cand`. **Capacidade não é avaliada** —
 são sugestões para a Defesa Civil, não abrigos oficiais.
 
+### Locais altos sugeridos — Santa Tereza (`locais_altos.py`)
+**Terreno alto = o que ficou fora da mancha da maior cheia registrada, visto no
+MDT.** Em Santa Tereza a maior cheia é set/2023: régua 23,65 m na telemetria
+(24,04 m nivelada pelo SGB); mai/2024 ficou em 22,42 m (SGB) e nov/2023 em
+21,61 m. A validação de campo do HAND (05/09/2026, marcas de cheia e limites com
+GNSS RTK; trabalho do SBSR 2027, `pesquisas/validacao-campo-hand-santa-tereza/`)
+calibra o zero 1,60 m nesses pontos, o que põe set/2023 em **HAND 22,05 m**: a
+mancha é o contorno HAND de 22,1 m (`contornos_mancha.json`), a linha tracejada
+do painel.
+
+No MDT (LiDAR de 10 m, o mesmo do HAND), dentro do recorte das ruas (± ~400 m):
+1. **água na borda**: mediana da cota do terreno na borda externa da mancha num
+   raio de 300 m, levada a cada pixel pela borda mais próxima. Nas ruas, a
+   mediana é 75,8 m (p10 72,2; p90 76,4), dentro da faixa da água medida com
+   RTK em 2023 (74,1–76,5 m). As ilhas da mancha ficam fora da conta (a borda
+   delas fica no leito);
+2. **nível da água** = o maior entre a borda e a maior água medida em campo
+   (76,47 m, limite H004). Na cidade a água de 2023 ficou plana e, em três
+   limites, 1,4 a 1,8 m acima da borda do HAND; sozinha, a borda cai para
+   72–73 m no sul;
+3. fora da mancha, cada pixel é **alto** (terreno pelo menos **2 m** acima do
+   nível da água), **sem folga** (menos de 2 m) ou **abaixo da água** (abaixo da
+   água na borda sem estar na mancha: atrás de aterro ou barreira no modelo,
+   pode ter alagado). Nó de rua ou casa que o HAND alaga na cheia fica dentro
+   da mancha mesmo que o pixel de 10 m na borda caia fora.
+
+A folga de 2 m cobre o maior erro do HAND no sentido perigoso medido com RTK
+(1,84 m, água acima do modelo); o MAE das 22 profundidades é 0,64 m.
+
+Cada casa que não fica no alto vai pelo caminho mais rápido (idoso, com subidas
+no LiDAR; `caminhada.py`) entre os que continuam secos **pelo menos até a água
+chegar na casa** (cota HAND de cada trecho); quando nenhum continua, pelo que
+fica seco até o nível mais alto possível, e a casa precisa sair antes dele
+(`corte_m`). Os **locais** são nós de rua em terreno alto com 1 m a mais (3 m
+acima da água), escolhidos um a um pelo que mais poupa caminhada (casa·min,
+teto de 60 min) até o ganho cair abaixo de 150 casa·min ou chegar a 8. Nome: rua
+com nome a até 25 m e lugares a até 150 m (`osm_nomes_santa_tereza.json`, de
+`baixar_nomes_osm.py`; escolas e UBS de `assets/data/servicos`). O OSM de Santa
+Tereza tem poucos nomes de rua.
+
+Resultado (out/2026): no recorte, 2.236 ha de terreno alto, 35 ha sem folga e
+6 ha abaixo da água fora da mancha. 756 de 1385 nós de rua ficam no alto; das
+565 casas, 206 já estão no alto, 332 têm caminho até um dos **8 locais** e 27 não
+têm via mapeada. Caminhada do idoso até o local: mediana 6,1 min, p90 14,8 min,
+máximo 25,2 min; em 149 casas a água corta o caminho antes de chegar na casa. O
+Ginásio (HAND 21,3 m, terreno 75,0 m) fica dentro da água de set/2023. O local 7
+fica junto à ESF Santa Tereza, a 83 m do campanário da igreja; o local 1, a 71 m
+da EMEI Descobrindo Caminhos.
+
+No painel (`gerar_painel.py`, `CFG["santa_tereza"]["locais_altos"]`): na aba
+Rotas, o terreno em três cores (imagem do recorte), a linha tracejada da mancha,
+triângulos numerados e o caminho roxo até o local alto ao tocar numa casa; em
+Quem sai, a melhor saída entre o abrigo oficial e o local alto (casa no alto =
+segura). Célula IBGE sem casa mapeada só conta como segura se, dentro do
+recorte, todo pixel for alto e, fora dele, a célula estiver fora da mancha HAND
+de 24,1 m com todo o LiDAR acima de 78,47 m. Os locais candidatos do gerador
+(calculados para a régua 15 m; 1 de 5 alagava em set/2023 e outros 2 ficavam
+dentro da folga) saem do painel de Santa Tereza. **São sugestões técnicas**:
+espaço, acesso, capacidade e uso dependem da Defesa Civil.
+
+```
+python codigo_python/09_rota_fuga/locais_altos.py          # resumo do painel publicado, sem gravar
+python codigo_python/09_rota_fuga/gerar_painel.py --cidade santa_tereza --republicar
+python codigo_python/09_rota_fuga/baixar_nomes_osm.py santa_tereza   # precisa de internet
+```
+
 ### Demanda por destino
 Cada casa recebe `pessoas`: a população da grade IBGE 2022 (domicílios
 ocupados) dividida entre as casas OSM da célula. Casa fora das células com
@@ -154,6 +220,7 @@ CTG Sentinela a partir de 20,6 m.
 ## Camadas derivadas
 - `gerar_painel.py` — **painel casa a casa** (`<cidade>_painel_casas.html`) com abas
   Rotas · Margem · Quem sai; em Quem sai cada casa é um ponto colorido pela situação.
+  Em Santa Tereza, com os locais altos (`locais_altos.py`).
   Não substitui o `<cidade>_painel_evacuacao.html` (grade IBGE, robô de 30 m).
 - `gerar_estudo_caso_slides.py` — vídeo/slides de Muçum, recalculando as rotas por nível.
 - `gerar_fila_cidade.py` — fila por célula IBGE (`fila_cidade_<cidade>.json`):
@@ -172,7 +239,9 @@ continua subindo nesse ritmo a partir do nível escolhido.
 
 **Cheias registradas** (`CFG[...]["cheias_ref"]` em `gerar_painel.py`): botões
 que levam o slider à cota oficial e aos picos das réguas (Santa Tereza: jul/2026
-17,46 m, nov/2023 21,61 m, set/2023 23,65 m, mai/2024 25,82 m de referência;
+17,46 m, nov/2023 21,61 m, mai/2024 22,42 m nivelada pelo SGB — a telemetria
+parou em 22,32 m —, set/2023 23,65 m, a maior; os 25,82 m de "referência" para
+mai/2024 que estavam aqui não tinham fonte primária;
 Muçum: jul/2020 22,11 m, nov/2023 22,99 m, mai/2024 25,51 m — set/2023 fica de
 fora porque a série termina subindo em 21,18 m). Cada abrigo e candidato diz até
 onde fica seco e se alagaria em cada cheia; a aba Rotas avisa o que alagaria na
@@ -185,7 +254,8 @@ dentro dela, cada casa com sua situação; célula sem casa mapeada usa o nó de
 via mais próximo do centroide. **Isolada** = tinha rota até abrigo seco com o
 rio baixo e perdeu pela água (conta como risco: antes essas casas sumiam da
 contagem quando o abrigo alagava); **sem rota** = nunca teve via mapeada até
-um abrigo (não conta).
+um abrigo (não conta). Em Santa Tereza, o caminho até o local alto também é
+saída (vale a melhor das duas; ver Locais altos).
 
 O slider mostra o nível em **régua** (HAND entre parênteses). A paleta separa
 urgente (escuro) de folgado (claro); o par de classes mais próximo fica a
@@ -214,6 +284,10 @@ só `building=yes` e o filtro residencial não separa nada. Fora do recorte
 ficam domicílios ribeirinhos e rurais que o modelo ainda não enxerga.
 
 ## Pendências conhecidas
+- **Locais altos de Santa Tereza**: vistoriar os 8 locais com a Defesa Civil
+  (espaço, acesso, muro, escada) e decidir quais viram pontos de encontro; o
+  Ginásio fica dentro da água de set/2023. O bloco `risco_em_cheia_referencia`
+  do Ginásio em `abrigos.geojson` ainda usa os 25,82 m e o zero antigo (4 m).
 - **Referência do HAND**: o talvegue do mosaico tem poços e degraus; trocar
   pela linha central do rio e um perfil de linha d'água suavizado muda muito a
   contagem de casas atingidas. Exige refazer `02_mdt_hand_mancha`.

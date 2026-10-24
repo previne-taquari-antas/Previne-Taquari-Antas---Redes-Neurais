@@ -25,6 +25,10 @@ on:
       - "assets/data/eventos_analise.json"
       - "assets/data/mucum_eventos_analise.json"
       - "assets/data/mucum_contingencia_202607.json"
+      - "assets/data/rota_fuga/osm_nomes_santa_tereza.json"
+      - "assets/data/servicos/escolas.geojson"
+      - "assets/data/servicos/ubs.geojson"
+      - "assets/data/santa_tereza_inundacao/mdt/altitude_terreno_lidar_10m.*"
       - "tests/test_rota_fuga_painel.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
@@ -52,6 +56,10 @@ on:
       - "assets/data/eventos_analise.json"
       - "assets/data/mucum_eventos_analise.json"
       - "assets/data/mucum_contingencia_202607.json"
+      - "assets/data/rota_fuga/osm_nomes_santa_tereza.json"
+      - "assets/data/servicos/escolas.geojson"
+      - "assets/data/servicos/ubs.geojson"
+      - "assets/data/santa_tereza_inundacao/mdt/altitude_terreno_lidar_10m.*"
       - "tests/test_rota_fuga_painel.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
@@ -92,6 +100,11 @@ jobs:
             assets/data/eventos_analise.json
             assets/data/mucum_eventos_analise.json
             assets/data/mucum_contingencia_202607.json
+            assets/data/rota_fuga/osm_nomes_santa_tereza.json
+            assets/data/servicos/escolas.geojson
+            assets/data/servicos/ubs.geojson
+            assets/data/santa_tereza_inundacao/mdt/altitude_terreno_lidar_10m.json
+            assets/data/santa_tereza_inundacao/mdt/altitude_terreno_lidar_10m.png
           sparse-checkout-cone-mode: false
       - uses: actions/setup-python@v5
         with:
@@ -102,5 +115,5 @@ jobs:
         run: python -m py_compile codigo_python/09_rota_fuga/*.py
       - name: Hora, nivel do rio e paginas das rotas
         run: python tests/test_rota_fuga_ao_vivo.py -v
-      - name: Painel casa a casa, cheias registradas e abrigos
+      - name: Painel casa a casa, cheias registradas, abrigos e locais altos
         run: python tests/test_rota_fuga_painel.py -v
