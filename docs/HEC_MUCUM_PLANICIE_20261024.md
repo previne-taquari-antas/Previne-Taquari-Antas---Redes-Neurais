@@ -23,8 +23,9 @@ Todos os modelos abaixo foram reavaliados com os horários brutos originais. Nã
 | Modelo | NSE, relógio bruto | Erro do pico contra Q disponível | Pico menos horário publicado pelo SGB | NSE até 15 m |
 | --- | --- | --- | --- | --- |
 | V3 · retenção conceitual | 0.9882 | -0.02% | -2.95 h | 0.9682 |
-| Canal recalibrado · sem retenção externa | 0.9860 | +10.03% | +0.00 h | 0.9672 |
-| Canal + planície local no HEC | 0.9859 | +10.03% | +0.05 h | 0.9670 |
+| Canal recalibrado · sem retenção externa | 0.9827 | +8.15% | +0.85 h | 0.9510 |
+| Canal + planície local · pico refinado | 0.9825 | +8.15% | +0.90 h | 0.9506 |
+| Planície local · calibração anterior | 0.9859 | +10.03% | +0.05 h | 0.9670 |
 
 O cenário com planície mantém **todas as vazões observadas de montante intactas**. O gerador não aplica a retenção externa da V3. A área e a curva de armazenamento são fixadas pelo terreno; somente a propagação do canal e os parâmetros de perdas/transformação/recessão das áreas incrementais foram calibrados na busca. A curva de descarga foi tomada dos segmentos ANA arquivados com vigência 06/09–31/12/2023, em metros, sem ajustar seus coeficientes ao hidrograma alvo. Os rótulos derivados h0_cm/h0_m desse arquivo têm ambiguidade de unidade; foram usados os coeficientes brutos e a equação A(h−h0)^n. Trata-se de vazão extrema condicionada à curva-chave, não medição independente de cheia.
 
@@ -32,7 +33,7 @@ O cenário com planície mantém **todas as vazões observadas de montante intac
 
 Abra `g040_e1_hindcast.hms` em cada pasta e compute `Hindcast` no HEC-HMS 4.13. `HEC_PLANICIE_LOCAL_NATIVO` é o modelo com geometria; `CANAL_SEM_RETENCAO_EXTERNA` isola o efeito da planície; `REFERENCIA_V3_CONCEITUAL` conserva o ajuste anterior como comparação, incluindo sua entrada efetiva modificada.
 
-O modelo geométrico foi copiado e computado novamente em pasta isolada, com 4.781 valores de 3 min em cada um dos seis controles e no reservatório. O DSS retorna armazenamento em `1000 M3`; a conversão foi conferida contra a curva geométrica em m³. O máximo nativo foi 0.880 milhão de m³, correspondente à cota simulada e não necessariamente à cota observada. O balanço nativo integrado apresentou resíduo de -3.8e-09 m³. A diferença máxima entre a entrada de montante do modelo geométrico e o observado original foi 0.0 m³/s. As métricas exportadas foram recalculadas com NumPy a partir das séries nativas. Não há preenchimento de Q ausente.
+O modelo geométrico foi copiado e computado novamente em pasta isolada, com 4.781 valores de 3 min em cada um dos seis controles e no reservatório. O DSS retorna armazenamento em `1000 M3`; a conversão foi conferida contra a curva geométrica em m³. O máximo nativo foi 0.839 milhão de m³, correspondente à cota simulada e não necessariamente à cota observada. O balanço nativo integrado apresentou resíduo de 3.24e-10 m³. A diferença máxima entre a entrada de montante do modelo geométrico e o observado original foi 0.0 m³/s. As métricas exportadas foram recalculadas com NumPy a partir das séries nativas. Não há preenchimento de Q ausente.
 
 ## Alcance e pendências concretas
 
@@ -47,3 +48,15 @@ O resultado entregue é uma geometria topográfica derivada do levantamento exis
 - USACE. Outflow Curve Routing, HEC-HMS 4.13: https://www.hec.usace.army.mil/confluence/hmsdocs/hmsum/4.13/reservoir-elements/outflow-curve-routing
 
 Os scripts `build_mucum_floodplain_storage.py`, `refine_mucum_native_rawclock.py`, `test_mucum_terrain_storage_native.py`, `verify_mucum_terrain_storage.py` e `export_mucum_floodplain_research.py` estão no repositório PREVINE, PR 278. A grade geoidal local em JSON acompanha o pacote e pode substituir a grade completa na reprodução da geometria. O MDT bruto e o eixo BHO6 permanecem no repositório; o raster derivado, curvas, polígonos, auditorias e projetos portáveis acompanham este pacote.
+
+## Refinamento do pico e custo no tempo de chegada
+
+A nova busca executou 60 casos nativos de canal no mesmo evento. A escolha limita o desvio da hora publicada do pico a 1 h, NSE total mínimo 0,98, NSE até 15 m mínimo 0,95 e viés absoluto máximo 3%. Dentro desse conjunto foi minimizado o erro absoluto do pico, com penalidade de 0,5 ponto percentual por hora de desvio. Essa é seleção e calibração no mesmo evento, sem validação em outro evento. A geometria e a vazão de montante ficaram fixas.
+
+O erro do pico caiu de 10.03% para 8.15%; o desvio de horário passou de 0.05 h para 0.90 h. O NSE mudou de 0.98592 para 0.98250; o NSE até 15 m mudou de 0.96698 para 0.95060. Portanto há melhora da amplitude com perda de precisão temporal e de ajuste global; a pasta HEC_PLANICIE_LOCAL_ANTERIOR permanece disponível para quem prioriza a chegada da onda. A subida e a recessão de cada candidato estão no CSV, sem ocultar a troca.
+
+A auditoria de 130 pares horários também identificou que a vazão arquivada e a curva-chave datada não coincidem. No nível horário de 22,975 m, a curva datada retorna 12.124,32 m³/s, enquanto o par arquivado contém 11.434,925 m³/s, diferença de aproximadamente 6,03%. O importador recupera Vazao e Nivel separadamente do serviço ANA/SGB; não aplica essa curva localmente. A média de uma relação não linear difere da relação aplicada à média, e os pares originais sub-horários não estão neste arquivo, impedindo atribuir exatamente a causa à agregação ou à revisão de curva. Nenhum Q observado foi substituído. O ajuste empírico incluído é apenas diagnóstico, sem estatuto de curva oficial.
+
+Invertendo a curva datada, o pico simulado equivale a 23.244 m, contra 23,02 m do sensor e 23,20 m de leitura manual publicados pelo SGB. Essa conversão é condicional à curva-chave e não constitui solução hidráulica ou medição independente da lâmina. O erro de vazão extrema continua condicionado à consistência da curva usada pelo serviço.
+
+Também foram testadas 8 combinações adicionais próximas à calibração anterior, totalizando 68 casos de canal. Nenhuma satisfez simultaneamente a redução do erro do pico, NSE do canal ≥0,986, NSE até 15 m ≥0,9675 e desvio do horário do pico ≤15 min. Isso descreve esta busca limitada, sem provar impossibilidade de outro ajuste. Por isso a alternativa de pico refinado não substitui silenciosamente a versão anterior como melhor modelo global.

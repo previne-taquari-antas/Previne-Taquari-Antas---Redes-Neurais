@@ -56,6 +56,13 @@ Exit(0)
     pairs=independent.independent_pairs(independent.model(proj/'hec_output_values.csv','86510000'),full,'86510000',d['window']);m=independent.metrics(pairs)
     for k in ['nse','kge','pbias_pct','rmse_m3s']:
         if abs(m[k]-d['scores']['86510000'][k])>1e-8:raise RuntimeError('Independent metric mismatch '+k)
+    constraints=None
+    if 'native_peak_refined' in str(rp):
+        sm=independent.metrics(independent.independent_pairs(independent.model(proj/'hec_output_values.csv','86510000'),strict,'86510000',d['window']))
+        peak_t,peak_q=max(by['J_86510000'],key=lambda z:z[1]);timing=(peak_t-hms.utc('2023-11-19T02:45:00Z')).total_seconds()/3600
+        constraints=dict(NSE=m['nse'],strict_NSE=sm['nse'],bias_pct=m['pbias_pct'],peak_time_minus_SGB_h=timing)
+        if m['nse']<.98 or sm['nse']<.95 or abs(m['pbias_pct'])>3 or abs(timing)>1.000001:
+            raise RuntimeError('Final geometry case violated selection guardrails '+str(constraints))
     # Independently compare every source value written into the geometry project
     # to the original archived upstream observation, before any reservoir.
     line=next(x for x in script.splitlines() if x.startswith('source_values='));source_values=ast.literal_eval(line.split('=',1)[1])['86472000']
@@ -67,7 +74,7 @@ Exit(0)
         native_storage_units=units,native_storage_max_m3=float(max(sv)),native_storage_initial_m3=float(sv[0]),native_storage_final_m3=float(sv[-1]),
         native_integrated_inflow_minus_outflow_m3=float(np.trapezoid(inflow-outflow,dx=180)),native_storage_balance_residual_m3=balance,
         storage_curve_unit_check_max_error_m3=curve_error,unmodified_upstream_max_abs_difference_m3s=difference,
-        independent_Q_metrics=m,V3_conceptual_max_storage_m3=old_storage['maximum_storage_m3'],V3_conceptual_remaining_storage_m3=old_storage['remaining_storage_m3'],
+        independent_Q_metrics=m,final_selection_constraints=constraints,V3_conceptual_max_storage_m3=old_storage['maximum_storage_m3'],V3_conceptual_remaining_storage_m3=old_storage['remaining_storage_m3'],
         interpretation='Local terrain-derived level-pool sensitivity only; no newly measured bathymetry, bank lines, or backwater solution.',
         original_research_result=case['result_file'])
     geo.save(geo.OUT/'native_geometry_verification.json',audit)

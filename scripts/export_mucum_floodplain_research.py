@@ -21,7 +21,8 @@ from PIL import Image
 BRT=timezone(timedelta(hours=-3))
 LABELS={'V3_conceptual_reference':'V3 · retenção conceitual',
  'unmodified_upstream_no_extra_storage':'Canal recalibrado · sem retenção externa',
- 'local_terrain_Modified_Puls':'Canal + planície local no HEC'}
+ 'local_terrain_Modified_Puls':'Canal + planície local · pico refinado',
+ 'previous_local_terrain_Modified_Puls':'Planície local · calibração anterior'}
 
 def write_csv(path,rows):
     stream=io.StringIO(newline='');w=csv.DictWriter(stream,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows);atomic_bytes(path,stream.getvalue().encode())
@@ -44,7 +45,12 @@ def main():
                 if r.get('level_source_unit') is None or r['level_source_unit']>1500:r['flow_m3s']=None
     qa=json.loads((geo.OUT/'native_diagnostic/full_Q_clock_corrected.json').read_text())
     records=[];simulations={};pairs_out=[];field_time=hms.utc('2023-11-19T02:45:00Z')
-    for row in summary['models']:
+    models=list(summary['models']);prior_path=geo.OUT/'prior_native_diagnostic_summary.json'
+    if prior_path.exists():
+        previous=copy.deepcopy(next(r for r in json.loads(prior_path.read_text())['models'] if r['name']=='local_terrain_Modified_Puls'))
+        if previous['result_file']!=next(r for r in models if r['name']=='local_terrain_Modified_Puls')['result_file']:
+            previous['name']='previous_local_terrain_Modified_Puls';models.append(previous)
+    for row in models:
         result=geo.ROOT/row['result_file'];d=json.loads(result.read_text());sim=independent.model(result.parent/'project/hec_output_values.csv','86510000')
         pp=independent.independent_pairs(sim,raw,'86510000',d['window']);mm=independent.metrics(pp);sm=independent.metrics(independent.independent_pairs(sim,strict,'86510000',d['window']));qm=independent.metrics(independent.independent_pairs(sim,qa,'86510000',d['window']))
         for k in ['nse','kge','pbias_pct','rmse_m3s']:
@@ -55,14 +61,19 @@ def main():
             peak_error_vs_available_telemetry_pct=100*(peak_q/max(o for t,o,q in pp)-1),peak_minus_SGB_reported_time_h=(peak_t-field_time).total_seconds()/3600,
             rise_relative_MAE=sum(abs(o-q) for o,q in rise)/sum(o for o,q in rise),recession_relative_MAE=sum(abs(o-q) for o,q in fall)/sum(o for o,q in fall),
             NSE_if_QA105_applied_to_same_native_series=qm['nse'],source_flow_transformed=(row['name']=='V3_conceptual_reference'))
+        # Conditional stage diagnostic using the same archived high-stage rating,
+        # not an independent hydraulic water-surface solution.
+        stage=(peak_q/31.3809)**(1/1.85)-2.05
+        record.update(peak_stage_from_dated_rating_m=stage,stage_difference_vs_SGB_sensor_23_02_m=stage-23.02)
         records.append(record);simulations[row['name']]=sim
         for t,o,q in pp:pairs_out.append(dict(model=row['name'],time_utc=independent.iso(t),observed_telemetry_Q_m3s=o,simulated_Q_m3s=q))
-        name={'V3_conceptual_reference':'REFERENCIA_V3_CONCEITUAL','unmodified_upstream_no_extra_storage':'CANAL_SEM_RETENCAO_EXTERNA','local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_NATIVO'}[row['name']]
+        name={'V3_conceptual_reference':'REFERENCIA_V3_CONCEITUAL','unmodified_upstream_no_extra_storage':'CANAL_SEM_RETENCAO_EXTERNA','local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_NATIVO','previous_local_terrain_Modified_Puls':'HEC_PLANICIE_LOCAL_ANTERIOR'}[row['name']]
         case=pack/name;shutil.copytree(result.parent/'project',case)
         for f in case.iterdir():
             if f.is_file() and (f.name=='run.script' or f.suffix in ['.log','.access','.pending']):f.unlink()
         geo.save(case/'parametros_resultados.json',dict(parameters=row['parameters'],metrics=record,native_result=d,research_only=True))
     write_csv(pack/'comparacao_modelos_mesma_base.csv',records);write_csv(pack/'pares_observado_simulado_relogio_bruto.csv',pairs_out)
+    geo.save(pack/'manifesto_modelos.json',summary)
     r=next(r for r in summary['models'] if r['name']=='local_terrain_Modified_Puls');rp=geo.ROOT/r['result_file'];script=(rp.parent/'project/run.script').read_text();source=ast.literal_eval(next(l for l in script.splitlines() if l.startswith('source_values=')).split('=',1)[1])['86472000']
     native=json.loads(rp.read_text());axis=hms.hourly_axis(hms.utc(native['window']['start_utc']),hms.utc(native['window']['end_utc']));original=hms.source_hourly(raw,'86472000',axis)
     if any(a!=b for a,b in zip(source,original)):raise RuntimeError('Native geometry case modified upstream Q')
@@ -72,6 +83,9 @@ def main():
         shutil.copy2(geo.OUT/f,geometry/f)
     shutil.copy2(geo.OUT/'native_diagnostic_rawclock/scoring_clock_manifest.json',pack/'auditoria_relogio.json')
     shutil.copy2(rp.parent/'project/reservoir_native_values.csv',geometry/'reservatorio_saida_nativa.csv')
+    for f in ['archived_rating_consistency_audit.json','archived_rating_comparison.csv','peak_timing_selection.json','peak_timing_selected_parameters.json','balanced_selection.json','balanced_selected_parameters.json']:
+        if (geo.OUT/f).exists():shutil.copy2(geo.OUT/f,pack/f)
+    if (geo.OUT/'peak_timing_search/evaluations.json').exists():shutil.copy2(geo.OUT/'peak_timing_search/evaluations.json',pack/'busca_parametros_resultados.json')
     geo.save(geo.OUT/'independent_model_comparison.json',records)
     # Figure: show the actual mapped footprint, capacity envelope and raw-clock
     # hydrograph. The volume bars explicitly retain their different domains.
@@ -95,7 +109,8 @@ def main():
         rr=[r for r in allrows if int(r['channel_half_width_m'])==width and r['domain']=='upstream_of_gauge'];ax.plot([float(r['gauge_stage_m']) for r in rr],[float(r['connected_floodplain_total_volume_m3'])/1e6 for r in rr],lw=2 if width==100 else 1.2,color=colors[width],label=f'Exclusão do canal: ±{width} m')
     ax.axvline(geo.PEAK_STAGE,color='#ad6139',ls=':',lw=1.4,label='Pico da telemetria horária');ax.set_xlim(10,26.5);ax.set_ylabel('Volume no recorte a montante (milhão de m³)');ax.set_xlabel('Cota da régua (m), usando zero SGB 33,985 m');ax.legend(fontsize=8,frameon=False,loc='upper left');ax.set_title('Curva cota–volume derivada do terreno',loc='left',fontweight='bold',fontsize=12)
     ax=axes[1,0]
-    for name,col,lw in [('V3_conceptual_reference','#bd893b',1.5),('local_terrain_Modified_Puls','#087f8c',2.)]:
+    for name,col,lw in [('V3_conceptual_reference','#bd893b',1.5),('previous_local_terrain_Modified_Puls','#8295af',1.1),('local_terrain_Modified_Puls','#087f8c',2.)]:
+        if name not in simulations:continue
         sim=simulations[name];ax.plot([t for t,q in sim],[q for t,q in sim],color=col,lw=lw,label=LABELS[name])
     obs=next(c for c in raw['controls'] if str(c['code'])=='86510000')['recent_rows']
     for high in [False,True]:
@@ -166,6 +181,15 @@ O resultado entregue é uma geometria topográfica derivada do levantamento exis
 
 Os scripts `build_mucum_floodplain_storage.py`, `refine_mucum_native_rawclock.py`, `test_mucum_terrain_storage_native.py`, `verify_mucum_terrain_storage.py` e `export_mucum_floodplain_research.py` estão no repositório PREVINE, PR 278. A grade geoidal local em JSON acompanha o pacote e pode substituir a grade completa na reprodução da geometria. O MDT bruto e o eixo BHO6 permanecem no repositório; o raster derivado, curvas, polígonos, auditorias e projetos portáveis acompanham este pacote.
 '''
+    if any(r['model']=='previous_local_terrain_Modified_Puls' for r in records):
+        new=next(r for r in records if r['model']=='local_terrain_Modified_Puls');old=next(r for r in records if r['model']=='previous_local_terrain_Modified_Puls')
+        selection=json.loads((geo.OUT/'peak_timing_selection.json').read_text());rating_audit=json.loads((geo.OUT/'archived_rating_consistency_audit.json').read_text())
+        notes+=f'''\n## Refinamento do pico e custo no tempo de chegada\n\nA nova busca executou {selection['evaluations']} casos nativos de canal no mesmo evento. A escolha limita o desvio da hora publicada do pico a 1 h, NSE total mínimo 0,98, NSE até 15 m mínimo 0,95 e viés absoluto máximo 3%. Dentro desse conjunto foi minimizado o erro absoluto do pico, com penalidade de 0,5 ponto percentual por hora de desvio. Essa é seleção e calibração no mesmo evento, sem validação em outro evento. A geometria e a vazão de montante ficaram fixas.\n\nO erro do pico caiu de {old['peak_error_vs_available_telemetry_pct']:.2f}% para {new['peak_error_vs_available_telemetry_pct']:.2f}%; o desvio de horário passou de {old['peak_minus_SGB_reported_time_h']:.2f} h para {new['peak_minus_SGB_reported_time_h']:.2f} h. O NSE mudou de {old['NSE_raw_clock']:.5f} para {new['NSE_raw_clock']:.5f}; o NSE até 15 m mudou de {old['NSE_strict_15m_raw_clock']:.5f} para {new['NSE_strict_15m_raw_clock']:.5f}. Portanto há melhora da amplitude com perda de precisão temporal e de ajuste global; a pasta HEC_PLANICIE_LOCAL_ANTERIOR permanece disponível para quem prioriza a chegada da onda. A subida e a recessão de cada candidato estão no CSV, sem ocultar a troca.\n\nA auditoria de {rating_audit['compared_pairs']} pares horários também identificou que a vazão arquivada e a curva-chave datada não coincidem. No nível horário de 22,975 m, a curva datada retorna 12.124,32 m³/s, enquanto o par arquivado contém 11.434,925 m³/s, diferença de aproximadamente 6,03%. O importador recupera Vazao e Nivel separadamente do serviço ANA/SGB; não aplica essa curva localmente. A média de uma relação não linear difere da relação aplicada à média, e os pares originais sub-horários não estão neste arquivo, impedindo atribuir exatamente a causa à agregação ou à revisão de curva. Nenhum Q observado foi substituído. O ajuste empírico incluído é apenas diagnóstico, sem estatuto de curva oficial.\n\nInvertendo a curva datada, o pico simulado equivale a {new['peak_stage_from_dated_rating_m']:.3f} m, contra 23,02 m do sensor e 23,20 m de leitura manual publicados pelo SGB. Essa conversão é condicional à curva-chave e não constitui solução hidráulica ou medição independente da lâmina. O erro de vazão extrema continua condicionado à consistência da curva usada pelo serviço.\n'''
+    balanced_path=geo.OUT/'balanced_selection.json'
+    if balanced_path.exists():
+        balanced=json.loads(balanced_path.read_text())
+        if balanced['selected'] is None:
+            notes+=f"\nTambém foram testadas {balanced['additional_cases']} combinações adicionais próximas à calibração anterior, totalizando {balanced['evaluations_total']} casos de canal. Nenhuma satisfez simultaneamente a redução do erro do pico, NSE do canal ≥0,986, NSE até 15 m ≥0,9675 e desvio do horário do pico ≤15 min. Isso descreve esta busca limitada, sem provar impossibilidade de outro ajuste. Por isso a alternativa de pico refinado não substitui silenciosamente a versão anterior como melhor modelo global.\n"
     atomic_bytes(pack/'LEIA-ME.md',notes.encode());atomic_bytes(geo.ROOT/'docs/HEC_MUCUM_PLANICIE_20261024.md',notes.encode())
     geo.save(pack/'sha256.json',{str(p.relative_to(pack)):hashlib.sha256(p.read_bytes()).hexdigest() for p in pack.rglob('*') if p.is_file()})
     archive=dest/(pack.name+'.zip');pending=archive.with_suffix('.zip.pending')

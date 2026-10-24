@@ -1,0 +1,32 @@
+{
+  "event": "E24_NOV2023",
+  "station": "86510000",
+  "source_file": "assets/data/hec_hms_g040_full_basin/historical_calibration_forcing/E24_NOV2023/hydro.json",
+  "source_sha256": "53e7c42e02e2374170fed3fa1e5e6f8679a0001ede099b2c11323bbe0866a46c",
+  "source_provenance": "ANA/SGB DadosHidrometeorologicos, separate Vazao and Nivel XML fields, hourly arithmetic mean. See build_g040_historical_hydro_events.py parse_xml/hourly. No rating is applied by that importer.",
+  "compared_pairs": 130,
+  "minimum_stage_m": 7.0,
+  "peak_hourly_pair": {
+    "time_utc": "2023-11-19T02:00:00Z",
+    "archived_hourly_stage_m": 22.975,
+    "archived_hourly_flow_m3s": 11434.925,
+    "dated_rating_at_hourly_mean_stage_m3s": 12124.32178767704,
+    "relative_difference_pct": 6.028870217137761
+  },
+  "diagnostic_fit_only": {
+    "equation": "A*(h-h0)^n, h in metres",
+    "A": 150.5942898346968,
+    "h0_m": 0.5317245108946403,
+    "n": 1.3937026220149036,
+    "relative_RMSE": 0.0029558864471414376,
+    "official_curve": false
+  },
+  "dated_rating_relative_RMSE": 0.07692459596333169,
+  "input_or_target_values_changed": false,
+  "limitations": [
+    "Hourly mean of a nonlinear rating differs from rating of hourly mean stage. Raw subhourly pairs were not retained in this archive, preventing exact aggregation-error attribution.",
+    "The low residual empirical fit is a diagnostic, not an official replacement rating or an independent discharge measurement.",
+    "Archived telemetry discharge and the separately archived dated ANA curve are not mutually consistent at the crest. Revision history and exact source curve require confirmation.",
+    "Do not relabel dated-rating discharge as observed discharge or silently change the calibration target. Extreme-stage fit remains conditional on discharge provenance."
+  ]
+}

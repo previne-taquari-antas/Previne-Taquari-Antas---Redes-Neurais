@@ -53,8 +53,11 @@ def raw_clock_context(ctx):
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('hec');ap.add_argument('--rating-archive',type=Path,required=True)
-    ap.add_argument('--raw-clock',action='store_true');ap.add_argument('--geometry-parameters',type=Path);args=ap.parse_args()
-    v.OUT=geo.OUT/('native_diagnostic_rawclock' if args.raw_clock else 'native_diagnostic');ctx=v.prepare()
+    ap.add_argument('--raw-clock',action='store_true');ap.add_argument('--geometry-parameters',type=Path)
+    ap.add_argument('--output-tag',default=None,help='Separate experiment folder; preserves previous native projects')
+    args=ap.parse_args()
+    if args.output_tag and (Path(args.output_tag).name!=args.output_tag or args.output_tag in ['.','..']):raise ValueError('Output tag must be a single folder name')
+    v.OUT=geo.OUT/(args.output_tag or ('native_diagnostic_rawclock' if args.raw_clock else 'native_diagnostic'));ctx=v.prepare()
     if args.raw_clock:ctx=raw_clock_context(ctx)
     old=v.load(v.BASE/'event_members_v3_20261024/selection_manifest.json')
     p=dict(next(r for r in old['selected'] if r['target_code']=='86510000')['parameters'])
