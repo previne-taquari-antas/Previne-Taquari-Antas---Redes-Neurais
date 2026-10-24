@@ -1,5 +1,7 @@
 # HEC-HMS: referência V1 de Muçum e Estrela em novembro de 2023
 
+Revisão atual: [V3 por cidade e evento](HEC_EVENTOS_V3_20261024.md), com comparação independente contra a V2.
+
 Esta versão foi substituída pela [revisão V2](HEC_EVENTOS_V2_20261024.md), que melhora o pico e a subida e compara toda a telemetria disponível na mesma base antes/depois. O conteúdo abaixo preserva o diagnóstico e os resultados históricos da V1.
 
 O E1 por ramos não representava a vazão de base das áreas incrementais. Em Estrela, a seleção apenas por NSE também admitia um pico secundário incompatível com o nível baixo observado em horas sem Q. Esta versão acrescenta recessão nativa opcional, calibração por cidade e uma restrição verificável a partir desses níveis.

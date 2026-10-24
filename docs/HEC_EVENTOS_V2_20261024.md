@@ -1,5 +1,7 @@
 # Revisão V2: biblioteca de membros por cidade e evento
 
+Referência histórica. A [revisão V3](HEC_EVENTOS_V3_20261024.md) refina separadamente subida, recessão e domínio de vazão menos incerto, comparando a saída nativa V2 efetivamente entregue.
+
 O objetivo é calibrar conjuntos próprios para cada cheia. A transferência de um mesmo conjunto a outros eventos não é condição para inclusão na biblioteca. Esta revisão trata de novembro/2023 em Muçum e Estrela.
 
 ## Problema e resultado
