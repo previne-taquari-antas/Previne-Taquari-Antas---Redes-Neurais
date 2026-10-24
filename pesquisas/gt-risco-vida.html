@@ -42,8 +42,8 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <label><input id="mdt" type="checkbox" style="width:auto" checked> Visualizar MDT do município (imagem georreferenciada, ~10 m)</label>
 <label for="opacityMdt">Opacidade MDT <span id="opacityVal">65%</span></label><input id="opacityMdt" type="range" min="0" max="100" value="65" step="5">
 <div class="meta" id="mdtInfo">MDT LiDAR disponível para Santa Tereza; Muçum necessita camada equivalente preparada para esta página.</div>
-<label><input id="todasOrigens" type="checkbox" style="width:auto" checked> Exibir todas as edificações OSM, inclusive pontos sem correspondência residencial próxima (auditoria)</label>
-<div class="meta" id="qaResidencias">As posições ainda não foram verificadas nas imagens ou em campo. Por padrão exibimos só correspondências preliminares de até 10 m com CNEFE nos dois municípios; não são domicílios validados.</div>
+<label><input id="todasOrigens" type="checkbox" style="width:auto" checked> Exibir todas as edificações OSM (inclui imóveis sem uso residencial confirmado)</label>
+<div class="meta" id="qaResidencias">As posições ainda não foram verificadas nas imagens ou em campo. Todas as edificações OSM são exibidas inicialmente. Proximidade de 10 m ao CNEFE é apenas indicação preliminar de endereço, não validação de domicílio.</div>
 <h2>Informações hidrológicas e históricas</h2>
 <div class="meta" id="handInfo">HAND é altura relativa à drenagem, não altitude absoluta do terreno. Profundidade e correnteza não são calculadas neste painel.</div>
 <label for="evento">Referência histórica (régua)</label>
@@ -202,8 +202,8 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
     .bindPopup('Aresta OSM '+ix+' • '+count+' origens usam este segmento em rota inicial. Não é contagem de isolados.')}
  }
  $('qaResidencias').textContent=d.meta.municipio==='Santa Tereza'?
-  'Pontos exibidos: '+exibidos+' de '+d.casas.length+' edificações OSM. Triagem inicial: somente '+CNEFE_ST_10M.size+' com endereço CNEFE a até 10 m do centróide; proximidade NÃO é validação de moradia ou posição na construção. Para investigar os demais, marque Exibir todas.':
-  'Muçum: '+exibidos+' de '+d.casas.length+' edificações OSM exibidas, filtradas pela proximidade preliminar de até 10 m com endereço residencial CNEFE. Não são residências validadas.';
+  'Pontos exibidos: '+exibidos+' de '+d.casas.length+' edificações OSM. Dessas edificações, '+CNEFE_ST_10M.size+' têm endereço CNEFE a até 10 m do centróide. As demais permanecem visíveis; falta de vínculo não significa imóvel desocupado.':
+  'Muçum: '+exibidos+' de '+d.casas.length+' edificações OSM exibidas, das quais '+CNEFE_MUCUM_10M.size+' apresentam proximidade preliminar ao CNEFE de até 10 m. As demais continuam visíveis e nenhuma correspondência foi validada como residência.';
  mostraDestinos(n,policy,alt);
  const levelGauge=n+d.meta.bankfull_m;
  $('nivel').textContent=n.toFixed(1).replace('.',',')+' m HAND • régua aprox. '+levelGauge.toFixed(1).replace('.',',')+' m';
