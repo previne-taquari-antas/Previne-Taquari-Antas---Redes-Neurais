@@ -1,0 +1,46 @@
+name: Publish PREVINE GitHub Pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.html'
+      - '**/*.css'
+      - '**/*.js'
+      - '**/*.json'
+      - '**/*.geojson'
+      - '**/*.svg'
+      - '.github/workflows/publish-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+      - name: Build Pages artifact
+        run: |
+          mkdir -p _site
+          # Public static site only; avoid publishing large research and model binaries.
+          find . -type f \( -iname '*.html' -o -iname '*.css' -o -iname '*.js' -o -iname '*.json' -o -iname '*.geojson' -o -iname '*.svg' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.ico' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.wasm' -o -iname '*.csv' -o -iname '*.kml' -o -iname '*.topojson' \) -not -path './.git/*' -not -path './.github/*' -size -20M -print0 | while IFS= read -r -d '' f; do mkdir -p "_site/$(dirname "$f")"; cp "$f" "_site/$f"; done
+          touch _site/.nojekyll
+          test -f _site/pesquisas/porto-alegre-moradias-auditoria.html
+          du -sh _site
+          test "$(du -sm _site | cut -f1)" -lt 950
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
