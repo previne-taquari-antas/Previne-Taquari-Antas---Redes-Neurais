@@ -9,9 +9,9 @@ painéis publicados. Cobrem a revisão de out/2026:
   - subida padrão de 90 cm/h (40 cm/h dava margem 2 a 5 vezes maior);
   - capacidade planejada de Muçum vinda do Plano de Contingência;
   - pontos de Muçum em abrigos.geojson (sem eles o gerador abortava);
-  - locais altos de Santa Tereza (out/2026): fora da água de set/2023, a maior
-    cheia registrada, com 2 m de folga no HAND e na altitude do LiDAR; o painel
-    publicado é o recálculo de locais_altos.py.
+  - locais altos de Santa Tereza (out/2026): o que ficou fora da mancha de
+    set/2023, a maior cheia registrada, pelo menos 2 m acima da água no MDT; o
+    painel publicado é o recálculo de locais_altos.py.
 """
 import json
 import re
@@ -96,29 +96,58 @@ class LocaisAltosTest(unittest.TestCase):
         cls.A = {k: i for i, k in enumerate(cls.alt["meta"]["casas_campos"])}
 
     def test_publicado_e_o_recalculo(self):
-        novo = locais_altos.calcula(json.loads(payload_bruto(HTML["santa_tereza"])), "santa_tereza")
+        novo = locais_altos.calcula(json.loads(payload_bruto(HTML["santa_tereza"])),
+                                    self.alt["mancha_cheia"]["poligonos"], "santa_tereza")
         for k, v in novo.items():
             with self.subTest(campo=k):
-                self.assertEqual(json.loads(json.dumps(v)), self.alt[k])
+                if k == "terreno":  # PNG: compara as classes, não os bytes (variam com a versão do Pillow)
+                    self.assertTrue((locais_altos.classes_do_png(v["png"]) ==
+                                     locais_altos.classes_do_png(self.alt[k]["png"])).all())
+                    v = {kk: vv for kk, vv in v.items() if kk != "png"}
+                    self.assertEqual(json.loads(json.dumps(v)), {kk: vv for kk, vv in self.alt[k].items() if kk != "png"})
+                else:
+                    self.assertEqual(json.loads(json.dumps(v)), self.alt[k])
 
     def test_criterios_da_validacao_de_campo(self):
         ch = self.alt["meta"]["cheia"]
         self.assertAlmostEqual(ch["regua_m"] - ch["zero_regua_m"], ch["hand_m"], places=2)
-        self.assertAlmostEqual(self.crit["hand_min_m"], ch["hand_m"] + 2.0, places=2)
-        self.assertAlmostEqual(self.crit["altitude_min_m"], ch["agua_max_rtk_m"] + 2.0, places=2)
         # a folga cobre o maior erro do HAND no sentido perigoso medido com RTK
-        self.assertGreater(self.alt["meta"]["folga_hand_m"], ch["erro_max_perigoso_m"])
+        self.assertGreater(self.crit["acima_agua_min_m"], ch["erro_max_perigoso_m"])
+        self.assertAlmostEqual(self.crit["celula_hand_min_m"], ch["hand_m"] + self.crit["acima_agua_min_m"], places=2)
+        self.assertAlmostEqual(self.crit["celula_altitude_min_m"], ch["agua_max_rtk_m"] + self.crit["acima_agua_min_m"], places=2)
 
-    def test_locais_ficam_fora_da_agua_de_2023_com_folga(self):
+    def test_borda_da_mancha_no_mdt_bate_com_a_agua_medida(self):
+        # nível da água tirado do MDT na borda da mancha, nas ruas: dentro da faixa medida com RTK (74,1–76,5 m)
+        self.assertTrue(74.1 <= self.alt["terreno"]["agua_borda_m"]["mediana"] <= self.alt["meta"]["cheia"]["agua_max_rtk_m"])
+
+    def test_locais_ficam_fora_da_mancha_e_acima_da_agua(self):
         self.assertTrue(2 <= len(self.alt["locais"]) <= locais_altos.LOCAIS_MAX)
-        cota = self.d["cota_no"]
+        classe = locais_altos.amostrador(self.alt["terreno"])
+        ch = self.alt["meta"]["cheia"]
         for loc in self.alt["locais"]:
             with self.subTest(local=loc["id"]):
-                c = cota[loc["no"]]
-                self.assertTrue(c is None or c >= self.crit["hand_min_m"])
-                self.assertGreaterEqual(loc["altitude_m"], self.crit["altitude_min_local_m"])
+                self.assertEqual(classe(loc["lat"], loc["lon"]), "alto")
+                self.assertGreaterEqual(loc["acima_agua_m"], self.crit["acima_agua_min_local_m"])
+                self.assertAlmostEqual(loc["altitude_m"] - loc["agua_m"], loc["acima_agua_m"], delta=0.11)
+                self.assertGreaterEqual(loc["agua_m"], round(ch["agua_max_rtk_m"], 1))  # nunca abaixo da água medida
                 self.assertEqual(self.alt["no_alto"][loc["no"]], 1)
                 self.assertGreater(loc["n_casas"], 0)
+
+    def test_terreno_alto_coerente_com_os_nos(self):
+        classe = locais_altos.amostrador(self.alt["terreno"])
+        hand = self.alt["meta"]["cheia"]["hand_m"]
+        for k, (la, lo) in enumerate(self.d["nos"]):
+            c = self.d["cota_no"][k]
+            # alto no mapa e fora da cheia pelo HAND <=> nó alto (o HAND manda na borda da mancha)
+            self.assertEqual(classe(la, lo) == "alto" and (c is None or c > hand), bool(self.alt["no_alto"][k]))
+        F = {k: i for i, k in enumerate(self.d["meta"]["casas_campos"])}
+        for ci, c in enumerate(self.alt["casas"]):
+            cota = self.d["casas"][ci][F["cota_alaga"]]
+            if cota is not None and cota <= hand:
+                self.assertEqual(self.alt["meta"]["classes_terreno"][c[self.A["terreno"]]], "dentro")
+        areas = self.alt["terreno"]["area_ha"]
+        self.assertGreater(areas["alto"], 0)
+        self.assertGreater(areas["abaixo_da_agua"], 0)
 
     def test_rotas_pela_rede_e_corte_coerente(self):
         A, cota = self.A, self.d["cota_no"]

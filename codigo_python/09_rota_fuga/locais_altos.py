@@ -9,38 +9,48 @@ e limites de set/2023, nov/2023 e mai/2024 com GNSS RTK; trabalho do SBSR 2027,
 pesquisas/validacao-campo-hand-santa-tereza/), o zero 1,60 m da régua anula o
 viés de set/2023 e põe a cheia em HAND 22,05 m.
 
-Um ponto é ALTO quando passa nos dois testes, ambos com 2 m de folga:
-  1. HAND: só alaga acima de HAND 24,05 m (régua 25,65 m), ou não alaga até o
-     topo do modelo (HAND 25 m, régua 26,6 m);
-  2. altitude no LiDAR de 10 m (o mesmo do HAND) de pelo menos 78,47 m: a maior
-     cota da água medida com RTK em set/2023 (76,47 m, no limite H004) + 2 m.
-     Pega o que o HAND deixa seco só por ficar atrás de uma barreira no LiDAR
-     (o remanso do Marrecão ainda não foi validado).
+TERRENO ALTO = o que ficou FORA da mancha de set/2023, visto no MDT (LiDAR de
+10 m, o mesmo do HAND):
+  - água na borda = mediana da cota do terreno na borda externa da mancha num
+    raio de 300 m, levada a cada pixel pela borda mais próxima (nas ruas, mediana
+    75,8 m: bate com a água medida com RTK em 2023, 74,1–76,5 m);
+  - nível da água = o maior entre a borda e a maior água medida em campo
+    (76,47 m). Na cidade a água de 2023 ficou plana e, em três limites, 1,4 a
+    1,8 m acima da borda do HAND; a borda sozinha baixa para 72–73 m no sul;
+  - fora da mancha, o pixel é "alto" se o terreno fica pelo menos 2 m acima do
+    nível da água; "abaixo da água" quando fica abaixo da água na borda sem
+    estar na mancha (atrás de aterro ou barreira no modelo: pode ter alagado; o
+    remanso do Marrecão ainda não foi validado); o resto é "sem folga".
 Folga de 2 m: nos pontos com RTK, o maior erro no sentido perigoso (água acima
 do modelo) foi 1,84 m (H004); o MAE das 22 profundidades, 0,64 m.
 
-Locais sugeridos (para a Defesa Civil avaliar): nós altos da rede de ruas,
+Locais sugeridos (para a Defesa Civil avaliar): nós de rua em terreno alto,
 escolhidos um a um pelo que mais encurta a caminhada das casas que não ficam
-no alto. O local pede 1 m a mais de altitude (79,47 m), para não ficar na beira
-da água. Cada casa vai pelo caminho mais rápido entre os que continuam secos
-pelo menos até a água chegar na própria casa; se nenhum continua, pelo que
+no alto. O local pede 1 m a mais (3 m acima da água), para não ficar na beira.
+Nós de rua e casas que o HAND alaga na cheia ficam "dentro" mesmo que o pixel
+de 10 m na borda caia fora da mancha. Cada casa vai pelo caminho mais rápido
+entre os que continuam secos pelo menos até a água chegar na própria casa; se
+nenhum continua, pelo que
 fica seco até o nível mais alto possível, e a casa precisa sair antes dele
 (`corte_m`). Tempo do idoso com subidas (caminhada.py) no mesmo LiDAR.
 
-Só numpy e Pillow: lê o painel publicado e a grade LiDAR em PNG. Nomes das
-ruas e dos lugares próximos, quando houver, de osm_nomes_<cidade>.json
+Só numpy e Pillow: lê o painel publicado, a grade LiDAR em PNG e a mancha da
+cheia (contorno HAND recortado por gerar_painel.mancha_cheia). Nomes das ruas e
+dos lugares próximos, quando houver, de osm_nomes_<cidade>.json
 (baixar_nomes_osm.py).
 
   python codigo_python/09_rota_fuga/locais_altos.py   # resumo, sem gravar
 """
+import base64
 import heapq
+import io
 import json
 import math
 import os
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from caminhada import VEL_IDOSO, haversine, tempo_trecho  # noqa: E402
@@ -61,17 +71,19 @@ CIDADES = {
                   "erro_max_perigoso_m": 1.84, "mae_profundidade_m": 0.64, "n_profundidades": 22,
                   "fonte": "validação de campo de 05/09/2026 (marcas e limites com RTK), "
                            "pesquisas/validacao-campo-hand-santa-tereza/; SBSR 2027"},
-        "folga_hand_m": 2.0,
-        "folga_altitude_m": 2.0,
+        "folga_m": 2.0,
         "folga_local_m": 1.0,
     },
 }
+RAIO_NIVEL_M = 300.0         # nível da água local: borda externa da mancha num raio de 300 m
+MARGEM_RECORTE_GRAUS = 0.004  # recorte da mancha e do MDT: nós de rua ± ~400 m
 GANHO_MIN_CASA_MIN = 150.0   # novo local precisa poupar 150 casa·min (~30 casas × 5 min)
 LOCAIS_MAX = 8
 TEMPO_TETO_S = 3600.0        # casa sem local até aqui conta 60 min no guloso
 RAIO_RUA_M = 25.0            # nome da rua do local: trecho com nome a até 25 m
 RAIO_LUGAR_M = 150.0         # lugares com nome perto do local
 ESTADOS = ("sem_via", "no_alto", "rota")
+CASAS_CAMPOS = ["estado", "local", "tempo_s", "dist_m", "corte_m", "rota", "terreno", "acima_agua_m"]
 
 
 def payload(html_path):
@@ -109,10 +121,139 @@ def _cota(v):
 
 
 def criterios(cfg):
-    ch = cfg["cheia"]
-    return {"hand_min_m": round(ch["hand_m"] + cfg["folga_hand_m"], 2),
-            "altitude_min_m": round(ch["agua_max_rtk_m"] + cfg["folga_altitude_m"], 2),
-            "altitude_min_local_m": round(ch["agua_max_rtk_m"] + cfg["folga_altitude_m"] + cfg["folga_local_m"], 2)}
+    ch, f = cfg["cheia"], cfg["folga_m"]
+    return {"acima_agua_min_m": f, "acima_agua_min_local_m": f + cfg["folga_local_m"], "raio_nivel_m": RAIO_NIVEL_M,
+            # células IBGE fora do recorte do MDT: fora da mancha HAND + folga e acima da água mais alta medida + folga
+            "celula_hand_min_m": round(ch["hand_m"] + f, 2), "celula_altitude_min_m": round(ch["agua_max_rtk_m"] + f, 2)}
+
+
+def recorte(nos):
+    """(S, W, N, E) dos nós de rua com margem: área da mancha e do MDT analisados."""
+    la, lo = [p[0] for p in nos], [p[1] for p in nos]
+    m = MARGEM_RECORTE_GRAUS
+    return min(la) - m, min(lo) - m, max(la) + m, max(lo) + m
+
+
+class Terreno:
+    """O que ficou fora da mancha da cheia, no MDT (LiDAR 10 m), por classe de pixel."""
+
+    CLASSES = ("dentro", "alto", "sem_folga", "abaixo_da_agua", "sem_dado")
+    CORES = {"alto": (27, 127, 59, 95), "sem_folga": (246, 196, 69, 150), "abaixo_da_agua": (198, 40, 40, 160)}
+
+    def __init__(self, lidar, mancha, caixa, folga, agua_min):
+        m = lidar.m
+        self.dx, self.dy = (m["E"] - m["W"]) / m["cols"], (m["N"] - m["S"]) / m["rows"]
+        S, W, N, E = caixa
+        self.c0, self.r0 = int((W - m["W"]) / self.dx), int((m["N"] - N) / self.dy)
+        c1, r1 = int((E - m["W"]) / self.dx) + 1, int((m["N"] - S) / self.dy) + 1
+        # (S, W, N, E) das bordas dos pixels recortados: limites da imagem no mapa
+        self.lim = (m["N"] - r1 * self.dy, m["W"] + self.c0 * self.dx, m["N"] - self.r0 * self.dy, m["W"] + c1 * self.dx)
+        self.m = m
+        z = lidar.z[self.r0:r1, self.c0:c1]
+        ok = lidar.ok[self.r0:r1, self.c0:c1]
+        h, w = z.shape
+
+        def raster(aneis_por_poligono, com_buracos):
+            img = Image.new("L", (w, h), 0)
+            dr = ImageDraw.Draw(img)
+            for aneis in aneis_por_poligono:
+                for k, anel in enumerate(aneis if com_buracos else aneis[:1]):
+                    dr.polygon([self._px(la, lo) for la, lo in anel], fill=0 if k else 1)
+            return np.asarray(img).astype(bool)
+
+        dentro = raster(mancha, True)
+        externo = raster(mancha, False)  # sem as ilhas: a borda delas fica no leito, não na água
+        fora_viz = np.zeros_like(externo)
+        for sh in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            fora_viz |= ~np.roll(externo, sh, axis=(0, 1))
+        borda = externo & fora_viz & ok
+        borda[0, :] = borda[-1, :] = borda[:, 0] = borda[:, -1] = False  # moldura do recorte não é margem
+        yb, xb = np.nonzero(borda)
+        if not len(yb):
+            raise SystemExit("mancha sem borda no recorte: confira os polígonos da cheia")
+        zb = z[yb, xb]
+        # nível da água: mediana da borda num raio de RAIO_NIVEL_M (a borda de 10 m em barranco é ruidosa)
+        my, mx = self.dy * 110540.0, self.dx * 111320.0 * math.cos(math.radians((S + N) / 2))
+        wb = np.empty(len(yb))
+        for k in range(len(yb)):
+            perto = ((yb - yb[k]) * my) ** 2 + ((xb - xb[k]) * mx) ** 2 <= RAIO_NIVEL_M ** 2
+            wb[k] = np.median(zb[perto])
+        # leva o nível a cada pixel pela borda mais próxima (camadas de vizinhança, média dos vizinhos já conhecidos)
+        agua = np.full(z.shape, np.nan)
+        agua[yb, xb] = wb
+        conhecido = ~np.isnan(agua)
+        while not conhecido.all():
+            soma, n = np.zeros(z.shape), np.zeros(z.shape)
+            for sh in ((0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                kn = np.roll(conhecido, sh, axis=(0, 1))
+                soma += np.where(kn, np.roll(np.nan_to_num(agua), sh, axis=(0, 1)), 0.0)
+                n += kn
+            novo = ~conhecido & (n > 0)
+            if not novo.any():
+                break
+            agua[novo] = soma[novo] / n[novo]
+            conhecido |= novo
+        acima_borda = z - agua
+        agua = np.maximum(agua, agua_min)
+        acima = z - agua
+        cl = np.full(z.shape, self.CLASSES.index("sem_folga"), np.uint8)
+        fora = ~dentro & ok
+        cl[fora & (acima >= folga)] = self.CLASSES.index("alto")
+        cl[fora & (acima_borda < 0)] = self.CLASSES.index("abaixo_da_agua")
+        cl[~fora] = self.CLASSES.index("dentro")
+        cl[~ok] = self.CLASSES.index("sem_dado")
+        self.z, self.agua, self.acima, self.cl = z, agua, acima, cl
+        la_b = m["N"] - (self.r0 + yb + 0.5) * self.dy
+        lo_b = m["W"] + (self.c0 + xb + 0.5) * self.dx
+        ruas = (la_b >= S + MARGEM_RECORTE_GRAUS) & (la_b <= N - MARGEM_RECORTE_GRAUS) & \
+               (lo_b >= W + MARGEM_RECORTE_GRAUS) & (lo_b <= E - MARGEM_RECORTE_GRAUS)
+        self.agua_borda = {k: round(float(np.percentile(wb[ruas], q)), 2) for k, q in (("p10", 10), ("mediana", 50), ("p90", 90))}
+
+    def _px(self, lat, lon):
+        return (lon - self.m["W"]) / self.dx - self.c0, (self.m["N"] - lat) / self.dy - self.r0
+
+    def ponto(self, lat, lon):
+        """(classe, metros acima do nível da água, nível da água) no pixel; None fora do recorte."""
+        x, y = self._px(lat, lon)
+        x, y = int(math.floor(x)), int(math.floor(y))
+        if not (0 <= y < self.cl.shape[0] and 0 <= x < self.cl.shape[1]):
+            return None
+        k = self.CLASSES[self.cl[y, x]]
+        if k == "sem_dado":
+            return k, None, None
+        return k, round(float(self.acima[y, x]), 1), round(float(self.agua[y, x]), 1)
+
+    def area_ha(self):
+        px_ha = self.dy * 110540.0 * self.dx * 111320.0 * math.cos(math.radians((self.lim[0] + self.lim[2]) / 2)) / 1e4
+        return {k: round(float((self.cl == i).sum()) * px_ha, 1) for i, k in enumerate(self.CLASSES) if k in self.CORES}
+
+    def png(self):
+        rgba = np.zeros(self.cl.shape + (4,), np.uint8)
+        for k, cor in self.CORES.items():
+            rgba[self.cl == self.CLASSES.index(k)] = cor
+        buf = io.BytesIO()
+        Image.fromarray(rgba, "RGBA").save(buf, "PNG", optimize=True)
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def amostrador(terreno_doc):
+    """Classe do terreno publicado (png + limites) num ponto; None fora do recorte."""
+    cl = classes_do_png(terreno_doc["png"])
+    (S, W), (N, E) = terreno_doc["limites"]
+
+    def classe(lat, lon):
+        x, y = int((lon - W) / (E - W) * cl.shape[1]), int((N - lat) / (N - S) * cl.shape[0])
+        return Terreno.CLASSES[cl[y, x]] if 0 <= x < cl.shape[1] and 0 <= y < cl.shape[0] else None
+    return classe
+
+
+def classes_do_png(uri):
+    """Classes de Terreno lidas de volta do PNG publicado (para conferir o painel)."""
+    rgba = np.asarray(Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1]))).convert("RGBA"))
+    cl = np.zeros(rgba.shape[:2], np.uint8)
+    for k, cor in Terreno.CORES.items():
+        cl[(rgba == np.array(cor, np.uint8)).all(axis=-1)] = Terreno.CLASSES.index(k)
+    return cl
 
 
 def grafo(doc, z):
@@ -248,21 +389,26 @@ def nomeia(local, ruas, lugares, z):
     local["perto"] = perto
 
 
-def calcula(doc, cidade="santa_tereza"):
-    """Locais altos do painel `doc` (payload de gerar_painel.py). Determinístico."""
+def calcula(doc, mancha, cidade="santa_tereza"):
+    """Locais altos do painel `doc` (payload de gerar_painel.py) fora da `mancha` da cheia
+    (polígonos [[anel externo, buracos...]] em [lat, lon], recortados em `recorte`). Determinístico."""
     cfg = CIDADES[cidade]
     crit = criterios(cfg)
     lidar = Lidar(cfg["lidar"])
+    terreno = Terreno(lidar, mancha, recorte(doc["nos"]), crit["acima_agua_min_m"], cfg["cheia"]["agua_max_rtk_m"])
     nos = doc["nos"]
     F = {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
     cota_no = [_cota(c) for c in doc["cota_no"]]
     z = [lidar(la, lo) for la, lo in nos]
+    hand_cheia = cfg["cheia"]["hand_m"]
 
-    def alto(c, zz, z_min):
-        return c >= crit["hand_min_m"] and zz is not None and zz >= z_min
-
-    no_alto = [alto(cota_no[k], z[k], crit["altitude_min_m"]) for k in range(len(nos))]
-    sitios = {k for k in range(len(nos)) if no_alto[k] and z[k] >= crit["altitude_min_local_m"]}
+    def no_terreno(la, lo, cota):
+        """Classe do pixel; ponto que o HAND alaga na cheia fica "dentro" (na borda, o pixel de 10 m erra)."""
+        t = terreno.ponto(la, lo) or ("sem_dado", None, None)
+        return ("dentro",) + t[1:] if cota <= hand_cheia else t
+    t_no = [no_terreno(la, lo, cota_no[k]) for k, (la, lo) in enumerate(nos)]
+    no_alto = [t[0] == "alto" for t in t_no]
+    sitios = {k for k, t in enumerate(t_no) if t[0] == "alto" and t[1] >= crit["acima_agua_min_local_m"]}
     adj = grafo(doc, z)
     B = gargalo(adj, cota_no, [k for k in range(len(nos)) if no_alto[k]])
 
@@ -270,9 +416,9 @@ def calcula(doc, cidade="santa_tereza"):
     for c in doc["casas"]:
         la, lo, n = c[F["lat"]], c[F["lon"]], c[F["no"]]
         cc = _cota(c[F["cota_alaga"]])
-        zc = lidar(la, lo)
-        item = {"cota": cc, "z": zc, "pessoas": c[F["pessoas"]] or 0}
-        if alto(cc, zc, crit["altitude_min_m"]):
+        tc = no_terreno(la, lo, cc)
+        item = {"cota": cc, "terreno": tc, "pessoas": c[F["pessoas"]] or 0}
+        if tc[0] == "alto":
             item["estado"] = "no_alto"
         elif n is None or n < 0 or c[F["proj_lat"]] is None:
             item["estado"] = "sem_via"
@@ -310,17 +456,17 @@ def calcula(doc, cidade="santa_tereza"):
     idx = {s: j for j, s in enumerate(escolhidos)}
     locais = []
     for j, s in enumerate(escolhidos):
-        loc = {"id": f"alto_{j + 1}", "lat": nos[s][0], "lon": nos[s][1], "no": s,
-               "cota_alaga_m": None if cota_no[s] == INF else cota_no[s], "altitude_m": z[s],
-               "folga_altitude_m": round(z[s] - cfg["cheia"]["agua_max_rtk_m"], 1),
-               "folga_hand_m": None if cota_no[s] == INF else round(cota_no[s] - cfg["cheia"]["hand_m"], 1)}
+        loc = {"id": f"alto_{j + 1}", "lat": nos[s][0], "lon": nos[s][1], "no": s, "altitude_m": z[s],
+               "agua_m": t_no[s][2], "acima_agua_m": t_no[s][1],
+               "cota_alaga_m": None if cota_no[s] == INF else cota_no[s]}
         nomeia(loc, ruas, lugares, z)
         locais.append(loc)
 
     saida_casas = []
     for it in casas:
+        tr = [Terreno.CLASSES.index(it["terreno"][0]), it["terreno"][1]]
         if it["estado"] != "rota":
-            saida_casas.append([ESTADOS.index(it["estado"]), -1, None, None, None, None])
+            saida_casas.append([ESTADOS.index(it["estado"]), -1, None, None, None, None] + tr)
             continue
         alc = [(t, s) for s, t in it["achados"].items() if s in idx]
         if not alc:  # nenhum local escolhido alcança: fica com o nó alto mais próximo
@@ -330,7 +476,7 @@ def calcula(doc, cidade="santa_tereza"):
         corte = min([INF] + [c for u, v in zip(rota, rota[1:]) for w, _t, _d, c in adj[u] if w == v]
                     + [cota_no[k] for k in rota])
         saida_casas.append([ESTADOS.index("rota"), idx.get(s, -1), round(t), round(it["dist"][s], 1),
-                            None if corte == INF else round(corte, 1), rota])
+                            None if corte == INF else round(corte, 1), rota] + tr)
 
     for j, loc in enumerate(locais):
         ts = sorted(c[2] for c in saida_casas if c[1] == j)
@@ -340,13 +486,14 @@ def calcula(doc, cidade="santa_tereza"):
         loc["tempo_max_min"] = round(ts[-1] / 60, 1) if ts else None
 
     ch = cfg["cheia"]
+    S, W, N, E = terreno.lim
     return {
-        "meta": {"cheia": ch, "criterios": crit, "folga_hand_m": cfg["folga_hand_m"],
-                 "folga_altitude_m": cfg["folga_altitude_m"], "folga_local_m": cfg["folga_local_m"],
+        "meta": {"cheia": ch, "criterios": crit, "folga_m": cfg["folga_m"], "folga_local_m": cfg["folga_local_m"],
                  "lidar": os.path.relpath(cfg["lidar"], RAIZ),
                  "nomes": os.path.relpath(cfg["nomes"], RAIZ) if ruas else None,
-                 "casas_campos": ["estado", "local", "tempo_s", "dist_m", "corte_m", "rota"],
-                 "estados": list(ESTADOS)},
+                 "casas_campos": CASAS_CAMPOS, "estados": list(ESTADOS), "classes_terreno": list(Terreno.CLASSES)},
+        "terreno": {"png": terreno.png(), "limites": [[round(S, 7), round(W, 7)], [round(N, 7), round(E, 7)]],
+                    "area_ha": terreno.area_ha(), "agua_borda_m": terreno.agua_borda},
         "locais": locais,
         "no_alto": [int(v) for v in no_alto],
         "casas": saida_casas,
@@ -359,7 +506,8 @@ def resumo(alt, doc):
     est = [ESTADOS[c[0]] for c in cs]
     rot = [(c, _cota(doc["casas"][i][F["cota_alaga"]])) for i, c in enumerate(cs) if c[0] == ESTADOS.index("rota")]
     ts = sorted(c[2] / 60 for c, _ in rot)
-    linhas = [f"nós altos: {sum(alt['no_alto'])}/{len(alt['no_alto'])} · casas no alto: {est.count('no_alto')}, "
+    linhas = [f"terreno fora da mancha (ha): {alt['terreno']['area_ha']} · água na borda (m): {alt['terreno']['agua_borda_m']}",
+              f"nós altos: {sum(alt['no_alto'])}/{len(alt['no_alto'])} · casas no alto: {est.count('no_alto')}, "
               f"com rota: {len(rot)}, sem via: {est.count('sem_via')}"]
     if ts:
         antes = sum(1 for c, cc in rot if c[4] is not None and c[4] < cc)
@@ -367,8 +515,8 @@ def resumo(alt, doc):
                       f"máx {ts[-1]:.1f} · rota cortada antes de a água chegar na casa: {antes}")
     for loc in alt["locais"]:
         perto = ", ".join(f"{p['nome']} ({p['m']} m)" for p in loc["perto"]) or "-"
-        linhas.append(f"  {loc['id']}: {loc['lat']:.6f},{loc['lon']:.6f} alt {loc['altitude_m']} m "
-                      f"(+{loc['folga_altitude_m']} m) · {loc['n_casas']} casas, ~{loc['pessoas']} pessoas, "
+        linhas.append(f"  {loc['id']}: {loc['lat']:.6f},{loc['lon']:.6f} alt {loc['altitude_m']} m, "
+                      f"{loc['acima_agua_m']} m acima da água ({loc['agua_m']} m) · {loc['n_casas']} casas, ~{loc['pessoas']} pessoas, "
                       f"mediana {loc['tempo_mediano_min']} min, máx {loc['tempo_max_min']} min · "
                       f"{loc['rua'] or 'rua sem nome'} · perto: {perto}")
     return "\n".join(linhas)
@@ -377,4 +525,6 @@ def resumo(alt, doc):
 if __name__ == "__main__":
     cid = sys.argv[1] if len(sys.argv) > 1 else "santa_tereza"
     d = payload(CIDADES[cid]["painel"])
-    print(resumo(calcula(d, cid), d))
+    if not (d.get("altos") or {}).get("mancha_cheia"):
+        raise SystemExit("o painel publicado não tem a mancha da cheia: rode gerar_painel.py --republicar")
+    print(resumo(calcula(d, d["altos"]["mancha_cheia"]["poligonos"], cid), d))
