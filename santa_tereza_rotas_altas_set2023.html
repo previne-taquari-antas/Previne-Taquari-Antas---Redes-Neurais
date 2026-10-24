@@ -53,7 +53,7 @@ const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZ
 osm.addTo(map);
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens Esri'});
 L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{position:'topright'}).addTo(map);
-let D=null, casaMarks=[], destinoMarks=[], selecao=[], saida=null, G=null, GD=null, GU=null, flood=null, layerFlood=null, floodShown=false;
+let D=null, casaMarks=[], destinoMarks=[], selecao=[], saida=null, G=null, GD=null, GU=null, flood=null, layerFlood=null, floodShown=false, Z=null, ultimaCasa=-1;
 const ruaLayer=L.layerGroup().addTo(map), casaLayer=L.layerGroup().addTo(map), destinoLayer=L.layerGroup().addTo(map), linhaLayer=L.layerGroup().addTo(map);
 const casaCanvas=L.canvas({padding:.4});
 function metres(a,b){const lat=(a[0]+b[0])*Math.PI/360;return Math.hypot((a[0]-b[0])*111320,(a[1]-b[1])*111320*Math.cos(lat));}
@@ -78,6 +78,17 @@ function montaGrafo(){
  const destinos=D.cota_alaga_nos.map((v,i)=>v!==null&&v>DEST_MIN?i:-1).filter(v=>v>=0);
  return {adj,destinos,wet,dry,unknown};
 }
+// O MDT de 10 m da propria plataforma fornece declividade estimada entre nos.
+function tempoTrecho(m,u,v){
+ if(!Z||Z[u]===null||Z[v]===null)return m/0.9;
+ // Dijkstra parte do destino: no deslocamento real, sai de v e chega a u.
+ const dh=Math.max(-.35*m,Math.min(.35*m,Z[u]-Z[v]));
+ const slope=dh/m;
+ let t=.72*m;
+ if(dh>0)t+=6*dh;
+ else if(dh<0)t+=(slope>-.2125?1.9998:-1.9998)*dh;
+ return Math.max(t/(.72*.9),m/1.1);
+}
 function dijkstra(permiteIncerto){
  const n=D.nos.length,source=Array(n).fill(-1),next=Array(n).fill(-1),custo=Array(n).fill(Infinity),length=Array(n).fill(0),uncertain=Array(n).fill(0),q=heap();
  G.destinos.forEach(i=>{source[i]=i;custo[i]=0;q.push([0,i]);});
@@ -85,7 +96,7 @@ function dijkstra(permiteIncerto){
   const el=q.pop();if(!el)break;const [d,u]=el;if(d>custo[u]+0.001)continue;
   for(const [v,m,tipo] of G.adj[u]){
    if(tipo==='incerto'&&!permiteIncerto)continue;
-   const nd=d+m+(tipo==='incerto'?30:0);
+   const nd=d+tempoTrecho(m,u,v)+(tipo==='incerto'?240:0);
    if(nd>=custo[v])continue;
    custo[v]=nd;source[v]=source[u];next[v]=u;length[v]=length[u]+m;uncertain[v]=uncertain[u]+(tipo==='incerto'?1:0);q.push([nd,v]);
   }
@@ -95,7 +106,7 @@ function dijkstra(permiteIncerto){
 function limpa(){linhaLayer.clearLayers();if(saida){map.removeLayer(saida);saida=null;}}
 function proximoAlto(c){let best=-1,d=Infinity;for(const i of G.destinos){const v=metres([c[0],c[1]],D.nos[i]);if(v<d){d=v;best=i;}}return [best,d];}
 function mostraCasa(ci){
- const c=D.casas[ci];if(!c)return;limpa();
+ const c=D.casas[ci];if(!c)return;ultimaCasa=ci;limpa();
  if(window.innerWidth<701)ui.classList.remove('collapse');
  saida=L.circleMarker([c[0],c[1]],{radius:9,color:'#093a29',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
  const s=statusCasa(c),n=c[4],target=s==='seca'?GD:GU;
@@ -128,12 +139,15 @@ function mostraCasa(ci){
  L.circleMarker(D.nos[goal],{radius:10,color:'#0d583b',weight:3,fillColor:'#b6f0ca',fillOpacity:1}).addTo(linhaLayer)
  .bindTooltip('Destino em cota alta do HAND', {permanent:false}).openTooltip();
  const km=target.length[n]+metres([c[0],c[1]],D.nos[n]);
+ const zTxt=(Z&&Z[goal]!==null?' · altitude aproximada MDT 10 m: <b>'+num(Z[goal])+' m</b>':' · altitude absoluta pelo MDT indisponível');
+ let subida=0;if(Z)for(let j=1;j<route.length;j++)if(Z[route[j]]!==null&&Z[route[j-1]]!==null)subida+=Math.max(0,Z[route[j]]-Z[route[j-1]]);
+ const relevo=Z?' · subida acumulada aproximada na rede: '+num(subida)+' m':'';
  box.className=isDry?'':'warn';
  box.innerHTML=lead+
   (isDry?'<b>Destino: ponto elevado na rede de ruas.</b><br><b>Traçado verde:</b> as ruas ficaram fora da mancha segundo os limiares do HAND publicado.':
    '<b>Destino elevado identificado, mas não há uma rota inteiramente classificada como seca.</b> Segmentos laranja são trechos sem limiar de inundação, portanto o traçado é <b>incerto e não deve ser usado para evacuar</b>.')+
   '<br>Distância estimada pela rede: <b>'+dist(km)+'</b>. Destino: '+D.nos[goal][0].toFixed(6)+', '+D.nos[goal][1].toFixed(6)+
-  ' · limiar do destino <b>HAND '+num(D.cota_alaga_nos[goal])+' m</b> ('+num(D.cota_alaga_nos[goal]-H)+' m acima da referência).'+
+  ' · limiar do destino <b>HAND '+num(D.cota_alaga_nos[goal])+' m</b> ('+num(D.cota_alaga_nos[goal]-H)+' m acima da referência)'+zTxt+relevo+'.'+
   (isDry?'<br>Mesmo neste traçado, o acesso da casa à rua, pontes e condições atuais exigem conferência.':'<br>Trechos não classificados: '+target.uncertain[n]+'.')+
   '<br><span class="small">O ponto elevado não é abrigo, e a capacidade e a acessibilidade não foram verificadas.</span>';
  const group=L.featureGroup([saida,...linhaLayer.getLayers()]);
@@ -143,7 +157,7 @@ function mostraDestinos(){
  G.destinos.forEach(i=>{
   const p=D.nos[i],c=D.cota_alaga_nos[i];
   const m=L.circleMarker(p,{radius:6,color:'#0e623e',weight:2,fillColor:'#d1f4da',fillOpacity:1})
-   .bindPopup('<b>Ponto alto pela cota HAND</b><br>Limiar estimado: '+num(c)+' m<br>Folga em relação a set/2023: '+num(c-H)+' m.<br>Não é abrigo confirmado.');
+   .bindPopup(()=>'<b>Ponto alto pela cota HAND</b><br>Limiar estimado: '+num(c)+' m<br>Folga em relação a set/2023: '+num(c-H)+' m.'+(Z&&Z[i]!==null?'<br>Altitude MDT aproximada: '+num(Z[i])+' m.':'')+'<br>Não é abrigo confirmado.');
   destinoLayer.addLayer(m);
  });
 }
@@ -164,6 +178,38 @@ map.on('click',function(e){
  D.casas.forEach((c,i)=>{const d=metres([e.latlng.lat,e.latlng.lng],[c[0],c[1]]);if(d<closest){closest=d;idx=i;}});
  if(closest<45)mostraCasa(idx);
 });
+
+// Amostra o MDT refinado, 10 m, armazenado no proprio projeto em PNG RG (decimetros).
+// Dados em analise, para estimativa de desnivel; nao provam acessibilidade ou ausencia de inundacao.
+async function carregarRelevo(){
+ const base='assets/data/santa_tereza_inundacao/mdt/';
+ const metaResp=await fetch(base+'altitude_terreno_10m_refinado.json',{cache:'force-cache'});
+ if(!metaResp.ok)throw Error('metadados MDT indisponiveis');
+ const info=await metaResp.json();
+ if(info.codificacao!=='uint16_decimetros_em_rg'||info.hydrologic_use!=='visualization_only')throw Error('contrato MDT inesperado');
+ const img=await new Promise((resolve,reject)=>{
+  const picture=new Image();
+  picture.onload=()=>resolve(picture);picture.onerror=()=>reject(Error('grade MDT indisponivel'));
+  picture.src=base+info.png;
+ });
+ if(img.naturalWidth!==info.cols||img.naturalHeight!==info.rows)throw Error('dimensoes MDT divergentes');
+ const canvas=document.createElement('canvas');canvas.width=info.cols;canvas.height=info.rows;
+ const ctx=canvas.getContext('2d',{willReadFrequently:true});
+ ctx.drawImage(img,0,0);
+ const pix=ctx.getImageData(0,0,info.cols,info.rows).data;
+ const W=info.W,S=info.S,E=info.E,N=info.N;
+ Z=D.nos.map(([lat,lon])=>{
+  const x=Math.floor((lon-W)/(E-W)*info.cols),y=Math.floor((N-lat)/(N-S)*info.rows);
+  if(x<0||y<0||x>=info.cols||y>=info.rows)return null;
+  const i=(y*info.cols+x)*4;
+  return pix[i+3]===0?null:(pix[i]*256+pix[i+1])*.1;
+ });
+ GD=dijkstra(false);GU=dijkstra(true);
+ const count=Z.filter(v=>v!==null).length;
+ aviso.textContent+=' · MDT 10 m carregado ('+count+' nos com cota; declive pondera os caminhos)';
+ if(ultimaCasa>=0)mostraCasa(ultimaCasa);
+}
+
 async function carregaMancha(){
  if(flood)return flood;
  const res=await fetch('assets/data/santa_tereza_inundacao/contornos_previa_visual_leve.json');
@@ -192,6 +238,7 @@ async function init(){
   G=montaGrafo();GD=dijkstra(false);GU=dijkstra(true);mostraDestinos();const c=pintaCasas();
   box.innerHTML='Toque num dos <b>'+D.casas.length+' pontos de edificações</b>. As rotas inteiramente secas no cenário ficam verdes; se depender de rua não classificada, a linha ficará laranja e não será apresentada como rota segura.'+
    '<br><span class="small">Casas com rota seca modelada: '+c.seca+'; acesso incerto: '+c.incerta+'; atingidas no pico: '+c.alagada+'; sem caminho identificado: '+c.sem+'.</span>';
+  carregarRelevo().catch(e=>{console.warn('MDT nao carregado',e);aviso.textContent+=' · MDT indisponível: rotas apenas pela extensão da rede';});
   setTimeout(()=>map.invalidateSize(),80);
  }catch(err){box.className='bad';box.textContent='Falha ao carregar o mapa: '+err.message;aviso.textContent='Rede indisponível.';console.error(err);}
 }
