@@ -1,7 +1,7 @@
 {
   "schema_version": "g040_adaptive_eventwise_selection_v1",
   "research_only": true,
-  "purpose": "Select event-conditioned parameter families per target/control from historical analogs, while retaining a robust multi-event fallback. The selector supports research forecasts but does not issue warnings or evacuation decisions.",
+  "purpose": "Keep independently documented event/target HEC-HMS configurations and compare multiple hydrologically compatible hypotheses at forecast time, without assuming a universal parameterization or equating calibration fit with forecast skill.",
   "targets": [
     {
       "code": "86472600",
@@ -123,12 +123,13 @@
   },
   "selector": {
     "top_k": 3,
-    "weighting": "inverse-distance soft weighting among compatible analogs",
+    "weighting": "Similarity ranking only; these weights are not calibrated probabilities or measured model skill.",
     "hard_pick": false,
-    "fallback": "robust multi-event parameterization when no sufficiently similar/validated analog exists",
-    "minimum_evidence": "an analog must have a compatible target-specific parameter row and historical fingerprint",
+    "fallback": "Multi-event model stays in the research comparison roster, NOT a universally validated default forecast.",
+    "minimum_evidence": "Historical fingerprint AND target-specific parameter row AND observed-Q coverage/gap/rain spatial quality audit; independent replay required before live use.",
     "target_event_exclusion": "pseudo-operational replay must exclude the target event from its candidate library and may only use observations available at t0",
-    "online_recalibration": "optional research arm; may use observations only up to t0 and must be separately benchmarked"
+    "online_recalibration": "optional research arm; may use observations only up to t0 and must be separately benchmarked",
+    "operational_selection_policy": "Require independently validated skill for transferred events plus fresh rain/Q conditions; until then output a research shortlist, not an authorized production parameter choice."
   },
   "distance_weights": {
     "rain_magnitude": 0.3,
@@ -142,5 +143,20 @@
     "medium": "usable analogs exist but distances are similar or some features are missing",
     "low": "no close analog, weak target library, or conflicting upstream state; use robust fallback/ensemble"
   },
-  "no_single_parameter_rule": "Do not replace the eventwise library with one basin-wide parameter set. A common/multi-event fit remains a fallback and scientific comparator."
+  "no_single_parameter_rule": "Do not replace the eventwise library with one basin-wide parameter set. Multiple configurations for different flood regimes are primary; a common fit is only a comparator. During an event, compare several candidates, their valid data windows and uncertainty.",
+  "scenario_regimes": {
+    "measurable_now": [
+      "storm_spatial_distribution_across_G040_components",
+      "forecast_24_48_72h_rainfall",
+      "observed_24_72_168h_rainfall_proxy_for_wetness",
+      "upstream_discharge_and_change"
+    ],
+    "pending_physical_evidence": [
+      "measured_soil_moisture_state",
+      "tributary_Q_partition_and_confluence_timing",
+      "geomorphologically_verified_floodplain_storage",
+      "validated_reach_backwater_boundary_conditions"
+    ],
+    "policy": "Categories are diagnostic hypotheses, not manually assigned labels or guarantees of analog fitness."
+  }
 }
