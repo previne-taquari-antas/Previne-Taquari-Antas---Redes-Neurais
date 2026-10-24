@@ -17,6 +17,8 @@ python scripts/vincular_cnefe_edificacoes_porto_alegre.py \
 
 Use `--cnefe caminho/4314902_PORTO_ALEGRE.zip` se o ZIP já estiver baixado. A primeira execução sem `--cnefe` tenta baixá-lo do endereço oficial.
 
+Abra `pesquisas/porto-alegre-domicilios-revisao.html` no navegador e selecione `revisao_street_view.csv` para ver, sobre mapa de ruas ou imagem aérea, o ponto original (laranja) e a edificação candidata (azul). O mapa exige conferência humana, registra a evidência informada e exporta `revisoes_aprovadas_porto_alegre.csv` sem alterar o CNEFE. Para produzir as coordenadas corrigidas após revisão, passe esse arquivo em `--revisoes`.
+
 ## Saídas, regras e garantias
 
 - `associacoes_auditoria.csv`: **um registro por finalidade domiciliar original** do IBGE, inclusive quando vários endereços ocupam a mesma coordenada. Guarda endereço/posição original, tipo de geocodificação, status, edificação candidata, distância e coordenada **proposta, não confirmada**. É o arquivo interno principal; não publique na Web sem avaliação de privacidade e necessidade.
