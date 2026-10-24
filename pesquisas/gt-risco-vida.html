@@ -328,6 +328,14 @@ function rotaParaTerrenoAlto(doc,orig,campos,n,margem){
   if(!Number.isFinite(metros)||metros<=0)continue;
   adj[a].push([b,metros,ei]);adj[b].push([a,metros,ei]);
  }
+ // A origem pode já estar em uma rua alta. Não criar uma falsa rota longa
+ // para um segundo ponto apenas porque nenhum destino foi cadastrado.
+ if(Number(doc.cota_no[no])>=n+2&&adj[no].length>=2){
+  const minCota=Math.min(...adj[no].map(z=>Number(doc.edges[z[2]][4])));
+  return {rota:{nos:[no],arestas:[],metros:0,saida:no,cotaSaida:Number(doc.cota_no[no]),
+   minCota,acessoM:Math.round(hav([orig[campos.lat],orig[campos.lon]],doc.nos[no])),
+   jaAlto:true},causa:'',margem,origemNo:no};
+ }
  const dist=Array(nn).fill(Infinity),prev=Array(nn).fill(-1),edgePrev=Array(nn).fill(-1),h=[];
  // Não escolher um local mais baixo do que a rua de origem se ela já é alta.
  const cotaAlvo=Math.max(n+2,Number(doc.cota_no[no]));
@@ -382,25 +390,35 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  let titulo,detalhe;
  if(r){
   const minutos=(r.metros/.9/60).toFixed(1),folga=(r.minCota-n).toFixed(1);
-  titulo=referencia+': saída mais próxima calculada pela rede viária, '+Math.round(r.metros)+' m ('+minutos+' min a pé, estimativa). '+
+  titulo=referencia+(r.jaAlto?': a rua associada já aparece como trecho alto no modelo. ':': saída mais próxima calculada pela rede viária, '+Math.round(r.metros)+' m ('+minutos+' min a pé, estimativa). ')+
    'Destino: trecho de rua em ponto alto, HAND '+r.cotaSaida.toFixed(1)+' m. '+
    (resultado.classe==='com_folga'?'Toda a rota tem ao menos 1 m de margem nas cotas disponíveis.':'Rota próxima ao limite da inundação; sem 1 m de margem ao longo de todo o percurso.')+
    ' NÃO é rota de evacuação validada.';
-  detalhe='Destino: ponto alto na rede viária (não é abrigo).\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+
+  detalhe=(r.jaAlto?'Trecho alto coincide com a rua associada à origem. Não foi necessária rota adicional.':'Destino: ponto alto na rede viária (não é abrigo).')+'\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+
    '\nExtensão pelas ruas: '+Math.round(r.metros)+' m ('+minutos+' min teóricos)'+
    '\nMenor folga relativa à água: '+folga+' m'+
    '\nAcesso ponto da edificação → nó da rua: '+r.acessoM+' m, NÃO VISTORIADO.'+
    (r.acessoM>60?'\nATENÇÃO: a ligação entre a edificação e a rua associada é distante; necessita correção em imagem/levantamento.':'')+
    '\nPontes sem cota validada são excluídas. Sem dados de velocidade, correnteza, bloqueios e acesso real.';
-  const caminho=r.nos.map(ix=>d.nos[ix]);
-  const linha=L.polyline(caminho,{color:'#005bea',weight:7,opacity:.95,dashArray:'12 5'}).addTo(rotaSelecionada);
-  const casa=[orig[f.lat],orig[f.lon]],entrada=d.nos[r.nos[0]];
-  L.circleMarker(casa,{radius:8,color:'#054dcb',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(rotaSelecionada).bindTooltip('Edificação selecionada',{direction:'top'});
-  L.polyline([casa,entrada],{color:'#f0941b',weight:3,dashArray:'3 7',opacity:.85}).addTo(rotaSelecionada)
-   .bindPopup('Ligação da edificação à rua não vistoriada, '+r.acessoM+' m em linha reta. NÃO constitui percurso de acesso validado.');
-  L.circleMarker(d.nos[r.saida],{radius:12,color:'#075b42',fillColor:'#88e2a9',weight:3,fillOpacity:1})
-   .addTo(rotaSelecionada).bindTooltip('Ponto alto candidato (não é abrigo)',{permanent:true,direction:'top'});
-  const bb=linha.getBounds();bb.extend(casa);map.fitBounds(bb.pad(.22),{maxZoom:17});
+  if(r.jaAlto){
+   const p=d.nos[r.saida];
+   L.circleMarker(p,{radius:13,color:'#075b42',fillColor:'#88e2a9',weight:3,fillOpacity:1})
+     .addTo(rotaSelecionada).bindTooltip('Rua alta candidata no local (não é abrigo)',{permanent:true,direction:'top'});
+   L.polyline([[orig[f.lat],orig[f.lon]],p],{color:'#f0941b',weight:3,dashArray:'3 7'})
+     .addTo(rotaSelecionada).bindPopup('Ligação entre a edificação e a rua não vistoriada: '+r.acessoM+' m em linha reta.');
+   map.setView(p,17);
+  }else{
+   const caminho=r.nos.map(ix=>d.nos[ix]);
+   const linha=L.polyline(caminho,{color:'#005bea',weight:7,opacity:.95,dashArray:'12 5'}).addTo(rotaSelecionada);
+   const casa=[orig[f.lat],orig[f.lon]],entrada=d.nos[r.nos[0]];
+   L.circleMarker(casa,{radius:8,color:'#054dcb',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(rotaSelecionada).bindTooltip('Edificação selecionada',{direction:'top'});
+   L.polyline([casa,entrada],{color:'#f0941b',weight:3,dashArray:'3 7',opacity:.85}).addTo(rotaSelecionada)
+    .bindPopup('Ligação da edificação à rua não vistoriada, '+r.acessoM+' m em linha reta. NÃO constitui percurso de acesso validado.');
+   L.circleMarker(d.nos[r.saida],{radius:12,color:'#075b42',fillColor:'#88e2a9',weight:3,fillOpacity:1})
+    .addTo(rotaSelecionada).bindTooltip('Ponto alto candidato (não é abrigo)',{permanent:true,direction:'top'});
+   const bb=linha.getBounds();bb.extend(casa);map.fitBounds(bb.pad(.22),{maxZoom:17});
+ 
+  }
  }else{
   cotaAnterior=melhorCotaAnterior(orig,f,n);
   titulo=referencia+': sem saída para ponto alto demonstrável nesta cota. '+resultado.causa+
