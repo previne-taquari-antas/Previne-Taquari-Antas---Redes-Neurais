@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/publicar-mapa-porto-alegre.yml'
+      - 'scripts/gerar_amostra_espacial_cnefe_poa.py'
   workflow_dispatch:
 permissions:
   contents: write
@@ -28,40 +29,24 @@ jobs:
           gh run download 40113320191 --name cnefe-porto-alegre-auditoria-40113320191 --dir /tmp/poa --repo "$GITHUB_REPOSITORY"
           test -s /tmp/poa/revisao_street_view.csv
           test -s /tmp/poa/resumo.json
-      - name: Publicar somente amostra espacial e metadados
+      - name: Publicar pontos espacialmente distribuídos e metadados
         run: |
+          test -s /tmp/poa/associacoes_auditoria.csv
+          test -s /tmp/poa/resumo.json
           mkdir -p assets/data/porto_alegre
-          python - <<'PY'
-          import csv, json
-          from pathlib import Path
-          base=Path('/tmp/poa')
-          out=Path('assets/data/porto_alegre')
-          with (base/'revisao_street_view.csv').open(encoding='utf-8-sig',newline='') as f:
-              rows=list(csv.DictReader(f))
-          summary=json.loads((base/'resumo.json').read_text(encoding='utf-8'))
-          assert len(rows)==2500,(len(rows),'amostra não esperada')
-          assert summary.get('domicilios_particulares_cnefe')==686846
-          assert summary.get('enderecos_aprovados_por_revisao_humana')==0
-          selected=['id_cnefe','nv_geo_coord','rua_ibge','numero_ibge','lat_original',
-                    'lon_original','lat_proposta','lon_proposta','quantidade_mesmo_ponto',
-                    'status','osm_candidato','tipo_osm','distancia_footprint_m',
-                    'justificativa','street_view_url']
-          clean=[{k:r.get(k,'') for k in selected} for r in rows]
-          (out/'fila_amostra.json').write_text(json.dumps({
-              'source':'IBGE CNEFE 2022 + OSM / auditoria exploratória',
-              'run_id':40113320191,'total_amostra':len(clean),'dados':clean,
-              'observacao':'Pontos candidatos não são localizações domiciliares confirmadas.'
-              },ensure_ascii=False,separators=(',',':')),encoding='utf-8')
-          (out/'resumo.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-          geo=base/'amostra_mapa.geojson'
-          if geo.exists():(out/'amostra_mapa.geojson').write_bytes(geo.read_bytes())
-          print('Amostra',len(clean),'domicílios totais',summary['domicilios_particulares_cnefe'])
-          PY
+          python scripts/gerar_amostra_espacial_cnefe_poa.py \
+            --csv /tmp/poa/associacoes_auditoria.csv \
+            --resumo /tmp/poa/resumo.json \
+            --saida assets/data/porto_alegre/fila_amostra.json
+          cp /tmp/poa/resumo.json assets/data/porto_alegre/resumo.json
+          # O GeoJSON antigo representava somente seis endereços agrupados;
+          # evitar expô-lo como se fosse a cobertura municipal.
+          rm -f assets/data/porto_alegre/amostra_mapa.geojson
       - name: Gravar amostra pública sem modificar cadastro original
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/data/porto_alegre/fila_amostra.json assets/data/porto_alegre/resumo.json assets/data/porto_alegre/amostra_mapa.geojson
+          git add -A assets/data/porto_alegre
           if git diff --cached --quiet; then echo "Sem diferenças"; exit 0; fi
           git commit -m "Publicar amostra auditável dos endereços de Porto Alegre"
           for attempt in 1 2 3 4 5 6 7 8; do
