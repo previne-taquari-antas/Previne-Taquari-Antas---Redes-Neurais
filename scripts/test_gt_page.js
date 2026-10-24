@@ -7,7 +7,8 @@ assert(scripts.length,'no inline scripts');
 const code=scripts[scripts.length-1][1];
 new vm.Script(code,{filename:'gt-risco-vida.inline.js'});
 const els={};
-function elem(id){return els[id]||(els[id]={
+function node(){return {style:{},textContent:'',innerHTML:'',children:[],addEventListener(){},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=[...items]}};}
+function elem(id){return els[id]||(els[id]={...node(),
   value:id==='cidade'?'santa_tereza':id==='politica'?'exploratoria':id==='cota'?'13.4':undefined,
   checked:true,style:{},textContent:'',innerHTML:'',addEventListener(){}
 });}
@@ -18,7 +19,7 @@ const L={
   tileLayer(){return {...geo}},imageOverlay(){return {...geo}},layerGroup(){return {addTo(){return this},clearLayers(){}}},
   polyline(){return {...geo}},circleMarker(){return {...geo}},latLngBounds(){return {...bounds}}
 };
-const context={L,document:{getElementById:elem},console,Number,Math,Set,Map,Error,JSON,Array};
+const context={L,document:{getElementById:elem,createElement:()=>node(),createTextNode:text=>({textContent:String(text)})},console,Number,Math,Set,Map,Error,JSON,Array};
 vm.runInNewContext(code,context,{timeout:20000,filename:'gt-risco-vida.inline.js'});
 // Async mudaCidade triggers until its first await, all data inline so immediate.
 assert(/Santa Tereza/.test(elem('resumo').innerHTML),'Santa Tereza not rendered');
