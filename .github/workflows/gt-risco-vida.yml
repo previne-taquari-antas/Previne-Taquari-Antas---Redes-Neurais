@@ -7,6 +7,7 @@ on:
       - "scripts/gt_auditar_residencias.py"
       - "scripts/gt_destinos.py"
       - "scripts/gt_santa_tereza_refinar.py"
+      - "scripts/gt_santa_tereza_gargalos.py"
       - "tests/test_gt_risco_vida.py"
       - "santa_tereza_painel_casas.html"
       - "mucum_painel_casas.html"
@@ -31,6 +32,8 @@ jobs:
         run: python scripts/gt_risco_vida.py --cidade ambas --saida artifacts/gt_risco_vida
       - name: Refinar cotas de corte Santa Tereza (10 cm HAND)
         run: python scripts/gt_santa_tereza_refinar.py --passo 0.1 --saida artifacts/gt_risco_vida
+      - name: Gargalos de interrupcao de rua em Santa Tereza
+        run: python scripts/gt_santa_tereza_gargalos.py --saida artifacts/gt_risco_vida
       - name: Baixar e filtrar CNEFE 2022 Santa Tereza
         run: python scripts/gt_cnefe_residencias.py --cidade santa_tereza --baixar --saida artifacts/gt_risco_vida
       - name: Baixar e filtrar CNEFE 2022 Mucum
