@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/porto-alegre-cnefe.yml'
       - 'scripts/vincular_cnefe_edificacoes_porto_alegre.py'
+      - 'scripts/gerar_edificacoes_revisao_poa.py'
       - 'tests/test_vincular_cnefe_porto_alegre.py'
   push:
     branches:
@@ -69,6 +70,12 @@ jobs:
           assert r['enderecos_aprovados_por_revisao_humana']==0, 'Nao aprovar automaticamente'
           print('RESUMO_CONSOLIDADO=' + json.dumps(r,ensure_ascii=False))
           PY
+      - name: Extrair polígonos de edificações para revisão visual
+        run: |
+          python scripts/gerar_edificacoes_revisao_poa.py \
+            --osm /tmp/poa-cnefe/predios.geojson \
+            --fila /tmp/poa-cnefe/resultado/revisao_street_view.csv \
+            --saida /tmp/poa-cnefe/resultado/edificacoes_revisao.geojson
       - name: Registrar fontes e limites
         if: always()
         run: |
