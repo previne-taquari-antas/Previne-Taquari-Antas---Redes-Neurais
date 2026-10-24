@@ -51,4 +51,29 @@ const stRoute=vm.runInNewContext(`(()=>{const f=Object.fromEntries(d.meta.casas_
 assert(stRoute&&stRoute.cotaSaida>=15.4,'Santa Tereza destination is not elevated enough');
 const stEdges=vm.runInNewContext('d.edges',context);
 assert(stRoute.arestas.every(idx=>{let e=stEdges[idx];return e[3]===0&&e[4]>13.4;}),'Route crosses flooded, unknown or bridge segments');
-console.log('OK GT map: both cities, nearest high-street routing and flood origin tested');
+// O bloqueio de rotas deve prevalecer sobre a aparência da camada de ruas.
+for (const [city, level] of [['santa_tereza', 13.4], ['mucum', 13]]) {
+ elem('cidade').value=city;
+ vm.runInNewContext("mudaCidade()",context,{timeout:20000});
+ const audit=vm.runInNewContext(`(()=>{
+  const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
+  const found=d.casas.find(home=>saidaMaisProxima(d,home,f,${level}).classe==='com_folga'&&saidaMaisProxima(d,home,f,${level}).rota?.metros>=40);
+  if(!found)return {ok:false,cause:'no_com_folga'};
+  const good=saidaMaisProxima(d,found,f,${level});
+  const unknown=found.slice();unknown[f.cota_alaga]=null;
+  const missingBlocked=saidaMaisProxima(d,unknown,f,${level}).rota===null;
+  const far=found.slice();far[f.lat]=Number(far[f.lat])+.02;
+  const farResult=saidaMaisProxima(d,far,f,${level});
+  const farBlocked=farResult.rota===null&&/60 m/.test(farResult.causa);
+  const edgesValid=good.rota.arestas.every(i=>{
+   const e=d.edges[i];
+   return !e[3]&&e[4]!==null&&e[4]>${level}+1&&d.cota_no[e[0]]>${level}+1&&d.cota_no[e[1]]>${level}+1;
+  });
+  const sampleMargin=d.casas.find(h=>saidaMaisProxima(d,h,f,${level}).classe==='pendente_margem');
+  const marginBlocked=sampleMargin?saidaMaisProxima(d,sampleMargin,f,${level}).rota===null:false;
+  return {ok:true,missingBlocked,farBlocked,edgesValid,marginBlocked};
+ })()`,context,{timeout:20000});
+ assert(audit.ok&&audit.missingBlocked&&audit.farBlocked&&audit.edgesValid&&audit.marginBlocked,
+  city+' failed conservative route guards: '+JSON.stringify(audit));
+}
+console.log('OK GT map: both cities, visible route examples, no unknown origins, no long snaps, no missing/elevated road violations');
