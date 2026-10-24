@@ -370,13 +370,17 @@ class RainProvenanceTest(unittest.TestCase):
         self.assertFalse(confirmed(self.path, ANA, CODE))
         self.assertTrue(confirmed(self.path, CEMA, CODE))
 
-    def test_recent_qa_failure_preserves_both_files(self):
+    def test_cemaden_stale_does_not_freeze_fresh_ana(self):
         self.seed(values={ANA: 2}, cells={ANA: {CODE: iso(self.now)}})
-        before = self.path.read_bytes(), self.meta.read_bytes()
         xml = b"<root><r><DataHora>2026-09-30 13:00:00</DataHora><Chuva>0</Chuva></r></root>"
-        with self.assertRaises(SystemExit):
-            self.run_main(ana=xml, cema=self.payload_cema(None))
-        self.assertEqual((self.path.read_bytes(), self.meta.read_bytes()), before)
+        # CEMADEN is unavailable; a real zero from ANA remains publishable.
+        # A missing CEMADEN observation must not become zero or acquire a
+        # new provenance timestamp from the ANA query.
+        self.run_main(ana=xml, cema=self.payload_cema(None))
+        self.assertEqual(self.row()[ANA], "0.0")
+        self.assertEqual(self.row()[CEMA], "")
+        self.assertEqual(collector.carregar_proveniencia()[ANA][CODE], iso(self.now))
+        self.assertNotIn(CEMA, collector.carregar_proveniencia())
 
     def test_staging_failure_leaves_both_previous_files_unchanged(self):
         self.seed(cells={CEMA: {CODE: iso(self.now)}})
