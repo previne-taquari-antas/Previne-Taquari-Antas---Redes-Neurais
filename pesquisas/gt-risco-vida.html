@@ -46,7 +46,7 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <script>
 const FILES={santa_tereza:"../santa_tereza_painel_casas.html",mucum:"../mucum_painel_casas.html"};
 const $=id=>document.getElementById(id), map=L.map('map').setView([-29.169,-51.735],13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 let sources={},d=null,camadas=L.layerGroup().addTo(map),linhas=L.layerGroup().addTo(map),selecionada=-1,anterior=null;
 function popup(s){$('detail').textContent=s}
 function hav(a,b){let r=Math.PI/180,da=(b[0]-a[0])*r,db=(b[1]-a[1])*r,z=Math.sin(da/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(db/2)**2;return 12742000*Math.asin(Math.min(1,Math.sqrt(z)))}
