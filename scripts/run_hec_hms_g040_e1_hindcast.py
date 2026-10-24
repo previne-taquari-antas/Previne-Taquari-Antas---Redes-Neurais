@@ -240,7 +240,7 @@ def hec_subbasin_name(cid):
         raise RuntimeError(f"HEC element name exceeds 28 chars after normalization: {name}")
     return name
 
-def subbasin_block(name,area,downstream,cn,lag_min,baseflow=None):
+def subbasin_block(name,area,downstream,cn,lag_min,baseflow=None,event_response=None):
     baseflow_text="     Baseflow: None"
     if baseflow is not None:
         specific,recession,threshold=baseflow
@@ -248,22 +248,27 @@ def subbasin_block(name,area,downstream,cn,lag_min,baseflow=None):
             f"     Recession Factor: {recession:.9f}\n"
             f"     Initial Flow/Area Ratio: {specific:.9f}\n"
             f"     Threshold Flow to Peak Ratio: {threshold:.9f}")
+    response_text=(f"     LossRate: SCS\n     Percent Impervious Area: 0.0\n"
+        f"     Curve Number: {cn:.5f}\n     Transform: SCS\n"
+        f"     Lag: {lag_min:.5f}\n     Unitgraph Type: STANDARD")
+    if event_response is not None:
+        initial,constant,tc,storage=event_response
+        response_text=("     LossRate: Initial+Constant\n     Percent Impervious Area: 0.0\n"
+            f"     Initial Loss: {initial:.9f}\n     Constant Loss Rate: {constant:.9f}\n"
+            "     Transform: Clark\n     Clark Method: Specified\n"
+            f"     Time of Concentration: {tc:.9f}\n     Storage Coefficient: {storage:.9f}\n"
+            "     Time Area Method: Default")
     return f"""Subbasin: {name}
      Area: {area:.6f}
      Downstream: {downstream}
      Canopy: None
      Surface: None
-     LossRate: SCS
-     Percent Impervious Area: 0.0
-     Curve Number: {cn:.5f}
-     Transform: SCS
-     Lag: {lag_min:.5f}
-     Unitgraph Type: STANDARD
+{response_text}
 {baseflow_text}
 End:
 """
 
-def muskingum_steps(k_h,x,dt_min=COMPUTE_INTERVAL_MIN):
+def muskingum_steps(k_h,x,dt_min=COMPUTE_INTERVAL_MIN,preferred=None):
     """Choose a stable HEC-HMS Muskingum subreach count within accepted limits."""
     dt_h=float(dt_min)/60.0
     k_h=float(k_h); x=float(x)
@@ -278,7 +283,7 @@ def muskingum_steps(k_h,x,dt_min=COMPUTE_INTERVAL_MIN):
         if lo-1e-12 <= dt_h <= hi+1e-12:
             # HEC guidance starts from n ~= K/dt. Among stable, accepted values,
             # pick the one closest to that target without exceeding HMS limits.
-            stable.append((abs((k_h/dt_h)-n),n))
+            stable.append((abs((k_h/dt_h if preferred is None else preferred)-n),n))
     if not stable:
         raise RuntimeError(
             "candidate has no stable Muskingum representation within HEC-HMS "
@@ -287,8 +292,8 @@ def muskingum_steps(k_h,x,dt_min=COMPUTE_INTERVAL_MIN):
         )
     return min(stable)[1]
 
-def reach_block(name,downstream,k,x):
-    steps=muskingum_steps(k,x)
+def reach_block(name,downstream,k,x,preferred=None):
+    steps=muskingum_steps(k,x,preferred=preferred)
     return f"""Reach: {name}
      Downstream: {downstream}
      Route: Muskingum
@@ -348,7 +353,10 @@ End:
         baseflow=(args.baseflow_specific,args.baseflow_recession,args.baseflow_threshold_ratio)
 
     def sb(name,area,downstream,cn,lag_min):
-        return subbasin_block(name,area,downstream,cn,lag_min,baseflow)
+        response=None
+        if getattr(args,"initial_loss_mm",None) is not None:
+            response=(args.initial_loss_mm,args.constant_loss_mm_h,args.clark_tc_h,args.clark_storage_h)
+        return subbasin_block(name,area,downstream,cn,lag_min,baseflow,response)
 
     if primary_source=="86472000":
         parts.append(source_block("86472000","R_86472000_JOIN_86500000",12918.656))
@@ -396,7 +404,7 @@ End:
         parts.append(sb(hec_subbasin_name(cid),rain[cid]["area_km2"],down,args.cn,args.lag_min))
 
     for name,up,down,l,g in active_reaches(primary_source):
-        parts.append(reach_block(name,down,route_k(l,g,args),args.x))
+        parts.append(reach_block(name,down,route_k(l,g,args),args.x,getattr(args,"routing_subreach_target",None)))
     return "\n".join(parts)
 
 def build_met(used_components):
@@ -599,7 +607,9 @@ OpenProject("g040_e1_hindcast",project_dir)
 Compute("Hindcast")
 dss=HecDss.open(project_dir+"/output.dss")
 paths=list(dss.getCatalogedPathnames())
-fo=open(r"{(project_dir/'hec_output_values.csv').as_posix()}","wb")
+output_csv=r"{(project_dir/'hec_output_values.csv').as_posix()}"
+pending_csv=output_csv+".pending"
+fo=open(pending_csv,"wb")
 w=csv.writer(fo); w.writerow(["element","time_value","q_m3s","pathname"])
 for path in paths:
     if "/FLOW/" not in path or "/RUN:Hindcast/" not in path: continue
@@ -608,6 +618,7 @@ for path in paths:
         v=float(s.values[i])
         if v>-1e20: w.writerow([element,int(s.times[i]),v,path])
 fo.close(); dss.close()
+os.rename(pending_csv,output_csv)
 print("G040_E1_HINDCAST_COMPUTE_OK")
 Exit(1)
 """,encoding="utf-8")
@@ -759,6 +770,12 @@ def main():
     ap.add_argument("--k-g3",type=float,required=True)
     ap.add_argument("--k-g4",type=float,required=True)
     ap.add_argument("--x",type=float,required=True)
+    ap.add_argument("--routing-subreach-target",type=int,default=None,
+        help="Optional calibrated preferred subreach count; select closest coefficient-stable count per reach")
+    ap.add_argument("--initial-loss-mm",type=float,default=None)
+    ap.add_argument("--constant-loss-mm-h",type=float,default=None)
+    ap.add_argument("--clark-tc-h",type=float,default=None)
+    ap.add_argument("--clark-storage-h",type=float,default=None)
     ap.add_argument("--baseflow-specific",type=float,default=None,
         help="Optional native HEC recession initial discharge per incremental km2; absent preserves legacy None")
     ap.add_argument("--baseflow-recession",type=float,default=None,
@@ -785,6 +802,13 @@ def main():
     ap.add_argument("--overbank-release-tau-h",type=float,default=None,
         help="Off-channel conceptual reservoir release residence time in hours")
     args=ap.parse_args()
+    if args.routing_subreach_target is not None and not 1<=args.routing_subreach_target<=100:
+        raise SystemExit("routing subreach target outside [1,100]")
+    response=(args.initial_loss_mm,args.constant_loss_mm_h,args.clark_tc_h,args.clark_storage_h)
+    if any(v is not None for v in response):
+        if any(v is None for v in response):raise SystemExit("Initial+Constant/Clark requires all four explicit parameters")
+        if not (0<=response[0]<=200 and 0<=response[1]<=30 and .1<=response[2]<=48 and .1<=response[3]<=72):
+            raise SystemExit("Initial+Constant/Clark parameters outside event research domain")
     if not (20<args.cn<95): raise SystemExit("CN outside physical search domain")
     if not (1<=args.lag_min<=600): raise SystemExit("lag outside search domain")
     if not (0<=args.x<=0.5): raise SystemExit("Muskingum X outside [0,0.5]")
@@ -862,11 +886,24 @@ def main():
     (rt/"run.log").write_text(proc.stdout+"\n--- STDERR ---\n"+proc.stderr,encoding="utf-8")
     ok="G040_E1_HINDCAST_COMPUTE_OK" in proc.stdout and (proj/"hec_output_values.csv").exists()
     scores={}
-    if ok: scores=score_outputs(read_output_csv(proj/"hec_output_values.csv"),score_hydro,score_times,primary_source)
+    output_contract={"complete":False,"errors":[]}
+    if ok:
+        outputs=read_output_csv(proj/"hec_output_values.csv")
+        expected=int((end-start).total_seconds()/(COMPUTE_INTERVAL_MIN*60))+1
+        for code in MAIN_CHECKPOINTS:
+            if code==primary_source:continue
+            rows=outputs.get("J_"+code) or []
+            if (len(rows)!=expected or not rows or rows[0][0]!=start or rows[-1][0]!=end
+                or any(not math.isfinite(q) or q<0 for _,q in rows)):
+                output_contract["errors"].append({"station":code,"values":len(rows),"expected":expected})
+        output_contract["complete"]=not output_contract["errors"]
+        ok=output_contract["complete"]
+        if ok:scores=score_outputs(outputs,score_hydro,score_times,primary_source)
     result={"schema_version":"g040_e1_hindcast_candidate_v1",
       "generated_at_utc":datetime.now(timezone.utc).isoformat().replace("+00:00","Z"),
       "research_only":True,"candidate_id":args.candidate_id,"event_id":args.event_id,"hec_hms_version":"4.13",
       "compute_ok":ok,"returncode":proc.returncode,
+      "native_output_contract":output_contract,
       "window":{"start_utc":start.isoformat().replace("+00:00","Z"),
                 "end_utc":end.isoformat().replace("+00:00","Z"),"hours":len(times)},
       "score_window":{"start_utc":score_times[0].isoformat().replace("+00:00","Z") if score_times else None,
@@ -883,16 +920,21 @@ def main():
       "rainfall_diagnostics":rainpkg.get("rain_diagnostics", {}),
       "preflight_contract":preflight,
       "parameters":{"cn":args.cn,"lag_min":args.lag_min,
+        "loss_method":"Initial+Constant" if args.initial_loss_mm is not None else "SCS",
+        "transform_method":"Clark" if args.initial_loss_mm is not None else "SCS",
+        "initial_loss_mm":args.initial_loss_mm,"constant_loss_mm_h":args.constant_loss_mm_h,
+        "clark_tc_h":args.clark_tc_h,"clark_storage_h":args.clark_storage_h,
         "baseflow":"Recession" if args.baseflow_specific is not None else "None",
         "baseflow_specific_m3s_km2":args.baseflow_specific,
         "baseflow_recession_daily":args.baseflow_recession,
         "baseflow_threshold_ratio":args.baseflow_threshold_ratio,
         "k_group_h":{"g1":args.k_g1,"g2":args.k_g2,"g3":args.k_g3,"g4":args.k_g4},
         "x":args.x,
+        "routing_subreach_target":args.routing_subreach_target,
         "compute_interval_min":COMPUTE_INTERVAL_MIN,
         "reach_k_h":{name:route_k(l,g,args) for name,up,down,l,g in active_reaches(primary_source)},
         "muskingum_subreaches":{
-          name:muskingum_steps(route_k(l,g,args),args.x)
+          name:muskingum_steps(route_k(l,g,args),args.x,preferred=args.routing_subreach_target)
           for name,up,down,l,g in active_reaches(primary_source)
         }},
       "scores":scores,
@@ -903,7 +945,9 @@ def main():
         "overbank-storage option is conceptual and does not replace a measured storage-elevation-discharge curve or 2D floodplain model",
         "if Muçum is the primary fallback, Muçum itself is boundary-only and is excluded from forecast scoring"],
       "promotion_allowed":False}
-    (rt/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    pending_result=rt/"result.json.pending"
+    pending_result.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    pending_result.replace(rt/"result.json")
     print(json.dumps(result,ensure_ascii=False))
     return 0 if ok else 2
 
