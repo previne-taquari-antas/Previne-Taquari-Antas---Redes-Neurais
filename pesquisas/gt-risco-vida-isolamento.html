@@ -83,6 +83,7 @@ const $=id=>document.getElementById(id),fmt=v=>(v==null?"—":Number(v).toLocale
 const map=L.map("map",{preferCanvas:true}).setView([-29.170,-51.735],13);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
 const homes=L.layerGroup().addTo(map), roads=L.layerGroup().addTo(map),destinos=L.layerGroup().addTo(map);
+const canvasRenderer=L.canvas({padding:.3});
 let data=null,origin=null,inv=null,timer=null,requestId=0;
 const esc=s=>String(s??"—").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function draw(){
@@ -106,7 +107,7 @@ function draw(){
    else if(same&&pt.acesso_estrito)color="#187963";
    else if(pt.primeira_perda_acesso==null&&!pt.acesso_condicional)color="#8896a3";
    else color="#187963";
-   const p=L.circleMarker([pt.lat,pt.lon],{renderer:L.canvas(),radius:3.3,color:"#ffffff",weight:.4,fillColor:color,fillOpacity:.9});
+   const p=L.circleMarker([pt.lat,pt.lon],{renderer:canvasRenderer,radius:3.3,color:"#ffffff",weight:.4,fillColor:color,fillOpacity:.9});
    const cut=pt.primeira_perda_acesso;
    const cutText=cut?("perde acesso em HAND entre "+(cut.hand_limite_inferior_m??"abaixo de 0")+" e "+cut.hand_limite_superior_m+" m"):"sem perda identificada entre níveis analisados / sem conexão inicial";
    p.bindPopup("<b>Edificação OSM (uso residencial não confirmado)</b>"+
