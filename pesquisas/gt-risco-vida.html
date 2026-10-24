@@ -58,6 +58,7 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <div class="meta" id="mdtInfo">MDT LiDAR disponível para Santa Tereza; Muçum necessita camada equivalente preparada para esta página.</div>
 <label><input id="todasOrigens" type="checkbox" style="width:auto" checked> Exibir todas as edificações OSM (inclui imóveis sem uso residencial confirmado)</label>
 <div class="meta" id="qaResidencias">As posições ainda não foram verificadas nas imagens ou em campo. Todas as edificações OSM são exibidas inicialmente. Proximidade de 10 m ao CNEFE é apenas indicação preliminar de endereço, não validação de domicílio.</div>
+<div class="meta" id="auditoriaRota">Auditoria automática das ligações casa–rua e das lacunas de cota…</div>
 <h2>Informações hidrológicas e históricas</h2>
 <div class="meta" id="handInfo">HAND é altura relativa à drenagem, não altitude absoluta do terreno. Profundidade e correnteza não são calculadas neste painel.</div>
 <label for="evento">Referência histórica (régua)</label>
@@ -68,8 +69,8 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <div class="legend">
 <div><i class="key" style="background:#c0392b"></i>Na mancha modelada</div>
 <div><i class="key" style="background:#67409a"></i>Sem saída alta pelo grafo com cotas conhecidas</div>
-<div><i class="key" style="background:#df981e"></i>Saída sem folga altimétrica ou origem com cota desconhecida</div>
-<div><i class="key" style="background:#21836d"></i>Saída até ponto alto com margem modelada (provisória)</div>
+<div><i class="key" style="background:#df981e"></i>Sem margem mínima / cota desconhecida (não traçar)</div>
+<div><i class="key" style="background:#21836d"></i>Trecho alto conectado com margem modelada (acesso não vistoriado)</div>
 <div><i class="key" style="background:#7e8992"></i>Sem cota no nó de rua ou acesso não definido</div>
 </div>
 <label><input id="trechos" type="checkbox" style="width:auto"> Destacar trechos com maior uso nas rotas modeladas (não equivalem a isolamento causal)</label>
@@ -184,9 +185,12 @@ function alcanceAoTerrenoAlto(doc,n,margem){
 function corSaida(orig,f,n,comFolga,semFolga){
  const no=orig[f.no],agua=orig[f.cota_alaga];
  if(agua!=null&&Number(agua)<=n+1e-9)return ['#c0392b','edificação atingida na simulação'];
+ if(agua==null||!Number.isFinite(Number(agua)))return ['#dd9d2b','sem cota da edificação, verificação pendente'];
  if(!Number.isInteger(no)||no<0||no>=d.nos.length||d.cota_no[no]==null)return ['#7e8992','sem nó de rua com cota conhecida'];
- if(agua==null)return ['#dd9d2b','sem cota da edificação, verificação pendente'];
- if(comFolga[no])return ['#21836d','conectável a trecho mais alto com margem altimétrica modelada'];
+ const distAcesso=hav([orig[f.lat],orig[f.lon]],d.nos[no]);
+ if(!Number.isFinite(distAcesso)||distAcesso>60)return ['#7e8992','acesso entre edificação e rua maior que 60 m ou não calculável; ligação bloqueada'];
+ if(Number(agua)<=n+1)return ['#dd9d2b','edificação seca na simulação, mas sem margem altimétrica mínima de 1 m'];
+ if(comFolga[no])return ['#21836d','conectável a trecho mais alto com margem altimétrica modelada; acesso não vistoriado'];
  if(semFolga[no])return ['#dd9d2b','conectável a trecho mais alto sem margem de 1 m'];
  return ['#67409a','sem saída alta demonstrável na rede conhecida'];
 }
@@ -294,6 +298,11 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
     {color:'#a82d7c',weight:5,opacity:.77}).addTo(linhas)
     .bindPopup('Aresta OSM '+ix+' • '+count+' origens usam este segmento em rota inicial. Não é contagem de isolados.')}
  }
+ const distCampos=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
+ const semCotaCasa=d.casas.filter(h=>h[distCampos.cota_alaga]==null||!Number.isFinite(Number(h[distCampos.cota_alaga]))).length;
+ const acessoMais60=d.casas.filter(h=>{const no=h[distCampos.no];return Number.isInteger(no)&&no>=0&&no<d.nos.length&&hav([h[distCampos.lat],h[distCampos.lon]],d.nos[no])>60}).length;
+ const semCotaRua=d.edges.filter(e=>e[4]==null||!Number.isFinite(Number(e[4]))).length;
+ $('auditoriaRota').textContent='Triagem: '+acessoMais60+' ligações edificação–nó de rua acima de 60 m (traçado bloqueado); '+semCotaCasa+' edificações sem cota de inundação; '+semCotaRua+' trechos de rede sem cota utilizável. Essas contagens não provam falta de saída física: requerem revisão espacial e campo.';
  $('qaResidencias').textContent=d.meta.municipio==='Santa Tereza'?
   'Pontos exibidos: '+exibidos+' de '+d.casas.length+' edificações OSM. Dessas edificações, '+CNEFE_ST_10M.size+' têm endereço CNEFE a até 10 m do centróide. As demais permanecem visíveis; falta de vínculo não significa imóvel desocupado.':
   'Muçum: '+exibidos+' de '+d.casas.length+' edificações OSM exibidas, das quais '+CNEFE_MUCUM_10M.size+' apresentam proximidade preliminar ao CNEFE de até 10 m. As demais continuam visíveis e nenhuma correspondência foi validada como residência.';
