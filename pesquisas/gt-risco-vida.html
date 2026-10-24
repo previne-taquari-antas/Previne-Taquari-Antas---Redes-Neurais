@@ -43,8 +43,10 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <p>A origem é o ponto da edificação selecionada. A rota é recalculada para o nível HAND escolhido; não depende dos abrigos cadastrados.</p>
 <h2>Ruas e saídas no cenário</h2>
 <label><input id="vias" type="checkbox" style="width:auto" checked> Mostrar classificação das ruas</label>
+<label><input id="ruasElevadas" type="checkbox" style="width:auto" checked> Destacar trechos de ruas em terreno alto (independentes da rota)</label>
+<div class="meta" id="altosInfo">Procurando trechos elevados com cotas HAND conhecidas…</div>
 <label><input id="mostrarDestinos" type="checkbox" style="width:auto"> Mostrar abrigos e candidatos cadastrados (comparação)</label>
-<div class="legend"><div><i class="key" style="background:#23846b"></i>Trecho potencialmente transitável (modelo)</div><div><i class="key" style="background:#d89a27"></i>Trecho com dados altimétricos insuficientes</div><div><i class="key" style="background:#c33943"></i>Trecho atingido no cenário</div><div><i class="key" style="background:#a82d7c"></i>Trecho de uso concentrado nas rotas (opcional)</div></div>
+<div class="legend"><div><i class="key" style="background:#00a65a"></i>Trecho elevado candidato (HAND ≥ cenário + 2 m)</div><div><i class="key" style="background:#23846b"></i>Trecho fora da mancha no modelo</div><div><i class="key" style="background:#d89a27"></i>Trecho com dados altimétricos insuficientes</div><div><i class="key" style="background:#c33943"></i>Trecho atingido no cenário</div><div><i class="key" style="background:#a82d7c"></i>Trecho de uso concentrado nas rotas (opcional)</div></div>
 <div class="meta" id="viasInfo">Classificação de ruas baseada no grafo OSM e nas cotas modeladas, não em vistorias.</div>
 <div id="cadastroDestinos" hidden><h2>Destinos cadastrados (não determinam a saída mais próxima)</h2>
 <div class="meta" id="destinosInfo">Calculando destinos para este nível…</div>
@@ -78,10 +80,10 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <p><a href="https://github.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/blob/pesquisa/gt-risco-vida-isolamento-20261024/docs/gt-vulnerabilidades-risco-vida-isolamento-20261024.md">Metodologia e pendências</a></p>
 </aside><div id="mapwrap"><div id="map" aria-label="Mapa exploratório de isolamento por inundação"></div>
 <section id="visao" aria-label="Resultado espacial da simulação">
-<strong>Saída pela rua mais próxima em terreno alto</strong>
-<p id="visaoResumo">Carregando ruas e destinos…</p>
+<strong>Ruas altas e saída mais próxima</strong>
+<p id="visaoResumo">Carregando ruas e destinos…</p><p id="altosMapa">Identificando trechos altos no cenário…</p><button id="irCentro" type="button">Mostrar ruas altas do centro</button>
 <p id="visaoDestino">Clique em uma edificação para calcular a saída até um trecho mais alto na rede viária, evitando o alagamento simulado.</p>
-<div id="legendaMapa"><span><i style="background:#23846b"></i>Possível</span><span><i style="background:#d89a27"></i>Incerto</span><span><i style="background:#c33943"></i>Atingido</span></div>
+<div id="legendaMapa"><span><i style="background:#00a65a"></i>Rua alta candidata</span><span><i style="background:#23846b"></i>Possível</span><span><i style="background:#d89a27"></i>Incerto</span><span><i style="background:#c33943"></i>Atingido</span></div>
 <button id="exemploMapa" type="button">Exemplo de saída</button>
 <button id="voltarCota" type="button" hidden>Ver nível anterior com passagem</button>
 <p class="mini">O destino é apenas um ponto alto no grafo HAND/MDT, não um abrigo. Pontes, entrada do imóvel, correnteza e condições das ruas não foram vistoriadas.</p>
@@ -218,6 +220,45 @@ function mostraDestinos(n,policy,rotas){
   alvo.append(box);
  });
 }
+const CENTRO_ST=[[-29.171,-51.743],[-29.163,-51.728]];
+function noCentroST(lat,lon){return lat>=CENTRO_ST[0][0]&&lat<=CENTRO_ST[1][0]&&lon>=CENTRO_ST[0][1]&&lon<=CENTRO_ST[1][1]}
+function trechosElevados(doc,n){
+ const encontrados=[];
+ for(let i=0;i<doc.edges.length;i++){
+  const e=doc.edges[i],ca=doc.cota_no[e[0]],cb=doc.cota_no[e[1]],z=e[4];
+  if(e[3]||z==null||ca==null||cb==null)continue;
+  if(Math.min(Number(ca),Number(cb),Number(z))<n+2)continue;
+  const a=doc.nos[e[0]],b=doc.nos[e[1]];
+  encontrados.push({i,e,mid:[(a[0]+b[0])/2,(a[1]+b[1])/2],minHand:Math.min(Number(ca),Number(cb),Number(z))});
+ }
+ return encontrados;
+}
+function desenhaTrechosElevados(n){
+ const itens=trechosElevados(d,n),centro=d.meta.municipio==='Santa Tereza';
+ const selecionados=centro?itens.filter(x=>noCentroST(...x.mid)):itens;
+ $('altosInfo').textContent=itens.length+' segmentos com HAND ao menos 2 m acima do nível do cenário, cotas completas e sem pontes marcadas. '+(centro?selecionados.length+' desses no recorte do centro de Santa Tereza. ':'')+'São candidatos altimétricos, NÃO ruas liberadas ou proteção contra enchentes confirmada.';
+ $('altosMapa').textContent=centro?('Centro de Santa Tereza: '+selecionados.length+' trechos elevados candidatos • '+itens.length+' no município/recorte do grafo'):(itens.length+' trechos elevados candidatos na rede de Muçum.');
+ $('irCentro').hidden=!centro;
+ if(!$('ruasElevadas').checked)return;
+ // Realçar o que já consta no grafo, inclusive quando nenhuma edificação possui rota.
+ for(const x of itens){
+  const e=x.e,centroTag=centro&&noCentroST(...x.mid);
+  L.polyline([d.nos[e[0]],d.nos[e[1]]],{
+   color:'#00a65a',weight:centroTag?5.5:4.2,opacity:centroTag?.97:.88
+  }).addTo(linhas).bindPopup((centroTag?'Centro • ':'')+'Trecho alto candidato: HAND mínimo '+x.minHand.toFixed(1)+' m. Nível HAND do cenário '+n.toFixed(1)+' m. Não é comprovação de rua segura.');
+ }
+ // Um número pequeno de marcadores torna os candidatos localizáveis visualmente.
+ const grupos=new Set();let labels=0;
+ for(const x of selecionados){
+  const key=Math.round(x.mid[0]*650)+':'+Math.round(x.mid[1]*650);
+  if(grupos.has(key))continue;grupos.add(key);
+  if(grupos.size>18)break;
+  const marker=L.circleMarker(x.mid,{radius:7,color:'#075b42',weight:2,fillColor:'#80e6a6',fillOpacity:.98}).addTo(camadas)
+    .bindPopup('Ponto de rua alta candidato: HAND mínimo '+x.minHand.toFixed(1)+' m. Condições reais não verificadas.');
+  if(centro&&labels<4){marker.bindTooltip('Centro • rua alta candidata',{permanent:true,direction:'top',opacity:.85});labels++}
+ }
+}
+$('irCentro').addEventListener('click',()=>{if(d&&d.meta.municipio==='Santa Tereza')map.fitBounds(CENTRO_ST,{padding:[20,20]})});
 function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  const boa=alcanceAoTerrenoAlto(d,n,1),possivel=alcanceAoTerrenoAlto(d,n,0);
  let o=calcula(d,n,policy,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,policy,$('candidatos').checked);
@@ -227,9 +268,10 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  d.edges.forEach((e,i)=>{const state=avaliaTrecho(e,n);counts[state]++;
  if(!$('vias').checked)return;
  L.polyline([d.nos[e[0]],d.nos[e[1]]],{color:state==='atingido'?'#c33943':state==='incerto'?'#d89a27':'#23846b',
- weight:state==='atingido'?2.1:2.8,opacity:state==='atingido'?.54:.8,dashArray:state==='incerto'?'4 6':undefined})
+ weight:state==='atingido'?1.6:2.2,opacity:state==='atingido'?.38:.65,dashArray:state==='incerto'?'4 6':state==='atingido'?'3 5':undefined})
  .addTo(linhas).bindPopup('Trecho OSM #'+i+' — '+(state==='atingido'?'atingido no cenário':state==='incerto'?'altimetria insuficiente':'potencialmente transitável no cenário')+'. A condição física e hidráulica não foi validada.');});
- $('viasInfo').textContent=counts.possivel+' trechos potencialmente transitáveis; '+counts.incerto+' incertos; '+counts.atingido+' atingidos. Segmentos verdes não representam ruas certificadas como seguras.';
+ desenhaTrechosElevados(n);
+ $('viasInfo').textContent=counts.possivel+' trechos acima da cota simulada; '+counts.incerto+' incertos; '+counts.atingido+' atingidos no modelo. Os trechos em verde vivo são mais altos, mas não foram vistoriados.';
  $('visaoResumo').textContent=d.meta.municipio+' · HAND '+n.toFixed(1).replace('.',',')+' m | '+counts.possivel+' trechos fora da mancha, '+counts.incerto+' incertos, '+counts.atingido+' atingidos.';
  if(selecionada<0){$('visaoDestino').textContent='Clique em um ponto de edificação para traçar a saída mais próxima até rua mais alta, quando existir caminho com cotas conhecidas.';$('voltarCota').hidden=true;}
  let exibidos=0;
@@ -418,7 +460,7 @@ async function mudaCidade(){
  }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
 }
 $('cidade').addEventListener('change',mudaCidade);
-['cota','politica','candidatos','trechos','todasOrigens','vias','mostrarDestinos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
+['cota','politica','candidatos','trechos','todasOrigens','vias','ruasElevadas','mostrarDestinos'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
 $('mdt').addEventListener('change',atualizaMDT);
 $('opacityMdt').addEventListener('input',atualizaMDT);
 $('evento').addEventListener('change',()=>{
