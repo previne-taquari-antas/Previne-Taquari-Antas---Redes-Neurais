@@ -316,13 +316,16 @@ function rotaParaTerrenoAlto(doc,orig,campos,n,margem){
  const no=orig[campos.no],nn=doc.nos.length,aguaCasa=orig[campos.cota_alaga];
  const nulo={rota:null,causa:'',margem,origemNo:no};
  if(!Number.isInteger(no)||no<0||no>=nn)return {...nulo,causa:'Sem correspondência confiável da edificação com a rede de ruas.'};
- if(aguaCasa!=null&&Number(aguaCasa)<=n+1e-9)return {...nulo,causa:'A edificação já está na mancha simulada nesta cota.'};
- if(doc.cota_no[no]==null)return {...nulo,causa:'Falta cota HAND na rua associada a esta edificação.'};
+ if(aguaCasa==null||!Number.isFinite(Number(aguaCasa)))return {...nulo,causa:'Falta cota de inundação confiável para esta edificação; não é possível comprovar que a origem esteja fora da mancha.'};
+ if(Number(aguaCasa)<=n+1e-9)return {...nulo,causa:'A edificação já está na mancha simulada nesta cota.'};
+ const acessoEstimadoM=hav([orig[campos.lat],orig[campos.lon]],doc.nos[no]);
+ if(!Number.isFinite(acessoEstimadoM)||acessoEstimadoM>60)return {...nulo,causa:'A edificação está a '+(Number.isFinite(acessoEstimadoM)?Math.round(acessoEstimadoM)+' m':'distância desconhecida')+' do nó de rua associado. Associação acima de 60 m bloqueada para o traçado até conferência do acesso real.'};
+ if(doc.cota_no[no]==null||!Number.isFinite(Number(doc.cota_no[no])))return {...nulo,causa:'Falta cota HAND utilizável na rua associada a esta edificação.'};
  if(Number(doc.cota_no[no])<=n+margem)return {...nulo,causa:margem>0?'A origem não possui margem altimétrica de '+margem+' m.':'A rua associada à origem está atingida no cenário.'};
  const adj=Array.from({length:nn},()=>[]);
  for(let ei=0;ei<doc.edges.length;ei++){
   const e=doc.edges[ei],a=e[0],b=e[1],z=e[4];
-  if(e[3]||z==null||doc.cota_no[a]==null||doc.cota_no[b]==null)continue;
+  if(e[3]||z==null||doc.cota_no[a]==null||doc.cota_no[b]==null||![z,doc.cota_no[a],doc.cota_no[b]].every(v=>Number.isFinite(Number(v))))continue;
   if(Number(z)<=n+margem||Number(doc.cota_no[a])<=n+margem||Number(doc.cota_no[b])<=n+margem)continue;
   const metros=hav(doc.nos[a],doc.nos[b]);
   if(!Number.isFinite(metros)||metros<=0)continue;
@@ -368,7 +371,7 @@ function saidaMaisProxima(doc,orig,campos,n){
  const comFolga=rotaParaTerrenoAlto(doc,orig,campos,n,1);
  if(comFolga.rota)return {...comFolga,classe:'com_folga'};
  const semFolga=rotaParaTerrenoAlto(doc,orig,campos,n,0);
- if(semFolga.rota)return {...semFolga,classe:'sem_folga',observacao:'Não foi possível manter 1 m de margem em todo o trajeto; passagem modelada junto ao limite da água.'};
+ if(semFolga.rota)return {...semFolga,rota:null,classe:'pendente_margem',causa:'Existe um caminho modelado, mas não conserva 1 m de margem altimétrica em toda a rede; o traçado fica bloqueado e requer revisão do cenário.',observacao:comFolga.causa};
  return {...semFolga,classe:'indisponivel',observacao:comFolga.causa};
 }
 function melhorCotaAnterior(orig,f,n){
@@ -443,10 +446,10 @@ function exemploRota(automatico=false){
  const ids=d.meta.municipio==='Santa Tereza'?CNEFE_ST_10M:CNEFE_MUCUM_10M;
  const id=[...ids].find(i=>{
   const orig=d.casas[i];if(!orig)return false;
-  const r=saidaMaisProxima(d,orig,f,n).rota;
-  return r&&r.metros>=60&&r.acessoM<=60;
+  const resultado=saidaMaisProxima(d,orig,f,n),r=resultado.rota;
+  return resultado.classe==='com_folga'&&r&&r.metros>=40&&r.acessoM<=40;
  });
- if(id==null){$('visaoDestino').textContent='Neste nível o modelo não encontrou exemplo com acesso preliminar de até 60 m e ruas com cotas conhecidas. Selecione outra cota ou um ponto no mapa.';return}
+ if(id==null){$('visaoDestino').textContent='Neste nível não há exemplo com margem altimétrica mínima modelada de 1 m e ligação de até 40 m ao nó da rua entre as edificações com vínculo CNEFE preliminar. Selecione outra cota ou ponto no mapa.';return}
  selecionada=id;
  const orig=d.casas[id],o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
  mostra(id,orig,f,corSaida(orig,f,n,alcanceAoTerrenoAlto(d,n,1),alcanceAoTerrenoAlto(d,n,0)),o,c,alt,n);
