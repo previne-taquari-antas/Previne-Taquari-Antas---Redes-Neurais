@@ -1,5 +1,7 @@
 # HEC-HMS — revisão V3, Muçum e Estrela
 
+Atualização de Muçum: [geometria da planície e teste nativo](HEC_MUCUM_PLANICIE_20261024.md). A referência de zero da régua foi recuperada no SGB; a retenção V3 não foi validada como armazenamento da planície local. O registro independente do pico de novembro/2023 também favorece os horários brutos, questionando a correção de −105 min neste evento. Os resultados abaixo permanecem como histórico de calibração sob a hipótese QA105, não como confirmação hidráulica ou de relógio.
+
 Dois modelos independentes, calibrados para novembro/2023 (E24 q62 / E12 Muçum 2h). Não se exige que um conjunto de parâmetros funcione em outra cheia ou cidade.
 
 ## Comparação com a V2 realmente entregue
