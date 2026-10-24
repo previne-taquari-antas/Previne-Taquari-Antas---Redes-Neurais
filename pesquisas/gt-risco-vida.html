@@ -8,7 +8,7 @@
 header h1{font-size:18px;margin:2px 0}header small{color:#b8d3ce}main{display:grid;grid-template-columns:325px minmax(0,1fr);height:calc(100dvh - 88px)}
 aside{padding:15px;overflow:auto;background:#fff;box-shadow:1px 0 6px #ccd1cf;z-index:500}
 #map{height:100%;width:100%}h2{font-size:15px;margin:18px 0 8px}p{line-height:1.45;font-size:13px}
-label{display:block;font-weight:650;font-size:12px;margin:10px 0 5px}select,input{width:100%}
+label{display:block;font-weight:650;font-size:12px;margin:10px 0 5px}select,input{width:100%} #orientacao{font-size:14px;line-height:1.6;border-left:4px solid #14786a} #exemploRota{background:#14786a;color:white;font-weight:700;margin:8px 0 2px;min-height:39px}
 select{padding:7px;border-radius:7px;border:1px solid #afc1b9;background:white}
 input[type=range]{accent-color:#14786a}#nivel{font-weight:bold}#resumo{font-size:13px;line-height:1.6}
 .meta{font-size:12px;background:#f0f4f2;border:1px solid #d7e3dd;padding:10px;border-radius:8px;margin-top:10px}
@@ -29,7 +29,7 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <select id="politica"><option value="exploratoria">Exploratório: trechos sem informação permanecem (incertos)</option><option value="conservadora">Conservador: trechos sem cota ficam bloqueados</option></select>
 <label><input id="candidatos" type="checkbox" style="width:auto" checked> Incluir locais elevados candidatos (não são abrigos confirmados)</label>
 <div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
-<h2>Ruas, destinos e rotas no cenário</h2>
+<h2>Para onde ir? (simulação)</h2><div class="meta" id="orientacao">Selecione uma edificação no mapa ou clique no botão abaixo para ver destino e percurso calculados. Rotas ainda não validadas.</div><button id="exemploRota" type="button">Mostrar exemplo de rota no mapa</button><h2>Ruas, destinos e rotas no cenário</h2>
 <label><input id="vias" type="checkbox" style="width:auto" checked> Mostrar classificação das ruas</label>
 <label><input id="mostrarDestinos" type="checkbox" style="width:auto" checked> Mostrar abrigos cadastrados e locais elevados candidatos</label>
 <div class="legend"><div><i class="key" style="background:#23846b"></i>Trecho potencialmente transitável (modelo)</div><div><i class="key" style="background:#d89a27"></i>Trecho com dados altimétricos insuficientes</div><div><i class="key" style="background:#c33943"></i>Trecho atingido no cenário</div><div><i class="key" style="background:#a82d7c"></i>Trecho de uso concentrado nas rotas (opcional)</div></div>
@@ -210,20 +210,24 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  $('resumo').innerHTML='<b>'+d.meta.municipio+'</b><br>'+d.casas.length+' origens OSM, '+d.edges.length+' trechos de rede; '+d.abrigos.length+' locais cadastrados.<br>'+
  Object.entries(classes).map(([x,v])=>'<b>'+v+'</b> • '+x).join('<br>')+
  '<br><small>Insumos de '+(d.meta.gerado_em||'data desconhecida')+'; saída recalculada no navegador. Não é previsão ao vivo.</small>';
- if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,cor(z,f,o,c,alt,n),o,c,alt,n)}
+ if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,cor(z,f,o,c,alt,n),o,c,alt,n)}else $('orientacao').textContent='Selecione um ponto de edificação ou clique no exemplo. Ruas verdes são apenas trechos potencialmente transitáveis no modelo, não vias liberadas.';
  return bb;
 }
 function mostra(i,orig,f,descr,o,c,alt,n){
  const node=orig[f.no],valid=node>=0&&node<d.nos.length;
  const ok=valid&&Number.isFinite(o.dist[node]),isAlt=valid&&Number.isFinite(alt.dist[node]);
  const escolha=ok?o:(isAlt?alt:null);
- const fonte=escolha?.dest[node]||'nenhum destino conectado neste cenário';
+ const destinoId=escolha?.dest[node]??null;
+ const destino=destinoId==null?null:d.abrigos.concat(d.candidatos).find(a=>String(a.id)===String(destinoId));
+ const fonte=destino?(destino.nome||('Local elevado candidato '+(destino.ordem||destino.id)))+' ('+destino.lat.toFixed(5)+', '+destino.lon.toFixed(5)+')':'nenhum destino conectado neste cenário';
+ const tipoDestino=destino?(d.abrigos.some(a=>String(a.id)===String(destino.id))?'abrigo cadastrado':'local elevado candidato sem validação'):'destino indisponível';
  const minutos=escolha?(escolha.dist[node]/60).toFixed(1):'—';
  const flood=orig[f.cota_alaga],cut=corteAproximado(i,f);
  const registro='Evidência de endereço CNEFE a até 10 m do ponto OSM (não valida uso residencial)';
  const confianca=((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i)))?registro:'Sem correspondência próxima verificada nesta visualização';
  const cutGauge=cut==null?'não determinado':(cut+d.meta.bankfull_m).toFixed(1)+' m (aproximação)';
  const delta=(cut!=null&&flood!=null)?(flood-cut).toFixed(1)+' m':'indeterminada';
+ $('orientacao').textContent=destino?('Origem '+i+' → '+fonte+'. '+tipoDestino+'. Tempo teórico: '+minutos+' min. Percurso azul no mapa. NÃO é uma rota segura confirmada.'):('Origem '+i+': não foi identificado percurso até um destino neste cenário.');
  popup('Origem OSM #'+i+'\nSituação modelada: '+descr[1]+'\nCota da água na origem (HAND): '+(flood==null?'não determinada':flood+' m')+
   '\nClassificação residencial: '+confianca+
   '\nPrimeira ruptura/trecho alagado (série legada): '+cutGauge+
@@ -233,8 +237,19 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  rotaSelecionada.clearLayers();
  if(escolha){let chain=[],cur=node,visited=new Set();
  while(cur>=0&&!visited.has(cur)&&chain.length<d.nos.length){visited.add(cur);chain.push(d.nos[cur]);let x=escolha.next[cur];if(x===cur)break;cur=x}
- if(chain.length>1)L.polyline(chain,{color:'#136e8c',weight:4,opacity:.85,dashArray:'8 5'}).addTo(rotaSelecionada)}
+ if(chain.length>1){const line=L.polyline(chain,{color:'#0065dc',weight:7,opacity:.98,dashArray:'10 6'}).addTo(rotaSelecionada);if(destino)L.circleMarker([destino.lat,destino.lon],{radius:9,color:'#0065dc',fillColor:'#ffffff',fillOpacity:1}).addTo(rotaSelecionada);map.fitBounds(line.getBounds().pad(.2));}}
 }
+function exemploRota(){
+ if(!d)return;
+ const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
+ const n=Number($('cota').value),p=$('politica').value;
+ const o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
+ const ids=d.meta.municipio==='Santa Tereza'?CNEFE_ST_10M:CNEFE_MUCUM_10M;
+ const i=[...ids].find(i=>{const orig=d.casas[i];if(!orig)return false;const nd=orig[f.no];return Number.isInteger(nd)&&nd>=0&&Number.isFinite(alt.dist[nd])&&alt.next[nd]!==nd});
+ if(i==null){$('orientacao').textContent='Nenhum percurso computacional encontrado para os pontos filtrados neste cenário. Isso não prova impossibilidade de evacuação.';return;}
+ selecionada=i;const orig=d.casas[i];mostra(i,orig,f,cor(orig,f,o,c,alt,n),o,c,alt,n);
+}
+$('exemploRota').addEventListener('click',exemploRota);
 async function mudaCidade(){
  let slug=$('cidade').value;
  try{
