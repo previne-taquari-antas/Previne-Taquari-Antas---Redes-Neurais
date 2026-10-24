@@ -96,7 +96,24 @@ def completa(doc, cidade, taxa_cm_h=TAXA_PADRAO_CM_H):
 
 
 def escreve(doc, saida):
-    open(saida, "w", encoding="utf-8").write(_TEMPLATE.replace("__DADOS__", json.dumps(doc, ensure_ascii=False, separators=(",", ":"))))
+    # Preservar a navegacao para rotas de setembro/2023 nas republicacoes.
+    # Este estudo e especifico de Santa Tereza, nao de Mucum.
+    rotas_altas = ""
+    if doc["meta"].get("municipio") == "Santa Tereza":
+        rotas_altas = (
+            '<div style="margin:9px 14px;padding:10px 12px;border:1px solid #bbd4c6;'
+            'border-radius:9px;background:#f3faf6;font-size:13px;line-height:1.4">'
+            '<b>Para onde ir sem atravessar as ruas inundadas?</b> '
+            '<a href="santa_tereza_rotas_altas_set2023.html" '
+            'style="display:block;color:#075d40;font-weight:700;margin-top:5px">'
+            'Abrir rotas para terreno alto · setembro/2023 →</a>'
+            '<small>Mostra destinos em cotas superiores e distingue rua seca,'
+            ' alagada e sem classificação no modelo histórico.</small></div>'
+        )
+    html = _TEMPLATE.replace(
+        "__DADOS__", json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
+    ).replace("__ROTAS_ALTAS__", rotas_altas)
+    open(saida, "w", encoding="utf-8").write(html)
 
 
 def payload_publicado(saida):
@@ -216,6 +233,7 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
   <h1><span id="tit"></span> · <span id="cid"></span></h1>
   <div class="canais">Em emergência: <b>193</b> (Bombeiros) · <b>199</b> (Defesa Civil) · alertas por SMS: envie seu CEP para <b>40199</b>.</div>
   <div class="corpo">
+  __ROTAS_ALTAS__
   <div class="tabs" id="tabs"></div>
   <div class="bd">
     <div id="sliders" class="hide">
