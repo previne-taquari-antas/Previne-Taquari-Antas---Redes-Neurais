@@ -46,7 +46,7 @@ def engine(context,dt=.25):
             if p.get('loss_method')=='DeficitConstantLinear':
                 percolation=np.minimum(post,loss*dt)*model.AREAS[i]/(3.6*dt)
                 gw=percolation*p.get('gw_fraction_'+group,p['gw_fraction'])
-                for layer in range(int(p.get('gw_steps',2))):gw=linear(gw,p.get('gw_k_'+group,p['gw_k']),dt)
+                for layer in range(int(p.get('gw_steps_'+group,p.get('gw_steps',2)))):gw=linear(gw,p.get('gw_k_'+group,p['gw_k']),dt)
                 q+=gw
             out.append(q)
         jj=out[0]+out[1];car=linear(jj,p['routing_k']*2.557/44.524,dt)+out[2];stz=linear(car,p['routing_k']*18.315/44.524,dt)+out[3];mu=linear(stz,p['routing_k']*23.652/44.524,dt)+out[4]

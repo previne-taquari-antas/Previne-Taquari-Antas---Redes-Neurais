@@ -81,7 +81,7 @@ End:
                 f'     LossRate: Deficit Constant\n     Percent Impervious Area: 0.0\n     Initial Deficit: {initial:.9f}\n     Maximum Deficit: {max(200.,initial):.9f}\n     Percolation Rate: {loss:.9f}\n     Recovery Factor: 1.0',block)
             k=p.get('gw_k_'+group,p['gw_k']);fraction=p.get('gw_fraction_'+group,p['gw_fraction'])
             block=re.sub(r'     Baseflow: Recession\n.*?     Threshold Flow to Peak Ratio: [^\n]+',
-                f'     Baseflow: Linear Reservoir\n     Groundwater Layer: 1\n     GW-1 Baseflow Fraction: {fraction:.9f}\n     GW-1 Number Reservoirs: {int(p.get("gw_steps",2))}\n     GW-1 Routing Coefficient: {k:.9f}\n     GW-1 Initial Flow/Area Ratio: 0\n'
+                f'     Baseflow: Linear Reservoir\n     Groundwater Layer: 1\n     GW-1 Baseflow Fraction: {fraction:.9f}\n     GW-1 Number Reservoirs: {int(p.get("gw_steps_"+group,p.get("gw_steps",2)))}\n     GW-1 Routing Coefficient: {k:.9f}\n     GW-1 Initial Flow/Area Ratio: 0\n'
                 f'     Groundwater Layer: 2\n     GW-2 Baseflow Fraction: 0\n     GW-2 Number Reservoirs: 1\n     GW-2 Routing Coefficient: {-24/math.log(p["recession"]):.9f}\n     GW-2 Initial Flow/Area Ratio: {p["baseflow_specific"]:.9f}',block,flags=re.S)
         if p.get('loss_method')=='GreenAmpt' or group in p.get('green_ampt_groups',[]):
             import re

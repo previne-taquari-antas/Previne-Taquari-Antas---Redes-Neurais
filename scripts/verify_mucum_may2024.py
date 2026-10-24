@@ -93,9 +93,13 @@ def main():
     previous=m.load(m.OUT/'previous_accepted_selection.json')['metrics']['86510000']
     improved_previous=(new['nse']>previous['nse'] and new['kge']>previous['kge'] and abs(new['pbias_pct'])<abs(previous['pbias_pct']) and abs(new['peak_error_pct'])<abs(previous['peak_error_pct']) and abs(new['peak_time_minus_telemetry_h'])<abs(previous['peak_time_minus_telemetry_h']) and new['rising_NMAE']<previous['rising_NMAE'] and new['recession_NMAE']<previous['recession_NMAE'])
     if not improved_previous:raise RuntimeError('Soil revision failed to improve the previous accepted May model')
+    prior=m.load(m.OUT/'before_revision2_selection.json')['metrics']['86510000']
+    improved_revision2=(new['nse']>prior['nse'] and new['kge']>prior['kge'] and abs(new['pbias_pct'])<abs(prior['pbias_pct']) and abs(new['peak_error_pct'])<abs(prior['peak_error_pct']) and abs(new['peak_time_minus_telemetry_h'])<abs(prior['peak_time_minus_telemetry_h']) and new['rising_NMAE']<prior['rising_NMAE'] and new['recession_NMAE']<prior['recession_NMAE'])
+    if not improved_revision2:raise RuntimeError('Second-wave revision did not improve the accepted NSE 0.9981 model')
     audit=dict(native_recomputed_from_existing_DSS=True,values_per_element=count,area_km2=area,source_elements_present=False,observation_only_gage_has_zero_flow_effect_m3s=effect,
         original_rain=rain_audit,clock_shift_minutes=0,paired_Mu_hours=new['pairs'],paired_JJ_hours=metrics['86472000']['pairs'],joint_improvement_against_same_rainfall_baseline=improved,
         joint_improvement_against_previous_May_model=improved_previous,previous_May_metrics=previous,
+        joint_improvement_against_NSE_09981_revision=improved_revision2,previous_revision_metrics=prior,
         event_role='May 2024 event-specific calibration, not independent event validation',field_peak_reference_m=26.0,field_peak_reference_not_substituted_for_telemetry=True)
     selected.update(project=str(proj.relative_to(m.ROOT)),metrics=metrics,verification=audit);m.save(dest/'result.json',selected);m.save(m.OUT/'selection.json',selected)
     print(json.dumps(dict(metrics=new,audit=audit),ensure_ascii=False))
