@@ -469,15 +469,20 @@ def main():
     if fim >= agora - dt.timedelta(days=1):
         ultima_cemaden = _ultima_hora(series["chuva_cemaden_4320404010A"])
         atraso_h = None if ultima_cemaden is None else (agora - ultima_cemaden).total_seconds() / 3600
+        # Falha isolada de um sensor NÃO pode congelar todas as estações.
+        # Ausências continuam vazias e as capturas preservam a proveniência real.
+        # O consumidor decide o frescor por estação/janela, nunca pelo êxito
+        # do processo de coleta como um todo.
         if atraso_h is None or atraso_h > 8:
-            raise SystemExit(
-                "QA FALHOU: CEMADEN 432040401A sem observacao nas ultimas 8 horas; "
-                "CSV anterior foi preservado e nao sera substituido"
+            print(
+                "[QA degradada] CEMADEN 432040401A sem dado nas últimas 8h; "
+                "mantendo CEMADEN como atrasado e permitindo outras fontes válidas. "
+                f"Último horário: {ultima_cemaden.isoformat(timespec='minutes') if ultima_cemaden else 'ausente'}"
             )
         ultima_a894 = _ultima_hora(series["chuva_inmet_A894"])
         print(
             "[QA recente] CEMADEN ultima=",
-            ultima_cemaden.isoformat(timespec="minutes"),
+            ultima_cemaden.isoformat(timespec="minutes") if ultima_cemaden else "sem_dado",
             "A894 ultima=",
             ultima_a894.isoformat(timespec="minutes") if ultima_a894 else "sem_dado (estacao em pane)",
         )
