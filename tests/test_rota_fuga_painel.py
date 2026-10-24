@@ -8,10 +8,14 @@ painéis publicados. Cobrem a revisão de out/2026:
   - cheias de referência batendo com os picos das séries das réguas;
   - subida padrão de 90 cm/h (40 cm/h dava margem 2 a 5 vezes maior);
   - capacidade planejada de Muçum vinda do Plano de Contingência;
-  - pontos de Muçum em abrigos.geojson (sem eles o gerador abortava).
+  - pontos de Muçum em abrigos.geojson (sem eles o gerador abortava);
+  - locais altos de Santa Tereza (out/2026): fora da água de set/2023, a maior
+    cheia registrada, com 2 m de folga no HAND e na altitude do LiDAR; o painel
+    publicado é o recálculo de locais_altos.py.
 """
 import json
 import re
+import sys
 import unittest
 from pathlib import Path
 
@@ -23,6 +27,8 @@ SERIES = {"santa_tereza": RAIZ / "assets" / "data" / "eventos_analise.json",
           "mucum": RAIZ / "assets" / "data" / "mucum_eventos_analise.json"}
 PLANO_MUCUM = RAIZ / "assets" / "data" / "mucum_contingencia_202607.json"
 ABRIGOS = RAIZ / "assets" / "data" / "servicos" / "abrigos.geojson"
+sys.path.insert(0, str(RAIZ / "codigo_python" / "09_rota_fuga"))
+import locais_altos  # noqa: E402
 
 
 def ler(p):
@@ -77,6 +83,86 @@ class PainelPublicadoTest(unittest.TestCase):
             with self.subTest(abrigo=a["id"]):
                 self.assertEqual((cap["min"], cap["max"]), (min(vals), max(vals)))
         self.assertTrue(all(a["capacidade_plano"] is None for a in DADOS["santa_tereza"]["abrigos"]))
+
+
+class LocaisAltosTest(unittest.TestCase):
+    """Santa Tereza: locais altos sugeridos e cheias de referência."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d = DADOS["santa_tereza"]
+        cls.alt = cls.d["altos"]
+        cls.crit = cls.alt["meta"]["criterios"]
+        cls.A = {k: i for i, k in enumerate(cls.alt["meta"]["casas_campos"])}
+
+    def test_publicado_e_o_recalculo(self):
+        novo = locais_altos.calcula(json.loads(payload_bruto(HTML["santa_tereza"])), "santa_tereza")
+        for k, v in novo.items():
+            with self.subTest(campo=k):
+                self.assertEqual(json.loads(json.dumps(v)), self.alt[k])
+
+    def test_criterios_da_validacao_de_campo(self):
+        ch = self.alt["meta"]["cheia"]
+        self.assertAlmostEqual(ch["regua_m"] - ch["zero_regua_m"], ch["hand_m"], places=2)
+        self.assertAlmostEqual(self.crit["hand_min_m"], ch["hand_m"] + 2.0, places=2)
+        self.assertAlmostEqual(self.crit["altitude_min_m"], ch["agua_max_rtk_m"] + 2.0, places=2)
+        # a folga cobre o maior erro do HAND no sentido perigoso medido com RTK
+        self.assertGreater(self.alt["meta"]["folga_hand_m"], ch["erro_max_perigoso_m"])
+
+    def test_locais_ficam_fora_da_agua_de_2023_com_folga(self):
+        self.assertTrue(2 <= len(self.alt["locais"]) <= locais_altos.LOCAIS_MAX)
+        cota = self.d["cota_no"]
+        for loc in self.alt["locais"]:
+            with self.subTest(local=loc["id"]):
+                c = cota[loc["no"]]
+                self.assertTrue(c is None or c >= self.crit["hand_min_m"])
+                self.assertGreaterEqual(loc["altitude_m"], self.crit["altitude_min_local_m"])
+                self.assertEqual(self.alt["no_alto"][loc["no"]], 1)
+                self.assertGreater(loc["n_casas"], 0)
+
+    def test_rotas_pela_rede_e_corte_coerente(self):
+        A, cota = self.A, self.d["cota_no"]
+        aresta = {}
+        for a, b, _ag, _pe, cz in self.d["edges"]:
+            for k in ((a, b), (b, a)):
+                aresta[k] = max(aresta.get(k, -1), 1e9 if cz is None else cz)
+        n_rota = 0
+        for ci, c in enumerate(self.alt["casas"]):
+            if self.alt["meta"]["estados"][c[A["estado"]]] != "rota":
+                continue
+            n_rota += 1
+            r = c[A["rota"]]
+            with self.subTest(casa=ci):
+                F = {k: i for i, k in enumerate(self.d["meta"]["casas_campos"])}
+                self.assertEqual(r[0], self.d["casas"][ci][F["no"]])
+                self.assertEqual(r[-1], self.alt["locais"][c[A["local"]]]["no"])
+                self.assertTrue(all((u, v) in aresta for u, v in zip(r, r[1:])))
+                cortes = [aresta[(u, v)] for u, v in zip(r, r[1:])] + [1e9 if cota[k] is None else cota[k] for k in r]
+                esperado = min(cortes)
+                self.assertEqual(c[A["corte_m"]], None if esperado >= 1e9 else round(esperado, 1))
+        self.assertGreater(n_rota, 100)
+
+    def test_set2023_e_a_maior_cheia(self):
+        cheias = {c["rotulo"]: c for c in self.d["meta"]["cheias_ref"]}
+        self.assertNotIn("ref. mai/2024", cheias)
+        self.assertEqual(cheias["mai/2024"]["regua_m"], 22.42)  # SGB; telemetria parou em 22,32 m
+        hist = [c for c in cheias.values() if c.get("tipo") != "cota_oficial"]
+        self.assertEqual(max(hist, key=lambda c: c["regua_m"])["rotulo"], "set/2023")
+        self.assertEqual(self.alt["meta"]["cheia"]["regua_m"], cheias["set/2023"]["regua_m"])
+
+    def test_ginasio_fica_dentro_da_agua_de_2023(self):
+        gin = self.d["abrigos"][0]
+        self.assertLessEqual(gin["cota_alaga_m"], self.alt["meta"]["cheia"]["hand_m"])
+
+    def test_candidatos_antigos_saem_e_mancha_de_2023(self):
+        self.assertEqual(self.d["candidatos"], [])
+        self.assertIsNone(self.d["rota_cand"])
+        m = self.alt["mancha_cheia"]
+        self.assertAlmostEqual(m["nivel_hand_m"], 22.1, places=6)
+        self.assertTrue(m["poligonos"])
+        self.assertEqual(len(self.alt["cel_alta"]), len(self.d["cells"]))
+        self.assertTrue(all(not c["casas"] for c, f in zip(self.d["cells"], self.alt["cel_alta"]) if f))
+        self.assertNotIn("altos", DADOS["mucum"])
 
 
 class AbrigosGeojsonTest(unittest.TestCase):
