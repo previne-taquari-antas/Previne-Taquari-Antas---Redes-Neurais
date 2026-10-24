@@ -23,6 +23,8 @@ const context={L,document:{getElementById:elem,createElement:()=>node(),createTe
 vm.runInNewContext(code,context,{timeout:20000,filename:'gt-risco-vida.inline.js'});
 // Async mudaCidade triggers until its first await, all data inline so immediate.
 assert(/Santa Tereza/.test(elem('resumo').innerHTML),'Santa Tereza not rendered');
+assert(/Exemplo ilustrativo/.test(elem('visaoDestino').textContent),'Initial Santa Tereza route example is not visible');
+assert(/Origem/.test(elem('visaoDestino').textContent),'Initial route must identify an example origin');
 assert(/Centro de Santa Tereza/.test(elem('altosMapa').textContent),'Center elevated-road overlay not described');
 assert(/trechos elevados candidatos/.test(elem('altosMapa').textContent),'Center candidate street counts missing');
 assert(vm.runInNewContext("trechosElevados(d,13.4).some(x=>x.mid[0]>=-29.171&&x.mid[0]<=-29.163&&x.mid[1]>=-51.743&&x.mid[1]<=-51.728)",context,{timeout:20000}),
@@ -33,7 +35,7 @@ vm.runInNewContext("mudaCidade()",context,{timeout:20000});
 assert(/Muçum/.test(elem('resumo').innerHTML),'Muçum not rendered');
 assert(/1937/.test(elem('resumo').innerHTML),'No 1937 points in Muçum summary');
 assert(/Muçum/.test(elem('visaoResumo').textContent),'Floating map summary not rendered');
-assert(/Clique/.test(elem('visaoDestino').textContent),'User must select a building before mapping a route');
+assert(/Exemplo ilustrativo/.test(elem('visaoDestino').textContent),'Muçum must open with an example, not an empty map');
 vm.runInNewContext("exemploRota()",context,{timeout:20000});
 assert(/Origem/.test(elem('visaoDestino').textContent),'Sample nearest high street route not displayed');
 const mucRoute=vm.runInNewContext(`(()=>{const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));for(const x of d.casas){const y=rotaParaTerrenoAlto(d,x,f,13,0);if(y.rota)return y.rota;}return null})()`,context,{timeout:20000});
