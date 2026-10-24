@@ -138,7 +138,8 @@ class WorkflowContractTests(unittest.TestCase):
                 shell = publication_shell(writer)
                 self.assertNotRegex(shell, r"git (?:pull|rebase)|--autostash|--force")
                 self.assertIn("git reset --keep origin/main", shell)
-                self.assertIn("timeout 120s python -B codigo_python/10_chuvas/baixar_chuvas_horarias.py", shell)
+                expected_timeout = "120s" if writer == "basin-station-forecast" else "300s"
+                self.assertIn(f"timeout {expected_timeout} python -B codigo_python/10_chuvas/baixar_chuvas_horarias.py", shell)
                 self.assertIn("git add --sparse " + META, shell)
                 gate = "python -B " + GATE + " --validate-pair"
                 self.assertLess(shell.index(gate), shell.index("git add --sparse"))
