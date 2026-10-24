@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rotas para terreno alto | Santa Tereza | Setembro de 2023 — PREVINE</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}html,body,#map{height:100%;margin:0}body{font:14px/1.45 system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#18332a}
+#map{position:fixed;inset:0}.leaflet-container{background:#e6e9e2}
+.hud{position:absolute;z-index:800;top:12px;left:12px;width:350px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;border-radius:14px;background:rgba(255,255,255,.98);box-shadow:0 4px 20px #0003;padding:15px}
+h1{font-size:18px;line-height:1.23;margin:0 35px 5px 0}p{margin:5px 0 9px}.small{font-size:12px;color:#51665a}.header{color:#0d6549;font-weight:700;letter-spacing:.025em;font-size:11px}.metric{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:7px 0;border-bottom:1px solid #e5ede8}.metric strong{font-variant-numeric:tabular-nums}
+button{cursor:pointer;border-radius:8px;border:1px solid #b9cfc2;background:#f2f8f5;padding:7px 10px;color:#155b42;font-weight:650}
+#toggle{position:absolute;right:12px;top:10px}#hud.collapse .inner{display:none}
+#resultado{border-radius:9px;background:#ebf7f0;border:1px solid #bed8c8;padding:11px;margin-top:10px;min-height:64px;font-size:13px}
+#resultado.warn{background:#fff7e7;border-color:#edcc88}#resultado.bad{background:#ffefed;border-color:#e0a8a2}
+#resultado b{font-size:14px}.leg{font-size:12px;margin:8px 0}.tag{display:inline-flex;align-items:center;gap:5px;margin:3px 10px 3px 0}.sw{height:10px;width:16px;display:inline-block;border-radius:2px}
+#load{font-size:12px;color:#48655a;margin-top:9px}
+a{color:#08724d}#waterToggle{font-size:12px} .hint{padding:6px 0;font-size:12px;border-top:1px solid #e4e9e5;margin-top:10px}
+@media(max-width:700px){.hud{top:auto;bottom:9px;left:9px;right:9px;width:auto;max-width:none;max-height:47dvh;padding:12px}.hud h1{font-size:16px}.leaflet-top.leaflet-left{top:8px}#hud.collapse{max-height:70px;overflow:hidden}}
+</style></head><body>
+<div id="map" role="application" aria-label="Mapa de edificações, trechos classificados e rotas modeladas de Santa Tereza"></div>
+<section id="hud" class="hud" aria-live="polite">
+  <button id="toggle" type="button" aria-label="Recolher ou expandir painel">−</button>
+  <div class="header">PREVINE · ANÁLISE HISTÓRICA EXPLORATÓRIA</div>
+  <h1>Da casa para o terreno alto</h1>
+  <div class="inner">
+    <p class="small">Santa Tereza · cheia de <b>setembro de 2023</b>. Toque em um ponto de edificação para visualizar um destino elevado e o caminho pela rede de ruas.</p>
+    <div class="metric"><span>Referência na régua</span><strong>23,65 m</strong></div>
+    <div class="metric"><span>Equivalente no HAND do projeto</span><strong>22,05 m</strong></div>
+    <div class="metric"><span>Critério de destino</span><strong>HAND acima de 24,05 m</strong></div>
+    <div id="load">Carregando rede e edificações…</div>
+    <div id="resultado">Selecione uma casa no mapa para ver até onde a rede de ruas permite chegar.</div>
+    <div class="leg" aria-label="Legenda">
+      <span class="tag"><i class="sw" style="background:#176a46"></i>rua seca no modelo</span>
+      <span class="tag"><i class="sw" style="background:#c03932"></i>rua atingida (excluída)</span>
+      <span class="tag"><i class="sw" style="background:#c18b25"></i>rua sem classificação</span>
+      <span class="tag"><i class="sw" style="background:#3062b2"></i>edificação atingida</span>
+      <span class="tag"><i class="sw" style="background:#138d5f"></i>edificação com rota seca modelada</span>
+      <span class="tag"><i class="sw" style="background:#e3a53b"></i>acesso incerto</span>
+    </div>
+    <button type="button" id="waterToggle">Exibir mancha exploratória</button>
+    <p class="hint"><b>Limitação decisiva:</b> as cotas são limiares do HAND, não altitudes absolutas do MDT nem comprovação de que a rua ficou seca em 2023. Trechos sem informação não são classificados como seguros. A mancha do Marrecão ainda precisa de validação hidráulica. Esta ferramenta não deve orientar uma evacuação real.</p>
+    <p class="small"><a href="santa_tereza_painel_casas.html#margem">Margem de evacuação</a> · <a href="santa_tereza_painel_evacuacao.html">Painel de evacuação</a> · Em emergência: Defesa Civil 199 e Bombeiros 193.</p>
+  </div>
+</section>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+const H=22.05, MARGEM=2.0, DEST_MIN=H+MARGEM+0.00001;
+const ui=document.getElementById('hud'), box=document.getElementById('resultado'), aviso=document.getElementById('load');
+document.getElementById('toggle').onclick=function(){ui.classList.toggle('collapse');this.textContent=ui.classList.contains('collapse')?'+':'−';};
+const map=L.map('map',{preferCanvas:true,zoomControl:false}).setView([-29.1694,-51.7358],15);
+L.control.zoom({position:'topright'}).addTo(map);
+const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+osm.addTo(map);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens Esri'});
+L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{position:'topright'}).addTo(map);
+let D=null, casaMarks=[], destinoMarks=[], selecao=[], saida=null, G=null, GD=null, GU=null, flood=null, layerFlood=null, floodShown=false;
+const ruaLayer=L.layerGroup().addTo(map), casaLayer=L.layerGroup().addTo(map), destinoLayer=L.layerGroup().addTo(map), linhaLayer=L.layerGroup().addTo(map);
+function metres(a,b){const lat=(a[0]+b[0])*Math.PI/360;return Math.hypot((a[0]-b[0])*111320,(a[1]-b[1])*111320*Math.cos(lat));}
+function num(v){return (Math.round(v*10)/10).toLocaleString('pt-BR');}
+function dist(v){return v<1000?Math.round(v)+' m':num(v/1000)+' km';}
+function statusCasa(c){const n=c[4],water=c[5];if(water!==null && water<=H)return 'alagada';if(n<0||!D.nos[n])return 'sem';if(water!==null&&water>H&&GD.source[n]>=0)return 'seca';if(GU.source[n]>=0)return 'incerta';return 'sem';}
+function corCasa(s){return {alagada:'#3062b2',seca:'#138d5f',incerta:'#e3a53b',sem:'#747f78'}[s]||'#777';}
+function heap(){const a=[];return {push(x){a.push(x);let i=a.length-1;while(i>0){let p=(i-1)>>1;if(a[p][0]<=x[0])break;a[i]=a[p];i=p;}a[i]=x;},pop(){if(!a.length)return null;const z=a[0],last=a.pop();if(a.length){let i=0;while(i*2+1<a.length){let j=i*2+1;if(j+1<a.length&&a[j+1][0]<a[j][0])j++;if(last[0]<=a[j][0])break;a[i]=a[j];i=j;}a[i]=last;}return z;},get length(){return a.length;}};}
+function montaGrafo(){
+ const n=D.nos.length,adj=Array.from({length:n},()=>[]);
+ let wet=0,dry=0,unknown=0;
+ D.arestas.forEach((e,k)=>{
+  const [a,b,limiar]=e; if(a<0||b<0||!D.nos[a]||!D.nos[b])return;
+  let tipo=limiar===null?'incerto':limiar<=H?'molhado':'seco';
+  if(tipo==='molhado')wet++;else if(tipo==='incerto')unknown++;else dry++;
+  const len=metres(D.nos[a],D.nos[b]);
+  if(tipo!=='molhado'){adj[a].push([b,len,tipo,k]);adj[b].push([a,len,tipo,k]);}
+  const colors={molhado:'#c03932',incerto:'#c18b25',seco:'#23895b'};
+  const pl=L.polyline([D.nos[a],D.nos[b]],{color:colors[tipo],weight:tipo==='molhado'?3:2.2,opacity:tipo==='molhado'?.8:.7,dashArray:tipo==='incerto'?'3 6':null,interactive:false});
+  ruaLayer.addLayer(pl);
+ });
+ const destinos=D.cota_alaga_nos.map((v,i)=>v!==null&&v>DEST_MIN?i:-1).filter(v=>v>=0);
+ return {adj,destinos,wet,dry,unknown};
+}
+function dijkstra(permiteIncerto){
+ const n=D.nos.length,source=Array(n).fill(-1),next=Array(n).fill(-1),custo=Array(n).fill(Infinity),length=Array(n).fill(0),uncertain=Array(n).fill(0),q=heap();
+ G.destinos.forEach(i=>{source[i]=i;custo[i]=0;q.push([0,i]);});
+ while(q.length){
+  const el=q.pop();if(!el)break;const [d,u]=el;if(d>custo[u]+0.001)continue;
+  for(const [v,m,tipo] of G.adj[u]){
+   if(tipo==='incerto'&&!permiteIncerto)continue;
+   const nd=d+m+(tipo==='incerto'?30:0);
+   if(nd>=custo[v])continue;
+   custo[v]=nd;source[v]=source[u];next[v]=u;length[v]=length[u]+m;uncertain[v]=uncertain[u]+(tipo==='incerto'?1:0);q.push([nd,v]);
+  }
+ }
+ return {source,next,custo,length,uncertain};
+}
+function limpa(){linhaLayer.clearLayers();if(saida){map.removeLayer(saida);saida=null;}}
+function proximoAlto(c){let best=-1,d=Infinity;for(const i of G.destinos){const v=metres([c[0],c[1]],D.nos[i]);if(v<d){d=v;best=i;}}return [best,d];}
+function mostraCasa(ci){
+ const c=D.casas[ci];if(!c)return;limpa();
+ if(window.innerWidth<701)ui.classList.remove('collapse');
+ saida=L.circleMarker([c[0],c[1]],{radius:9,color:'#093a29',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(map);
+ const s=statusCasa(c),n=c[4],target=s==='seca'?GD:GU;
+ const cota=c[5]===null?'sem limiar conhecido':'limiar HAND '+num(c[5])+' m';
+ const lead='<b>Edificação '+(ci+1)+'</b> · '+cota+'<br>';
+ if(s==='alagada'){
+  const [alto,metros]=proximoAlto(c);
+  box.className='bad';
+  box.innerHTML=lead+'<b>Atingida no cenário do pico.</b> As ruas inundadas foram retiradas do grafo; não é possível oferecer uma rota totalmente seca partindo daqui quando a água já está no pico.'+
+   (alto>=0?'<br><b>Referência em terreno mais elevado no modelo:</b> ponto HAND '+num(D.cota_alaga_nos[alto])+' m, '+dist(metros)+' em linha reta. <b>Não é caminho de fuga verificado.</b>':'')+
+   '<br>Essa situação exige planejamento de saída <b>antes</b> de a inundação alcançar a casa.';
+  map.panTo([c[0],c[1]]);return;
+ }
+ if(n<0||!D.nos[n]||target.source[n]<0){
+  box.className='bad';box.innerHTML=lead+'<b>Não foi encontrada uma ligação por ruas não inundadas</b> até ponto elevado no grafo disponível. Não inventar travessia por ruas alagadas ou sem conexão.';map.panTo([c[0],c[1]]);return;
+ }
+ const isDry=s==='seca',goal=target.source[n],route=[n],seen=new Set([n]);let cur=n,steps=0;
+ while(cur!==goal&&steps++<D.nos.length){const nx=target.next[cur];if(nx<0||seen.has(nx))break;route.push(nx);seen.add(nx);cur=nx;}
+ if(cur!==goal){box.className='bad';box.innerHTML=lead+'Rota não pôde ser reconstruída sem ciclo. Verificar o grafo.';return;}
+ const connector=[[c[0],c[1]]];
+ if(c[2]!==null&&c[3]!==null)connector.push([c[2],c[3]]);
+ connector.push(D.nos[n]);
+ L.polyline(connector,{color:'#1b445e',weight:2,dashArray:'3 5',opacity:.9}).addTo(linhaLayer);
+ for(let j=1;j<route.length;j++){
+  const a=route[j-1],b=route[j];
+  const e=G.adj[a].find(x=>x[0]===b);
+  const known=e&&e[2]==='seco';
+  L.polyline([D.nos[a],D.nos[b]],{color:known?'#006a43':'#d18a00',weight:6,opacity:.96,dashArray:known?null:'8 8'}).addTo(linhaLayer);
+ }
+ L.circleMarker(D.nos[goal],{radius:10,color:'#0d583b',weight:3,fillColor:'#b6f0ca',fillOpacity:1}).addTo(linhaLayer)
+ .bindTooltip('Destino em cota alta do HAND', {permanent:false}).openTooltip();
+ const km=target.length[n]+metres([c[0],c[1]],D.nos[n]);
+ box.className=isDry?'':'warn';
+ box.innerHTML=lead+
+  (isDry?'<b>Destino: ponto elevado na rede de ruas.</b><br><b>Traçado verde:</b> as ruas ficaram fora da mancha segundo os limiares do HAND publicado.':
+   '<b>Destino elevado identificado, mas não há uma rota inteiramente classificada como seca.</b> Segmentos laranja são trechos sem limiar de inundação, portanto o traçado é <b>incerto e não deve ser usado para evacuar</b>.')+
+  '<br>Distância estimada pela rede: <b>'+dist(km)+'</b>. Destino: '+D.nos[goal][0].toFixed(6)+', '+D.nos[goal][1].toFixed(6)+
+  ' · limiar do destino <b>HAND '+num(D.cota_alaga_nos[goal])+' m</b> ('+num(D.cota_alaga_nos[goal]-H)+' m acima da referência).'+
+  (isDry?'<br>Mesmo neste traçado, o acesso da casa à rua, pontes e condições atuais exigem conferência.':'<br>Trechos não classificados: '+target.uncertain[n]+'.')+
+  '<br><span class="small">O ponto elevado não é abrigo, e a capacidade e a acessibilidade não foram verificadas.</span>';
+ const group=L.featureGroup([saida,...linhaLayer.getLayers()]);
+ if(group.getBounds().isValid())map.fitBounds(group.getBounds().pad(.55),{maxZoom:17,paddingTopLeft:[18,70],paddingBottomRight:[18,window.innerWidth<701?220:18]});
+}
+function mostraDestinos(){
+ G.destinos.forEach(i=>{
+  const p=D.nos[i],c=D.cota_alaga_nos[i];
+  const m=L.circleMarker(p,{radius:6,color:'#0e623e',weight:2,fillColor:'#d1f4da',fillOpacity:1})
+   .bindPopup('<b>Ponto alto pela cota HAND</b><br>Limiar estimado: '+num(c)+' m<br>Folga em relação a set/2023: '+num(c-H)+' m.<br>Não é abrigo confirmado.');
+  destinoLayer.addLayer(m);
+ });
+}
+function pintaCasas(){
+ const counts={alagada:0,seca:0,incerta:0,sem:0};
+ D.casas.forEach((c,i)=>{
+  const s=statusCasa(c);counts[s]++;
+  const marker=L.circleMarker([c[0],c[1]],{renderer:L.canvas({padding:.4}),radius:4,weight:1,color:'#23372b',fillColor:corCasa(s),fillOpacity:.95})
+   .bindTooltip('Edificação '+(i+1)+' · toque para analisar');
+  marker.on('click',e=>{L.DomEvent.stopPropagation(e);mostraCasa(i);});
+  casaLayer.addLayer(marker);casaMarks.push(marker);
+ });
+ aviso.textContent=D.casas.length+' edificações · '+G.dry+' ruas secas no modelo · '+G.wet+' atingidas · '+G.unknown+' sem limiar. Destinos elevados: '+G.destinos.length+'.';
+ return counts;
+}
+map.on('click',function(e){
+ if(!D)return;let idx=-1,closest=Infinity;
+ D.casas.forEach((c,i)=>{const d=metres([e.latlng.lat,e.latlng.lng],[c[0],c[1]]);if(d<closest){closest=d;idx=i;}});
+ if(closest<45)mostraCasa(idx);
+});
+async function carregaMancha(){
+ if(flood)return flood;
+ const res=await fetch('assets/data/santa_tereza_inundacao/contornos_previa_visual_leve.json');
+ if(!res.ok)throw Error('Mancha não disponível');
+ const fc=await res.json();
+ if(fc.metadata?.status!=='previa_visual_legada_nao_validada'||fc.metadata?.preview_only!==true)throw Error('Proveniência da mancha incompatível');
+ const f=fc.features.find(f=>f.properties&&f.properties.nivel_m===23);
+ if(!f)throw Error('Contorno 23 m ausente');
+ flood=L.geoJSON(f.geometry,{style:{color:'#22659a',weight:1,fillColor:'#327fba',fillOpacity:.23},interactive:false});
+ return flood;
+}
+document.getElementById('waterToggle').onclick=async function(){
+ this.disabled=true;
+ try{
+  await carregaMancha();floodShown=!floodShown;
+  if(floodShown){flood.addTo(map);flood.bringToBack();this.textContent='Ocultar mancha exploratória';}
+  else{map.removeLayer(flood);this.textContent='Exibir mancha exploratória';}
+ }catch(e){aviso.textContent+=' · Mancha indisponível: '+e.message;}finally{this.disabled=false;}
+};
+async function init(){
+ try{
+  const res=await fetch('assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json',{cache:'no-store'});
+  if(!res.ok)throw Error('Arquivo do grafo HTTP '+res.status);
+  D=await res.json();
+  if(D.schema_version!=='previne_rota_alta_historica_v1'||D.nivel_hand_m!==H||D.nos.length!==D.cota_alaga_nos.length)throw Error('Dados não correspondem ao cenário');
+  G=montaGrafo();GD=dijkstra(false);GU=dijkstra(true);mostraDestinos();const c=pintaCasas();
+  box.innerHTML='Toque num dos <b>'+D.casas.length+' pontos de edificações</b>. As rotas inteiramente secas no cenário ficam verdes; se depender de rua não classificada, a linha ficará laranja e não será apresentada como rota segura.'+
+   '<br><span class="small">Casas com rota seca modelada: '+c.seca+'; acesso incerto: '+c.incerta+'; atingidas no pico: '+c.alagada+'; sem caminho identificado: '+c.sem+'.</span>';
+  setTimeout(()=>map.invalidateSize(),80);
+ }catch(err){box.className='bad';box.textContent='Falha ao carregar o mapa: '+err.message;aviso.textContent='Rede indisponível.';console.error(err);}
+}
+init();
+</script></body></html>
