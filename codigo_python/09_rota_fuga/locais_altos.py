@@ -366,10 +366,11 @@ def resumo(alt, doc):
         linhas.append(f"tempo até o local (idoso): mediana {ts[len(ts) // 2]:.1f} min, p90 {ts[int(0.9 * (len(ts) - 1))]:.1f}, "
                       f"máx {ts[-1]:.1f} · rota cortada antes de a água chegar na casa: {antes}")
     for loc in alt["locais"]:
+        perto = ", ".join(f"{p['nome']} ({p['m']} m)" for p in loc["perto"]) or "-"
         linhas.append(f"  {loc['id']}: {loc['lat']:.6f},{loc['lon']:.6f} alt {loc['altitude_m']} m "
                       f"(+{loc['folga_altitude_m']} m) · {loc['n_casas']} casas, ~{loc['pessoas']} pessoas, "
                       f"mediana {loc['tempo_mediano_min']} min, máx {loc['tempo_max_min']} min · "
-                      f"{loc['rua'] or 'rua sem nome'} · perto: {', '.join(p['nome'] + f' ({p['m']} m)' for p in loc['perto']) or '-'}")
+                      f"{loc['rua'] or 'rua sem nome'} · perto: {perto}")
     return "\n".join(linhas)
 
 
