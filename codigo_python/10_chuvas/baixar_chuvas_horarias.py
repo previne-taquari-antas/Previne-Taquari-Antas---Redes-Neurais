@@ -283,7 +283,7 @@ def ana_chuva_horaria(cod, inicio, fim, *, capturas=None):
         url = f"{ANA_URL}?codEstacao={cod}&dataInicio={ini_m:%d/%m/%Y}&dataFim={fim_m:%d/%m/%Y}"
         try:
             consulta = {}
-            xml = http_get(url, timeout=120, captura=consulta)
+            xml = http_get(url, timeout=22, tentativas=2, captura=consulta)
             root = ET.fromstring(xml)
             roots = [root]
             if (root.text or "").strip().startswith("<"):
@@ -331,7 +331,7 @@ def inmet_chuva_horaria(cod, inicio, fim, *, capturas=None):
         url = INMET_URL.format(ini=a_ini.isoformat(), fim=a_fim.isoformat(), cod=cod)
         try:
             consulta = {}
-            bruto = http_get(url, timeout=120, headers={"Accept": "application/json"}, captura=consulta)
+            bruto = http_get(url, timeout=22, tentativas=2, headers={"Accept": "application/json"}, captura=consulta)
             try:
                 dados = json.loads(bruto)
             except Exception:
@@ -378,7 +378,7 @@ def cemaden_chuva_horaria(cod, inicio, fim, *, capturas=None):
                                         "fim": fim_m.strftime("%Y%m%d"), "sensor": "chuva"})
             try:
                 consulta = {}
-                dados = json.loads(http_get(f"{base}?{q}", timeout=120,
+                dados = json.loads(http_get(f"{base}?{q}", timeout=22, tentativas=2,
                                             headers={"token": token}, captura=consulta))
                 n0 = len(serie)
                 for r in (dados if isinstance(dados, list) else dados.get("dados", [])):
@@ -405,7 +405,7 @@ def cemaden_chuva_horaria(cod, inicio, fim, *, capturas=None):
         consulta = {}
         bruto = http_get(
             CEMADEN_URL.format(id_estacao=CEMADEN_ID, horas_menos_um=167),
-            timeout=30, tentativas=2, headers={"Accept": "application/json"}, captura=consulta,
+            timeout=18, tentativas=2, headers={"Accept": "application/json"}, captura=consulta,
         )
         recente = parse_cemaden_chuva(json.loads(bruto.decode("utf-8-sig")), codigo_esperado=cod)
         recente = {hora: valor for hora, valor in recente.items() if inicio <= hora <= fim}
