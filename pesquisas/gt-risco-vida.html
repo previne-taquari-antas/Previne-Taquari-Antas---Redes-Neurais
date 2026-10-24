@@ -39,8 +39,8 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
 <h2>Saída para rua mais alta</h2>
 <div class="meta" id="orientacao">Clique no ponto de uma edificação. O modelo procura o caminho viário mais curto até um trecho mais alto, fora da mancha estimada.</div>
-<button id="exemploRota" type="button">Mostrar exemplo de saída no mapa</button>
-<p>A origem é o ponto da edificação selecionada. A rota é recalculada para o nível HAND escolhido; não depende dos abrigos cadastrados.</p>
+<button id="exemploRota" type="button">Mostrar uma rota azul de exemplo</button>
+<p><b>Como usar:</b> clique em um ponto de edificação no mapa. A linha azul mostra o trajeto calculado pelas ruas até um trecho mais alto; o ponto verde marca o fim. A linha laranja tracejada é a ligação não vistoriada entre a edificação e a rua.</p><p>A rota muda ao alterar o nível HAND. O destino não é um abrigo confirmado e a circulação real precisa ser verificada.</p>
 <h2>Ruas e saídas no cenário</h2>
 <label><input id="vias" type="checkbox" style="width:auto" checked> Mostrar classificação das ruas</label>
 <label><input id="ruasElevadas" type="checkbox" style="width:auto" checked> Destacar trechos de ruas em terreno alto (independentes da rota)</label>
@@ -82,9 +82,9 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <section id="visao" aria-label="Resultado espacial da simulação">
 <strong>Ruas altas e saída mais próxima</strong>
 <p id="visaoResumo">Carregando ruas e destinos…</p><p id="altosMapa">Identificando trechos altos no cenário…</p><button id="irCentro" type="button">Mostrar ruas altas do centro</button>
-<p id="visaoDestino">Clique em uma edificação para calcular a saída até um trecho mais alto na rede viária, evitando o alagamento simulado.</p>
+<p id="visaoDestino">Clique em um ponto de edificação: o mapa destacará o trajeto azul até um trecho alto calculado, quando houver caminho com cotas conhecidas. Em cenário já inundado, não se desenha uma passagem fictícia.</p>
 <div id="legendaMapa"><span><i style="background:#00a65a"></i>Rua alta candidata</span><span><i style="background:#23846b"></i>Possível</span><span><i style="background:#d89a27"></i>Incerto</span><span><i style="background:#c33943"></i>Atingido</span></div>
-<button id="exemploMapa" type="button">Exemplo de saída</button>
+<button id="exemploMapa" type="button">Ver rota azul de exemplo</button>
 <button id="voltarCota" type="button" hidden>Ver nível anterior com passagem</button>
 <p class="mini">O destino é apenas um ponto alto no grafo HAND/MDT, não um abrigo. Pontes, entrada do imóvel, correnteza e condições das ruas não foram vistoriadas.</p>
 </section></div></main>
@@ -282,7 +282,7 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
   exibidos++;
   const lat=orig[f.lat],lon=orig[f.lon],v=corSaida(orig,f,n,boa,possivel);
   classes[v[1]]=(classes[v[1]]||0)+1;
-  let marker=L.circleMarker([lat,lon],{radius:3.6,color:'#25332f',weight:0.35,fillColor:v[0],fillOpacity:.87}).addTo(camadas);
+  let marker=L.circleMarker([lat,lon],{radius:5.4,color:'#25332f',weight:0.9,fillColor:v[0],fillOpacity:.95}).addTo(camadas).bindTooltip('Edificação OSM #'+i+' — clique para calcular a saída',{direction:'top'});
   marker.on('click',()=>{selecionada=i;mostra(i,orig,f,v,o,c,alt,n)});bb.extend([lat,lon])});
  if($('mostrarDestinos').checked)d.abrigos.forEach(a=>{L.circleMarker([a.lat,a.lon],{radius:10,color:'#153f7b',fillColor:'#40a8e8',weight:2,fillOpacity:.95})
   .addTo(camadas).bindTooltip('Abrigo cadastrado: '+a.nome,{permanent:true,direction:'top'}).bindPopup('Abrigo cadastrado: '+a.nome+'. Condições de funcionamento, capacidade e acesso não verificadas.')});
@@ -394,7 +394,7 @@ function mostra(i,orig,f,descr,o,c,alt,n){
    'Destino: trecho de rua em ponto alto, HAND '+r.cotaSaida.toFixed(1)+' m. '+
    (resultado.classe==='com_folga'?'Toda a rota tem ao menos 1 m de margem nas cotas disponíveis.':'Rota próxima ao limite da inundação; sem 1 m de margem ao longo de todo o percurso.')+
    ' NÃO é rota de evacuação validada.';
-  detalhe=(r.jaAlto?'Trecho alto coincide com a rua associada à origem. Não foi necessária rota adicional.':'Destino: ponto alto na rede viária (não é abrigo).')+'\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+
+  detalhe=(r.jaAlto?'Trecho alto coincide com a rua associada à origem. Não foi necessária rota adicional.':'Destino: ponto alto na rede viária (não é abrigo).')+'\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+'\nCoordenadas aproximadas da saída: '+d.nos[r.saida][0].toFixed(6)+', '+d.nos[r.saida][1].toFixed(6)+' (trecho OSM, sem nome de rua confirmado)'+ 
    '\nExtensão pelas ruas: '+Math.round(r.metros)+' m ('+minutos+' min teóricos)'+
    '\nMenor folga relativa à água: '+folga+' m'+
    '\nAcesso ponto da edificação → nó da rua: '+r.acessoM+' m, NÃO VISTORIADO.'+
@@ -409,13 +409,14 @@ function mostra(i,orig,f,descr,o,c,alt,n){
    map.setView(p,17);
   }else{
    const caminho=r.nos.map(ix=>d.nos[ix]);
-   const linha=L.polyline(caminho,{color:'#005bea',weight:7,opacity:.95,dashArray:'12 5'}).addTo(rotaSelecionada);
+   L.polyline(caminho,{color:'#fff',weight:12,opacity:.97}).addTo(rotaSelecionada);
+   const linha=L.polyline(caminho,{color:'#005bea',weight:8,opacity:1,dashArray:'14 5'}).addTo(rotaSelecionada);
    const casa=[orig[f.lat],orig[f.lon]],entrada=d.nos[r.nos[0]];
    L.circleMarker(casa,{radius:8,color:'#054dcb',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(rotaSelecionada).bindTooltip('Edificação selecionada',{direction:'top'});
    L.polyline([casa,entrada],{color:'#f0941b',weight:3,dashArray:'3 7',opacity:.85}).addTo(rotaSelecionada)
     .bindPopup('Ligação da edificação à rua não vistoriada, '+r.acessoM+' m em linha reta. NÃO constitui percurso de acesso validado.');
    L.circleMarker(d.nos[r.saida],{radius:12,color:'#075b42',fillColor:'#88e2a9',weight:3,fillOpacity:1})
-    .addTo(rotaSelecionada).bindTooltip('Ponto alto candidato (não é abrigo)',{permanent:true,direction:'top'});
+    .addTo(rotaSelecionada).bindTooltip('Saída calculada: trecho de rua alta (não é abrigo)',{permanent:true,direction:'top'});
    const bb=linha.getBounds();bb.extend(casa);map.fitBounds(bb.pad(.22),{maxZoom:17});
  
   }
@@ -435,7 +436,7 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  $('voltarCota').hidden=cotaAnterior==null;
  $('detail').textContent=referencia+'\nSituação: '+descr[1]+'\nCadastro: '+residencial+'\n'+detalhe;
 }
-function exemploRota(){
+function exemploRota(automatico=false){
  if(!d)return;
  const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  const n=Number($('cota').value),p=$('politica').value;
@@ -449,9 +450,10 @@ function exemploRota(){
  selecionada=id;
  const orig=d.casas[id],o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
  mostra(id,orig,f,corSaida(orig,f,n,alcanceAoTerrenoAlto(d,n,1),alcanceAoTerrenoAlto(d,n,0)),o,c,alt,n);
+ if(automatico){const nota='Exemplo ilustrativo (não é sua casa). Clique em outro ponto para calcular a saída dessa edificação. ';$('visaoDestino').textContent=nota+$('visaoDestino').textContent;$('orientacao').textContent=nota+$('orientacao').textContent;}
 }
-$('exemploRota').addEventListener('click',exemploRota);
-$('exemploMapa').addEventListener('click',exemploRota);
+$('exemploRota').addEventListener('click',()=>exemploRota(false));
+$('exemploMapa').addEventListener('click',()=>exemploRota(false));
 $('voltarCota').addEventListener('click',()=>{
  if(cotaAnterior==null||!d)return;
  $('cota').value=cotaAnterior.toFixed(1);$('evento').value='';
@@ -474,7 +476,8 @@ async function mudaCidade(){
 
  $('cota').value=Number(d.meta.nivel_projeto_m).toFixed(1);let bb=rede(+($('cota').value),$('politica').value);
  if(bb.isValid())map.fitBounds(bb.pad(.07));
- // O usuário escolhe a edificação; não abrir uma rota de outra pessoa automaticamente.
+ // Exemplo ilustrativo automático, sem geolocalização da pessoa usuária.
+ exemploRota(true);
  }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
 }
 $('cidade').addEventListener('change',mudaCidade);
