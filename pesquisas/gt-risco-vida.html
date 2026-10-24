@@ -30,11 +30,17 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <label><input id="candidatos" type="checkbox" style="width:auto" checked> Incluir locais elevados candidatos (não são abrigos confirmados)</label>
 <div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
 <h2>Terreno e camadas</h2>
-<label><input id="mdt" type="checkbox" style="width:auto" checked> MDT LiDAR Santa Tereza (~10 m; imagem georreferenciada)</label>
+<label><input id="mdt" type="checkbox" style="width:auto" checked> Visualizar MDT do município (imagem georreferenciada, ~10 m)</label>
 <label for="opacityMdt">Opacidade MDT <span id="opacityVal">65%</span></label><input id="opacityMdt" type="range" min="0" max="100" value="65" step="5">
 <div class="meta" id="mdtInfo">MDT LiDAR disponível para Santa Tereza; Muçum necessita camada equivalente preparada para esta página.</div>
 <label><input id="todasOrigens" type="checkbox" style="width:auto"> Exibir todas as edificações OSM, inclusive pontos sem correspondência residencial próxima (auditoria)</label>
 <div class="meta" id="qaResidencias">As posições ainda não foram verificadas nas imagens ou em campo. Por padrão ocultamos pontos sem evidência mínima CNEFE em Santa Tereza.</div>
+<h2>Informações hidrológicas e históricas</h2>
+<div class="meta" id="handInfo">HAND é altura relativa à drenagem, não altitude absoluta do terreno. Profundidade e correnteza não são calculadas neste painel.</div>
+<label for="evento">Referência histórica (régua)</label>
+<select id="evento"><option value="">Selecionar cenário registrado</option></select>
+<div class="meta" id="eventoInfo">Os eventos são referências de nível, não reproduções hidráulicas validadas de 2023/2024.</div>
+<div class="meta" id="abrigosInfo">Abrigos e candidatos exigem verificação de acesso, capacidade e funcionamento.</div>
 <h2>Legenda: edificações OSM</h2>
 <div class="legend">
 <div><i class="key" style="background:#c0392b"></i>Na mancha modelada</div>
@@ -58,18 +64,15 @@ const $=id=>document.getElementById(id), map=L.map('map').setView([-29.169,-51.7
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 let sources={},d=null,camadas=L.layerGroup().addTo(map),linhas=L.layerGroup().addTo(map),selecionada=-1,anterior=null,mdtOverlay=null;
 const MDT={
-  image:'../assets/data/santa_tereza_inundacao/mdt/mdt_santa_tereza_lidar_10m_visual.png',
-  bounds:[[-29.230136,-51.778849],[-29.054106,-51.644122]]
+ santa_tereza:{image:'../assets/data/santa_tereza_inundacao/mdt/mdt_santa_tereza_lidar_10m_visual.png',bounds:[[-29.230136,-51.778849],[-29.054106,-51.644122]],fonte:'MDT LiDAR original visualizado a aproximadamente 10 m; área de Santa Tereza'},
+ mucum:{image:'../assets/data/mucum_inundacao/mdt/altitude_terreno_10m.png',bounds:[[-29.21013888888889,-51.93013888888889],[-29.109861111111112,-51.819861111111116]],fonte:'MDT mosaico de Muçum visualizado a aproximadamente 10 m; não é equivalente à cobertura LiDAR de Santa Tereza'}
 };
 function atualizaMDT(){
  $('opacityVal').textContent=$('opacityMdt').value+'%';
- let ativo=$('cidade').value==='santa_tereza'&&$('mdt').checked;
+ const camada=MDT[$('cidade').value];
  if(mdtOverlay){map.removeLayer(mdtOverlay);mdtOverlay=null;}
- if(ativo){mdtOverlay=L.imageOverlay(MDT.image,MDT.bounds,{opacity:Number($('opacityMdt').value)/100,interactive:false,alt:'Visualização do MDT LiDAR de Santa Tereza, 10 metros'}).addTo(map);}
- $('mdtInfo').textContent=$('cidade').value==='santa_tereza'?
-  'MDT LiDAR de Santa Tereza (~10 m) como visualização de relevo. Não equivale ao raster original de 1 m, nem mede profundidade da água. HAND e cotas exigem reconciliação vertical; a mancha do Marrecão está pendente de reprocessamento.':
-  'MDT de Muçum ainda não está integrado como imagem georreferenciada nesta página. Não foi substituído por relevo de Santa Tereza.';
- $('mdt').disabled=$('cidade').value!=='santa_tereza';
+ if(camada&&$('mdt').checked){mdtOverlay=L.imageOverlay(camada.image,camada.bounds,{opacity:Number($('opacityMdt').value)/100,interactive:false,alt:camada.fonte}).addTo(map);}
+ $('mdtInfo').textContent=camada.fonte+'. Esta camada representa altitude do terreno, não profundidade nem segurança de circulação.';
 }
 function popup(s){$('detail').textContent=s}
 function hav(a,b){let r=Math.PI/180,da=(b[0]-a[0])*r,db=(b[1]-a[1])*r,z=Math.sin(da/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(db/2)**2;return 12742000*Math.asin(Math.min(1,Math.sqrt(z)))}
@@ -182,6 +185,12 @@ async function mudaCidade(){
  try{
  if(!sources[slug])sources[slug]=DADOS_INTEGRADOS[slug];
  d=sources[slug];selecionada=-1;anterior=slug;atualizaMDT();
+ const options=(d.meta.cheias_ref||[]).map((ev,i)=>'<option value="'+i+'">'+String(ev.rotulo)+' — '+Number(ev.regua_m).toFixed(2)+' m</option>').join('');
+ $('evento').innerHTML='<option value="">Selecionar cenário registrado</option>'+options;
+ $('evento').value='';
+ $('handInfo').textContent='HAND: altura acima da drenagem mais próxima (m). Nível HAND do cenário = régua menos referência operacional ('+d.meta.bankfull_m+' m). Ausência de valor não significa terreno seguro. Profundidade, velocidade e impacto de remanso não estão validados.';
+ $('abrigosInfo').textContent=d.abrigos.length+' destinos no cadastro usado pelo grafo e '+d.candidatos.length+' locais elevados candidatos; nenhum verificado aqui quanto a capacidade, funcionamento e acesso. O fechamento de pontes é aproximação de dados OSM/HAND.';
+
  $('cnefe').textContent=slug==='santa_tereza'?
   'IBGE CNEFE 2022: 890 unidades domiciliares, 885 pontos; 318 pontos até 30 m de uma edificação OSM; 567 sem correspondência nesse raio no recorte municipal. Proximidade não comprova moradia.':
   'IBGE CNEFE 2022: 2.270 unidades domiciliares, 2.061 pontos; 1.452 pontos até 30 m de uma edificação OSM; 609 sem correspondência nesse raio no recorte municipal. Não confundir domicílios com footprints.';
@@ -194,5 +203,13 @@ $('cidade').addEventListener('change',mudaCidade);
 ['cota','politica','candidatos','trechos','todasOrigens'].forEach(id=>$(id).addEventListener('input',()=>{if(d)rede(+$('cota').value,$('politica').value)}));
 $('mdt').addEventListener('change',atualizaMDT);
 $('opacityMdt').addEventListener('input',atualizaMDT);
+$('evento').addEventListener('change',()=>{
+ if(!d||$('evento').value==='')return;
+ const ev=d.meta.cheias_ref[Number($('evento').value)];
+ const hand=Math.max(0,Math.min(25,ev.regua_m-d.meta.bankfull_m));
+ $('cota').value=hand.toFixed(1);
+ $('eventoInfo').textContent='Referência: '+ev.rotulo+' ('+(ev.data||'data não indicada')+'), régua '+ev.regua_m+' m. Cenário aproximado; não constitui validação retrospectiva da mancha de inundação.';
+ rede(Number($('cota').value),$('politica').value);
+});
 mudaCidade();
 </script></body></html>
