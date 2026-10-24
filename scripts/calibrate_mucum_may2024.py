@@ -39,7 +39,7 @@ def prepare():
         simulation_start_utc=start.isoformat(),simulation_end_utc=end.isoformat(),warmup_days=7,rain_hours=len(times),
         station_event_support=rain['network']['station_event_support'] if 'station_event_support' in rain['network'] else rain['network'],
         rain_diagnostics=rain['rain_diagnostics'],nested_diagnostics=nested['diagnostics'],subbasin_areas_km2=dict(zip(ZONES,AREAS)),
-        total_area_km2=sum(AREAS),source_boundary_policy='No observed-flow Source element. All five zones are rainfall-runoff. JJ is a partial independent observation control.',
+        total_area_km2=sum(AREAS),source_boundary_policy='No observed-flow Source element. All five zones are rainfall-runoff. JJ is an auxiliary calibration control on 77 real observed hours, not an independent validation.',
         observation_clock_shift_minutes=0,missing_rain_zero_filled=False))
     return times,values,hydro,digest
 
@@ -49,6 +49,11 @@ def local_params(p,i):
         tc=p.get('tc_prata',tc);r=p.get('r_prata',r);loss=p.get('loss_prata',loss)
     initial=p.get('initial_up' if up else 'initial_down',5.)
     if i==0:initial=p.get('initial_prata',initial)
+    # Spatial parameters remain constant throughout the event. Carreiro and
+    # the small lower residuals need not share an effective soil/response.
+    zone=['prata','antas','carreiro','stz','mucum'][i]
+    initial=p.get('initial_'+zone,initial);loss=p.get('loss_'+zone,loss)
+    tc=p.get('tc_'+zone,tc);r=p.get('r_'+zone,r)
     return initial,loss,tc,r
 
 def basin(p):
@@ -68,6 +73,22 @@ End:
     for i,sid in enumerate(ZONES):
         block=hms.subbasin_block(hms.hec_subbasin_name(sid),AREAS[i],downs[i],50,120,
             (p['baseflow_specific'],p['recession'],.01),local_params(p,i))
+        group=['prata','up','carreiro','down','down'][i]
+        if p.get('loss_method')=='DeficitConstantLinear':
+            import re
+            initial,loss,tc,storage=local_params(p,i)
+            block=re.sub(r'     LossRate: Initial\+Constant\n     Percent Impervious Area: 0.0\n     Initial Loss: [^\n]+\n     Constant Loss Rate: [^\n]+',
+                f'     LossRate: Deficit Constant\n     Percent Impervious Area: 0.0\n     Initial Deficit: {initial:.9f}\n     Maximum Deficit: {max(200.,initial):.9f}\n     Percolation Rate: {loss:.9f}\n     Recovery Factor: 1.0',block)
+            k=p.get('gw_k_'+group,p['gw_k']);fraction=p.get('gw_fraction_'+group,p['gw_fraction'])
+            block=re.sub(r'     Baseflow: Recession\n.*?     Threshold Flow to Peak Ratio: [^\n]+',
+                f'     Baseflow: Linear Reservoir\n     Groundwater Layer: 1\n     GW-1 Baseflow Fraction: {fraction:.9f}\n     GW-1 Number Reservoirs: {int(p.get("gw_steps",2))}\n     GW-1 Routing Coefficient: {k:.9f}\n     GW-1 Initial Flow/Area Ratio: 0\n'
+                f'     Groundwater Layer: 2\n     GW-2 Baseflow Fraction: 0\n     GW-2 Number Reservoirs: 1\n     GW-2 Routing Coefficient: {-24/math.log(p["recession"]):.9f}\n     GW-2 Initial Flow/Area Ratio: {p["baseflow_specific"]:.9f}',block,flags=re.S)
+        if p.get('loss_method')=='GreenAmpt' or group in p.get('green_ampt_groups',[]):
+            import re
+            block=re.sub(r'     LossRate: Initial\+Constant\n     Percent Impervious Area: 0.0\n     Initial Loss: [^\n]+\n     Constant Loss Rate: [^\n]+',
+                '     LossRate: Green and Ampt\n     Percent Impervious Area: 0.0\n'
+                '     Initial Variable: Initial Content\n     Initial Content: 0.15\n     Saturated Content: 0.45\n'
+                f'     Capillarity Method: SUCTION\n     Wetting Front Suction: {p["suction_deficit_"+group]/.3:.9f}\n     Hydraulic Conductivity: {p["ks_"+group]:.9f}',block)
         if p.get('loss_method')=='SCS':
             cn=p['cn_up' if i<2 else 'cn_down']
             if i==0:cn=p.get('cn_prata',cn)

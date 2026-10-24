@@ -32,13 +32,23 @@ def engine(context,dt=.25):
         out=[]
         for i,sid in enumerate(model.ZONES):
             initial,loss,tc,r=model.local_params(p,i)
-            if p.get('loss_method')=='SCS':
+            group=['prata','up','carreiro','down','down'][i]
+            if p.get('loss_method')=='GreenAmpt' or group in p.get('green_ampt_groups',[]):
+                from refine_mucum_may_wetness import green_ampt
+                excess=green_ampt(fine[sid],p['ks_'+group],p['suction_deficit_'+group],dt)
+            elif p.get('loss_method')=='SCS':
                 cn=p['cn_up' if i<2 else 'cn_down']
                 if i==0:cn=p.get('cn_prata',cn)
                 retention=25400/cn-254;rain_sum=np.cumsum(fine[sid]);effective=np.maximum(rain_sum-.2*retention,0);runoff=effective**2/(effective+retention);excess=np.diff(np.r_[0,runoff])
             else:
                 available=np.maximum(np.cumsum(fine[sid])-initial,0);post=np.diff(np.r_[0,available]);excess=np.maximum(post-loss*dt,0)
-            q=clark(excess,model.AREAS[i],tc,r,dt)+p['baseflow_specific']*model.AREAS[i]*p['recession']**days;out.append(q)
+            q=clark(excess,model.AREAS[i],tc,r,dt)+p['baseflow_specific']*model.AREAS[i]*p['recession']**days
+            if p.get('loss_method')=='DeficitConstantLinear':
+                percolation=np.minimum(post,loss*dt)*model.AREAS[i]/(3.6*dt)
+                gw=percolation*p.get('gw_fraction_'+group,p['gw_fraction'])
+                for layer in range(int(p.get('gw_steps',2))):gw=linear(gw,p.get('gw_k_'+group,p['gw_k']),dt)
+                q+=gw
+            out.append(q)
         jj=out[0]+out[1];car=linear(jj,p['routing_k']*2.557/44.524,dt)+out[2];stz=linear(car,p['routing_k']*18.315/44.524,dt)+out[3];mu=linear(stz,p['routing_k']*23.652/44.524,dt)+out[4]
         return jj,mu
     return axis,simulate

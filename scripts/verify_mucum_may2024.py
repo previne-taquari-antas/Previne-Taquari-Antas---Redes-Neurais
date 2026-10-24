@@ -23,6 +23,17 @@ for path in dss.getCatalogedPathnames():
     for i in range(s.numberValues):
         value=float(s.values[i])
         if value>-1e20:w.writerow([parts[2],int(s.times[i]),value,path])
+fo.close()
+fo=open(project_dir+"/native_soil_process_3min.csv","wb");w=csv.writer(fo)
+w.writerow(["element","variable","time_value","value","units","type"])
+selected_variables=["MOISTURE DEFICIT","SATURATION FRACTION","PERC-SOIL","INFILTRATION","PRECIP-EXCESS","PRECIP-LOSS","FLOW-BASE","FLOW-BASE-1","FLOW-BASE-2","FLOW-DIRECT","AQUIFER RECHARGE"]
+for path in dss.getCatalogedPathnames():
+    parts=path.split("/")
+    if parts[3] not in selected_variables or "/RUN:Hindcast/" not in path:continue
+    s=dss.get(path)
+    for i in range(s.numberValues):
+        value=float(s.values[i]);time=int(s.times[i])
+        if value>-1e20:w.writerow([parts[2],parts[3],time,value,s.units,s.type])
 fo.close();dss.close()
 dss=HecDss.open(project_dir+"/input.dss")
 fo=open(project_dir+"/native_rain_values.csv","wb");w=csv.writer(fo)
@@ -79,8 +90,12 @@ def main():
     old=m.load(m.OUT/'baseline.json')['metrics']['86510000'];new=metrics['86510000']
     improved=(new['nse']>old['nse'] and new['kge']>old['kge'] and abs(new['peak_error_pct'])<abs(old['peak_error_pct']) and abs(new['peak_time_minus_telemetry_h'])<abs(old['peak_time_minus_telemetry_h']) and new['rising_NMAE']<old['rising_NMAE'] and new['recession_NMAE']<old['recession_NMAE'])
     if not improved:raise RuntimeError('Final selection did not jointly improve the baseline')
+    previous=m.load(m.OUT/'previous_accepted_selection.json')['metrics']['86510000']
+    improved_previous=(new['nse']>previous['nse'] and new['kge']>previous['kge'] and abs(new['pbias_pct'])<abs(previous['pbias_pct']) and abs(new['peak_error_pct'])<abs(previous['peak_error_pct']) and abs(new['peak_time_minus_telemetry_h'])<abs(previous['peak_time_minus_telemetry_h']) and new['rising_NMAE']<previous['rising_NMAE'] and new['recession_NMAE']<previous['recession_NMAE'])
+    if not improved_previous:raise RuntimeError('Soil revision failed to improve the previous accepted May model')
     audit=dict(native_recomputed_from_existing_DSS=True,values_per_element=count,area_km2=area,source_elements_present=False,observation_only_gage_has_zero_flow_effect_m3s=effect,
         original_rain=rain_audit,clock_shift_minutes=0,paired_Mu_hours=new['pairs'],paired_JJ_hours=metrics['86472000']['pairs'],joint_improvement_against_same_rainfall_baseline=improved,
+        joint_improvement_against_previous_May_model=improved_previous,previous_May_metrics=previous,
         event_role='May 2024 event-specific calibration, not independent event validation',field_peak_reference_m=26.0,field_peak_reference_not_substituted_for_telemetry=True)
     selected.update(project=str(proj.relative_to(m.ROOT)),metrics=metrics,verification=audit);m.save(dest/'result.json',selected);m.save(m.OUT/'selection.json',selected)
     print(json.dumps(dict(metrics=new,audit=audit),ensure_ascii=False))
