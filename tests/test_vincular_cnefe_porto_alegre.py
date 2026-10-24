@@ -35,4 +35,29 @@ class TestVinculacao(unittest.TestCase):
             self.assertEqual(rows[0]["status"],"esquina_ou_aglomerado_revisar")
             self.assertTrue(all(r["lat_original"]=="-29.99995" for r in rows))
 
+
+    def test_apartamentos_mesma_coordenada_nao_sao_redistribuidos(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            osm={"type":"FeatureCollection","features":[{
+                "type":"Feature","properties":{"osm_id":"apt1","building":"apartments",
+                   "addr:street":"Rua Beta","addr:housenumber":"42"},
+                "geometry":{"type":"Polygon","coordinates":[[[-51.201,-30.001],[-51.2008,-30.001],
+                   [-51.2008,-30.0008],[-51.201,-30.0008],[-51.201,-30.001]]]}}]}
+            (root/"osm.geojson").write_text(json.dumps(osm))
+            with (root/"c.csv").open("w",newline="") as f:
+                fields=["COD_MUN","COD_ESPECIE","COD_TIPO_ESPECIE","LATITUDE","LONGITUDE",
+                        "NV_GEO_COORD","NOM_TIPO_SEGLOGR","NOM_SEGLOGR","NUM_ENDERECO"]
+                w=csv.DictWriter(f,fieldnames=fields,delimiter=";")
+                w.writeheader()
+                for _ in range(2):
+                    w.writerow({"COD_MUN":"4314902","COD_ESPECIE":"1","COD_TIPO_ESPECIE":"103",
+                                "LATITUDE":"-30.0009","LONGITUDE":"-51.2009","NV_GEO_COORD":"2",
+                                "NOM_TIPO_SEGLOGR":"Rua","NOM_SEGLOGR":"Beta","NUM_ENDERECO":"42"})
+            r=processar(root/"c.csv",root/"osm.geojson",root/"res")
+            self.assertEqual(r["domicilios_particulares_cnefe"],2)
+            self.assertEqual(r["por_tipo_domicilio_ibge"]["103"],2)
+            self.assertEqual(r["status"].get("apartamentos_mesmo_edificio_revisar"),2)
+            self.assertEqual(r["enderecos_aprovados_por_revisao_humana"],0)
+
 if __name__=="__main__": unittest.main()
