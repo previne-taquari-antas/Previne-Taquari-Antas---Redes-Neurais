@@ -6,6 +6,7 @@ on:
       - "scripts/gt_cnefe_residencias.py"
       - "scripts/gt_auditar_residencias.py"
       - "scripts/gt_destinos.py"
+      - "scripts/gt_verificar_geometria.py"
       - "scripts/gt_santa_tereza_refinar.py"
       - "scripts/gt_santa_tereza_gargalos.py"
       - "tests/test_gt_risco_vida.py"
@@ -42,6 +43,10 @@ jobs:
         run: python scripts/gt_auditar_residencias.py --cidade santa_tereza --pasta artifacts/gt_risco_vida
       - name: Auditar CNEFE x OSM Mucum
         run: python scripts/gt_auditar_residencias.py --cidade mucum --pasta artifacts/gt_risco_vida
+      - name: Validar posicao dos pontos com footprint OSM em Santa Tereza
+        run: python scripts/gt_verificar_geometria.py --cidade santa_tereza --pasta artifacts/gt_risco_vida
+      - name: Validar posicao dos pontos com footprint OSM em Mucum
+        run: python scripts/gt_verificar_geometria.py --cidade mucum --pasta artifacts/gt_risco_vida
       - name: Conferir inventario de abrigos e capacidades
         run: python scripts/gt_destinos.py --saida artifacts/gt_risco_vida
       - name: Arquivar resultados de pesquisa - nao operacionais
