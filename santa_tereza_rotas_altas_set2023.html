@@ -55,6 +55,7 @@ const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Worl
 L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{position:'topright'}).addTo(map);
 let D=null, casaMarks=[], destinoMarks=[], selecao=[], saida=null, G=null, GD=null, GU=null, flood=null, layerFlood=null, floodShown=false;
 const ruaLayer=L.layerGroup().addTo(map), casaLayer=L.layerGroup().addTo(map), destinoLayer=L.layerGroup().addTo(map), linhaLayer=L.layerGroup().addTo(map);
+const casaCanvas=L.canvas({padding:.4});
 function metres(a,b){const lat=(a[0]+b[0])*Math.PI/360;return Math.hypot((a[0]-b[0])*111320,(a[1]-b[1])*111320*Math.cos(lat));}
 function num(v){return (Math.round(v*10)/10).toLocaleString('pt-BR');}
 function dist(v){return v<1000?Math.round(v)+' m':num(v/1000)+' km';}
@@ -150,7 +151,7 @@ function pintaCasas(){
  const counts={alagada:0,seca:0,incerta:0,sem:0};
  D.casas.forEach((c,i)=>{
   const s=statusCasa(c);counts[s]++;
-  const marker=L.circleMarker([c[0],c[1]],{renderer:L.canvas({padding:.4}),radius:4,weight:1,color:'#23372b',fillColor:corCasa(s),fillOpacity:.95})
+  const marker=L.circleMarker([c[0],c[1]],{renderer:casaCanvas,radius:4,weight:1,color:'#23372b',fillColor:corCasa(s),fillOpacity:.95})
    .bindTooltip('Edificação '+(i+1)+' · toque para analisar');
   marker.on('click',e=>{L.DomEvent.stopPropagation(e);mostraCasa(i);});
   casaLayer.addLayer(marker);casaMarks.push(marker);
