@@ -9,7 +9,7 @@ function fixture({cenario=4,limiar=5,incerto=false,abrigo=20}={}){
   Object.assign(c,{0:0,1:0.0002,2:0,3:0.0002,14:19});
   return {meta:{municipio:"Teste",gerado_em:"synthetic",casas_campos:fields,bankfull_m:1.6,nivel_projeto_m:cenario},
     nos:[[0,0],[0,0.001],[0,0.002]],cota_no:[20,20,20],
-    edges:[[0,1,0,0,incerto?null:limiar],[1,2,0,0,20]],casas:[c],
+    edges:[[0,1,0,0,20],[1,2,0,0,incerto?null:limiar]],casas:[c],
     abrigos:[{id:"abrigo_A",node:2,cota_alaga_m:abrigo}],
     candidatos:[{id:"local_alto_sem_vistoria",node:0,cota_alaga_m:20}]};
 }
