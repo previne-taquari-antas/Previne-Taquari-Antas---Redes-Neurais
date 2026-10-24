@@ -1,0 +1,69 @@
+name: Baixar numeração oficial para cruzamento de domicílios POA
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/baixar-numeracao-predial-poa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baixar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Download verificável de 166 mil números de imóveis com coordenadas
+        run: |
+          mkdir -p /tmp/numeracao
+          python - <<'PY'
+          import csv,gzip,json,re,time,urllib.request,urllib.parse,pathlib
+          url='https://gis-smamus.portoalegre.rs.gov.br/server/rest/services/01_PUBLICACOES/nro_imovel/FeatureServer/0/query'
+          def consulta(**args):
+              uri=url+'?'+urllib.parse.urlencode({'f':'json',**args})
+              for at in range(5):
+                  try:
+                      with urllib.request.urlopen(urllib.request.Request(uri,headers={'User-Agent':'PREVINE-geospatial-research/1.0'}),timeout=240) as h:
+                          d=json.load(h)
+                      if d.get('error'):raise ValueError(d['error'])
+                      return d
+                  except Exception as e:
+                      print('retry',at,str(e)[:170],flush=True)
+                      if at==4:raise
+                      time.sleep(3+7*at)
+          n=consulta(where='1=1',returnCountOnly='true')['count']
+          assert n>100000, f'Camada incompleta: {n}'
+          seen=set();good=0;bad=0
+          with gzip.open('/tmp/numeracao/numeracao_prefeitura_poa.csv.gz','wt',encoding='utf8',newline='') as f:
+              w=csv.writer(f);w.writerow(['objectid','numero','lon','lat','setor_prefeitura','quarteirao_prefeitura'])
+              for off in range(0,n,2000):
+                  d=consulta(where='1=1',outFields='objectid,textstring,setor,quarteirao',returnGeometry='true',
+                      orderByFields='objectid',outSR=4326,resultRecordCount=2000,resultOffset=off,
+                      geometryPrecision=7,f='geojson')
+                  fs=d.get('features',[])
+                  assert fs, f'Página vazia off {off}'
+                  for a in fs:
+                      p=a.get('properties') or {};oid=p.get('objectid')
+                      assert oid not in seen, f'Duplicata de objectid {oid}'
+                      seen.add(oid)
+                      number=str(p.get('textstring') or '').strip().upper().replace(' ','')
+                      geo=a.get('geometry') or {};ring=(geo.get('coordinates') or [[]])[0]
+                      if not re.fullmatch(r'\d+[A-Z]?',number) or not ring:bad+=1;continue
+                      xs=[c[0] for c in ring];ys=[c[1] for c in ring]
+                      lon=(min(xs)+max(xs))/2;lat=(min(ys)+max(ys))/2
+                      if not (-52<lon<-50 and -31<lat<-29):bad+=1;continue
+                      w.writerow([oid,number,round(lon,7),round(lat,7),p.get('setor'),p.get('quarteirao')]);good+=1
+                  if off%20000==0:print('PROGRESSO',off,'de',n,'validos',good,flush=True)
+          assert len(seen)==n and good>50000,(len(seen),n,good)
+          x={'fonte':'SMAMUS, Números de Imóveis, FeatureServer 0','total':n,'validos':good,'descartados':bad,
+             'aviso':'Geometria é anotação cadastral do número, não edificação nem certificado de moradia'}
+          pathlib.Path('/tmp/numeracao/resumo.json').write_text(json.dumps(x,ensure_ascii=False,indent=2))
+          print('RESUMO',json.dumps(x,ensure_ascii=False),flush=True)
+          PY
+      - name: Salvar numeração cadastral como fonte de verificação
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numeracao-oficial-prefeitura-poa
+          path: /tmp/numeracao
+          if-no-files-found: warn
+          retention-days: 30
