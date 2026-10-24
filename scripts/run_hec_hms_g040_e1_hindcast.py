@@ -240,7 +240,14 @@ def hec_subbasin_name(cid):
         raise RuntimeError(f"HEC element name exceeds 28 chars after normalization: {name}")
     return name
 
-def subbasin_block(name,area,downstream,cn,lag_min):
+def subbasin_block(name,area,downstream,cn,lag_min,baseflow=None):
+    baseflow_text="     Baseflow: None"
+    if baseflow is not None:
+        specific,recession,threshold=baseflow
+        baseflow_text=("     Baseflow: Recession\n"
+            f"     Recession Factor: {recession:.9f}\n"
+            f"     Initial Flow/Area Ratio: {specific:.9f}\n"
+            f"     Threshold Flow to Peak Ratio: {threshold:.9f}")
     return f"""Subbasin: {name}
      Area: {area:.6f}
      Downstream: {downstream}
@@ -252,7 +259,7 @@ def subbasin_block(name,area,downstream,cn,lag_min):
      Transform: SCS
      Lag: {lag_min:.5f}
      Unitgraph Type: STANDARD
-     Baseflow: None
+{baseflow_text}
 End:
 """
 
@@ -336,6 +343,12 @@ def build_basin(rain,active,args,primary_source=SOURCE_PRIMARY):
 End:
 """]
     active_set=set(active)
+    baseflow=None
+    if getattr(args,"baseflow_specific",None) is not None:
+        baseflow=(args.baseflow_specific,args.baseflow_recession,args.baseflow_threshold_ratio)
+
+    def sb(name,area,downstream,cn,lag_min):
+        return subbasin_block(name,area,downstream,cn,lag_min,baseflow)
 
     if primary_source=="86472000":
         parts.append(source_block("86472000","R_86472000_JOIN_86500000",12918.656))
@@ -343,7 +356,7 @@ End:
             parts.append(source_block("86500000","J_JOIN_86500000",1816.359))
         else:
             cid="BRANCH_86500000"
-            parts.append(subbasin_block(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86500000",args.cn,args.lag_min))
+            parts.append(sb(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86500000",args.cn,args.lag_min))
         parts.append(junction_block("J_JOIN_86500000","R_JOIN_86500000_86510000"))
         parts.append(junction_block("J_86510000","R_86510000_JOIN_86595000",True))
     elif primary_source=="86510000":
@@ -359,7 +372,7 @@ End:
         parts.append(source_block("86595000","J_JOIN_86595000",2431.975))
     else:
         cid="BRANCH_86595000"
-        parts.append(subbasin_block(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86595000",args.cn,args.lag_min))
+        parts.append(sb(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86595000",args.cn,args.lag_min))
     parts.append(junction_block("J_JOIN_86595000","R_JOIN_86595000_86720000"))
     parts.append(junction_block("J_86720000","R_86720000_86743000",True))
     parts.append(junction_block("J_86743000","R_86743000_JOIN_86746000",True))
@@ -368,7 +381,7 @@ End:
         parts.append(source_block("86746000","J_JOIN_86746000",2226.742))
     else:
         cid="BRANCH_86746000"
-        parts.append(subbasin_block(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86746000",args.cn,args.lag_min))
+        parts.append(sb(hec_subbasin_name(cid),rain[cid]["area_km2"],"J_JOIN_86746000",args.cn,args.lag_min))
     parts.append(junction_block("J_JOIN_86746000","R_JOIN_86746000_86879000"))
     parts.append(junction_block("J_86879000","R_86879000_86879300",True))
     parts.append(junction_block("J_86879300","R_86879300_86895000",True))
@@ -380,7 +393,7 @@ End:
             raise RuntimeError(f"missing rain component {cid}")
         if not rain[cid].get("used"):
             continue
-        parts.append(subbasin_block(hec_subbasin_name(cid),rain[cid]["area_km2"],down,args.cn,args.lag_min))
+        parts.append(sb(hec_subbasin_name(cid),rain[cid]["area_km2"],down,args.cn,args.lag_min))
 
     for name,up,down,l,g in active_reaches(primary_source):
         parts.append(reach_block(name,down,route_k(l,g,args),args.x))
@@ -746,6 +759,12 @@ def main():
     ap.add_argument("--k-g3",type=float,required=True)
     ap.add_argument("--k-g4",type=float,required=True)
     ap.add_argument("--x",type=float,required=True)
+    ap.add_argument("--baseflow-specific",type=float,default=None,
+        help="Optional native HEC recession initial discharge per incremental km2; absent preserves legacy None")
+    ap.add_argument("--baseflow-recession",type=float,default=None,
+        help="Daily recession factor; required with --baseflow-specific")
+    ap.add_argument("--baseflow-threshold-ratio",type=float,default=None,
+        help="Native recession reset ratio to direct-runoff peak; required with --baseflow-specific")
     ap.add_argument("--candidate-id",default="candidate")
     ap.add_argument("--event-id",default=None)
     ap.add_argument("--rain-file",type=Path,default=OBSRAIN)
@@ -769,6 +788,12 @@ def main():
     if not (20<args.cn<95): raise SystemExit("CN outside physical search domain")
     if not (1<=args.lag_min<=600): raise SystemExit("lag outside search domain")
     if not (0<=args.x<=0.5): raise SystemExit("Muskingum X outside [0,0.5]")
+    bf=(args.baseflow_specific,args.baseflow_recession,args.baseflow_threshold_ratio)
+    if any(v is not None for v in bf):
+        if any(v is None for v in bf):
+            raise SystemExit("all three recession baseflow parameters must be explicit")
+        if not (0<=bf[0]<=0.3 and 0<bf[1]<1 and 0<bf[2]<1):
+            raise SystemExit("recession baseflow parameters outside research bounds")
 
     rainpkg=loadj(args.rain_file); hydro=loadj(args.hydro_file); scenarios=loadj(args.scenario_file)
     score_hydro=loadj(args.score_hydro_file) if args.score_hydro_file else hydro
@@ -857,7 +882,11 @@ def main():
       "rainfall_spatial_support":rainpkg.get("spatial_support_assessment", {}),
       "rainfall_diagnostics":rainpkg.get("rain_diagnostics", {}),
       "preflight_contract":preflight,
-      "parameters":{"cn":args.cn,"lag_min":args.lag_min,"baseflow":"None",
+      "parameters":{"cn":args.cn,"lag_min":args.lag_min,
+        "baseflow":"Recession" if args.baseflow_specific is not None else "None",
+        "baseflow_specific_m3s_km2":args.baseflow_specific,
+        "baseflow_recession_daily":args.baseflow_recession,
+        "baseflow_threshold_ratio":args.baseflow_threshold_ratio,
         "k_group_h":{"g1":args.k_g1,"g2":args.k_g2,"g3":args.k_g3,"g4":args.k_g4},
         "x":args.x,
         "compute_interval_min":COMPUTE_INTERVAL_MIN,

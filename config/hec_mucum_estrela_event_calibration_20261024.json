@@ -1,0 +1,36 @@
+{
+  "event_id": "E24_NOV2023",
+  "model_version": "native HEC-HMS 4.13 E1 observed-boundary + optional incremental recession",
+  "purpose": "Historical target-specific calibration, never operational forecast certification",
+  "targets": {"86510000": "Muçum", "86879300": "Estrela"},
+  "random_seed": 20261024,
+  "warm_start_parameter_lineage": {
+    "prior_seed_fit_events": ["E22_SEP2023", "E24_NOV2023"],
+    "new_refinement_event": "E24_NOV2023",
+    "september_2023_is_not_an_independent_holdout": true
+  },
+  "workers": 3,
+  "observation_quality": {
+    "86510000": {
+      "clock_offset_minutes": -105,
+      "clock_offset_start_utc": "2023-10-02T18:00:00Z",
+      "clock_offset_end_utc": "2024-11-03T04:00:00Z",
+      "max_discharge_stage_source_unit": 1500,
+      "stage_source_unit": "cm",
+      "source": "User-supplied Markdown colado.md, update 06/10/2026: clock -105 min; Muçum Q ceiling 15 m",
+      "provenance_caveat": "Documented correction applied to scoring only; raw forcing and archived observations preserved. Clock not independently remeasured in this run."
+    }
+  },
+  "selection": {
+    "Muçum": "Q fit below 15 m plus complete simulated peak time against observed stage crest; no extreme-Q peak amplitude used in fitting",
+    "Estrela": "Actual paired Q hours, paired bias and peak error, observed stage crest timing",
+    "minimum_native_runs_per_target": 24,
+    "local_search": true
+  },
+  "split": {
+    "calibration": ["E24_NOV2023"],
+    "reserved_event_transfer": ["E27_MAY2024", "E28_JUN2024"],
+    "do_not_retune_on_reserved_events": true,
+    "retrospective_future_observed_upstream_flow_and_rain": true
+  }
+}
