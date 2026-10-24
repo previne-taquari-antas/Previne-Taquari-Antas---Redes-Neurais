@@ -84,6 +84,7 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <strong>Ruas altas e saída mais próxima</strong>
 <p id="visaoResumo">Carregando ruas e destinos…</p><p id="altosMapa">Identificando trechos altos no cenário…</p><button id="irCentro" type="button">Mostrar ruas altas do centro</button>
 <p id="visaoDestino">Clique em um ponto de edificação: o mapa destacará o trajeto azul até um trecho alto calculado, quando houver caminho com cotas conhecidas. Em cenário já inundado, não se desenha uma passagem fictícia.</p>
+<a id="verDestinoOSM" href="#" target="_blank" rel="noopener noreferrer" hidden style="display:inline-block;margin:6px 0;font-size:12px;color:#075b42;font-weight:700">Conferir ponto de saída no OpenStreetMap ↗</a>
 <div id="legendaMapa"><span><i style="background:#00a65a"></i>Rua alta candidata</span><span><i style="background:#23846b"></i>Possível</span><span><i style="background:#d89a27"></i>Incerto</span><span><i style="background:#c33943"></i>Atingido</span><span><i style="background:#005bea"></i>Trajeto calculado</span><span><i style="background:#f0941b"></i>Acesso não vistoriado</span></div>
 <button id="exemploMapa" type="button">Ver rota azul de exemplo</button>
 <button id="voltarCota" type="button" hidden>Ver nível anterior com passagem</button>
@@ -402,8 +403,12 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  let titulo,detalhe;
  if(r){
   const minutos=(r.metros/.9/60).toFixed(1),folga=(r.minCota-n).toFixed(1);
+  const pontoSaida=d.nos[r.saida];
+  const linkSaida=$('verDestinoOSM');
+  linkSaida.href='https://www.openstreetmap.org/?mlat='+pontoSaida[0].toFixed(6)+'&mlon='+pontoSaida[1].toFixed(6)+'#map=18/'+pontoSaida[0].toFixed(6)+'/'+pontoSaida[1].toFixed(6);
+  linkSaida.hidden=false;
   titulo=referencia+(r.jaAlto?': a rua associada já aparece como trecho alto no modelo. ':': saída mais próxima calculada pela rede viária, '+Math.round(r.metros)+' m ('+minutos+' min a pé, estimativa). ')+
-   'Destino: trecho de rua em ponto alto, HAND '+r.cotaSaida.toFixed(1)+' m. '+
+   'Destino candidato (rua elevada): aprox. '+pontoSaida[0].toFixed(6)+', '+pontoSaida[1].toFixed(6)+'; HAND '+r.cotaSaida.toFixed(1)+' m. '+
    (resultado.classe==='com_folga'?'Toda a rota tem ao menos 1 m de margem nas cotas disponíveis.':'Rota próxima ao limite da inundação; sem 1 m de margem ao longo de todo o percurso.')+
    ' NÃO é rota de evacuação validada.';
   detalhe=(r.jaAlto?'Trecho alto coincide com a rua associada à origem. Não foi necessária rota adicional.':'Destino: ponto alto na rede viária (não é abrigo).')+'\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+'\nCoordenadas aproximadas da saída: '+d.nos[r.saida][0].toFixed(6)+', '+d.nos[r.saida][1].toFixed(6)+' (trecho OSM, sem nome de rua confirmado)'+ 
@@ -433,6 +438,7 @@ function mostra(i,orig,f,descr,o,c,alt,n){
  
   }
  }else{
+  $('verDestinoOSM').hidden=true;
   cotaAnterior=melhorCotaAnterior(orig,f,n);
   titulo=referencia+': sem saída para ponto alto demonstrável nesta cota. '+resultado.causa+
     (cotaAnterior!=null?' Último cenário com caminho calculado: HAND '+cotaAnterior.toFixed(1)+' m.':' Não há cenário anterior com caminho comprovado nesses dados.')+
