@@ -37,15 +37,19 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <select id="politica"><option value="exploratoria">Exploratório: trechos sem informação permanecem (incertos)</option><option value="conservadora">Conservador: trechos sem cota ficam bloqueados</option></select>
 <label><input id="candidatos" type="checkbox" style="width:auto" checked> Incluir locais elevados candidatos (não são abrigos confirmados)</label>
 <div id="resumo" class="meta">Carregando o painel de pesquisa…</div>
-<h2>Para onde ir? (simulação)</h2><div class="meta" id="orientacao">Selecione uma edificação no mapa ou clique no botão abaixo para ver destino e percurso calculados. Rotas ainda não validadas.</div><button id="exemploRota" type="button">Mostrar exemplo de rota no mapa</button><h2>Ruas, destinos e rotas no cenário</h2>
+<h2>Saída para rua mais alta</h2>
+<div class="meta" id="orientacao">Clique no ponto de uma edificação. O modelo procura o caminho viário mais curto até um trecho mais alto, fora da mancha estimada.</div>
+<button id="exemploRota" type="button">Mostrar exemplo de saída no mapa</button>
+<p>A origem é o ponto da edificação selecionada. A rota é recalculada para o nível HAND escolhido; não depende dos abrigos cadastrados.</p>
+<h2>Ruas e saídas no cenário</h2>
 <label><input id="vias" type="checkbox" style="width:auto" checked> Mostrar classificação das ruas</label>
-<label><input id="mostrarDestinos" type="checkbox" style="width:auto" checked> Mostrar abrigos cadastrados e locais elevados candidatos</label>
+<label><input id="mostrarDestinos" type="checkbox" style="width:auto"> Mostrar abrigos e candidatos cadastrados (comparação)</label>
 <div class="legend"><div><i class="key" style="background:#23846b"></i>Trecho potencialmente transitável (modelo)</div><div><i class="key" style="background:#d89a27"></i>Trecho com dados altimétricos insuficientes</div><div><i class="key" style="background:#c33943"></i>Trecho atingido no cenário</div><div><i class="key" style="background:#a82d7c"></i>Trecho de uso concentrado nas rotas (opcional)</div></div>
 <div class="meta" id="viasInfo">Classificação de ruas baseada no grafo OSM e nas cotas modeladas, não em vistorias.</div>
-<h2>Melhores destinos possíveis no modelo</h2>
+<h2>Destinos cadastrados (não determinam a saída mais próxima)</h2>
 <div class="meta" id="destinosInfo">Calculando destinos para este nível…</div>
 <div id="destinosLista"></div>
-<p>Selecione uma edificação no mapa para desenhar o percurso até o destino conectado. A linha tracejada indica apenas um caminho computacional, não uma rota liberada para evacuação.</p>
+<p>Clique numa edificação: a rota azul liga sua rua ao ponto mais alto acessível, quando os dados permitem calculá-la. O acesso do imóvel à via é mostrado separadamente e não foi vistoriado.</p>
 <h2>Terreno e camadas</h2>
 <label><input id="mdt" type="checkbox" style="width:auto"> Visualizar MDT do município (imagem georreferenciada, ~10 m)</label>
 <label for="opacityMdt">Opacidade MDT <span id="opacityVal">65%</span></label><input id="opacityMdt" type="range" min="0" max="100" value="65" step="5">
@@ -74,13 +78,13 @@ button{border-radius:6px;background:#daeae4;border:0;padding:7px;cursor:pointer}
 <p><a href="https://github.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/blob/pesquisa/gt-risco-vida-isolamento-20261024/docs/gt-vulnerabilidades-risco-vida-isolamento-20261024.md">Metodologia e pendências</a></p>
 </aside><div id="mapwrap"><div id="map" aria-label="Mapa exploratório de isolamento por inundação"></div>
 <section id="visao" aria-label="Resultado espacial da simulação">
-<strong>Onde há passagem no modelo?</strong>
+<strong>Saída pela rua mais próxima em terreno alto</strong>
 <p id="visaoResumo">Carregando ruas e destinos…</p>
-<p id="visaoDestino">Toque numa edificação para verificar seu acesso.</p>
+<p id="visaoDestino">Clique em uma edificação para calcular a saída até um trecho mais alto na rede viária, evitando o alagamento simulado.</p>
 <div id="legendaMapa"><span><i style="background:#23846b"></i>Possível</span><span><i style="background:#d89a27"></i>Incerto</span><span><i style="background:#c33943"></i>Atingido</span></div>
-<button id="exemploMapa" type="button">Ver exemplo no mapa</button>
-<button id="voltarCota" type="button" hidden>Ver cenário anterior com rota</button>
-<p class="mini">Pesquisa exploratória. Não indica ruas liberadas, destinos vistoriados ou rotas de evacuação seguras.</p>
+<button id="exemploMapa" type="button">Exemplo de saída</button>
+<button id="voltarCota" type="button" hidden>Ver nível anterior com passagem</button>
+<p class="mini">O destino é apenas um ponto alto no grafo HAND/MDT, não um abrigo. Pontes, entrada do imóvel, correnteza e condições das ruas não foram vistoriadas.</p>
 </section></div></main>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -175,7 +179,7 @@ function mostraDestinos(n,policy,rotas){
   let dest=rotas.dest[node];ocorrencias.set(dest,(ocorrencias.get(dest)||0)+1);
  }
  ativos.sort((a,b)=>(ocorrencias.get(b.id)||0)-(ocorrencias.get(a.id)||0));
- $('destinosInfo').textContent=ativos.length+' destinos não atingidos conforme as cotas disponíveis; '+inativos.length+' excluídos ou indeterminados neste cenário. A ordenação é por quantidade de origens conectadas no grafo, não por segurança ou capacidade.';
+ $('destinosInfo').textContent=ativos.length+' destinos admitidos no modelo (alguns sem cota); '+inativos.length+' excluídos ou indeterminados. Estes locais NÃO são utilizados no cálculo da saída viária mais próxima.';
  const alvo=$('destinosLista');alvo.replaceChildren();
  if(!ativos.length){let p=document.createElement('p');p.textContent='Nenhum destino candidato conectado com os critérios escolhidos.';alvo.append(p);}
  ativos.slice(0,12).forEach((a,i)=>{
@@ -199,7 +203,7 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  .addTo(linhas).bindPopup('Trecho OSM #'+i+' — '+(state==='atingido'?'atingido no cenário':state==='incerto'?'altimetria insuficiente':'potencialmente transitável no cenário')+'. A condição física e hidráulica não foi validada.');});
  $('viasInfo').textContent=counts.possivel+' trechos potencialmente transitáveis; '+counts.incerto+' incertos; '+counts.atingido+' atingidos. Segmentos verdes não representam ruas certificadas como seguras.';
  $('visaoResumo').textContent=d.meta.municipio+' · HAND '+n.toFixed(1).replace('.',',')+' m | '+counts.possivel+' trechos possíveis, '+counts.incerto+' incertos, '+counts.atingido+' atingidos.';
- if(selecionada<0){$('visaoDestino').textContent='Selecione um ponto de edificação: o destino e o trajeto aparecerão aqui.';$('voltarCota').hidden=true;}
+ if(selecionada<0){$('visaoDestino').textContent='Clique em um ponto de edificação para traçar a saída mais próxima até rua mais alta, quando existir caminho com cotas conhecidas.';$('voltarCota').hidden=true;}
  let exibidos=0;
  d.casas.forEach((orig,i)=>{
   // Evita chamar edificações genéricas de casas. Muçum exibe apenas pontos com endereço CNEFE a até 10 m,
@@ -232,77 +236,135 @@ function rede(n,policy){const f=Object.fromEntries(d.meta.casas_campos.map((k,i)
  if(selecionada>=0){let z=d.casas[selecionada];mostra(selecionada,z,f,cor(z,f,o,c,alt,n),o,c,alt,n)}else $('orientacao').textContent='Selecione um ponto de edificação ou clique no exemplo. Ruas verdes são apenas trechos potencialmente transitáveis no modelo, não vias liberadas.';
  return bb;
 }
-function melhorCotaAnterior(orig,f,n){
- // Conexão decresce com a elevação do nível; busca binária em incrementos de 0,5 m.
- const node=orig[f.no],wet=orig[f.cota_alaga],policy=$('politica').value;
- if(!Number.isInteger(node)||node<0||node>=d.nos.length)return null;
- const limite=Math.min(50,wet==null?50:Math.ceil(Number(wet)*2)-1,Math.ceil(n*2)-1);
- let lo=0,hi=limite,melhor=-1;
- while(lo<=hi){const mid=(lo+hi)>>1,cota=mid/2,rotas=calcula(d,cota,policy,$('candidatos').checked);
-  if(Number.isFinite(rotas.dist[node])){melhor=mid;lo=mid+1}else hi=mid-1;
+// O MDT/HAND informa a cota relativa de cada nó e a menor cota por trecho.
+// Este módulo NÃO usa abrigos como destinos. Para cada origem, busca na rede
+// a via mais curta até uma posição >= 2 m acima do nível HAND do cenário.
+// Uma via somente entra na rota se as cotas dos nós e do trecho são conhecidas.
+// Trechos de ponte não vistoriada (e[3]) ficam excluídos.
+function rotaParaTerrenoAlto(doc,orig,campos,n,margem){
+ const no=orig[campos.no],nn=doc.nos.length,aguaCasa=orig[campos.cota_alaga];
+ const nulo={rota:null,causa:'',margem,origemNo:no};
+ if(!Number.isInteger(no)||no<0||no>=nn)return {...nulo,causa:'Sem correspondência confiável da edificação com a rede de ruas.'};
+ if(aguaCasa!=null&&Number(aguaCasa)<=n+1e-9)return {...nulo,causa:'A edificação já está na mancha simulada nesta cota.'};
+ if(doc.cota_no[no]==null)return {...nulo,causa:'Falta cota HAND na rua associada a esta edificação.'};
+ if(Number(doc.cota_no[no])<=n+margem)return {...nulo,causa:margem>0?'A origem não possui margem altimétrica de '+margem+' m.':'A rua associada à origem está atingida no cenário.'};
+ const adj=Array.from({length:nn},()=>[]);
+ for(let ei=0;ei<doc.edges.length;ei++){
+  const e=doc.edges[ei],a=e[0],b=e[1],z=e[4];
+  if(e[3]||z==null||doc.cota_no[a]==null||doc.cota_no[b]==null)continue;
+  if(Number(z)<=n+margem||Number(doc.cota_no[a])<=n+margem||Number(doc.cota_no[b])<=n+margem)continue;
+  const metros=hav(doc.nos[a],doc.nos[b]);
+  if(!Number.isFinite(metros)||metros<=0)continue;
+  adj[a].push([b,metros,ei]);adj[b].push([a,metros,ei]);
  }
- return melhor>=0?melhor/2:null;
+ const dist=Array(nn).fill(Infinity),prev=Array(nn).fill(-1),edgePrev=Array(nn).fill(-1),h=[];
+ dist[no]=0;heapPush(h,[0,no]);let saida=-1;
+ while(h.length){
+  const [c,u]=heapPop(h);if(c>dist[u]+1e-8)continue;
+  // Um ponto alto precisa ter continuidade por ao menos duas ligações de rua
+  // elegíveis. Não o confundir com um abrigo, uma edificação ou um refúgio vistoriado.
+  if(c>=60&&doc.cota_no[u]>=n+2&&adj[u].length>=2){saida=u;break}
+  for(const [v,w,ei] of adj[u])if(c+w+1e-8<dist[v]){
+   dist[v]=c+w;prev[v]=u;edgePrev[v]=ei;heapPush(h,[dist[v],v]);
+  }
+ }
+ if(saida<0){
+  return {...nulo,causa:'Não foi encontrado trecho alto conectado por ruas com cotas conhecidas, sem atravessar pontes não verificadas.'};
+ }
+ const nos=[],arestas=[],seen=new Set();
+ for(let at=saida;at!==-1&&!seen.has(at);at=prev[at]){
+  seen.add(at);nos.push(at);if(edgePrev[at]>=0)arestas.push(edgePrev[at]);
+ }
+ nos.reverse();arestas.reverse();
+ if(nos[0]!==no)return {...nulo,causa:'Falha de reconstrução da rede viária.'};
+ const minCota=Math.min(...arestas.map(i=>Number(doc.edges[i][4])));
+ return {rota:{nos,arestas,metros:dist[saida],saida,cotaSaida:Number(doc.cota_no[saida]),
+  minCota,acessoM:Math.round(hav([orig[campos.lat],orig[campos.lon]],doc.nos[no]))},
+  causa:'',margem,origemNo:no};
+}
+function saidaMaisProxima(doc,orig,campos,n){
+ const comFolga=rotaParaTerrenoAlto(doc,orig,campos,n,1);
+ if(comFolga.rota)return {...comFolga,classe:'com_folga'};
+ const semFolga=rotaParaTerrenoAlto(doc,orig,campos,n,0);
+ if(semFolga.rota)return {...semFolga,classe:'sem_folga',observacao:'Não foi possível manter 1 m de margem em todo o trajeto; passagem modelada junto ao limite da água.'};
+ return {...semFolga,classe:'indisponivel',observacao:comFolga.causa};
+}
+function melhorCotaAnterior(orig,f,n){
+ const limite=Math.max(0,Math.min(50,Math.ceil(n*2)-1)),molhou=orig[f.cota_alaga];
+ const teto=Math.min(limite,molhou==null?limite:Math.ceil(Number(molhou)*2)-1);
+ let lo=0,hi=teto,melhor=-1;
+ while(lo<=hi){
+  const meio=(lo+hi)>>1,t=meio/2;
+  if(saidaMaisProxima(d,orig,f,t).rota){melhor=meio;lo=meio+1}else hi=meio-1;
+ }
+ return melhor<0?null:melhor/2;
 }
 function mostra(i,orig,f,descr,o,c,alt,n){
- const node=orig[f.no],valid=Number.isInteger(node)&&node>=0&&node<d.nos.length;
- const atingida=orig[f.cota_alaga]!=null&&Number(orig[f.cota_alaga])<=n+1e-9;
- const ok=valid&&!atingida&&Number.isFinite(o.dist[node]),isAlt=valid&&!atingida&&Number.isFinite(alt.dist[node]);
- const escolha=ok?o:(isAlt?alt:null);
- const destinoId=escolha?.dest[node]??null;
- const destino=destinoId==null?null:d.abrigos.concat(d.candidatos).find(a=>String(a.id)===String(destinoId));
- const tipoDestino=destino?(d.abrigos.some(a=>String(a.id)===String(destino.id))?'abrigo cadastrado':'local elevado candidato'):'sem destino demonstrado';
- const fonte=destino?(destino.nome||('Local candidato '+(destino.ordem||destino.id))):'nenhum destino conectado neste cenário';
- const minutos=escolha?(escolha.dist[node]/60).toFixed(1):'—';
- const cut=corteAproximado(i,f);
- const confianca=((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i)))?'endereço CNEFE até 10 m, uso ainda não verificado':'uso residencial não confirmado';
- let aviso;
- cotaAnterior=null;
- if(destino){
-  aviso='Origem #'+i+' → '+fonte+' ('+tipoDestino+'). Tempo teórico '+minutos+' min. Linha azul = percurso calculado para ESTE nível, ainda sem validação.';
+ const resultado=saidaMaisProxima(d,orig,f,n),r=resultado.rota;
+ const referencia='Origem OSM #'+i;
+ const residencial=((d.meta.municipio==='Santa Tereza'&&CNEFE_ST_10M.has(i))||(d.meta.municipio==='Muçum'&&CNEFE_MUCUM_10M.has(i)))?
+  'Endereço CNEFE próximo (residência não confirmada)':'Tipo e uso da edificação não confirmados';
+ rotaSelecionada.clearLayers();cotaAnterior=null;
+ let titulo,detalhe;
+ if(r){
+  const minutos=(r.metros/.9/60).toFixed(1),folga=(r.minCota-n).toFixed(1);
+  titulo=referencia+': saída mais próxima calculada pela rede viária, '+Math.round(r.metros)+' m ('+minutos+' min a pé, estimativa). '+
+   'Destino: trecho de rua em ponto alto, HAND '+r.cotaSaida.toFixed(1)+' m. '+
+   (resultado.classe==='com_folga'?'Toda a rota tem ao menos 1 m de margem nas cotas disponíveis.':'Rota próxima ao limite da inundação; sem 1 m de margem ao longo de todo o percurso.')+
+   ' NÃO é rota de evacuação validada.';
+  detalhe='Destino: ponto alto na rede viária (não é abrigo).\nHAND no destino: '+r.cotaSaida.toFixed(1)+' m'+
+   '\nExtensão pelas ruas: '+Math.round(r.metros)+' m ('+minutos+' min teóricos)'+
+   '\nMenor folga relativa à água: '+folga+' m'+
+   '\nAcesso ponto da edificação → nó da rua: '+r.acessoM+' m, NÃO VISTORIADO.'+
+   (r.acessoM>60?'\nATENÇÃO: a ligação entre a edificação e a rua associada é distante; necessita correção em imagem/levantamento.':'')+
+   '\nPontes sem cota validada são excluídas. Sem dados de velocidade, correnteza, bloqueios e acesso real.';
+  const caminho=r.nos.map(ix=>d.nos[ix]);
+  const linha=L.polyline(caminho,{color:'#005bea',weight:7,opacity:.95,dashArray:'12 5'}).addTo(rotaSelecionada);
+  const casa=[orig[f.lat],orig[f.lon]],entrada=d.nos[r.nos[0]];
+  L.circleMarker(casa,{radius:8,color:'#054dcb',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(rotaSelecionada).bindTooltip('Edificação selecionada',{direction:'top'});
+  L.polyline([casa,entrada],{color:'#f0941b',weight:3,dashArray:'3 7',opacity:.85}).addTo(rotaSelecionada)
+   .bindPopup('Ligação da edificação à rua não vistoriada, '+r.acessoM+' m em linha reta. NÃO constitui percurso de acesso validado.');
+  L.circleMarker(d.nos[r.saida],{radius:12,color:'#075b42',fillColor:'#88e2a9',weight:3,fillOpacity:1})
+   .addTo(rotaSelecionada).bindTooltip('Ponto alto candidato (não é abrigo)',{permanent:true,direction:'top'});
+  const bb=linha.getBounds();bb.extend(casa);map.fitBounds(bb.pad(.22),{maxZoom:17});
  }else{
   cotaAnterior=melhorCotaAnterior(orig,f,n);
-  aviso='Origem #'+i+': '+(atingida?'EDIFICAÇÃO ATINGIDA pela água neste cenário. ':'')+
-    'Não há percurso demonstrado até um destino nesta cota.'+
-    (cotaAnterior!=null?' O modelo encontra caminho em nível anterior (HAND '+cotaAnterior.toFixed(1).replace('.',',')+' m).':' Nem níveis anteriores apresentaram conexão verificável no grafo.');
+  titulo=referencia+': sem saída para ponto alto demonstrável nesta cota. '+resultado.causa+
+    (cotaAnterior!=null?' Último cenário com caminho calculado: HAND '+cotaAnterior.toFixed(1)+' m.':' Não há cenário anterior com caminho comprovado nesses dados.')+
+    ' Não interpretar como inexistência de saída real.';
+  detalhe='Nenhuma rota com cotas suficientes identificada no grafo para esta origem.\n'+
+   (resultado.observacao||'')+'\nA imagem/MDT, a entrada do imóvel e a conectividade precisam de revisão.';
+  const no=orig[f.no];if(Number.isInteger(no)&&no>=0&&no<d.nos.length)
+   L.circleMarker([orig[f.lat],orig[f.lon]],{radius:11,color:'#bd2633',fillColor:'#fff',fillOpacity:.85,weight:3})
+     .addTo(rotaSelecionada).bindTooltip('Origem: sem rota comprovada',{direction:'top'});
  }
- $('visaoDestino').textContent=aviso;
- $('orientacao').textContent=aviso;
+ $('visaoDestino').textContent=titulo;
+ $('orientacao').textContent=titulo;
  $('voltarCota').hidden=cotaAnterior==null;
- $('detail').textContent='Origem OSM #'+i+'\n'+descr[1]+
-  '\nVínculo residencial: '+confianca+
-  '\nCota da água na edificação (HAND): '+(orig[f.cota_alaga]==null?'indeterminada':orig[f.cota_alaga]+' m')+
-  '\nPrimeiro trecho afetado na série anterior: '+(cut==null?'indeterminado':(cut+d.meta.bankfull_m).toFixed(1)+' m na régua, aproximação')+
-  '\nDestino: '+fonte+' ('+tipoDestino+')\nTempo de percurso: '+minutos+' min (terreno plano)'+
-  '\nPassagens, pontes, entrada do imóvel e destinos não vistoriados.';
- rotaSelecionada.clearLayers();
- if(escolha&&destino){
-  let chain=[],cur=node,visited=new Set();
-  while(cur>=0&&!visited.has(cur)&&chain.length<d.nos.length){
-   visited.add(cur);chain.push(d.nos[cur]);let next=escolha.next[cur];if(next===cur)break;cur=next;
-  }
-  if(chain.length>1){
-   const line=L.polyline(chain,{color:'#0063ec',weight:7,opacity:1,dashArray:'12 6'}).addTo(rotaSelecionada);
-   L.circleMarker(chain[0],{radius:9,color:'#0063ec',weight:3,fillColor:'#fff',fillOpacity:1}).addTo(rotaSelecionada);
-   L.circleMarker([destino.lat,destino.lon],{radius:11,color:'#0063ec',weight:3,fillColor:'#d3f7ff',fillOpacity:1}).addTo(rotaSelecionada);
-   map.fitBounds(line.getBounds().pad(.20));
-  }
- }else if(valid){
-  L.circleMarker(d.nos[node],{radius:12,color:'#ba262b',weight:4,fillColor:'#fff',fillOpacity:.75}).addTo(rotaSelecionada);
- }
+ $('detail').textContent=referencia+'\nSituação: '+descr[1]+'\nCadastro: '+residencial+'\n'+detalhe;
 }
 function exemploRota(){
  if(!d)return;
  const f=Object.fromEntries(d.meta.casas_campos.map((k,i)=>[k,i]));
  const n=Number($('cota').value),p=$('politica').value;
- const o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
  const ids=d.meta.municipio==='Santa Tereza'?CNEFE_ST_10M:CNEFE_MUCUM_10M;
- const i=[...ids].find(i=>{const orig=d.casas[i];if(!orig)return false;const nd=orig[f.no];return Number.isInteger(nd)&&nd>=0&&(orig[f.cota_alaga]==null||orig[f.cota_alaga]>n)&&Number.isFinite(alt.dist[nd])&&alt.next[nd]!==nd});
- if(i==null){$('orientacao').textContent='Nenhum percurso computacional encontrado para os pontos filtrados neste cenário. Isso não prova impossibilidade de evacuação.';return;}
- selecionada=i;const orig=d.casas[i];mostra(i,orig,f,cor(orig,f,o,c,alt,n),o,c,alt,n);
+ const id=[...ids].find(i=>{
+  const orig=d.casas[i];if(!orig)return false;
+  const r=saidaMaisProxima(d,orig,f,n).rota;
+  return r&&r.metros>=60&&r.acessoM<=60;
+ });
+ if(id==null){$('visaoDestino').textContent='Neste nível o modelo não encontrou exemplo com acesso preliminar de até 60 m e ruas com cotas conhecidas. Selecione outra cota ou um ponto no mapa.';return}
+ selecionada=id;
+ const orig=d.casas[id],o=calcula(d,n,p,false),c=calcula(d,n,'conservadora',false),alt=calcula(d,n,p,$('candidatos').checked);
+ mostra(id,orig,f,cor(orig,f,o,c,alt,n),o,c,alt,n);
 }
 $('exemploRota').addEventListener('click',exemploRota);
 $('exemploMapa').addEventListener('click',exemploRota);
-$('voltarCota').addEventListener('click',()=>{if(cotaAnterior==null||!d)return;$('cota').value=cotaAnterior.toFixed(1);$('evento').value='';rede(cotaAnterior,$('politica').value)});
+$('voltarCota').addEventListener('click',()=>{
+ if(cotaAnterior==null||!d)return;
+ $('cota').value=cotaAnterior.toFixed(1);$('evento').value='';
+ rede(cotaAnterior,$('politica').value);
+});
 async function mudaCidade(){
  let slug=$('cidade').value;
  try{
@@ -320,8 +382,7 @@ async function mudaCidade(){
 
  $('cota').value=Number(d.meta.nivel_projeto_m).toFixed(1);let bb=rede(+($('cota').value),$('politica').value);
  if(bb.isValid())map.fitBounds(bb.pad(.07));
- // Mostra um exemplo real do grafo logo ao abrir, sem simular segurança de evacuação.
- exemploRota();
+ // O usuário escolhe a edificação; não abrir uma rota de outra pessoa automaticamente.
  }catch(err){$('resumo').textContent='Não foi possível carregar o painel versionado: '+String(err)}
 }
 $('cidade').addEventListener('change',mudaCidade);
