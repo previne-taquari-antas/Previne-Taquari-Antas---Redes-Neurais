@@ -78,7 +78,7 @@ const analisarIsolamento = function analisarIsolamento(D, cfg={}) {
     else if(e.alcancavel){classe="CONEXAO_MODELADA_SEM_TRECHOS_BLOQUEADOS";sums.casas_secas_ligadas_estrito++;sums.casas_secas_ligadas_condicional++;}
     else if(o.alcancavel){classe="CONEXAO_DEPENDE_DE_DADOS_INDETERMINADOS";sums.casas_secas_so_condicional++;sums.casas_secas_ligadas_condicional++;}
     else{classe="SEM_DESTINO_ACESSIVEL_NO_GRAFO";sums.casas_secas_sem_destino_no_grafo++;}
-    if(!wet&&initial&&!o.alcancavel)sums.casas_secas_perderam_destino_desde_nivel_zero++;
+    if(!wet&&!unknown&&initial&&!o.alcancavel)sums.casas_secas_perderam_destino_desde_nivel_zero++;
     let perdeu=null,anterior=null;
     if(initial){for(const s of scenarios){
       if(!s.cond.assignments[i].alcancavel){
