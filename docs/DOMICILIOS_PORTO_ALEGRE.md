@@ -17,6 +17,10 @@ python scripts/vincular_cnefe_edificacoes_porto_alegre.py \
 
 Use `--cnefe caminho/4314902_PORTO_ALEGRE.zip` se o ZIP já estiver baixado. A primeira execução sem `--cnefe` tenta baixá-lo do endereço oficial.
 
+O workflow [.github/workflows/porto-alegre-cnefe.yml](../.github/workflows/porto-alegre-cnefe.yml) automatiza o download completo e o processamento. O resultado integral fica no artefato do GitHub Actions, não é incorporado automaticamente ao mapa público. O extrato OSM é fixado em 22/10/2026 para reprodutibilidade. Caso uma etapa de download falhe, NÃO interprete o relatório incompleto como resultado censitário.
+
+Para conferir qual construção corresponde ao número do CNEFE, abra **dois arquivos** no revisor: `revisao_street_view.csv` e `edificacoes_revisao.geojson` (polígonos OSM próximos dos candidatos). Clique primeiro no endereço IBGE e depois na edificação correta no mapa. O registro de decisão exige evidência e pode ser exportado para reprocessar com `--revisoes`. Nenhum ponto do arquivo de sugestões é apresentado como residência já validada.
+
 Abra `pesquisas/porto-alegre-domicilios-revisao.html` no navegador e selecione `revisao_street_view.csv` para ver, sobre mapa de ruas ou imagem aérea, o ponto original (laranja) e a edificação candidata (azul). O mapa exige conferência humana, registra a evidência informada e exporta `revisoes_aprovadas_porto_alegre.csv` sem alterar o CNEFE. Para produzir as coordenadas corrigidas após revisão, passe esse arquivo em `--revisoes`.
 
 ## Saídas, regras e garantias
