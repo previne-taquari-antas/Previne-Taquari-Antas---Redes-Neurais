@@ -23,6 +23,10 @@ const context={L,document:{getElementById:elem,createElement:()=>node(),createTe
 vm.runInNewContext(code,context,{timeout:20000,filename:'gt-risco-vida.inline.js'});
 // Async mudaCidade triggers until its first await, all data inline so immediate.
 assert(/Santa Tereza/.test(elem('resumo').innerHTML),'Santa Tereza not rendered');
+assert(/Centro de Santa Tereza/.test(elem('altosMapa').textContent),'Center elevated-road overlay not described');
+assert(/trechos elevados candidatos/.test(elem('altosMapa').textContent),'Center candidate street counts missing');
+assert(vm.runInNewContext("trechosElevados(d,13.4).some(x=>x.mid[0]>=-29.171&&x.mid[0]<=-29.163&&x.mid[1]>=-51.743&&x.mid[1]<=-51.728)",context,{timeout:20000}),
+  'Center lacks candidate elevated-road segments');
 assert(/565/.test(elem('resumo').innerHTML),'No 565 points in Santa Tereza summary');
 elem('cidade').value='mucum';
 vm.runInNewContext("mudaCidade()",context,{timeout:20000});
