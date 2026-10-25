@@ -220,6 +220,54 @@ def fetch_event_rain(
     return stations, series_by_code, failures
 
 
+def summarize_event_station_support(
+    candidates: dict[str, dict[str, Any]],
+    stations: list[dict[str, Any]],
+    series_by_code: dict[str, dict[datetime, float]],
+    times: list[datetime],
+) -> dict[str, Any]:
+    """Audit actual event-hour availability, not the full inventory or warm-up."""
+    station_by_code = {str(st["code"]): st for st in stations}
+    rows = []
+    without_event_hours = []
+    expected_hours = len(times)
+    for code in sorted(candidates):
+        values = series_by_code.get(code) or {}
+        available = sum(t in values for t in times)
+        if not available:
+            without_event_hours.append(code)
+            continue
+        st = station_by_code.get(code) or candidates[code]
+        rows.append({
+            "code": code,
+            "name": st.get("name") or st.get("label"),
+            "network": st.get("network"),
+            "hours_in_event": available,
+            "coverage_ratio": round(available / expected_hours, 6) if expected_hours else 0.0,
+            # Fetch/archive provenance here covers warm-up too, not just this event.
+            "archive_contributed_any_hour_in_fetch_window": bool(st.get("archive_contributed")),
+        })
+    rows.sort(key=lambda row: (-row["hours_in_event"], row["code"]))
+    network_reporting_counts: dict[str, int] = {}
+    for row in rows:
+        network = str(row.get("network") or "unspecified")
+        network_reporting_counts[network] = network_reporting_counts.get(network, 0) + 1
+    return {
+        "candidate_station_count": len(candidates),
+        "stations_reporting_at_least_one_event_hour": len(rows),
+        "stations_reporting_at_least_75pct_event_hours": sum(
+            row["coverage_ratio"] >= 0.75 for row in rows
+        ),
+        "reporting_stations_by_network": dict(sorted(network_reporting_counts.items())),
+        "station_hourly_support": rows,
+        "candidate_codes_without_any_event_hour": without_event_hours,
+        "coverage_note": (
+            "An inventory entry or a station active in the 7-day warm-up "
+            "does not demonstrate simultaneous event-hour coverage."
+        ),
+    }
+
+
 def component_forcing(
     stations: list[dict[str, Any]],
     series_by_code: dict[str, dict[datetime, float]],
@@ -297,6 +345,13 @@ def component_forcing(
         "hour_count": len(times),
         "hours_with_any_station": sum(x > 0 for x in valid_counts),
         "hours_with_at_least_3_stations": sum(x >= MIN_RAIN_STATIONS_FOR_STRONG_HOUR for x in valid_counts),
+        # Three widely separated rain gauges cannot resolve storm placement
+        # across the entire G040 network; report this limitation explicitly.
+        "hours_with_fewer_than_4_stations": sum(x < 4 for x in valid_counts),
+        "fraction_hours_with_fewer_than_4_stations": (
+            sum(x < 4 for x in valid_counts) / len(times) if times else 0.0
+        ),
+        "hours_without_any_station": sum(x == 0 for x in valid_counts),
         "minimum_valid_station_count": min(valid_counts) if valid_counts else 0,
         "median_valid_station_count": valid_sorted[len(valid_sorted)//2] if valid_sorted else 0,
         "maximum_valid_station_count": max(valid_counts) if valid_counts else 0,
@@ -381,6 +436,9 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
     stations, series_by_code, failures = fetch_event_rain(
         candidates, upper_rain_start, end, max_workers=max_workers
     )
+    station_audit = summarize_event_station_support(
+        candidates, stations, series_by_code, times
+    )
     components, rain_diag = component_forcing(
         stations, series_by_code, times, active
     )
@@ -421,10 +479,24 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
         "network": {
             "candidate_station_count": len(candidates),
             "valid_rain_station_count": len(stations),
+            **station_audit,
             "fetch_failure_without_archive_count": len(failures),
             "failures": failures,
         },
         "rain_diagnostics": rain_diag,
+        "spatial_support_assessment": {
+            "flag": "SPARSE_GAUGE_SUPPORT" if
+                rain_diag["fraction_hours_with_fewer_than_4_stations"] > 0.25
+                else "NO_SPARSE_GAUGE_FLAG",
+            "explanation": (
+                "Continuous IDW rainfall is not proof of spatial representativeness. "
+                "Fewer than four reporting rain gauges across G040 for over 25% "
+                "of hourly intervals makes spatial calibration weak."
+            ),
+            "hourly_gauge_threshold": 4,
+            "flag_fraction_threshold": 0.25,
+            "does_not_impute_missing_rain": True,
+        },
         "upper_antas_nested_forcing": {
             "purpose": "7-day observed warm-up plus event rain for predictive 86472000 boundary",
             "warmup_days": UPPER_WARMUP_DAYS,
@@ -476,7 +548,9 @@ def build_event(event_id: str, *, max_workers: int) -> dict[str, Any]:
         "window_hours": expected_hours,
         "rain_status": rain_payload["status"],
         "rain_station_count": len(stations),
+        "rain_station_event_support": station_audit,
         "rain_diagnostics": rain_diag,
+        "spatial_support_flag": rain_payload["spatial_support_assessment"]["flag"],
         "upper_antas_nested_complete": nested_diag["complete_zone_count"] == nested_diag["zone_count"],
         "upper_antas_nested_diagnostics": nested_diag,
         "active_boundary_codes": active,

@@ -22,6 +22,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from scripts.g040_overbank_storage import route_overbank
+except ModuleNotFoundError:
+    from g040_overbank_storage import route_overbank
+
 ROOT=Path(__file__).resolve().parents[1]
 BASE=ROOT/"assets/data/hec_hms_g040_full_basin"
 OBSRAIN=BASE/"whole_basin_observed_rain_latest.json"
@@ -33,6 +38,9 @@ DSS_EPOCH=datetime(1899,12,31)
 # Fixed across calibration candidates so ranking is not contaminated by changing numerical resolution.
 # 3 min satisfies HEC-HMS SCS UH guidance dt <= 0.29*lag even at the current minimum lag bound (~15.85 min).
 COMPUTE_INTERVAL_MIN=3
+# Observed stage/discharge may be resampled to the model's hourly axis only
+# between nearby telemetry records. Never bridge multi-hour outages.
+MAX_OBS_INTERPOLATION_GAP_MIN=60
 # HEC-HMS 4.13 rejects larger Muskingum subreach counts in the generated basin model.
 # Keep the numerical search inside the accepted range; candidates without a stable
 # solution inside this range are rejected instead of run with unstable routing.
@@ -110,6 +118,9 @@ def interp(rows,t):
         elif a>t:
             hi=(a,b); break
     if lo is None or hi is None: return None
+    gap_minutes=(hi[0]-lo[0]).total_seconds()/60.0
+    if gap_minutes<=0 or gap_minutes>MAX_OBS_INTERPOLATION_GAP_MIN:
+        return None
     f=(t-lo[0]).total_seconds()/(hi[0]-lo[0]).total_seconds()
     return lo[1]*(1-f)+hi[1]*f
 
@@ -642,6 +653,19 @@ def score_outputs(out_by,hydro,times,boundary_source_code=None):
             result[code]={"pairs":len(pairs),"status":"insufficient_observed_Q"}
             continue
         tt=[x[0] for x in pairs]; obs=[x[1] for x in pairs]; ss=[x[2] for x in pairs]
+        # Full simulation peak includes missing-observation hours. A high NSE
+        # on paired hours must never obscure a hydrologically extreme unobserved peak.
+        start_t=times[0]; end_t=times[-1]
+        all_sim=[(t,float(q)) for t,q in sim_rows
+                 if start_t<=t<=end_t and math.isfinite(float(q))]
+        full_peak_time,full_peak_q=max(all_sim,key=lambda z:z[1]) if all_sim else (None,None)
+        full_peak_obs_available=bool(full_peak_time is not None
+            and any(abs((t-full_peak_time).total_seconds())<=1800 for t in obsmap))
+        full_peak_gap_notice=(
+            "FULL_SIMULATED_PEAK_HAS_NO_NEARBY_OBSERVATION"
+            if full_peak_time is not None and not full_peak_obs_available
+            else "PEAK_TIME_OBSERVATION_PRESENT"
+        )
         mo=sum(obs)/len(obs); ms=sum(ss)/len(ss)
         sse=sum((a-b)**2 for a,b in zip(obs,ss)); den=sum((a-mo)**2 for a in obs)
         rmse=math.sqrt(sse/len(obs)); mae=sum(abs(a-b) for a,b in zip(obs,ss))/len(obs)
@@ -657,19 +681,50 @@ def score_outputs(out_by,hydro,times,boundary_source_code=None):
         peak_obs=obs[oi]; peak_sim=ss[si]
         peak_err=100*(peak_sim-peak_obs)/peak_obs if peak_obs else None
         peak_lag=(tt[si]-tt[oi]).total_seconds()/3600
+        # This compares only paired observation hours; in events with missing
+        # observations, it is NOT the continuous full-event hydrograph volume.
         volume_obs=sum(obs)*3600.0; volume_sim=sum(ss)*3600.0
         volume_err=100*(volume_sim-volume_obs)/volume_obs if volume_obs else None
-        do=[obs[i]-obs[i-1] for i in range(1,len(obs))]
-        ds=[ss[i]-ss[i-1] for i in range(1,len(ss))]
+        # A slope cannot be computed across an observational outage. Adjacent
+        # entries in 'pairs' may be separated by days; use only true 1h steps.
+        adjacent=[i for i in range(1,len(tt))
+                  if abs((tt[i]-tt[i-1]).total_seconds()-3600.0)<1.0]
+        do=[obs[i]-obs[i-1] for i in adjacent]
+        ds=[ss[i]-ss[i-1] for i in adjacent]
         derivative_rmse=math.sqrt(sum((a-b)**2 for a,b in zip(do,ds))/len(do)) if do else None
         sign_hits=sum((a==0 and b==0) or (a*b>0) for a,b in zip(do,ds))
         rise_fall_skill=sign_hits/len(do) if do else None
+        pair_gaps_h=[(tt[i]-tt[i-1]).total_seconds()/3600.0-1.0
+                     for i in range(1,len(tt))
+                     if (tt[i]-tt[i-1]).total_seconds()>3600.0+1.0]
+        coverage=len(pairs)/len(times) if times else 0.0
         result[code]={
-            "pairs":len(pairs),"mean_observed_m3s":mo,"mean_simulated_m3s":ms,
+            "pairs":len(pairs),
+            "observed_coverage_ratio":coverage,
+            "observed_missing_hours":max(len(times)-len(pairs),0),
+            "observed_gap_count":len(pair_gaps_h),
+            "max_observed_gap_hours":max(pair_gaps_h,default=0.0),
+            "valid_hourly_slope_pairs":len(adjacent),
+            "coverage_caveat":"computed only on actual paired observation hours; gaps are not interpolated",
+            "mean_observed_m3s":mo,"mean_simulated_m3s":ms,
             "rmse_m3s":rmse,"normalized_rmse":None if mo==0 else rmse/mo,
             "mae_m3s":mae,"nse":nse,"kge":kge,"correlation":r,
             "pbias_pct":pbias,"volume_error_pct":volume_err,
+            "volume_error_scope":"paired_hours_only",
             "observed_peak_m3s":peak_obs,"simulated_peak_m3s":peak_sim,
+            "full_simulated_peak_m3s":full_peak_q,
+            "full_simulated_peak_time_utc":(
+                full_peak_time.isoformat().replace("+00:00","Z")
+                if full_peak_time is not None else None
+            ),
+            "full_peak_observation_status":full_peak_gap_notice,
+            "full_peak_relative_to_recorded_observed_peak_pct":(
+                100*(full_peak_q-peak_obs)/peak_obs
+                if full_peak_q is not None and peak_obs else None
+            ),
+            "full_peak_relative_error_caveat":(
+                "Not true peak error when observations are missing near model peak"
+            ),
             "peak_error_pct":peak_err,
             "observed_peak_time_utc":tt[oi].isoformat().replace("+00:00","Z"),
             "simulated_peak_time_utc":tt[si].isoformat().replace("+00:00","Z"),
@@ -704,6 +759,12 @@ def main():
         help="Optional ISO UTC time; verification metrics use only timestamps at/before this time.")
     ap.add_argument("--scenario-file",type=Path,default=SCENARIOS)
     ap.add_argument("--output-root",type=Path,default=OUTROOT)
+    ap.add_argument("--overbank-threshold-m3s",type=float,default=None,
+        help="Research-only conceptual bankfull discharge threshold at mainstem upstream boundary")
+    ap.add_argument("--overbank-fraction",type=float,default=0.0,
+        help="Fraction of above-threshold discharge temporarily stored in off-channel reservoir")
+    ap.add_argument("--overbank-release-tau-h",type=float,default=None,
+        help="Off-channel conceptual reservoir release residence time in hours")
     args=ap.parse_args()
     if not (20<args.cn<95): raise SystemExit("CN outside physical search domain")
     if not (1<=args.lag_min<=600): raise SystemExit("lag outside search domain")
@@ -727,6 +788,19 @@ def main():
     times=hourly_axis(start,end)
 
     source_values={code:source_hourly(hydro,code,times) for code in [primary_source,*active]}
+    overbank_audit=None
+    if args.overbank_fraction:
+        if primary_source!="86472000":
+            raise RuntimeError("overbank experiment needs observed 86472000 upstream source")
+        if args.overbank_threshold_m3s is None or args.overbank_release_tau_h is None:
+            raise RuntimeError("overbank experiment requires threshold and release tau")
+        source_values[primary_source],overbank_audit=route_overbank(
+            source_values[primary_source],
+            threshold_m3s=args.overbank_threshold_m3s,
+            diverted_fraction=args.overbank_fraction,
+            release_tau_h=args.overbank_release_tau_h,
+            timestep_h=1.0,
+        )
     score_start=utc(args.score_start_utc) if args.score_start_utc else None
     score_end=utc(args.score_end_utc) if args.score_end_utc else None
     score_times=[t for t in times if (score_start is None or t>=score_start) and (score_end is None or t<=score_end)]
@@ -779,6 +853,9 @@ def main():
         "score_hydro_file":str(Path(args.score_hydro_file)) if args.score_hydro_file else str(Path(args.hydro_file)),
         "scenario_file":str(Path(args.scenario_file))},
       "rainfall_runoff_components":used,
+      "upstream_boundary_overbank_storage_experiment":overbank_audit,
+      "rainfall_spatial_support":rainpkg.get("spatial_support_assessment", {}),
+      "rainfall_diagnostics":rainpkg.get("rain_diagnostics", {}),
       "preflight_contract":preflight,
       "parameters":{"cn":args.cn,"lag_min":args.lag_min,"baseflow":"None",
         "k_group_h":{"g1":args.k_g1,"g2":args.k_g2,"g3":args.k_g3,"g4":args.k_g4},
@@ -794,6 +871,7 @@ def main():
         "global CN and lag are temporary calibration parameterization, not 145-subbasin transfer",
         "model stops at Porto Mariante until lower-TaQ routing/backwater evidence is closed",
         "when score_hydro_file differs from hydro_file, future observations are verification-only and never enter forcing",
+        "overbank-storage option is conceptual and does not replace a measured storage-elevation-discharge curve or 2D floodplain model",
         "if Muçum is the primary fallback, Muçum itself is boundary-only and is excluded from forecast scoring"],
       "promotion_allowed":False}
     (rt/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")

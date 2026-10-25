@@ -139,6 +139,12 @@ def run_event(hec: str, row: dict[str, Any], event_id: str) -> dict[str, Any]:
         "--x",
         str(row["x"]),
     ]
+    if row.get("overbank_fraction"):
+        cmd.extend([
+            "--overbank-threshold-m3s",str(row["overbank_threshold_m3s"]),
+            "--overbank-fraction",str(row["overbank_fraction"]),
+            "--overbank-release-tau-h",str(row["overbank_release_tau_h"]),
+        ])
     p = subprocess.run(
         cmd,
         cwd=ROOT,
@@ -183,11 +189,24 @@ def metric_penalty(metric: dict[str, Any]) -> float | None:
         terms.append(abs(float(metric["peak_timing_error_h"])) / 12)
     if metric.get("rise_fall_sign_skill") is not None:
         terms.append(max(0.0, 1 - float(metric["rise_fall_sign_skill"])))
+    # Penalize unrealistic rise/recession slopes, not just peak height.
+    # Normalize the hydrograph derivative (m3/s/h) by mean discharge (m3/s).
+    derivative = metric.get("derivative_rmse_m3s_h")
+    mean_flow = metric.get("mean_observed_m3s")
+    if derivative is not None and mean_flow is not None:
+        terms.append(min(5.0, abs(float(derivative)) / max(abs(float(mean_flow)), 1.0)))
     return sum(terms) / len(terms) if terms else None
 
 
 def checkpoint_gate(metric: dict[str, Any]) -> bool:
     if not isinstance(metric, dict) or int(metric.get("pairs") or 0) < 12:
+        return False
+    # A plausible NSE is not calibration evidence when the hydrograph is
+    # mostly absent or a long discharge outage crosses the event. The score
+    # remains diagnostic, but the checkpoint cannot satisfy a readiness gate.
+    coverage=float(metric.get("observed_coverage_ratio",1.0))
+    largest_gap=float(metric.get("max_observed_gap_hours",0.0))
+    if coverage<0.70 or largest_gap>6.0:
         return False
     return (
         metric.get("nse") is not None
@@ -206,6 +225,8 @@ def checkpoint_gate(metric: dict[str, Any]) -> bool:
 def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]) -> dict[str, Any]:
     event_summaries = []
     all_penalties = []
+    event_penalties = []
+    calibration_events_with_gate = 0
     total_gates = 0
     total_valid = 0
     contributing_events = 0
@@ -220,6 +241,9 @@ def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]
         penalties = [metric_penalty(metric) for metric in valid.values()]
         penalties = [x for x in penalties if x is not None]
         gates = sum(checkpoint_gate(metric) for metric in valid.values())
+        if penalties:
+            event_penalties.append(sum(penalties) / len(penalties))
+        calibration_events_with_gate += int(gates > 0)
         if len(valid) >= 2:
             contributing_events += 1
         total_valid += len(valid)
@@ -236,6 +260,8 @@ def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]
                 sum(penalties) / len(penalties) if penalties else None
             ),
             "scores": scores,
+            "rainfall_spatial_support": event.get("rainfall_spatial_support"),
+            "rainfall_diagnostics": event.get("rainfall_diagnostics"),
             "error": event.get("error"),
         })
 
@@ -254,6 +280,8 @@ def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]
         "contributing_event_count": contributing_events,
         "valid_checkpoint_event_count": total_valid,
         "checkpoint_gate_pass_count": total_gates,
+        "calibration_events_with_gate": calibration_events_with_gate,
+        "worst_event_penalty": max(event_penalties) if event_penalties else None,
         "mean_multi_metric_penalty": (
             sum(all_penalties) / len(all_penalties) if all_penalties else None
         ),
@@ -264,7 +292,11 @@ def summarize_candidate(row: dict[str, Any], event_results: list[dict[str, Any]]
 def rank_key(row: dict[str, Any]) -> tuple:
     return (
         0 if row.get("eligible_for_calibration_ranking") else 1,
+        -int(row.get("calibration_events_with_gate") or 0),
         -int(row.get("checkpoint_gate_pass_count") or 0),
+        float("inf")
+        if row.get("worst_event_penalty") is None
+        else float(row["worst_event_penalty"]),
         float("inf")
         if row.get("mean_multi_metric_penalty") is None
         else float(row["mean_multi_metric_penalty"]),
@@ -279,6 +311,8 @@ def write_csv(rows: list[dict[str, Any]]) -> None:
         "contributing_event_count",
         "valid_checkpoint_event_count",
         "checkpoint_gate_pass_count",
+        "calibration_events_with_gate",
+        "worst_event_penalty",
         "mean_multi_metric_penalty",
         "cn",
         "lag_min",
@@ -300,6 +334,8 @@ def write_csv(rows: list[dict[str, Any]]) -> None:
                 "contributing_event_count": row.get("contributing_event_count"),
                 "valid_checkpoint_event_count": row.get("valid_checkpoint_event_count"),
                 "checkpoint_gate_pass_count": row.get("checkpoint_gate_pass_count"),
+                "calibration_events_with_gate": row.get("calibration_events_with_gate"),
+                "worst_event_penalty": row.get("worst_event_penalty"),
                 "mean_multi_metric_penalty": row.get("mean_multi_metric_penalty"),
                 **{key: p.get(key) for key in ("cn", "lag_min", "k_g1", "k_g2", "k_g3", "k_g4", "x")},
             })
@@ -353,8 +389,12 @@ def main() -> int:
             "candidate_count": len(candidates),
             "design": "2 report-derived anchors + deterministic Van der Corput/QMC",
             "bounds": BOUNDS,
-            "ranking": "require both calibration events to contribute >=2 checkpoints; maximize checkpoint gates; then minimize mean multi-metric penalty",
-            "checkpoint_gate": "pairs>=12, NSE>=0.50, |PBIAS|<=20%, |peak error|<=20%, |peak timing|<=3h, rise/fall sign skill>=0.65",
+            "ranking": "both calibration events contribute >=2 checkpoints; maximize event balance and checkpoint gates; minimize worst-event then mean penalty (including rise/recession derivative error)",
+            "checkpoint_gate": "pairs>=12, observed coverage>=70%, longest missing Q gap<=6h, NSE>=0.50, |PBIAS|<=20%, |peak error|<=20%, |peak timing|<=3h, rise/fall sign skill>=0.65",
+            "calibration_quality_note": (
+                "Observed discharge gaps and low spatial rainfall gauge support "
+                "can prevent scientifically defensible promotion even when HEC computes."
+            ),
             "selection_variables": [
                 "CN",
                 "SCS lag",

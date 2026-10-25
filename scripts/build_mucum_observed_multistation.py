@@ -71,7 +71,7 @@ FAST_MODE = os.environ.get("OBS_FAST_MODE", "0").strip().lower() in {"1","true",
 ANA_TIMEOUT = int(os.environ.get("OBS_ANA_TIMEOUT", "10" if FAST_MODE else "12"))
 ANA_RETRIES = int(os.environ.get("OBS_ANA_RETRIES", "2" if FAST_MODE else "2"))
 GRID_STEP = 0.05
-ANA_CACHE: dict[str, dict[str, Any]] = {}
+ANA_CACHE: dict[tuple[str, datetime, datetime], dict[str, Any]] = {}
 MAX_FETCH_WORKERS = int(os.environ.get("OBS_FETCH_WORKERS", "4" if FAST_MODE else "6"))
 MAX_FLOW_M3S = 50000.0
 MAX_RAIN_MM_H = 250.0
@@ -175,8 +175,12 @@ def parse_ana_xml(raw: bytes, start: datetime, end: datetime) -> list[dict[str, 
 def fetch_ana(code: str, start: datetime, end: datetime) -> dict[str, Any]:
     """Same stable policy as the live robot: serial, primary+mirror, retry."""
     code = str(code).lstrip("0") if str(code).startswith("0") and len(str(code)) == 8 else str(code)
-    if code in ANA_CACHE:
-        return ANA_CACHE[code]
+    # A station's historical data depend on the exact requested interval.
+    # A code-only cache silently leaks the first event into later event windows
+    # when multiple historical floods are fetched in the same Python process.
+    cache_key = (code, start, end)
+    if cache_key in ANA_CACHE:
+        return ANA_CACHE[cache_key]
     params = urllib.parse.urlencode(
         {
             "codEstacao": code,
@@ -198,7 +202,7 @@ def fetch_ana(code: str, start: datetime, end: datetime) -> dict[str, Any]:
                         "source": "ANA/SGB DadosHidrometeorologicos",
                         "endpoint": base,
                     }
-                    ANA_CACHE[code] = result
+                    ANA_CACHE[cache_key] = result
                     return result
                 errors.append(f"{base}: resposta sem série válida")
             except urllib.error.HTTPError as exc:
@@ -210,7 +214,7 @@ def fetch_ana(code: str, start: datetime, end: datetime) -> dict[str, Any]:
             # the rate limit with simultaneous retries from multiple workers.
             time.sleep(min(15, 3 * (2 ** attempt)))
     result = {"ok": False, "rows": [], "source": "ANA/SGB", "error": " | ".join(errors[-4:])}
-    ANA_CACHE[code] = result
+    ANA_CACHE[cache_key] = result
     return result
 
 
