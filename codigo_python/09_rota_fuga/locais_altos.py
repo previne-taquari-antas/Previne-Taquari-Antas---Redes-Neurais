@@ -11,9 +11,10 @@ viés de set/2023 e põe a cheia em HAND 22,05 m.
 
 TERRENO ALTO = o que ficou FORA da mancha de set/2023, visto no MDT (LiDAR de
 10 m, o mesmo do HAND):
-  - água na borda = mediana da cota do terreno na borda externa da mancha num
-    raio de 300 m, levada a cada pixel pela borda mais próxima (nas ruas, mediana
-    75,8 m: bate com a água medida com RTK em 2023, 74,1–76,5 m);
+  - água na borda = mediana, num raio de 300 m, do meio entre o pixel de
+    dentro e os de fora da borda externa da mancha (o pixel de dentro sozinho
+    fica ~1 m abaixo da água em barranco), levada a cada pixel pela borda mais
+    próxima;
   - nível da água = o maior entre a borda e a maior água medida em campo
     (76,47 m). Na cidade a água de 2023 ficou plana e, em três limites, 1,4 a
     1,8 m acima da borda do HAND; a borda sozinha baixa para 72–73 m no sul;
@@ -21,8 +22,15 @@ TERRENO ALTO = o que ficou FORA da mancha de set/2023, visto no MDT (LiDAR de
     nível da água; "abaixo da água" quando fica abaixo da água na borda sem
     estar na mancha (atrás de aterro ou barreira no modelo: pode ter alagado; o
     remanso do Marrecão ainda não foi validado); o resto é "sem folga".
-Folga de 2 m: nos pontos com RTK, o maior erro no sentido perigoso (água acima
-do modelo) foi 1,84 m (H004); o MAE das 22 profundidades, 0,64 m.
+Folga de 2 m: o erro que conta aqui é o do terreno de 10 m. LiDAR 10 m − RTK nos
+19 vértices: NMAD 0,71 m, máximo +1,46 m (H003, um limite de set/2023: a água
+chegou lá e o LiDAR o põe 1,23 m acima do nível de 76,47 m; com folga de 1 m ele
+seria "alto"). O HAND krigado do artigo tem MAE 0,64 m e erro perigoso máximo de
+1,84 m (H004, já dentro do nível de 76,47 m).
+
+Ilhas: um local ou uma casa no alto pode ficar sem saída seca. `ilha_m` é o nível
+(HAND) em que a última ligação seca com as saídas da cidade (ruas que deixam o
+recorte em terreno alto) é cortada.
 
 Locais sugeridos (para a Defesa Civil avaliar): nós de rua em terreno alto,
 escolhidos um a um pelo que mais encurta a caminhada das casas que não ficam
@@ -73,21 +81,35 @@ CIDADES = {
                            "pesquisas/validacao-campo-hand-santa-tereza/; SBSR 2027"},
         "folga_m": 2.0,
         "folga_local_m": 1.0,
+        "terreno_erro": {"lidar10_menos_rtk_nmad_m": 0.71, "lidar10_menos_rtk_max_m": 1.46, "ponto_max": "H003",
+                         "h003_acima_do_nivel_m": 1.23},
+        # margem no "quando sair": MAE do HAND nos pontos de campo (0,64 krigado; ~0,95 no HAND de 5 m)
+        "margem_corte_m": 1.0,
     },
 }
 RAIO_NIVEL_M = 300.0         # nível da água local: borda externa da mancha num raio de 300 m
 MARGEM_RECORTE_GRAUS = 0.004  # recorte da mancha e do MDT: nós de rua ± ~400 m
 GANHO_MIN_CASA_MIN = 150.0   # novo local precisa poupar 150 casa·min (~30 casas × 5 min)
-LOCAIS_MAX = 8
+LOCAIS_MAX = 10
 TEMPO_TETO_S = 3600.0        # casa sem local até aqui conta 60 min no guloso
 RAIO_RUA_M = 25.0            # nome da rua do local: trecho com nome a até 25 m
 RAIO_LUGAR_M = 150.0         # lugares com nome perto do local
 ESTADOS = ("sem_via", "no_alto", "rota")
-CASAS_CAMPOS = ["estado", "local", "tempo_s", "dist_m", "corte_m", "rota", "terreno", "acima_agua_m"]
+CASAS_CAMPOS = ["estado", "local", "tempo_s", "dist_m", "corte_m", "rota", "terreno", "acima_agua_m",
+                "ilha_m", "alt_local", "alt_tempo_s"]
+SAIDA_BORDA_M = 150.0        # saída da cidade: ponta de rua alta a até 150 m da borda da rede
+ALT_EXTRA_MAX_S = 900.0      # ponto alternativo (que não vira ilha): no máximo 15 min a mais...
+ALT_TOTAL_MAX_S = 1800.0     # ... e 30 min no total
+
+
+def _json(caminho):
+    with open(caminho, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def payload(html_path):
-    s = open(html_path, encoding="utf-8").read()
+    with open(html_path, encoding="utf-8") as f:
+        s = f.read()
     return json.JSONDecoder().raw_decode(s, s.index("const D=") + len("const D="))[0]
 
 
@@ -95,7 +117,7 @@ class Lidar:
     """Altitude (m) da grade LiDAR de 10 m do site (PNG RG em decímetros)."""
 
     def __init__(self, meta_path):
-        m = json.load(open(meta_path, encoding="utf-8"))
+        m = _json(meta_path)
         if m.get("codificacao") != "uint16_decimetros_em_rg" or not m.get("same_source_as_hand"):
             raise SystemExit(f"{meta_path}: grade inesperada (precisa ser o LiDAR do HAND, uint16 em RG)")
         im = np.asarray(Image.open(os.path.join(os.path.dirname(meta_path), m["png"])).convert("RGBA")).astype(np.int64)
@@ -171,7 +193,13 @@ class Terreno:
         yb, xb = np.nonzero(borda)
         if not len(yb):
             raise SystemExit("mancha sem borda no recorte: confira os polígonos da cheia")
-        zb = z[yb, xb]
+        # a margem fica entre o pixel de dentro e os de fora: média dos dois lados
+        zfora, nfora = np.zeros(z.shape), np.zeros(z.shape)
+        for sh in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            viz_fora = np.roll(~externo & ok, sh, axis=(0, 1))
+            zfora += np.where(viz_fora, np.roll(z, sh, axis=(0, 1)), 0.0)
+            nfora += viz_fora
+        zb = np.where(nfora[yb, xb] > 0, (z[yb, xb] + zfora[yb, xb] / np.maximum(nfora[yb, xb], 1)) / 2, z[yb, xb])
         # nível da água: mediana da borda num raio de RAIO_NIVEL_M (a borda de 10 m em barranco é ruidosa)
         my, mx = self.dy * 110540.0, self.dx * 111320.0 * math.cos(math.radians((S + N) / 2))
         wb = np.empty(len(yb))
@@ -341,12 +369,12 @@ def lugares_conhecidos(cfg):
     """Lugares com nome: OSM (osm_nomes_<cidade>.json) + escolas e UBS de assets/data/servicos."""
     out = []
     if os.path.exists(cfg["nomes"]):
-        for p in json.load(open(cfg["nomes"], encoding="utf-8"))["lugares"]:
+        for p in _json(cfg["nomes"])["lugares"]:
             if "place" in p["tags"]:  # localidade (vila, linha, município), não é lugar de referência
                 continue
             out.append({"nome": p["nome"], "lat": p["lat"], "lon": p["lon"], "fonte": "OSM " + p["osm"]})
     for caminho in cfg["servicos"]:
-        for f in json.load(open(caminho, encoding="utf-8"))["features"]:
+        for f in _json(caminho)["features"]:
             pr = f["properties"]
             if pr.get("municipio") != cfg["municipio"] and cfg["municipio"] not in json.dumps(pr, ensure_ascii=False):
                 continue
@@ -374,11 +402,13 @@ def nome_cadastro(s, municipio):
     return " ".join(out)
 
 
-def nomeia(local, ruas, lugares, z):
+def nomeia(local, ruas, lugares, terreno):
     p = (local["lat"], local["lon"])
     rr = _rua_mais_proxima(ruas, p, RAIO_RUA_M) if ruas else []
-    perto = sorted((round(_dist(p, (q["lat"], q["lon"]))), q["nome"]) for q in lugares if q["nome"])
-    perto = [{"nome": n, "m": d} for d, n in perto if d <= RAIO_LUGAR_M][:3]
+    perto = sorted((round(_dist(p, (q["lat"], q["lon"]))), q["nome"], q["lat"], q["lon"]) for q in lugares if q["nome"])
+    # a referência também diz se ficou na água: ninguém deve ir até um prédio que alagou
+    perto = [{"nome": n, "m": d, "terreno": (terreno.ponto(la, lo) or ("sem_dado",))[0]}
+             for d, n, la, lo in perto if d <= RAIO_LUGAR_M][:3]
     if len(rr) >= 2:
         nome = f"{rr[0][1]} com {rr[1][1]}"
     elif rr:
@@ -389,18 +419,52 @@ def nomeia(local, ruas, lugares, z):
     local["perto"] = perto
 
 
+def no_mais_proximo(nos, p):
+    clat = math.cos(math.radians(p[0]))
+    return min(range(len(nos)), key=lambda k: (nos[k][0] - p[0]) ** 2 + ((nos[k][1] - p[1]) * clat) ** 2)
+
+
+def saidas_da_cidade(doc, no_alto):
+    """Pontas de rua em terreno alto na borda da rede: por onde se sai do recorte sem descer."""
+    grau = {}
+    for a, b, *_ in doc["edges"]:
+        grau[a] = grau.get(a, 0) + 1
+        grau[b] = grau.get(b, 0) + 1
+    la, lo = [p[0] for p in doc["nos"]], [p[1] for p in doc["nos"]]
+    S, N, W, E = min(la), max(la), min(lo), max(lo)
+    clat = math.cos(math.radians((S + N) / 2))
+
+    def na_borda(p):
+        return min((p[0] - S) * 110540, (N - p[0]) * 110540, (p[1] - W) * 111320 * clat,
+                   (E - p[1]) * 111320 * clat) <= SAIDA_BORDA_M
+    return [k for k, p in enumerate(doc["nos"]) if grau.get(k) == 1 and no_alto[k] and na_borda(p)]
+
+
+def _nivel_ilha(v):
+    """HAND em que a ligação seca com as saídas é cortada; None = nunca (até o topo do modelo);
+    -1 = sem rua mapeada até uma saída (outra margem ou trecho solto da rede)."""
+    return None if v == INF else -1.0 if v == -INF else round(v, 1)
+
+
+def _corte(adj, cota_no, rota):
+    return min([INF] + [c for u, v in zip(rota, rota[1:]) for w, _t, _d, c in adj[u] if w == v]
+               + [cota_no[k] for k in rota])
+
+
 def calcula(doc, mancha, cidade="santa_tereza"):
     """Locais altos do painel `doc` (payload de gerar_painel.py) fora da `mancha` da cheia
-    (polígonos [[anel externo, buracos...]] em [lat, lon], recortados em `recorte`). Determinístico."""
+    ({"nivel_hand_m", "poligonos": [[anel externo, buracos...]] em [lat, lon]}, recortada em
+    `recorte`). Determinístico."""
     cfg = CIDADES[cidade]
     crit = criterios(cfg)
     lidar = Lidar(cfg["lidar"])
-    terreno = Terreno(lidar, mancha, recorte(doc["nos"]), crit["acima_agua_min_m"], cfg["cheia"]["agua_max_rtk_m"])
+    terreno = Terreno(lidar, mancha["poligonos"], recorte(doc["nos"]), crit["acima_agua_min_m"],
+                      cfg["cheia"]["agua_max_rtk_m"])
     nos = doc["nos"]
     F = {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
     cota_no = [_cota(c) for c in doc["cota_no"]]
     z = [lidar(la, lo) for la, lo in nos]
-    hand_cheia = cfg["cheia"]["hand_m"]
+    hand_cheia = mancha["nivel_hand_m"]  # o mesmo nível do contorno desenhado (22,1 m para 22,05 m)
 
     def no_terreno(la, lo, cota):
         """Classe do pixel; ponto que o HAND alaga na cheia fica "dentro" (na borda, o pixel de 10 m erra)."""
@@ -411,6 +475,8 @@ def calcula(doc, mancha, cidade="santa_tereza"):
     sitios = {k for k, t in enumerate(t_no) if t[0] == "alto" and t[1] >= crit["acima_agua_min_local_m"]}
     adj = grafo(doc, z)
     B = gargalo(adj, cota_no, [k for k in range(len(nos)) if no_alto[k]])
+    saidas = saidas_da_cidade(doc, no_alto)
+    ilha = gargalo(adj, cota_no, saidas)  # nível em que o nó perde a última ligação seca com uma saída
 
     casas = []
     for c in doc["casas"]:
@@ -418,8 +484,12 @@ def calcula(doc, mancha, cidade="santa_tereza"):
         cc = _cota(c[F["cota_alaga"]])
         tc = no_terreno(la, lo, cc)
         item = {"cota": cc, "terreno": tc, "pessoas": c[F["pessoas"]] or 0}
+        if n is not None and n < 0 and c[F["proj_lat"]] is not None:
+            # sem caminho até o abrigo oficial (outra margem): o gerador não grava o nó; vale o mais
+            # próximo do pé da perpendicular na rua
+            n = no_mais_proximo(nos, (c[F["proj_lat"]], c[F["proj_lon"]]))
         if tc[0] == "alto":
-            item["estado"] = "no_alto"
+            item.update(estado="no_alto", no=n)
         elif n is None or n < 0 or c[F["proj_lat"]] is None:
             item["estado"] = "sem_via"
         else:
@@ -451,32 +521,56 @@ def calcula(doc, mancha, cidade="santa_tereza"):
         for i in pend:
             atual[i] = min(atual[i], casas[i]["achados"].get(s, INF))
 
-    ruas = json.load(open(cfg["nomes"], encoding="utf-8"))["ruas"] if os.path.exists(cfg["nomes"]) else []
+    ruas = _json(cfg["nomes"])["ruas"] if os.path.exists(cfg["nomes"]) else []
     lugares = lugares_conhecidos(cfg)
     idx = {s: j for j, s in enumerate(escolhidos)}
     locais = []
     for j, s in enumerate(escolhidos):
         loc = {"id": f"alto_{j + 1}", "lat": nos[s][0], "lon": nos[s][1], "no": s, "altitude_m": z[s],
                "agua_m": t_no[s][2], "acima_agua_m": t_no[s][1],
-               "cota_alaga_m": None if cota_no[s] == INF else cota_no[s]}
-        nomeia(loc, ruas, lugares, z)
+               "cota_alaga_m": None if cota_no[s] == INF else cota_no[s],
+               "ilha_m": _nivel_ilha(ilha[s])}
+        nomeia(loc, ruas, lugares, terreno)
         locais.append(loc)
+    ligados = {s for s in escolhidos if ilha[s] > hand_cheia}  # não ficam ilhados numa cheia como a de referência
 
     saida_casas = []
     for it in casas:
         tr = [Terreno.CLASSES.index(it["terreno"][0]), it["terreno"][1]]
         if it["estado"] != "rota":
-            saida_casas.append([ESTADOS.index(it["estado"]), -1, None, None, None, None] + tr)
+            n = it.get("no")
+            il = None if n is None or n < 0 else _nivel_ilha(ilha[n])
+            saida_casas.append([ESTADOS.index(it["estado"]), -1, None, None, None, None] + tr + [il, None, None])
             continue
         alc = [(t, s) for s, t in it["achados"].items() if s in idx]
         if not alc:  # nenhum local escolhido alcança: fica com o nó alto mais próximo
             alc = [min((t, s) for s, t in it["achados"].items())]
         t, s = min(alc)
         rota = _rota(it["ant"], s)
-        corte = min([INF] + [c for u, v in zip(rota, rota[1:]) for w, _t, _d, c in adj[u] if w == v]
-                    + [cota_no[k] for k in rota])
+        corte = _corte(adj, cota_no, rota)
+        # local que vira ilha antes da cheia de referência: o mais perto entre os que não viram, se houver
+        # um a uma caminhada razoável
+        alt = None if s in ligados else min(((tt, ss) for ss, tt in it["achados"].items() if ss in ligados
+                                             and tt <= min(t + ALT_EXTRA_MAX_S, ALT_TOTAL_MAX_S)), default=None)
         saida_casas.append([ESTADOS.index("rota"), idx.get(s, -1), round(t), round(it["dist"][s], 1),
-                            None if corte == INF else round(corte, 1), rota] + tr)
+                            None if corte == INF else round(corte, 1), rota] + tr +
+                           [_nivel_ilha(ilha[s]),
+                            idx[alt[1]] if alt else None, round(alt[0]) if alt else None])
+
+    # margem das ruas até o local alto (aba Margem): por nó, o mesmo critério das casas
+    margem_nos = []
+    alvos = set(escolhidos)
+    for k in range(len(nos)):
+        if no_alto[k]:
+            margem_nos.append(None)
+            continue
+        achados, _dd, ant = caminhos(adj, cota_no, k, 0.0, 0.0, min(cota_no[k], B[k]), alvos)
+        if not achados:
+            margem_nos.append(None)
+            continue
+        t, s = min((tt, ss) for ss, tt in achados.items())
+        c = _corte(adj, cota_no, _rota(ant, s))
+        margem_nos.append([round(t), None if c == INF else round(c, 1)])
 
     for j, loc in enumerate(locais):
         ts = sorted(c[2] for c in saida_casas if c[1] == j)
@@ -489,6 +583,8 @@ def calcula(doc, mancha, cidade="santa_tereza"):
     S, W, N, E = terreno.lim
     return {
         "meta": {"cheia": ch, "criterios": crit, "folga_m": cfg["folga_m"], "folga_local_m": cfg["folga_local_m"],
+                 "terreno_erro": cfg["terreno_erro"], "margem_corte_m": cfg["margem_corte_m"],
+                 "nivel_mancha_m": hand_cheia, "saidas": saidas,
                  "lidar": os.path.relpath(cfg["lidar"], RAIZ),
                  "nomes": os.path.relpath(cfg["nomes"], RAIZ) if ruas else None,
                  "casas_campos": CASAS_CAMPOS, "estados": list(ESTADOS), "classes_terreno": list(Terreno.CLASSES)},
@@ -497,6 +593,41 @@ def calcula(doc, mancha, cidade="santa_tereza"):
         "locais": locais,
         "no_alto": [int(v) for v in no_alto],
         "casas": saida_casas,
+        "margem_nos": margem_nos,
+    }
+
+
+def pagina_rotas_altas(doc):
+    """Dados de santa_tereza_rotas_altas_set2023.html (rotas no pico até qualquer trecho alto), com o
+    mesmo critério e os mesmos dados do painel: nós altos, mancha da cheia, terreno e pontos altos."""
+    alt = doc["altos"]
+    F = {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
+    A = {k: i for i, k in enumerate(alt["meta"]["casas_campos"])}
+    ch, nos = alt["meta"]["cheia"], doc["nos"]
+    casas = []
+    for c, a in zip(doc["casas"], alt["casas"]):
+        n, pj = c[F["no"]], (c[F["proj_lat"]], c[F["proj_lon"]])
+        if n is not None and n < 0 and pj[0] is not None:
+            n = no_mais_proximo(nos, pj)  # outra margem: como em calcula
+        casas.append([c[F["lat"]], c[F["lon"]], pj[0], pj[1], n, c[F["cota_alaga"]], a[A["terreno"]], a[A["acima_agua_m"]]])
+    return {
+        "schema_version": "previne_rota_alta_historica_v2",
+        "local": f"{doc['meta']['municipio']}/RS", "evento": f"Cheia de {ch['rotulo']}", "data_pico": ch["data"],
+        "nivel_regua_m": ch["regua_m"], "nivel_regua_sgb_m": ch["regua_sgb_m"], "zero_regua_hand_m": ch["zero_regua_m"],
+        "nivel_hand_m": ch["hand_m"], "nivel_mancha_m": alt["meta"]["nivel_mancha_m"], "folga_m": alt["meta"]["folga_m"],
+        "fonte": "santa_tereza_painel_casas.html (codigo_python/09_rota_fuga/locais_altos.py)",
+        "criterio": "terreno alto = fora da mancha da cheia e pelo menos folga_m acima do nível da água no MDT "
+                    "(LiDAR 10 m); o mesmo critério do painel de rotas",
+        "aviso_estudo": doc["meta"].get("aviso_estudo"),
+        "nos": nos, "cota_alaga_nos": doc["cota_no"], "no_alto": alt["no_alto"],
+        "arestas": [[a, b, cz] for a, b, _ag, _pe, cz in doc["edges"]],
+        "casas_campos": ["lat", "lon", "proj_lat", "proj_lon", "no", "cota_alaga", "terreno", "acima_agua_m"],
+        "casas": casas, "classes_terreno": alt["meta"]["classes_terreno"],
+        "terreno": {"png": alt["terreno"]["png"], "limites": alt["terreno"]["limites"]},
+        "mancha_cheia": alt["mancha_cheia"],
+        "locais": [{"id": l["id"], "lat": l["lat"], "lon": l["lon"], "rua": l["rua"]} for l in alt["locais"]],
+        "abrigo_referencia": [{"nome": a["nome"], "lat": a["lat"], "lon": a["lon"], "cota_alaga_m": a["cota_alaga_m"]}
+                              for a in doc["abrigos"]],
     }
 
 
@@ -513,9 +644,13 @@ def resumo(alt, doc):
         antes = sum(1 for c, cc in rot if c[4] is not None and c[4] < cc)
         linhas.append(f"tempo até o local (idoso): mediana {ts[len(ts) // 2]:.1f} min, p90 {ts[int(0.9 * (len(ts) - 1))]:.1f}, "
                       f"máx {ts[-1]:.1f} · rota cortada antes de a água chegar na casa: {antes}")
+        nm = alt["meta"]["nivel_mancha_m"]
+        ilhadas = sum(1 for c in cs if c[0] == ESTADOS.index("no_alto") and c[8] is not None and c[8] <= nm)
+        alt_ok = sum(1 for c in cs if c[9] is not None)
+        linhas.append(f"casas no alto que ficam ilhadas até a cheia: {ilhadas} · casas com local que vira ilha e alternativa ligada: {alt_ok}")
     for loc in alt["locais"]:
         perto = ", ".join(f"{p['nome']} ({p['m']} m)" for p in loc["perto"]) or "-"
-        linhas.append(f"  {loc['id']}: {loc['lat']:.6f},{loc['lon']:.6f} alt {loc['altitude_m']} m, "
+        linhas.append(f"  {loc['id']}: {loc['lat']:.6f},{loc['lon']:.6f} alt {loc['altitude_m']} m, ilha a partir de HAND {loc['ilha_m']}, "
                       f"{loc['acima_agua_m']} m acima da água ({loc['agua_m']} m) · {loc['n_casas']} casas, ~{loc['pessoas']} pessoas, "
                       f"mediana {loc['tempo_mediano_min']} min, máx {loc['tempo_max_min']} min · "
                       f"{loc['rua'] or 'rua sem nome'} · perto: {perto}")
@@ -527,4 +662,4 @@ if __name__ == "__main__":
     d = payload(CIDADES[cid]["painel"])
     if not (d.get("altos") or {}).get("mancha_cheia"):
         raise SystemExit("o painel publicado não tem a mancha da cheia: rode gerar_painel.py --republicar")
-    print(resumo(calcula(d, d["altos"]["mancha_cheia"]["poligonos"], cid), d))
+    print(resumo(calcula(d, d["altos"]["mancha_cheia"], cid), d))

@@ -97,7 +97,7 @@ class LocaisAltosTest(unittest.TestCase):
 
     def test_publicado_e_o_recalculo(self):
         novo = locais_altos.calcula(json.loads(payload_bruto(HTML["santa_tereza"])),
-                                    self.alt["mancha_cheia"]["poligonos"], "santa_tereza")
+                                    self.alt["mancha_cheia"], "santa_tereza")
         for k, v in novo.items():
             with self.subTest(campo=k):
                 if k == "terreno":  # PNG: compara as classes, não os bytes (variam com a versão do Pillow)
@@ -111,14 +111,19 @@ class LocaisAltosTest(unittest.TestCase):
     def test_criterios_da_validacao_de_campo(self):
         ch = self.alt["meta"]["cheia"]
         self.assertAlmostEqual(ch["regua_m"] - ch["zero_regua_m"], ch["hand_m"], places=2)
-        # a folga cobre o maior erro do HAND no sentido perigoso medido com RTK
-        self.assertGreater(self.crit["acima_agua_min_m"], ch["erro_max_perigoso_m"])
+        # a folga cobre o erro do terreno de 10 m: o limite H003 (a água chegou lá) fica 1,23 m acima
+        # do nível no LiDAR; com folga de 1 m ele seria "alto"
+        te = self.alt["meta"]["terreno_erro"]
+        self.assertGreater(self.crit["acima_agua_min_m"], te["h003_acima_do_nivel_m"])
+        self.assertGreater(self.crit["acima_agua_min_m"], te["lidar10_menos_rtk_max_m"])
         self.assertAlmostEqual(self.crit["celula_hand_min_m"], ch["hand_m"] + self.crit["acima_agua_min_m"], places=2)
         self.assertAlmostEqual(self.crit["celula_altitude_min_m"], ch["agua_max_rtk_m"] + self.crit["acima_agua_min_m"], places=2)
 
     def test_borda_da_mancha_no_mdt_bate_com_a_agua_medida(self):
-        # nível da água tirado do MDT na borda da mancha, nas ruas: dentro da faixa medida com RTK (74,1–76,5 m)
-        self.assertTrue(74.1 <= self.alt["terreno"]["agua_borda_m"]["mediana"] <= self.alt["meta"]["cheia"]["agua_max_rtk_m"])
+        # nível da água tirado do MDT na borda da mancha, nas ruas: na faixa medida com RTK (74,1–76,5 m),
+        # com a tolerância do LiDAR de 10 m (NMAD 0,71 m)
+        nmad = self.alt["meta"]["terreno_erro"]["lidar10_menos_rtk_nmad_m"]
+        self.assertTrue(74.1 - nmad <= self.alt["terreno"]["agua_borda_m"]["mediana"] <= self.alt["meta"]["cheia"]["agua_max_rtk_m"] + nmad)
 
     def test_locais_ficam_fora_da_mancha_e_acima_da_agua(self):
         self.assertTrue(2 <= len(self.alt["locais"]) <= locais_altos.LOCAIS_MAX)
@@ -135,7 +140,7 @@ class LocaisAltosTest(unittest.TestCase):
 
     def test_terreno_alto_coerente_com_os_nos(self):
         classe = locais_altos.amostrador(self.alt["terreno"])
-        hand = self.alt["meta"]["cheia"]["hand_m"]
+        hand = self.alt["meta"]["nivel_mancha_m"]  # o mesmo nível do contorno desenhado
         for k, (la, lo) in enumerate(self.d["nos"]):
             c = self.d["cota_no"][k]
             # alto no mapa e fora da cheia pelo HAND <=> nó alto (o HAND manda na borda da mancha)
@@ -163,13 +168,60 @@ class LocaisAltosTest(unittest.TestCase):
             r = c[A["rota"]]
             with self.subTest(casa=ci):
                 F = {k: i for i, k in enumerate(self.d["meta"]["casas_campos"])}
-                self.assertEqual(r[0], self.d["casas"][ci][F["no"]])
+                casa = self.d["casas"][ci]
+                # outra margem (sem caminho até o abrigo oficial): parte do nó mais perto do pé da perpendicular
+                no = casa[F["no"]] if casa[F["no"]] >= 0 else locais_altos.no_mais_proximo(
+                    self.d["nos"], (casa[F["proj_lat"]], casa[F["proj_lon"]]))
+                self.assertEqual(r[0], no)
                 self.assertEqual(r[-1], self.alt["locais"][c[A["local"]]]["no"])
                 self.assertTrue(all((u, v) in aresta for u, v in zip(r, r[1:])))
                 cortes = [aresta[(u, v)] for u, v in zip(r, r[1:])] + [1e9 if cota[k] is None else cota[k] for k in r]
                 esperado = min(cortes)
                 self.assertEqual(c[A["corte_m"]], None if esperado >= 1e9 else round(esperado, 1))
         self.assertGreater(n_rota, 100)
+
+    def test_outra_margem_tem_caminho(self):
+        # casas sem caminho até o abrigo oficial, mas com rua: antes ficavam "sem via"
+        F = {k: i for i, k in enumerate(self.d["meta"]["casas_campos"])}
+        sem_oficial = [ci for ci, c in enumerate(self.d["casas"]) if c[F["no"]] < 0 and c[F["proj_lat"]] is not None]
+        self.assertGreater(len(sem_oficial), 10)
+        estados = self.alt["meta"]["estados"]
+        sem_via = [ci for ci in sem_oficial if estados[self.alt["casas"][ci][self.A["estado"]]] == "sem_via"]
+        self.assertEqual(sem_via, [])
+
+    def test_ilhas_e_alternativa_ligada(self):
+        nm, A = self.alt["meta"]["nivel_mancha_m"], self.A
+        ilhados = [l for l in self.alt["locais"] if l["ilha_m"] is not None and l["ilha_m"] <= nm]
+        self.assertTrue(ilhados)  # o centro (ESF, igreja) vira ilha antes de uma cheia como a de 2023
+        for ci, c in enumerate(self.alt["casas"]):
+            j = c[A["alt_local"]]
+            if j is None:
+                continue
+            with self.subTest(casa=ci):
+                il = self.alt["locais"][j]["ilha_m"]
+                self.assertTrue(il is None or il > nm)  # a alternativa não fica ilhada
+                self.assertGreaterEqual(c[A["alt_tempo_s"]], c[A["tempo_s"]])
+                self.assertLessEqual(c[A["alt_tempo_s"]], min(c[A["tempo_s"]] + locais_altos.ALT_EXTRA_MAX_S,
+                                                              locais_altos.ALT_TOTAL_MAX_S))
+                self.assertIn(c[A["ilha_m"]], [l["ilha_m"] for l in ilhados])
+        self.assertEqual(len(self.alt["margem_nos"]), len(self.d["nos"]))
+
+    def test_referencias_dizem_se_alagaram(self):
+        classes = set(self.alt["meta"]["classes_terreno"])
+        for loc in self.alt["locais"]:
+            for p in loc["perto"]:
+                self.assertIn(p["terreno"], classes)
+
+    def test_aviso_de_estudo_enquanto_a_mancha_for_legada(self):
+        self.assertTrue(self.d["meta"]["aviso_estudo"])
+        self.assertIsNone(DADOS["mucum"]["meta"].get("aviso_estudo"))
+
+    def test_pagina_paralela_usa_os_dados_do_painel(self):
+        pag = ler(RAIZ / "assets" / "data" / "rota_fuga" / "santa_tereza_rotas_altas_set2023.json")
+        self.assertEqual(pag, json.loads(json.dumps(locais_altos.pagina_rotas_altas(self.d))))
+        html = (RAIZ / "santa_tereza_rotas_altas_set2023.html").read_text(encoding="utf-8")
+        self.assertIn(pag["schema_version"], html)
+        self.assertNotIn("HAND acima de 24,05", html)  # critério antigo, que deixava de fora os pontos mais altos
 
     def test_set2023_e_a_maior_cheia(self):
         cheias = {c["rotulo"]: c for c in self.d["meta"]["cheias_ref"]}

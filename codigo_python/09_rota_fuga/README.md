@@ -126,11 +126,12 @@ mancha é o contorno HAND de 22,1 m (`contornos_mancha.json`), a linha tracejada
 do painel.
 
 No MDT (LiDAR de 10 m, o mesmo do HAND), dentro do recorte das ruas (± ~400 m):
-1. **água na borda**: mediana da cota do terreno na borda externa da mancha num
-   raio de 300 m, levada a cada pixel pela borda mais próxima. Nas ruas, a
-   mediana é 75,8 m (p10 72,2; p90 76,4), dentro da faixa da água medida com
-   RTK em 2023 (74,1–76,5 m). As ilhas da mancha ficam fora da conta (a borda
-   delas fica no leito);
+1. **água na borda**: mediana, num raio de 300 m, do meio entre o pixel de
+   dentro e os de fora da borda externa da mancha, levada a cada pixel pela
+   borda mais próxima (o pixel de dentro sozinho fica ~1 m abaixo da água em
+   barranco). Nas ruas, a mediana é 76,6 m (p10 73,4; p90 77,6), perto da água
+   medida com RTK em 2023 (74,1–76,5 m). As ilhas da mancha ficam fora da conta
+   (a borda delas fica no leito);
 2. **nível da água** = o maior entre a borda e a maior água medida em campo
    (76,47 m, limite H004). Na cidade a água de 2023 ficou plana e, em três
    limites, 1,4 a 1,8 m acima da borda do HAND; sozinha, a borda cai para
@@ -138,42 +139,76 @@ No MDT (LiDAR de 10 m, o mesmo do HAND), dentro do recorte das ruas (± ~400 m):
 3. fora da mancha, cada pixel é **alto** (terreno pelo menos **2 m** acima do
    nível da água), **sem folga** (menos de 2 m) ou **abaixo da água** (abaixo da
    água na borda sem estar na mancha: atrás de aterro ou barreira no modelo,
-   pode ter alagado). Nó de rua ou casa que o HAND alaga na cheia fica dentro
-   da mancha mesmo que o pixel de 10 m na borda caia fora.
+   pode ter alagado). Nó de rua ou casa que o HAND alaga no nível da mancha
+   (22,1 m) fica dentro dela mesmo que o pixel de 10 m na borda caia fora.
 
-A folga de 2 m cobre o maior erro do HAND no sentido perigoso medido com RTK
-(1,84 m, água acima do modelo); o MAE das 22 profundidades é 0,64 m.
+A folga de 2 m cobre o erro do terreno de 10 m: LiDAR 10 m − RTK nos 19 vértices
+tem NMAD 0,71 m e máximo +1,46 m (H003, um limite de set/2023: a água chegou lá e
+o LiDAR o põe 1,23 m acima do nível de 76,47 m; com folga de 1 m ele seria
+"alto"). O HAND krigado do artigo tem MAE 0,64 m e erro perigoso máximo 1,84 m
+(H004, que já entra no nível de 76,47 m).
+
+**Ilhas**: `ilha_m` é o nível (HAND) em que um ponto perde a última ligação seca
+com as saídas da cidade (pontas de rua em terreno alto na borda da rede). Os
+pontos 1 e 8 (centro: ESF, igreja, escolas) viram ilha com o rio em 18,4 m; 3 e 7
+em 14,6 m; 4 em 11,5 m; 5 e 10, na outra margem, não têm rua mapeada até o resto
+da cidade. 101 casas no alto ficam ilhadas antes de uma cheia como a de 2023 (o
+cartão pede água, comida e remédios para alguns dias). Quando o ponto mais perto
+vira ilha, o cartão sugere um que não vira, se custar no máximo 15 min a mais
+(até 30 min no total).
+
+**Quando sair**: o cartão mostra o nível da régua para sair, não o nível em que a
+água corta o caminho: `corte − 1 m de erro do modelo − (preparo + caminhada) ×
+subida`, com o preparo e a subida dos seletores do painel (padrão 30 min e
+90 cm/h). O erro de 1 m é o MAE do HAND nos pontos de campo (0,64 m no krigado;
+~0,95 m no HAND de 5 m).
 
 Cada casa que não fica no alto vai pelo caminho mais rápido (idoso, com subidas
 no LiDAR; `caminhada.py`) entre os que continuam secos **pelo menos até a água
 chegar na casa** (cota HAND de cada trecho); quando nenhum continua, pelo que
 fica seco até o nível mais alto possível, e a casa precisa sair antes dele
-(`corte_m`). Os **locais** são nós de rua em terreno alto com 1 m a mais (3 m
-acima da água), escolhidos um a um pelo que mais poupa caminhada (casa·min,
-teto de 60 min) até o ganho cair abaixo de 150 casa·min ou chegar a 8. Nome: rua
-com nome a até 25 m e lugares a até 150 m (`osm_nomes_santa_tereza.json`, de
-`baixar_nomes_osm.py`; escolas e UBS de `assets/data/servicos`). O OSM de Santa
-Tereza tem poucos nomes de rua.
+(`corte_m`). Casa sem caminho até o abrigo oficial (outra margem; o gerador grava
+`no = -1`) parte do nó mais perto do pé da perpendicular. Os **pontos altos** são
+nós de rua em terreno alto com 1 m a mais (3 m acima da água), escolhidos um a um
+pelo que mais poupa caminhada (casa·min, teto de 60 min) até o ganho cair abaixo
+de 150 casa·min ou chegar a 10. Nome: rua com nome a até 25 m e lugares a até
+150 m (`osm_nomes_santa_tereza.json`, de `baixar_nomes_osm.py`; escolas e UBS de
+`assets/data/servicos`), cada lugar com a situação em 2023 (a EMEI Descobrindo
+Caminhos, perto do ponto 1, alagou). O OSM de Santa Tereza tem poucos nomes de
+rua.
 
-Resultado (out/2026): no recorte, 2.236 ha de terreno alto, 35 ha sem folga e
-6 ha abaixo da água fora da mancha. 756 de 1385 nós de rua ficam no alto; das
-565 casas, 206 já estão no alto, 332 têm caminho até um dos **8 locais** e 27 não
-têm via mapeada. Caminhada do idoso até o local: mediana 6,1 min, p90 14,8 min,
-máximo 25,2 min; em 149 casas a água corta o caminho antes de chegar na casa. O
-Ginásio (HAND 21,3 m, terreno 75,0 m) fica dentro da água de set/2023. O local 7
-fica junto à ESF Santa Tereza, a 83 m do campanário da igreja; o local 1, a 71 m
-da EMEI Descobrindo Caminhos.
+Resultado (out/2026): no recorte, 2.231 ha de terreno alto, 34 ha sem folga e
+12 ha abaixo da água fora da mancha. 752 de 1385 nós de rua ficam no alto; das
+565 casas, 202 já estão no alto, 360 têm caminho até um dos **10 pontos altos** e
+3 não têm via mapeada. Caminhada do idoso até o ponto: mediana 6,1 min, p90
+15,1 min, máximo 25,2 min; em 154 casas a água corta o caminho antes de chegar na
+casa. O Ginásio (HAND 21,3 m, terreno 75,0 m) fica dentro da água de set/2023. O
+ponto 8 fica junto à ESF Santa Tereza, a 83 m do campanário da igreja.
 
 No painel (`gerar_painel.py`, `CFG["santa_tereza"]["locais_altos"]`): na aba
 Rotas, o terreno em três cores (imagem do recorte), a linha tracejada da mancha,
-triângulos numerados e o caminho roxo até o local alto ao tocar numa casa; em
-Quem sai, a melhor saída entre o abrigo oficial e o local alto (casa no alto =
-segura). Célula IBGE sem casa mapeada só conta como segura se, dentro do
-recorte, todo pixel for alto e, fora dele, a célula estiver fora da mancha HAND
-de 24,1 m com todo o LiDAR acima de 78,47 m. Os locais candidatos do gerador
+triângulos numerados e, ao tocar numa casa, o caminho roxo e um cartão em ordem
+de decisão (**Sua casa · Para onde ir · Quando sair · Evite**); o abrigo oficial e
+os números técnicos ficam em "detalhes". Em Margem e Quem sai, vale a melhor
+saída entre o abrigo oficial e o ponto alto (casa ou rua no alto = segura).
+Célula IBGE sem casa mapeada fica "sem avaliação", fora da contagem de risco, a
+não ser que o centro alague ou que a célula seja inteira alta (dentro do recorte,
+todo pixel alto; fora, fora da mancha HAND de 24,1 m com todo o LiDAR acima de
+78,47 m). Na cheia de set/2023, "precisam sair ou de apoio" fica em 366 pessoas
+(antes: 971, com ~610 moradores rurais contados pelo acesso ao Ginásio). Enquanto
+`contornos_mancha.json` não trouxer `river_reference_method =
+eixo_dominante_taquari_D8` (auditoria do Marrecão), o painel mostra o aviso de
+estudo em validação (`meta.aviso_estudo`). Os locais candidatos do gerador
 (calculados para a régua 15 m; 1 de 5 alagava em set/2023 e outros 2 ficavam
 dentro da folga) saem do painel de Santa Tereza. **São sugestões técnicas**:
 espaço, acesso, capacidade e uso dependem da Defesa Civil.
+
+`santa_tereza_rotas_altas_set2023.html` (rotas no pico de 2023 até qualquer
+trecho alto) usa os mesmos dados: `--republicar` grava
+`assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json`
+(`locais_altos.pagina_rotas_altas`), com os nós altos, a mancha e o terreno do
+painel. Antes, a página usava "HAND acima de 24,05 m" e tratava trecho sem cota
+como desconhecido, deixando de fora justamente os pontos mais altos.
 
 ```
 python codigo_python/09_rota_fuga/locais_altos.py          # resumo do painel publicado, sem gravar
@@ -284,10 +319,18 @@ só `building=yes` e o filtro residencial não separa nada. Fora do recorte
 ficam domicílios ribeirinhos e rurais que o modelo ainda não enxerga.
 
 ## Pendências conhecidas
-- **Locais altos de Santa Tereza**: vistoriar os 8 locais com a Defesa Civil
+- **Locais altos de Santa Tereza**: vistoriar os 10 pontos com a Defesa Civil
   (espaço, acesso, muro, escada) e decidir quais viram pontos de encontro; o
   Ginásio fica dentro da água de set/2023. O bloco `risco_em_cheia_referencia`
   do Ginásio em `abrigos.geojson` ainda usa os 25,82 m e o zero antigo (4 m).
+- **Mancha de Santa Tereza**: refazer `contornos_mancha.json` com o eixo dominante
+  do Taquari (precisa dos rasters LiDAR originais) e rodar `--republicar`; o aviso
+  de estudo some sozinho.
+- **Rotas × água plana**: o corte das rotas usa o HAND por trecho; com a água
+  plana medida em campo, ~41 rotas cortariam antes da casa (revisão de out/2026).
+  Falta uma cota de alagamento pelo plano para nós e trechos na área dos pontos
+  RTK. Faltam também cenários acima de 2023 (+1 e +2 m) e marcas de cheia no norte,
+  no sul e a montante no vale do afluente.
 - **Referência do HAND**: o talvegue do mosaico tem poços e degraus; trocar
   pela linha central do rio e um perfil de linha d'água suavizado muda muito a
   contagem de casas atingidas. Exige refazer `02_mdt_hand_mancha`.
