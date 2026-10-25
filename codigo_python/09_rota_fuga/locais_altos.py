@@ -160,7 +160,8 @@ class Terreno:
     """O que ficou fora da mancha da cheia, no MDT (LiDAR 10 m), por classe de pixel."""
 
     CLASSES = ("dentro", "alto", "sem_folga", "abaixo_da_agua", "sem_dado")
-    CORES = {"alto": (27, 127, 59, 95), "sem_folga": (246, 196, 69, 150), "abaixo_da_agua": (198, 40, 40, 160)}
+    # verde claro: marca o terreno alto sem esconder a rota verde por cima
+    CORES = {"alto": (27, 127, 59, 60), "sem_folga": (246, 196, 69, 150), "abaixo_da_agua": (198, 40, 40, 160)}
 
     def __init__(self, lidar, mancha, caixa, folga, agua_min):
         m = lidar.m
