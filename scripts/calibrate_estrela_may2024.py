@@ -30,12 +30,13 @@ def basin(p,c):
      Enable Sediment Routing: No
 End:
 '''+hms.source_block('86510000','R_86510000_JOIN_86595000',15965.207)
- for z,g,down in zip(ZONES,GROUPS,DOWNS):
-  initial,loss,tc,r=[p[v+'_'+g] for v in ['initial','loss','tc','r']];b=hms.subbasin_block(hms.hec_subbasin_name(z),c[3][z],down,50,120,(p['baseflow_specific'],p['recession'],.01),(initial,loss,tc,r));b=re.sub(r'     LossRate: Initial\+Constant\n     Percent Impervious Area: 0.0\n     Initial Loss: [^\n]+\n     Constant Loss Rate: [^\n]+',f'     LossRate: Deficit Constant\n     Percent Impervious Area: 0.0\n     Initial Deficit: {initial:.9f}\n     Maximum Deficit: 200\n     Percolation Rate: {loss:.9f}\n     Recovery Factor: 1.0',b);b=re.sub(r'     Baseflow: Recession\n.*?     Threshold Flow to Peak Ratio: [^\n]+',f'     Baseflow: Linear Reservoir\n     Groundwater Layer: 1\n     GW-1 Baseflow Fraction: {p["fraction_"+g]:.9f}\n     GW-1 Number Reservoirs: {p["gw_steps"]}\n     GW-1 Routing Coefficient: {p["gw_k_"+g]:.9f}\n     GW-1 Initial Flow/Area Ratio: 0\n     Groundwater Layer: 2\n     GW-2 Baseflow Fraction: 0\n     GW-2 Number Reservoirs: 1\n     GW-2 Routing Coefficient: {-24/math.log(p["recession"]):.9f}\n     GW-2 Initial Flow/Area Ratio: {p["baseflow_specific"]:.9f}',b,flags=re.S);text+=b
+ for z,group,down in zip(ZONES,GROUPS,DOWNS):
+  g=p.get('zone_groups',{}).get(z,group)
+  initial,loss,tc,r=[p[v+'_'+g] for v in ['initial','loss','tc','r']];b=hms.subbasin_block(hms.hec_subbasin_name(z),c[3][z],down,50,120,(p['baseflow_specific'],p['recession'],.01),(initial,loss,tc,r));b=re.sub(r'     LossRate: Initial\+Constant\n     Percent Impervious Area: 0.0\n     Initial Loss: [^\n]+\n     Constant Loss Rate: [^\n]+',f'     LossRate: Deficit Constant\n     Percent Impervious Area: 0.0\n     Initial Deficit: {initial:.9f}\n     Maximum Deficit: 200\n     Percolation Rate: {loss:.9f}\n     Recovery Factor: 1.0',b);b=re.sub(r'     Baseflow: Recession\n.*?     Threshold Flow to Peak Ratio: [^\n]+',f'     Baseflow: Linear Reservoir\n     Groundwater Layer: 1\n     GW-1 Baseflow Fraction: {p["fraction_"+g]:.9f}\n     GW-1 Number Reservoirs: {p.get("gw_steps_"+g,p["gw_steps"])}\n     GW-1 Routing Coefficient: {p["gw_k_"+g]:.9f}\n     GW-1 Initial Flow/Area Ratio: 0\n     Groundwater Layer: 2\n     GW-2 Baseflow Fraction: 0\n     GW-2 Number Reservoirs: 1\n     GW-2 Routing Coefficient: {-24/math.log(p["recession"]):.9f}\n     GW-2 Initial Flow/Area Ratio: {p["baseflow_specific"]:.9f}',b,flags=re.S);text+=b
  for name,down in [('J_JOIN_86595000','R_JOIN_86595000_86720000'),('J_86720000','R_86720000_86743000'),('J_86743000','R_86743000_JOIN_86746000'),('J_JOIN_86746000','R_JOIN_86746000_86879000'),('J_86879000','R_86879000_86879300'),('J_86879300',None)]:text+=hms.junction_block(name,down,True)
  for name,up,down,length,g in hms.active_reaches('86510000'):
   if g=='g4':continue
-  text+=hms.reach_block(name,down,p['k_up' if g=='g2' else 'k_down']*length/hms.GROUP_LENGTH[g],0,1)
+  text+=hms.reach_block(name,down,p['k_up' if g=='g2' else 'k_down']*length/hms.GROUP_LENGTH[g],p.get('routing_x',0),1)
  assert re.findall(r'^Source: (.*)$',text,re.M)==['SRC_86510000'];return text
 
 def evaluate(proj,c):
