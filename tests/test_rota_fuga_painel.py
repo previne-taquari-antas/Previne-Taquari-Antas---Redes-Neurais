@@ -11,11 +11,18 @@ painéis publicados. Cobrem a revisão de out/2026:
   - pontos de Muçum em abrigos.geojson (sem eles o gerador abortava);
   - locais altos de Santa Tereza (out/2026): o que ficou fora da mancha de
     set/2023, a maior cheia registrada, pelo menos 2 m acima da água no MDT; o
-    painel publicado é o recálculo de locais_altos.py.
+    painel publicado é o recálculo de locais_altos.py;
+  - terceira revisão (out/2026): acesso da casa no corte, margem pelo erro perigoso
+    do HAND do painel, saídas pela Estrada do Vinho, pontos longe de deslizamento,
+    "agora" só com o caminho ainda seco, JSON embutido sem "</".
 """
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -143,8 +150,9 @@ class LocaisAltosTest(unittest.TestCase):
         hand = self.alt["meta"]["nivel_mancha_m"]  # o mesmo nível do contorno desenhado
         for k, (la, lo) in enumerate(self.d["nos"]):
             c = self.d["cota_no"][k]
-            # alto no mapa e fora da cheia pelo HAND <=> nó alto (o HAND manda na borda da mancha)
-            self.assertEqual(classe(la, lo) == "alto" and (c is None or c > hand), bool(self.alt["no_alto"][k]))
+            # alto no mapa e com a folga também pelo HAND <=> nó alto (o HAND manda na borda da mancha)
+            self.assertEqual(classe(la, lo) == "alto" and (c is None or c >= self.crit["celula_hand_min_m"]),
+                             bool(self.alt["no_alto"][k]))
         F = {k: i for i, k in enumerate(self.d["meta"]["casas_campos"])}
         for ci, c in enumerate(self.alt["casas"]):
             cota = self.d["casas"][ci][F["cota_alaga"]]
@@ -153,6 +161,11 @@ class LocaisAltosTest(unittest.TestCase):
         areas = self.alt["terreno"]["area_ha"]
         self.assertGreater(areas["alto"], 0)
         self.assertGreater(areas["abaixo_da_agua"], 0)
+        # casa "no alto" tem a folga também pelo HAND (8 casas com HAND 23,2–24,1 diziam "não precisa sair")
+        for ci, c in enumerate(self.alt["casas"]):
+            if self.alt["meta"]["estados"][c[self.A["estado"]]] == "no_alto":
+                cota = self.d["casas"][ci][F["cota_alaga"]]
+                self.assertTrue(cota is None or cota >= self.crit["celula_hand_min_m"], ci)
 
     def test_rotas_pela_rede_e_corte_coerente(self):
         A, cota = self.A, self.d["cota_no"]
@@ -173,9 +186,16 @@ class LocaisAltosTest(unittest.TestCase):
                 no = casa[F["no"]] if casa[F["no"]] >= 0 else locais_altos.no_mais_proximo(
                     self.d["nos"], (casa[F["proj_lat"]], casa[F["proj_lon"]]))
                 self.assertEqual(r[0], no)
-                self.assertEqual(r[-1], self.alt["locais"][c[A["local"]]]["no"])
+                if c[A["local"]] >= 0:
+                    self.assertEqual(r[-1], self.alt["locais"][c[A["local"]]]["no"])
+                else:  # nenhum ponto sugerido ao alcance: vai ao terreno alto mais perto
+                    self.assertEqual(self.alt["no_alto"][r[-1]], 1)
                 self.assertTrue(all((u, v) in aresta for u, v in zip(r, r[1:])))
-                cortes = [aresta[(u, v)] for u, v in zip(r, r[1:])] + [1e9 if cota[k] is None else cota[k] for k in r]
+                # o acesso da casa até a rua também corta o caminho (antes ficava de fora: 41 casas
+                # recebiam "quando sair" até 2 m alto)
+                ac = self.d["acesso_cota"][ci]
+                cortes = [aresta[(u, v)] for u, v in zip(r, r[1:])] + [1e9 if cota[k] is None else cota[k] for k in r] + \
+                         [1e9 if ac is None else ac]
                 esperado = min(cortes)
                 self.assertEqual(c[A["corte_m"]], None if esperado >= 1e9 else round(esperado, 1))
         self.assertGreater(n_rota, 100)
@@ -204,7 +224,52 @@ class LocaisAltosTest(unittest.TestCase):
                 self.assertLessEqual(c[A["alt_tempo_s"]], min(c[A["tempo_s"]] + locais_altos.ALT_EXTRA_MAX_S,
                                                               locais_altos.ALT_TOTAL_MAX_S))
                 self.assertIn(c[A["ilha_m"]], [l["ilha_m"] for l in ilhados])
+                # a alternativa tem traçado e nível de saída próprios
+                ra = c[A["alt_rota"]]
+                self.assertEqual(ra[0], c[A["rota"]][0])
+                self.assertEqual(ra[-1], self.alt["locais"][j]["no"])
+                self.assertTrue(c[A["alt_corte_m"]] is None or c[A["alt_corte_m"]] <= (self.d["acesso_cota"][ci] or 1e9))
         self.assertEqual(len(self.alt["margem_nos"]), len(self.d["nos"]))
+        # casas no alto ilhadas: tempo até passar o gargalo, para o aviso de quem depende de remédio
+        com_tempo = [c for c in self.alt["casas"] if c[A["ilha_tempo_s"]] is not None]
+        self.assertTrue(com_tempo)
+        self.assertTrue(all(self.alt["meta"]["estados"][c[A["estado"]]] == "no_alto" and 0 <= c[A["ilha_m"]] <= nm
+                            for c in com_tempo))
+
+    def test_estrada_do_vinho_e_saida_da_cidade(self):
+        # a rede corta a Estrada do Vinho a 600 m da borda; sem ela, o ponto na própria estrada "virava ilha"
+        vinho = [l for l in self.alt["locais"] if l["rua"] == "Estrada do Vinho"]
+        self.assertTrue(vinho)
+        self.assertTrue(all(l["ilha_m"] is None for l in vinho))
+        self.assertGreater(len(self.alt["meta"]["saidas"]), 3)
+
+    def test_pontos_longe_de_deslizamento_e_altos_no_entorno(self):
+        cic = locais_altos.cicatrizes(str(RAIZ / self.alt["meta"]["cicatrizes"]), locais_altos.recorte(self.d["nos"]))
+        self.assertTrue(cic)
+        for loc in self.alt["locais"]:
+            with self.subTest(local=loc["id"]):
+                self.assertGreater(locais_altos.dist_cicatriz((loc["lat"], loc["lon"]), cic), locais_altos.CICATRIZ_MIN_M)
+                self.assertIsNotNone(loc["encosta_graus"])
+
+    def test_margem_cobre_o_erro_perigoso_do_hand_do_painel(self):
+        ch = self.alt["meta"]["cheia"]
+        # as métricas do artigo são do HAND krigado; o painel usa o HAND D8 de 5 m
+        self.assertGreaterEqual(self.alt["meta"]["margem_corte_m"], ch["hand_painel"]["erro_max_perigoso_m"])
+        self.assertIn("hand_krigado_artigo", ch)
+        # pelo centro do pixel, a borda da mancha fica abaixo da maior água medida (antes, a mancha
+        # inflada pelo contorno do PIL punha a mediana acima dela)
+        self.assertLess(self.alt["terreno"]["agua_borda_m"]["mediana"], ch["agua_max_rtk_m"])
+
+    def test_acesso_bate_com_os_contornos(self):
+        contornos = RAIZ / "assets" / "data" / "santa_tereza_inundacao" / "contornos_mancha.json"
+        try:
+            import gerar_painel
+        except ImportError:
+            self.skipTest("sem shapely (CI enxuto)")
+        if not contornos.exists():
+            self.skipTest("sem contornos_mancha.json no checkout")
+        self.assertEqual(gerar_painel.cota_acesso("santa_tereza", json.loads(payload_bruto(HTML["santa_tereza"]))),
+                         self.d["acesso_cota"])
 
     def test_referencias_dizem_se_alagaram(self):
         classes = set(self.alt["meta"]["classes_terreno"])
@@ -244,6 +309,51 @@ class LocaisAltosTest(unittest.TestCase):
         self.assertEqual(len(self.alt["cel_alta"]), len(self.d["cells"]))
         self.assertTrue(all(not c["casas"] for c, f in zip(self.d["cells"], self.alt["cel_alta"]) if f))
         self.assertNotIn("altos", DADOS["mucum"])
+
+
+class TemplateTest(unittest.TestCase):
+    """Partes do JS do painel e do HTML publicado que nenhum outro teste exercita."""
+
+    def test_json_embutido_nao_fecha_o_script(self):
+        # nome do OSM com "</script>" fecharia o script e o resto viraria HTML
+        for c, html in HTML.items():
+            with self.subTest(cidade=c):
+                self.assertNotIn("</", payload_bruto(html))
+
+    def test_folha_do_celular_vence_o_css_dos_logos(self):
+        # assets/css/institutional_logos.css põe .hud a 84 px do topo com 100% da altura
+        css = (RAIZ / "assets" / "css" / "institutional_logos.css").read_text(encoding="utf-8")
+        self.assertIn("body[data-previne-map-signature] > :is(.hud, .card)", css)
+        movel = TEMPLATE[TEMPLATE.index("@media (max-width:700px)"):]
+        self.assertIn("body[data-previne-map-signature]>.hud.hud{margin-top:0;max-height:58vh", movel[:movel.index("}\n }")])
+
+    def test_funcoes_puras_em_node(self):
+        if not shutil.which("node"):
+            self.skipTest("sem node")
+        puras = TEMPLATE[TEMPLATE.index("// <puras>"):TEMPLATE.index("// </puras>")]
+        teste = puras + r"""
+const assert=require('assert');
+const t=Date.parse('2026-10-24T22:45:00Z');
+assert.strictEqual(horaLeitura({telemetria_ultima_em:'2026-10-24T19:45:00'}),t);   // sem fuso: -03:00
+assert.strictEqual(horaLeitura({telemetria_ultima_em:'2026-10-24T19:45:00',telemetria_ultima_em_utc:'2026-10-24T22:45:00Z'}),t);
+assert.strictEqual(idadeMin(t,t+30*6e4),30);
+assert.ok(Number.isNaN(idadeMin(t,t-60*6e4)));   // leitura 1 h no futuro: fuso ou relógio errado
+assert.ok(Number.isNaN(idadeMin(NaN,t)));
+const zr=1.6;  // lim/cota em HAND, y e rio na régua
+assert.strictEqual(situacaoSaida(18,20,17.5,null,zr),'nivel');
+assert.strictEqual(situacaoSaida(18,20,17.5,17.6,zr),'agora');
+assert.strictEqual(situacaoSaida(18,20,17.5,19.7,zr),'caminho_cortado');   // rio 19,7 >= 18+1,6
+assert.strictEqual(situacaoSaida(18,17,17.5,18.7,zr),'casa_atingida');
+assert.strictEqual(situacaoSaida(1,20,1.2,null,zr),'alerta');
+console.log('ok');
+"""
+        with tempfile.TemporaryDirectory() as d:
+            arq = os.path.join(d, "puras.js")
+            with open(arq, "w", encoding="utf-8") as f:
+                f.write(teste)
+            r = subprocess.run(["node", arq], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("ok", r.stdout)
 
 
 class AbrigosGeojsonTest(unittest.TestCase):
