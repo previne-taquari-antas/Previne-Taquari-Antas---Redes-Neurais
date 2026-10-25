@@ -1,10 +1,10 @@
 {
   "schema_version": "mucum_vertical_datum_audit_v1",
-  "generated_at_utc": "2026-10-02T18:22:43.751Z",
+  "generated_at_utc": "2026-10-24T16:01:07.788475Z",
   "research_only": true,
   "station": "86510000",
   "station_name": "Muçum",
-  "conclusion": "GAUGE_RELATIVE_DATUM_USABLE_ABSOLUTE_DATUM_NOT_RECONCILED",
+  "conclusion": "PUBLISHED_GAUGE_ZERO_RECOVERED_TERRAIN_VERTICAL_CONTROL_STILL_PENDING",
   "evidence": {
     "gauge_zero_history": {
       "status": "stable_relative_datum_supported",
@@ -36,8 +36,19 @@
       "reason": "The field is station inventory metadata; no RN/nivelamento relationship tying this number to gauge zero and the project MDT vertical reference has been recovered."
     },
     "absolute_rn": {
-      "recovered": false,
-      "required_source": "SGB/ANA station descriptive sheet, RN leveling record or equivalent surveyed relationship between gauge zero and a known vertical datum"
+      "recovered": true,
+      "published_gauge_zero_orthometric_m": 33.985,
+      "source": "https://rigeo.sgb.gov.br/bitstream/doc/25518/1/marcuzzo_silva_Mendes_zero%20ortometrico_artigo.pdf",
+      "source_location": "Tabela 2, estação 86510000",
+      "vertical_model": "MAPGEO2015, as specified in source methods",
+      "previous_field_note_zero_m": 33.96,
+      "flight_control_points_and_vertical_accuracy_recovered": false
+    },
+    "terrain_candidate_reconciliation": {
+      "report": "assets/data/g040_hydro_stack/mucum_floodplain_storage_20261024/terrain_capacity_manifest.json",
+      "transformation": "raw drone h minus local bilinear MAPGEO2015 N",
+      "geoid_at_gauge_m": 6.469364669132536,
+      "validated_full_hydraulic_geometry": false
     }
   },
   "allowed": [
@@ -52,8 +63,8 @@
     "Do not publish HEC-RAS absolute water-surface elevations from the pilot until vertical reference is reconciled."
   ],
   "next_action": [
-    "Recover numeric vertices of SGB LST 22/07/2022 or original survey file.",
-    "Recover RN/nivelamento from SGB/ANA descriptive station records.",
-    "Then transform S09 measured section to project vertical datum and splice only bank/floodplain terrain outside the measured channel."
+    "Recover original drone flight/control-point datum and vertical accuracy report; nominal transformation is explicit but not a field validation.",
+    "Recover numeric SGB LST vertices and transform channel geometry with published gauge zero.",
+    "Extend terrain coverage through the complete JJ-Muçum storage reach and audit bank/bridge controls before a hydraulic validation claim."
   ]
 }
