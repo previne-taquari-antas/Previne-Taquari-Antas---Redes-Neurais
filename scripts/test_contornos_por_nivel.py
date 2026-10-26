@@ -40,6 +40,18 @@ class DividirContornosTests(unittest.TestCase):
             divisor.dividir(fonte)
             self.assertEqual(sorted(p.name for p in pasta.iterdir()), ["indice.json", "n0010.json"])
 
+    def test_destino_separado_da_fonte(self):
+        # publish-pages.yml: a fonte fica no checkout e os níveis vão para o _site
+        fc = {"type": "FeatureCollection", "features": [feicao(0.1, 3.4)]}
+        with tempfile.TemporaryDirectory() as tmp:
+            fonte = Path(tmp) / "checkout" / "contornos_extravasamento.json"
+            fonte.parent.mkdir()
+            fonte.write_text(json.dumps(fc), encoding="utf-8")
+            destino = Path(tmp) / "_site" / "contornos_extravasamento_niveis"
+            divisor.dividir(fonte, destino)
+            self.assertTrue((destino / "indice.json").exists())
+            self.assertFalse((fonte.parent / "contornos_extravasamento_niveis").exists())
+
     def test_nivel_repetido_falha(self):
         fc = {"type": "FeatureCollection", "features": [feicao(1.0, 1), feicao(1.0, 2)]}
         with tempfile.TemporaryDirectory() as tmp:

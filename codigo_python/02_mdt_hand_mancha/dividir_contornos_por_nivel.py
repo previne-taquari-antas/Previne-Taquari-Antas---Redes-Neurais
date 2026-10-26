@@ -16,6 +16,8 @@ versionados e sempre correspondem ao arquivo completo publicado. Saída, ao lado
 
 Uso:
   python codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py --site-dir _site
+  # lendo do checkout (publish-pages.yml não copia arquivos > 20 MB para o _site):
+  python codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py --fonte-dir . --site-dir _site
 """
 from __future__ import annotations
 
@@ -39,13 +41,13 @@ def compacto(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
 
 
-def dividir(fonte: Path) -> dict:
-    """Grava o índice e um arquivo por nível; devolve um resumo."""
+def dividir(fonte: Path, destino: Path | None = None) -> dict:
+    """Grava o índice e um arquivo por nível (ao lado da fonte, ou em destino); devolve um resumo."""
     bruto = fonte.read_bytes()
     fc = json.loads(bruto)
     if fc.get("type") != "FeatureCollection" or not fc.get("features"):
         raise ValueError(f"{fonte}: esperado FeatureCollection com feições")
-    destino = pasta_niveis(fonte)
+    destino = destino or pasta_niveis(fonte)
     if destino.exists():
         shutil.rmtree(destino)
     destino.mkdir(parents=True)
@@ -74,14 +76,16 @@ def dividir(fonte: Path) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--site-dir", default=".", help="raiz do site (cópia do deploy ou o próprio repositório)")
+    ap.add_argument("--fonte-dir", default=None, help="onde ler os arquivos completos (padrão: --site-dir)")
     args = ap.parse_args()
     raiz = Path(args.site_dir)
+    origem = Path(args.fonte_dir) if args.fonte_dir else raiz
     for rel in FONTES:
-        fonte = raiz / rel
+        fonte = origem / rel
         if not fonte.exists():
             print(f"sem {rel}; nada a dividir")
             continue
-        print(json.dumps(dividir(fonte), ensure_ascii=False))
+        print(json.dumps(dividir(fonte, pasta_niveis(raiz / rel)), ensure_ascii=False))
 
 
 if __name__ == "__main__":
