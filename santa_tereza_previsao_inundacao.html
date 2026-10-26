@@ -949,7 +949,11 @@ function liveHorizonReady(key,D){
 
 function horizonUnavailableReason(D){
   if(!D) return 'sem registro';
-  if(D.disponivel===false) return 'marcado como indisponível';
+  if(D.disponivel===false){
+    // O motivo vem no status do feed (guardrail de erro, telemetria inválida, base atrasada...).
+    const motivo=String(D.status||'').replace(/^indispon[ií]vel:\s*/i,'').split(/;| \(| - /)[0].trim();
+    return motivo||'marcado como indisponível';
+  }
   const falt=[];
   if(!horizonHasForecast(D)) falt.push('previsão ausente');
   const base=parseLocalWhen(D.hora_modelo);

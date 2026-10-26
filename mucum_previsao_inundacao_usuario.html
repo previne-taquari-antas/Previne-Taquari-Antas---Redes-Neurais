@@ -805,7 +805,11 @@ function liveHorizonReady(key,D){
 }
 function horizonUnavailableReason(D){
   if(!D) return 'sem registro';
-  if(D.disponivel===false) return 'marcado como indisponível';
+  if(D.disponivel===false){
+    // O motivo vem no status do feed (guardrail de erro, telemetria inválida, base atrasada...).
+    const motivo=String(D.status||'').replace(/^indispon[ií]vel:\s*/i,'').split(/;| \(| - /)[0].trim();
+    return motivo||'marcado como indisponível';
+  }
   const falt=[];
   if(!horizonHasForecast(D)) falt.push('previsão ausente');
   if(!parseLocalWhen(D.hora_modelo)) falt.push('hora-base inválida');
@@ -827,11 +831,13 @@ function updateLiveHzButtons(){
   const status=document.getElementById('live-horizon-status');
   if(status){
     const missing=Object.entries(hs).filter(([key,D])=>!liveHorizonReady(key,D)).map(([key,D])=>{
-      const falt=D&&D.inputs_faltantes_n!=null?` · faltam ${D.inputs_faltantes_n}/${D.inputs_total||15} inputs`:'';
+      const falt=D&&D.inputs_faltantes_n>0?` · faltam ${D.inputs_faltantes_n}/${D.inputs_total||15} inputs`:'';
       return `${String(key).match(/\d+/)?.[0]||key} h indisponível · ${horizonUnavailableReason(D)}${falt}`;
     });
-    status.textContent=missing.length?missing.join(' · '):'';
-    status.style.display=missing.length?'':'none';
+    // Versões do mesmo horizonte (ex.: 8h e 8h_versao_b) com o mesmo motivo viram uma linha só.
+    const unicos=[...new Set(missing)];
+    status.textContent=unicos.length?unicos.join(' · '):'';
+    status.style.display=unicos.length?'':'none';
   }
 }
 function prepareLiveData(d){
