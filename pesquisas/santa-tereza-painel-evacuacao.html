@@ -29,6 +29,9 @@
  .canais-oficiais a{color:inherit;text-decoration:underline;text-underline-offset:2px}
  .resumo-toque{margin:6px 0 2px;font-size:13px;line-height:1.4;color:#12211b}
  .resumo-toque button{margin-top:4px;border:1px solid #bcd6c7;border-radius:8px;background:#edf7f1;color:#0f6745;font:600 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:8px 10px;min-height:36px}
+ .alto-ic{filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+ .alto-ic i{position:absolute;inset:0;background:#14532d;clip-path:polygon(50% 0,100% 100%,0 100%)}
+ .alto-ic b{position:absolute;left:0;right:0;bottom:3px;text-align:center;color:#fff;font:700 12px/1 sans-serif}
  .casa-cta:focus-visible{outline:3px solid #0f8b46;outline-offset:2px}
  .rio-agora{padding:0 14px 6px;font-size:13.5px;color:#12211b}
  .quick-stage button#quickAgora{min-width:56px;font:700 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -173,10 +176,10 @@ map.getContainer().setAttribute('aria-label','Mapa de Santa Tereza: ruas, ponto 
 let mexeuNoMapa=false;['pointerdown','wheel','keydown','touchstart'].forEach(ev=>map.getContainer().addEventListener(ev,()=>{mexeuNoMapa=true;},{passive:true}));
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Esri'}).addTo(map);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9}).addTo(map);
-const CORES={alagada:'#1e5fbf',rota_comprometida:'#6b2f5b',critica:'#b3382c',apertada:'#e8730c',atencao:'#e3b100',confortavel:'#1b7a5a',alto:'#7a8a84',sem_dado:'#9aa3a0'};
+const CORES={alagada:'#1e5fbf',rota_comprometida:'#6b2f5b',critica:'#b3382c',apertada:'#e8730c',atencao:'#e3b100',confortavel:'#1b7a5a',alto:'#9ccfb0',sem_dado:'#9aa3a0'};
 const CLASSES_SAIDA=new Set(['alagada','rota_comprometida','critica','apertada','atencao']);
-const ROT={referencia:'nível de referência — sem impacto classificado',alagada:'já na água (simulação)',rota_comprometida:'o caminho já alagou',critica:'já é tarde para sair a pé',apertada:'menos de 15 min para sair',atencao:'menos de 1 h para sair',confortavel:'mais de 1 h para sair',alto:'ponto alto',sem_dado:'sem dado de alagamento'};
-const ordem=['alagada','rota_comprometida','critica','apertada','atencao','sem_dado','confortavel'];
+const ROT={referencia:'nível de referência — sem impacto classificado',alagada:'já na água (simulação)',rota_comprometida:'sem caminho seco até um local alto',critica:'já é tarde para sair a pé',apertada:'menos de 15 min para sair',atencao:'menos de 1 h para sair',confortavel:'mais de 1 h para sair',alto:'já em terreno alto',sem_dado:'sem dado de alagamento'};
+const ordem=['alagada','rota_comprometida','critica','apertada','atencao','sem_dado','confortavel','alto'];
 let contornosGeo=null, contornosOrdenados=[], estadoMancha='carregando';
 function setStatusMancha(status,mensagem){
   estadoMancha=status;
@@ -349,7 +352,9 @@ function abrigoAlagaRegua(a){const h=ABRIGO_ALAGA_HAND[a.id]??cotaNoPonto(a.lat,
 const abrigos=L.layerGroup(D.abrigos.map(a=>L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome+' (ponto de referência)'}).bindPopup(()=>{const z=abrigoAlagaRegua(a);
   return '<b>'+a.nome+'</b><br>Ponto de referência do município, <b>não confirmado pela Defesa Civil</b>.'+
     (z!=null?'<br>Alaga com o rio a partir de <b>'+f1(z)+' m</b> na régua'+(z<=MAIOR_CHEIA.regua_m?' (na cheia de '+MAIOR_CHEIA.rotulo+', '+f2(MAIOR_CHEIA.regua_m)+' m, ficou dentro da água)':'')+'.':'')+
-    '<br><a href="../santa_tereza_painel_casas.html#rotas">Ver os pontos altos (▲) no painel casa a casa →</a>';})));
+    (z!=null&&z<=nivelAtual()?'<br><b style="color:#9e1b1b">⚠ Neste nível da simulação ('+f1(nivelAtual())+' m) o '+a.nome+' já está embaixo d\'água: não vá para lá.</b>':'')+
+    '<br>Para fugir da água, a rota desta página leva aos pontos altos (▲): terreno fora da água de '+MAIOR_CHEIA.rotulo+' pelo MDT.'+
+    '<br><a href="../santa_tereza_painel_casas.html#rotas">Para onde ir e quando sair, casa a casa →</a>';})));
 const BB=b.pad(0.06);
 const bc=L.latLngBounds();D.cells.forEach(c=>c.poly.forEach(p=>bc.extend(p)));
 const BBcells=bc.pad(0.03);
@@ -378,18 +383,94 @@ function pior(x,y){return ordem.indexOf(x)<ordem.indexOf(y)?x:y;}
 // ---- render por modo ----
 let modo='rotas';
 function nivelAtual(){return Math.max(BANKFULL_M,Math.min(NVMAX,Number(sld.value)||BANKFULL_M));}
+// ---- rota de fuga até um local alto: terreno fora da água de set/2023 pelo MDT (LiDAR), com folga; os mesmos
+// dados e o mesmo critério do painel casa a casa (locais_altos.py -> santa_tereza_rotas_altas_set2023.json)
+const ARQ_ALTOS='../assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json';
+let RA=null,erroAltos=null,ultimoToque=null;
+const ruasAltLayer=L.layerGroup(),altosLayer=L.layerGroup();
+// <rotas-puras> (sem Leaflet nem DOM: tests/test_rota_fuga_painel.py roda em node e compara com o painel casa a casa)
+// distância na esfera, a mesma de caminhada.haversine (as rotas batem com as do painel casa a casa)
+function metros(a,b){const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 2*6371000*Math.asin(Math.sqrt(x));}
+function fmtMin(m){m=Math.max(1,Math.round(m));return m<60?m+' min':Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min';}
+// caminhada do idoso (r.walk do GRASS, 0,9 m/s no plano, como caminhada.py) com o desnível do LiDAR: de u para v
+function tempoTrecho(m,zu,zv){if(!(m>0))return 0;if(zu==null||zv==null)return m/vel;
+  const dh=Math.max(-.35*m,Math.min(.35*m,zv-zu)),r=dh/m;let t=.72*m;
+  if(dh>0)t+=6*dh;else if(dh<0)t+=(r>-.2125?1.9998:-1.9998)*dh;
+  return Math.max(t/(.72*vel),m/1.1);}
+function heapMin(){const a=[];return {push(x){a.push(x);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(a[p][0]<=x[0])break;a[i]=a[p];i=p;}a[i]=x;},
+  pop(){const z=a[0],last=a.pop();if(a.length){let i=0;while(i*2+1<a.length){let j=i*2+1;if(j+1<a.length&&a[j+1][0]<a[j][0])j++;if(last[0]<=a[j][0])break;a[i]=a[j];i=j;}a[i]=last;}return z;},get length(){return a.length;}};}
+const INF=Infinity,cotaV=i=>RA.cota[i]==null?INF:RA.cota[i],secoNo=(i,h)=>cotaV(i)>h;
+// para cada nó, o maior nível que algum caminho até um alvo aguenta seco (máx-mín): gargalo() de locais_altos.py
+function gargalo(alvos){const B=new Float64Array(RA.nos.length).fill(-INF),q=heapMin();
+  alvos.forEach(k=>{B[k]=INF;q.push([-INF,k]);});
+  while(q.length){const [nb,u]=q.pop();if(-nb<B[u])continue;
+    for(const [v,,cz] of RA.adj[u]){const w=Math.min(-nb,cz==null?INF:cz,cotaV(v));if(w>B[v]){B[v]=w;q.push([-w,v]);}}}
+  return B;}
+// caminhos() de locais_altos.py: Dijkstra só por trechos e nós que alagam em `lim` ou acima (o caminho fica
+// seco enquanto o rio não chega a lim); para no alvo mais perto, no passo do idoso subindo e descendo
+function caminhos(s,lim,ehAlvo){const n=RA.nos.length,t=new Float64Array(n).fill(INF),d=new Float64Array(n),ant=new Int32Array(n).fill(-1),q=heapMin();
+  t[s]=0;q.push([0,s]);
+  while(q.length){const [c,u]=q.pop();if(c>t[u])continue;
+    if(ehAlvo(u)){const pts=[];for(let j=u;j>=0;j=ant[j])pts.push(RA.nos[j]);return {alvo:u,t:c,d:d[u],pts:pts.reverse()};}
+    for(const [v,m,cz] of RA.adj[u]){if((cz==null?INF:cz)<lim||cotaV(v)<lim)continue;
+      const nc=c+tempoTrecho(m,RA.z[u],RA.z[v]);if(nc<t[v]){t[v]=nc;d[v]=d[u]+m;ant[v]=u;q.push([nc,v]);}}}
+  return null;}
+// rota de fuga do nó s, a mesma do painel casa a casa: entre os caminhos que ficam secos por mais tempo (até o
+// ponto alagar ou o melhor caminho até algum terreno alto ser cortado), o ponto alto (▲) mais perto; sem ▲ ao
+// alcance, o terreno alto mais perto. Não depende do nível simulado: o nível só diz se ainda dá para passar.
+const rotasDe=new Map();
+function rotaDe(s){if(!rotasDe.has(s)){let r=null;
+    if(!RA.alto[s]){const lim=Math.min(cotaV(s),RA.Ba[s]);
+      if(lim>-INF){r=caminhos(s,lim,i=>RA.local[i]>=0)||caminhos(s,lim,i=>RA.alto[i]);if(r)r.lim=lim;}}
+    rotasDe.set(s,r);}
+  return rotasDe.get(s);}
+// ponto que vira ilha antes da cheia de referência: o mais perto entre os que não viram, até 15 min a mais e 30 no total
+function alternativa(s,r){if(!r||RA.local[r.alvo]<0||RA.ligado[r.alvo])return null;
+  const a=caminhos(s,r.lim,i=>RA.local[i]>=0&&RA.ligado[i]);return a&&a.t<=Math.min(r.t+900,1800)?a:null;}
+// nível da régua para sair: onde a água corta o caminho, menos o erro do modelo e o que o rio sobe na caminhada
+function regSair(r){return Math.floor((r.lim-RA.mc-r.t/3600*(taxaCmH/100)+BANKFULL_M)*10)/10;}
+function classeFuga(i,h,tx){if(!secoNo(i,h))return 'alagada';if(RA.alto[i])return 'alto';
+  const r=rotaDe(i);if(!r||r.lim<=h)return 'rota_comprometida';if(r.lim===INF)return 'confortavel';
+  const m=(r.lim-RA.mc-h)/tx-r.t/60;return m<0?'critica':m<15?'apertada':m<60?'atencao':'confortavel';}
+// grafo das ruas com os mesmos dados do painel casa a casa
+function montaRA(d){const n=d.nos.length,adj=Array.from({length:n},()=>[]),ruas=[];
+  d.arestas.forEach(([a,b,cz])=>{if(!d.nos[a]||!d.nos[b])return;const m=metros(d.nos[a],d.nos[b]);adj[a].push([b,m,cz]);adj[b].push([a,m,cz]);ruas.push({a,b,cz});});
+  const R={nos:d.nos,cota:d.cota_alaga_nos,alto:d.no_alto,z:d.z_nos||[],adj,ruas,locais:d.locais||[],nm:d.nivel_mancha_m,
+    mc:d.margem_corte_m??1.5,local:new Int32Array(n).fill(-1),ligado:[]};
+  R.locais.forEach((l,j)=>{R.local[l.no]=j;R.ligado[l.no]=l.ilha_m==null||l.ilha_m>R.nm;});
+  return R;}
+function preparaRA(d){RA=montaRA(d);RA.Ba=gargalo(RA.alto.reduce((o,v,i)=>(v&&o.push(i),o),[]));return RA;}
+// </rotas-puras>
+function txtPonto(l,j){return '<b>Ponto alto '+(j+1)+'</b>'+(l.rua?' · '+l.rua:'')+
+  '<br>Terreno fora da água de '+MAIOR_CHEIA.rotulo+', a maior cheia registrada, com pelo menos 2 m de folga (MDT LiDAR).'+
+  (l.ilha_m!=null&&RA&&l.ilha_m<=RA.nm?'<br><b style="color:#9e1b1b">Atenção: '+(l.ilha_m<0?'não tem rua mapeada até o resto da cidade':'vira ilha com o rio em '+f1(BANKFULL_M+l.ilha_m)+' m')+'.</b> Quem ficar aqui fica sem saída seca até a água baixar.':'')+
+  (l.encosta_graus!=null&&l.encosta_graus>=30?'<br><b style="color:#9a3412">Barranco ou encosta íngreme por perto</b> (até '+Math.round(l.encosta_graus)+'°): em chuva forte, fique longe do pé do morro e da beira do barranco.':'')+
+  '<br><b>Não é abrigo oficial:</b> sem garantia de espaço, cobertura ou atendimento. Em perigo: 199 ou 193.'+
+  '<br><a href="../santa_tereza_painel_casas.html#rotas">Para onde ir e quando sair, casa a casa →</a>';}
+async function carregaAltos(){
+  try{const r=await fetch(ARQ_ALTOS,{cache:'no-cache'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();
+    preparaRA(d);
+    RA.ruas.forEach(r=>{r.pl=L.polyline([RA.nos[r.a],RA.nos[r.b]],{weight:1,opacity:.45,color:'#8fa7b8',interactive:false});ruasAltLayer.addLayer(r.pl);});
+    RA.locais.forEach((l,j)=>altosLayer.addLayer(L.marker([l.lat,l.lon],{title:'Ponto alto '+(j+1),alt:'Ponto alto '+(j+1),
+      icon:L.divIcon({className:'alto-ic',html:'<i></i><b>'+(j+1)+'</b>',iconSize:[30,26],iconAnchor:[15,23],popupAnchor:[0,-20]})}).bindPopup(()=>txtPonto(l,j))));
+    if(modo!=='impacto')setModo(modo);
+  }catch(e){erroAltos=e.message;console.warn('Rotas de fuga indisponíveis',e);if(modo!=='impacto')setModo(modo);}}
 function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
-  ruas.forEach(r=>{const a=cotaNosAtuais[r.a],c=cotaNosAtuais[r.c],wet=(a!=null&&a<=h)||(c!=null&&c<=h);r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.45:.9,opacity:wet?.78:.38});});
+  if(RA)RA.ruas.forEach(r=>{const wet=r.cz!=null&&r.cz<=h;r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.6:1,opacity:wet?.8:.45});});
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Toque perto da sua rua.</b> Mostramos o caminho a pé até o Ginásio (ponto de referência) e a partir de que nível ele alaga. Ruas em azul: água neste nível da simulação.</div><div class="rota" id="rota" aria-live="polite">Toque no mapa, perto de uma rua.</div>';
+  document.getElementById('painel').innerHTML='<div class="sub"><b>Toque perto da sua rua</b> para ver a rota de fuga até o local alto mais perto (▲: terreno fora da água de '+MAIOR_CHEIA.rotulo+' pelo MDT), pelo caminho que fica seco por mais tempo. Ruas em azul: com água neste nível da simulação.</div>'+
+    '<div class="rota" id="rota" aria-live="polite">'+(RA?'Toque no mapa, perto de uma rua.':erroAltos?'Rotas de fuga indisponíveis agora. Use o <a href="../santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.':'Carregando as rotas de fuga…')+'</div>';
+  if(RA&&ultimoToque)mostraFuga(ultimoToque,false);
 }
-function renderMargem(){const nivel=nivelAtual(),referencia=nivel<=BANKFULL_M+1e-9;const cnt={alagada:0,rota_comprometida:0,critica:0,apertada:0,atencao:0,confortavel:0,alto:0,sem_dado:0};
-  const cl=D.nos.map((_,i)=>classe(cotaNosAtuais[i],rotaInfo[i]&&rotaInfo[i].cota,D.dist_m[i],nivel));cl.forEach(k=>cnt[k]++);
-  ruas.forEach(r=>r.pl.setStyle(referencia?{color:'#8fa7a0',weight:1.25,opacity:.36}:{color:CORES[pior(cl[r.a],cl[r.c])],weight:2.5,opacity:.85}));
+function renderMargem(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),referencia=nivel<=BANKFULL_M+1e-9;
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
-  document.getElementById('painel').innerHTML='<div class="sub"><b>Tempo para sair a pé</b> de cada ponto de rua, com o rio subindo na velocidade escolhida. É estimativa, não água observada; no nível de referência (1,60 m) as ruas ficam neutras.</div>'+
-    '<div class="sub" style="margin-top:6px">Pontos de rua (cruzamentos e curvas) em cada faixa:</div>'+
-    ordem.map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('');
+  if(!RA){document.getElementById('painel').innerHTML='<div class="sub">'+(erroAltos?'Tempo para sair indisponível agora.':'Carregando…')+'</div>';return;}
+  const tx=taxaCmH/100/60,cl=RA.nos.map((_,i)=>classeFuga(i,h,tx)),cnt={};
+  RA.ruas.forEach(r=>{let k=pior(cl[r.a],cl[r.b]);if(r.cz!=null&&r.cz<=h)k='alagada';cnt[k]=(cnt[k]||0)+1;
+    r.pl.setStyle(referencia?{color:'#8fa7a0',weight:1.25,opacity:.36}:{color:CORES[k],weight:2.5,opacity:.85});});
+  document.getElementById('painel').innerHTML='<div class="sub"><b>Tempo para sair a pé até o local alto mais perto</b> (▲ ou terreno alto pelo MDT), com o rio subindo na velocidade escolhida: o tempo até a água cortar o caminho, menos '+f1(RA.mc)+' m de erro do modelo e a caminhada do idoso. É estimativa, não água observada; no nível de referência (1,60 m) as ruas ficam neutras.</div>'+
+    '<div class="sub" style="margin-top:6px">Trechos de rua em cada faixa:</div>'+
+    ordem.filter(k=>cnt[k]).map(k=>`<div class="row"><span><i style="background:${CORES[k]}"></i>${ROT[k]}</span><b>${cnt[k].toLocaleString('pt-BR')}</b></div>`).join('');
 }
 function renderImpacto(){
   const nivel=nivelAtual();
@@ -434,35 +515,6 @@ function redraw(){taxaCmH=+sldTaxa.value;document.getElementById('taxatxt').text
   if(modo==='margem')renderMargem(); else if(modo==='impacto')renderImpacto(); else if(modo==='rotas')renderRotas();}
 // interacao rotas
 let cam=null,orig=null,safeMark=null,snapLine=null;
-function rotaIndices(inicio){
-  const out=[],seen=new Set();let cur=inicio,g=0;
-  while(cur>=0&&cur<D.nos.length&&!seen.has(cur)&&g++<6000){
-    out.push(cur);seen.add(cur);
-    const nx=D.prox[cur];if(nx===cur||nx===null||nx===undefined||nx<0)break;cur=nx;
-  }
-  return out;
-}
-function distTrecho(indices,ate){
-  const ini=indices[0],fim=indices[ate];
-  const a=Number(D.dist_m[ini]),b=Number(D.dist_m[fim]);
-  if(Number.isFinite(a)&&Number.isFinite(b)&&a>=b)return Math.max(0,a-b);
-  let total=0;
-  for(let j=1;j<=ate;j++){
-    const p=D.nos[indices[j-1]],q=D.nos[indices[j]];
-    const lat=((p[0]+q[0])/2)*Math.PI/180,dy=(q[0]-p[0])*111320,dx=(q[1]-p[1])*111320*Math.cos(lat);
-    total+=Math.hypot(dx,dy);
-  }
-  return total;
-}
-function saidaDaMancha(inicio,nivelRegua){
-  const h=Math.max(0,nivelRegua-BANKFULL_M),inds=rotaIndices(inicio);
-  let ultimoAtingido=-1;
-  inds.forEach((idx,j)=>{const c=cotaNosAtuais[idx];if(c!==null&&c!==undefined&&c<=h)ultimoAtingido=j;});
-  if(ultimoAtingido<0)return {dist_m:0,node:inicio,status:'rota_seca',indices:inds};
-  if(ultimoAtingido>=inds.length-1)return {dist_m:null,node:null,status:'sem_saida_seca',indices:inds};
-  const pos=ultimoAtingido+1,node=inds[pos];
-  return {dist_m:distTrecho(inds,pos),node,status:'trecho_seco_continuo',indices:inds};
-}
 function fmtDist(m){
   if(m===null||m===undefined||!Number.isFinite(Number(m)))return 'não identificado';
   m=Math.max(0,Number(m));
@@ -470,44 +522,46 @@ function fmtDist(m){
 }
 map.getContainer().style.cursor='crosshair';
 const LONGE_DA_RUA_M=150;
-map.on('click',e=>{ if(modo!=='rotas')return;
-  let best=-1,bd=1e18;for(let i=0;i<D.nos.length;i++){const dy=e.latlng.lat-D.nos[i][0],dx=(e.latlng.lng-D.nos[i][1])*Math.cos(e.latlng.lat*Math.PI/180),dd=dy*dy+dx*dx;if(dd<bd){bd=dd;best=i;}}
-  if(cam)map.removeLayer(cam);if(orig)map.removeLayer(orig);if(safeMark)map.removeLayer(safeMark);if(snapLine)map.removeLayer(snapLine);cam=orig=safeMark=snapLine=null;
-  const no0=D.nos[best],latm=((e.latlng.lat+no0[0])/2)*Math.PI/180;
-  const snapM=Math.hypot((e.latlng.lat-no0[0])*111320,(e.latlng.lng-no0[1])*111320*Math.cos(latm));
+map.on('click',e=>{if(modo!=='rotas')return;ultimoToque=e.latlng;mostraFuga(e.latlng,true);});
+function limpaFuga(){[cam,orig,safeMark,snapLine].forEach(l=>{if(l)map.removeLayer(l);});cam=orig=safeMark=snapLine=null;}
+function mostraFuga(ll,novo){limpaFuga();const el=document.getElementById('rota');if(!el)return;
+  if(!RA){el.innerHTML=erroAltos?'Rotas de fuga indisponíveis agora. Use o <a href="../santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.':'Carregando as rotas de fuga…';return;}
+  let s=-1,bd=Infinity;RA.nos.forEach((p,i)=>{const d=metros([ll.lat,ll.lng],p);if(d<bd){bd=d;s=i;}});
   // toque longe das ruas: antes saía uma rota de 13 km dizendo que a pessoa já estava fora da água
-  if(snapM>LONGE_DA_RUA_M){const m='Você tocou a <b>'+fmtDist(snapM)+'</b> da rua mapeada mais próxima. Aproxime o mapa e toque perto da sua rua.';
-    document.getElementById('rota').innerHTML=m;mostraResumo(m,false);return;}
-  const inds=rotaIndices(best),pts=inds.map(idx=>D.nos[idx]);
-  if(snapM>3)snapLine=L.polyline([[e.latlng.lat,e.latlng.lng],no0],{color:'#ffffff',weight:1.2,opacity:.8,dashArray:'4 4',interactive:false}).addTo(map);
-  cam=L.polyline(pts,{color:'#0f8b46',weight:2.3,opacity:.95,interactive:false,lineCap:'round'}).addTo(map);
-  orig=L.circleMarker(D.nos[best],{radius:4.5,color:'#0f8b46',fillColor:'#fff',fillOpacity:1,weight:2,interactive:false}).addTo(map);
-  const ab=D.abrigos.find(x=>x.id===D.dest[best])||D.abrigos[0],dmRede=Number(D.dist_m[best]),dm=Number.isFinite(dmRede)?dmRede+snapM:dmRede,ri=rotaInfo[best],nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
-  const garg=ri.cota==null?null:BANKFULL_M+ri.cota,comp=ri.cota!=null&&ri.cota<=h,saida=saidaDaMancha(best,nivel);
-  const abZ=ab?abrigoAlagaRegua(ab):null,abAlagado=abZ!=null&&nivel>=abZ;
-  cam.setStyle({color:comp||abAlagado?'#b3382c':'#0f8b46'});
-  const tempoAbrigo=Number.isFinite(dm)?Math.round(dm/vel/60):null;
-  let txt='<b>Daqui até o '+(ab?ab.nome:'ponto de referência')+'</b> (ponto de referência, não confirmado pela Defesa Civil): <b>'+fmtDist(dm)+'</b>'+
-    (tempoAbrigo!=null?' · cerca de '+(tempoAbrigo<60?tempoAbrigo+' min':Math.floor(tempoAbrigo/60)+' h '+String(tempoAbrigo%60).padStart(2,'0')+' min')+' a pé, no passo de um idoso':'')+'.';
-  if(abAlagado)txt+='<br><span style="color:#9e1b1b"><b>⚠ Neste nível o '+ab.nome+' já está embaixo d\'água: não vá para lá.</b> Suba para um lugar alto perto e ligue 199.</span>';
-  else if(abZ!=null&&abZ<=MAIOR_CHEIA.regua_m)txt+='<br><span style="color:#7a4b00"><b>Atenção:</b> o '+ab.nome+' alaga com o rio em '+f1(abZ)+' m (ficou dentro da água em '+MAIOR_CHEIA.rotulo+'). Numa cheia grande, use os pontos altos do <a href="../santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.</span>';
-  if(garg==null)txt+='<br><span style="color:#4f5c56">Não há dado de alagamento para todo este caminho.</span>';
-  else if(comp)txt+='<br><span style="color:#9e1b1b"><b>⚠ Com o rio a '+f1(nivel)+' m, este caminho já tem trecho alagado</b> (alaga a partir de '+f1(garg)+' m na régua). Não entre na água: suba para um lugar alto perto e ligue 199.</span>';
-  else txt+='<br>O caminho começa a alagar com o rio em <b>'+f1(garg)+' m</b> na régua: saia bem antes disso.';
-  if(saida.status==='trecho_seco_continuo'){
-    const p=D.nos[saida.node];
-    safeMark=L.circleMarker(p,{radius:5,color:'#0f8b46',fillColor:'#a7f3d0',fillOpacity:1,weight:2,interactive:false}).addTo(map);
-    txt+='<br><span style="color:#4f5c56">Depois de '+fmtDist((saida.dist_m||0)+snapM)+' (círculo verde), o resto do caminho fica fora da água neste nível.</span>';
-  }else if(saida.status==='sem_saida_seca')txt+='<br><span style="color:#9e1b1b">Neste nível o caminho não sai da água.</span>';
-  if(snapM>30)txt+='<br><span style="color:#4f5c56">Você tocou a '+fmtDist(snapM)+' da rua; o caminho começa na rua mais próxima.</span>';
-  if(ri.unknown)txt+='<br><span style="color:#7a5b00">Há '+ri.unknown+' trecho(s) do caminho sem dado de alagamento.</span>';
-  txt+='<br><span style="color:#4f5c56;font-size:12px">Simulação com o rio a '+f1(nivel)+' m. Estimativa do modelo, em revisão: não é rota oficial. Siga a Defesa Civil (199).</span>';
-  document.getElementById('rota').innerHTML=txt;
-  mostraResumo('Até o '+(ab?ab.nome:'ponto de referência')+': <b>'+fmtDist(dm)+'</b>'+(tempoAbrigo!=null?' · ~'+tempoAbrigo+' min a pé':'')+'.<br>'+
-    (abAlagado?'<b style="color:#9e1b1b">⚠ O '+ab.nome+' está embaixo d\'água neste nível.</b>':comp?'<b style="color:#9e1b1b">⚠ O caminho já alagou neste nível.</b>':
-     garg!=null?'O caminho alaga com o rio em <b>'+f1(garg)+' m</b>.':''),true);
-  enquadraCaminho();
-});
+  if(bd>LONGE_DA_RUA_M){const m='Você tocou a <b>'+fmtDist(bd)+'</b> da rua mapeada mais próxima. Aproxime o mapa e toque perto da sua rua.';
+    el.innerHTML=m;if(novo)mostraResumo(m,false);return;}
+  const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),r=rotaDe(s);
+  orig=L.circleMarker(RA.nos[s],{radius:5,color:'#5b2a86',fillColor:'#fff',fillOpacity:1,weight:2.5,interactive:false}).addTo(map);
+  if(bd>3)snapLine=L.polyline([[ll.lat,ll.lng],RA.nos[s]],{color:'#ffffff',weight:1.2,opacity:.8,dashArray:'4 4',interactive:false}).addTo(map);
+  const casa='<br><a href="../santa_tereza_painel_casas.html#rotas">Para a sua casa, com o tempo de preparo: painel casa a casa →</a>';
+  const pe='<br><span style="color:#4f5c56;font-size:12px">Simulação com o rio a '+f1(nivel)+' m. Estimativa do modelo, em revisão: não é rota oficial. Siga a Defesa Civil (199).</span>';
+  const nomeLocal=(k,l)=>'<b>ponto alto '+(k+1)+'</b>'+(l.rua?' ('+l.rua+')':'');
+  let txt,res;
+  if(!secoNo(s,h)){txt='<b>Neste nível da simulação este ponto já está na água.</b> Não entre na água: suba para o andar mais alto ou um lugar alto perto e ligue 193 ou 199.'+casa+pe;
+    res='<b style="color:#9e1b1b">⚠ Neste nível este ponto já está na água.</b>';}
+  else if(RA.alto[s]){txt='<b>Você já está em terreno alto</b>: fora da água de '+MAIOR_CHEIA.rotulo+', com folga (MDT LiDAR). Fique e não desça para as partes baixas.'+casa+pe;
+    res='Você já está em terreno alto: fique e não desça.';}
+  else if(!r||r.lim<=h){txt='<b>Neste nível não há caminho seco daqui até um terreno alto.</b> Não entre na água: suba para um lugar alto perto e ligue 199.'+
+      (r?'<br>O caminho até o terreno alto alaga com o rio em '+f1(BANKFULL_M+r.lim)+' m.':'')+casa+pe;
+    res='<b style="color:#9e1b1b">⚠ Sem caminho seco até um terreno alto neste nível.</b>';}
+  else{const pts=[[ll.lat,ll.lng],...r.pts];
+    const k=RA.local[r.alvo],l=k>=0?RA.locais[k]:null,dm=r.d+bd,min=(r.t+bd/vel)/60;
+    const ilha=l&&l.ilha_m!=null&&l.ilha_m<=RA.nm,alt=alternativa(s,r),ka=alt?RA.local[alt.alvo]:-1;
+    cam=L.featureGroup([...(alt?[L.polyline([[ll.lat,ll.lng],...alt.pts],{color:'#5b2a86',weight:3,opacity:.85,dashArray:'6 6',interactive:false})]:[]),
+      L.polyline(pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),L.polyline(pts,{color:'#5b2a86',weight:5,opacity:.95,interactive:false})]).addTo(map);
+    const sair=r.lim===INF?null:regSair({lim:r.lim,t:r.t+bd/vel});
+    txt='<b>Rota de fuga:</b> '+(l?nomeLocal(k,l):'<b>o terreno alto mais perto</b> (nenhum ponto ▲ ao alcance por um caminho seco)')+
+      ', a '+fmtDist(dm)+' · cerca de '+fmtMin(min)+' a pé no passo de um idoso (linha roxa).'+
+      (sair==null?'<br>O caminho não alaga até o topo do modelo.':
+        '<br>É o caminho que fica seco por mais tempo: até o rio chegar a <b>'+f1(BANKFULL_M+r.lim)+' m</b> na régua. '+
+        (sair>nivel?'Descontando '+f1(RA.mc)+' m de erro do modelo e o que o rio sobe na caminhada, <b>saia até o rio chegar a '+f1(sair)+' m</b>.':
+          '<b style="color:#9e1b1b">Neste nível já passou da hora de sair com folga</b> ('+f1(sair)+' m, com '+f1(RA.mc)+' m de erro do modelo).'))+
+      (ilha?'<br><span style="color:#9e1b1b"><b>Atenção:</b> o ponto '+(k+1)+' '+(l.ilha_m<0?'não tem rua mapeada até o resto da cidade':'vira ilha com o rio em '+f1(BANKFULL_M+l.ilha_m)+' m')+': quem ficar lá fica sem saída seca até a água baixar.</span>'+
+        (alt?'<br>Para não ficar ilhado: '+nomeLocal(ka,RA.locais[ka])+', a '+fmtDist(alt.d+bd)+' · cerca de '+fmtMin((alt.t+bd/vel)/60)+' a pé (linha tracejada).':''):'')+
+      '<br><span style="color:#4f5c56">Ponto alto não é abrigo oficial: sem garantia de espaço, cobertura ou atendimento. Chegando lá, avise a Defesa Civil (199).</span>'+casa+pe;
+    res='Rota de fuga: '+(l?'ponto alto '+(k+1):'terreno alto')+', <b>'+fmtDist(dm)+'</b> · ~'+fmtMin(min)+' a pé.<br>'+
+      (sair==null?'Caminho seco até o topo do modelo.':sair>nivel?'Saia até o rio chegar a <b>'+f1(sair)+' m</b>.':'<b style="color:#9e1b1b">Já passou da hora de sair com folga.</b>');}
+  el.innerHTML=txt;if(novo){mostraResumo(res,!!cam);if(cam)enquadraCaminho();}}
 // celular: resumo curto na folha recolhida, com botão para os detalhes; computador: rola até o resultado
 function mostraResumo(html,detalhes){const r=document.getElementById('resumoToque'),cel=window.matchMedia('(max-width:700px)').matches;
   if(!cel){const el=document.getElementById('rota');if(el)el.scrollIntoView({block:'nearest'});return;}
@@ -523,11 +577,11 @@ function setModo(m){modo=m;
   document.querySelectorAll('.tabs button').forEach(x=>{const on=x.dataset.m===m;x.classList.toggle('on',on);x.setAttribute('aria-selected',String(on));x.tabIndex=on?0:-1;});
   document.getElementById('resumoToque').hidden=true;
   document.getElementById('sliders').classList.remove('hide');
-  [manchaLayer,ruasLayer,cellsLayer,casasLayer].forEach(l=>map.removeLayer(l));
-  if(cam){map.removeLayer(cam);cam=null;} if(orig){map.removeLayer(orig);orig=null;} if(safeMark){map.removeLayer(safeMark);safeMark=null;} if(snapLine){map.removeLayer(snapLine);snapLine=null;}
+  [manchaLayer,ruasLayer,ruasAltLayer,altosLayer,cellsLayer,casasLayer].forEach(l=>map.removeLayer(l));
+  limpaFuga();ultimoToque=null;
   manchaLayer.addTo(map); abrigos.addTo(map);
   if(m==='impacto'){map.getContainer().style.cursor='';casasLayer.addTo(map);renderImpacto();setTimeout(()=>aj(),0);}
-  else{ruasLayer.addTo(map); if(m==='margem'){map.getContainer().style.cursor='';renderMargem();} else {map.getContainer().style.cursor='crosshair';renderRotas();}setTimeout(()=>aj(),0);}
+  else{(RA?ruasAltLayer:ruasLayer).addTo(map);altosLayer.addTo(map); if(m==='margem'){map.getContainer().style.cursor='';renderMargem();} else {map.getContainer().style.cursor='crosshair';renderRotas();}setTimeout(()=>aj(),0);}
 }
 document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
 document.querySelector('.tabs').addEventListener('keydown',ev=>{const bs=[...document.querySelectorAll('.tabs button')],i=bs.indexOf(document.activeElement);if(i<0)return;
@@ -627,6 +681,7 @@ document.getElementById('taxatxt').textContent=taxaCmH;
 updateSheetStatus();setSheetExpanded(false);
 setModo('rotas'); aj(); setTimeout(()=>aj(),300);
 leRio();setInterval(()=>{if(!document.hidden)leRio();},5*60000);
+carregaAltos();
 let tRz=null;window.addEventListener('resize',()=>{clearTimeout(tRz);tRz=setTimeout(()=>aj(),200);});
 // Manifesto pequeno evita baixar ~45 MB de polígonos enquanto o produto não está validado.
 const pastaMancha='../assets/data/santa_tereza_inundacao/';

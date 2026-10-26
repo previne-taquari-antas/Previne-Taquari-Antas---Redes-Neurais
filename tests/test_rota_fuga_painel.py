@@ -378,7 +378,7 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         self.assertIn("já está embaixo d\\'água: não vá para lá", self.html)
 
     def test_toque_longe_da_rua_nao_vira_rota(self):
-        self.assertIn("if(snapM>LONGE_DA_RUA_M)", self.html)
+        self.assertIn("if(bd>LONGE_DA_RUA_M)", self.html)
         self.assertNotIn("você já está fora da área atingida", self.html)
         # a água não captura o toque nas casas
         self.assertIn("map.createPane('agua')", self.html)
@@ -394,7 +394,66 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         # a cópia de pesquisa é a mesma página, com caminhos ../
         pq = (RAIZ / "pesquisas" / "santa-tereza-painel-evacuacao.html").read_text(encoding="utf-8")
         self.assertIn('href="../santa_tereza_painel_casas.html#rotas"', pq)
-        self.assertIn("if(snapM>LONGE_DA_RUA_M)", pq)
+        self.assertIn("if(bd>LONGE_DA_RUA_M)", pq)
+        self.assertIn("const ARQ_ALTOS='../assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json'", pq)
+
+    def test_rota_de_fuga_vai_ao_terreno_alto(self):
+        # a rota do toque leva ao ponto alto (▲) pelo MDT, com os dados do casa a casa, não ao Ginásio
+        h = self.html
+        self.assertIn("const ARQ_ALTOS='assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json'", h)
+        self.assertIn("r=rotaDe(s)", h)
+        self.assertNotIn("saidaDaMancha", h)
+        self.assertNotIn("até o Ginásio", h)
+        dados = ler(RAIZ / "assets" / "data" / "rota_fuga" / "santa_tereza_rotas_altas_set2023.json")
+        self.assertEqual(len(dados["z_nos"]), len(dados["nos"]))
+        self.assertEqual(dados["margem_corte_m"], DADOS["santa_tereza"]["altos"]["meta"]["margem_corte_m"])
+        self.assertTrue(all(isinstance(l["no"], int) and dados["no_alto"][l["no"]] for l in dados["locais"]))
+
+    def test_rota_de_fuga_igual_ao_casa_a_casa_em_node(self):
+        if not shutil.which("node"):
+            self.skipTest("sem node")
+        h = self.html
+        puras = h[h.index("// <rotas-puras>"):h.index("// </rotas-puras>")]
+        arq_json = RAIZ / "assets" / "data" / "rota_fuga" / "santa_tereza_rotas_altas_set2023.json"
+        teste = "let RA=null;const vel=0.9,BANKFULL_M=1.6;let taxaCmH=90;\n" + puras + r"""
+const assert=require('assert');
+preparaRA(JSON.parse(require('fs').readFileSync(process.argv[2],'utf8')));
+const out=RA.nos.map((_,i)=>{const r=rotaDe(i);return r?[Math.round(r.t),r.lim===Infinity?null:Math.round(r.lim*10)/10,RA.local[r.alvo]]:null;});
+// ponto que vira ilha: a alternativa que não vira é mais longe, mas no máximo 15 min a mais
+let k=RA.nos.findIndex((_,i)=>{const r=rotaDe(i);return r&&RA.local[r.alvo]>=0&&!RA.ligado[r.alvo]&&alternativa(i,r);});
+assert.ok(k>=0);const r=rotaDe(k),a=alternativa(k,r);
+assert.ok(RA.ligado[a.alvo]&&a.t>=r.t&&a.t<=r.t+900);
+// saia antes: corte menos o erro do modelo e o que o rio sobe na caminhada (90 cm/h)
+assert.strictEqual(regSair({lim:16,t:3600}),Math.floor((16-1.5-0.9+1.6)*10)/10);
+// caminho cortado antes de o próprio ponto alagar: no nível do corte não há mais rota; 1,5 m antes já é tarde
+const i=RA.nos.findIndex((_,j)=>{const q=rotaDe(j);return q&&q.lim>5&&q.lim<cotaV(j);}),q=rotaDe(i);
+assert.ok(i>=0);
+assert.strictEqual(classeFuga(i,q.lim,0.015),'rota_comprometida');
+assert.strictEqual(classeFuga(i,q.lim-0.1,0.015),'critica');
+assert.strictEqual(classeFuga(i,0,1e-6),'confortavel');
+assert.strictEqual(classeFuga(RA.alto.indexOf(1),0,0.015),'alto');
+console.log(JSON.stringify(out));
+"""
+        with tempfile.TemporaryDirectory() as d:
+            arq = os.path.join(d, "rotas.js")
+            with open(arq, "w", encoding="utf-8") as f:
+                f.write(teste)
+            r = subprocess.run(["node", arq, str(arq_json)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        js = json.loads(r.stdout)
+        # margem_nos do casa a casa: [segundos, nível do corte] até o ponto alto mais perto pelo caminho que
+        # fica seco por mais tempo; sem ponto alto ao alcance, a simulação ainda leva ao terreno alto mais perto
+        terreno = 0
+        for k, (a, b) in enumerate(zip(js, DADOS["santa_tereza"]["altos"]["margem_nos"])):
+            if b is None and a is not None and a[2] < 0:
+                terreno += 1
+                continue
+            if a is None or b is None:
+                self.assertEqual(a, b, k)
+                continue
+            self.assertLessEqual(abs(a[0] - b[0]), 1, k)
+            self.assertEqual(a[1], b[1], k)
+        self.assertLess(terreno, len(js) // 10)
 
     def test_mai2024_nao_e_recorde(self):
         for nome in ("santa_tereza_inundacao.html", "santa_tereza_previsao_inundacao.html",
