@@ -1,22 +1,18 @@
 name: Publish PREVINE GitHub Pages
+# Reserva manual. O Pages é publicado pelo deploy-pages.yml (validadores, logos,
+# otimização e arquivos > 20 MB, como a mancha por nível de Santa Tereza). Rodando
+# a cada push, os dois disputavam o mesmo site: um falhava com "in progress
+# deployment" ou, terminando por último, publicava esta versão sem a mancha de
+# 45 MB e sem logos. Use só se o deploy-pages.yml estiver quebrado.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '**/*.html'
-      - '**/*.css'
-      - '**/*.js'
-      - '**/*.json'
-      - '**/*.geojson'
-      - '**/*.svg'
-      - '.github/workflows/publish-pages.yml'
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  # a mesma fila do deploy-pages.yml: espera o deploy em andamento em vez de falhar
+  group: github-pages-site-recovery-20261024
   cancel-in-progress: false
 jobs:
   deploy:
