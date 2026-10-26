@@ -50,13 +50,15 @@
 .previne-institutions__frame--lagam { width: 210px; aspect-ratio: 1860 / 880; }
 .previne-institutions__frame--lagam img { width: 107.527%; left: -4.301%; top: -63.636%; }
 
-/* Fullscreen map pages get their own strip, outside the map's usable area. */
+/* Fullscreen map pages get their own strip, outside the map's usable area.
+   The strip height lives on <body> so the map and panels follow it; on small
+   or short screens (phones, landscape, 200% zoom) it shrinks to 56 px. */
+body[data-previne-map-signature] { --previne-signature-height: 84px; }
 .previne-institutions--map {
-  --previne-signature-height: 84px;
   position: fixed;
   inset: 0 0 auto;
   z-index: 700;
-  height: var(--previne-signature-height);
+  height: var(--previne-signature-height, 84px);
   padding: 10px 16px;
 }
 .previne-institutions--map .previne-institutions__logos { height: 100%; gap: 28px; }
@@ -64,15 +66,15 @@
 .previne-institutions--map .previne-institutions__frame--ufrgs { width: 72px; }
 .previne-institutions--map .previne-institutions__frame--lagam { width: 136px; }
 body[data-previne-map-signature] > #map {
-  top: 84px !important;
+  top: var(--previne-signature-height, 84px) !important;
   bottom: 0 !important;
-  height: calc(100vh - 84px) !important;
-  height: calc(100dvh - 84px) !important;
+  height: calc(100vh - var(--previne-signature-height, 84px)) !important;
+  height: calc(100dvh - var(--previne-signature-height, 84px)) !important;
 }
 body[data-previne-map-signature] > :is(.hud, .card) {
-  margin-top: 84px;
-  max-height: calc(100vh - 112px);
-  max-height: calc(100dvh - 112px);
+  margin-top: var(--previne-signature-height, 84px);
+  max-height: calc(100vh - var(--previne-signature-height, 84px) - 28px);
+  max-height: calc(100dvh - var(--previne-signature-height, 84px) - 28px);
   overflow-y: auto;
 }
 @media (max-width: 900px) {
@@ -80,7 +82,7 @@ body[data-previne-map-signature] > :is(.hud, .card) {
     margin-top: 0;
     max-height: min(52vh, calc(100dvh - 112px));
   }
-  body[data-previne-bottom-panel] > .leg { margin-top: 84px; }
+  body[data-previne-bottom-panel] > .leg { margin-top: var(--previne-signature-height, 84px); }
 }
 @media (max-width: 520px) {
   body[data-previne-bottom-panel] > .card { max-height: min(57vh, calc(100dvh - 112px)); }
@@ -94,4 +96,12 @@ body[data-previne-map-signature] > :is(.hud, .card) {
   .previne-institutions--map .previne-institutions__frame--previne { width: 96px; }
   .previne-institutions--map .previne-institutions__frame--ufrgs { width: 58px; }
   .previne-institutions--map .previne-institutions__frame--lagam { width: 110px; }
+}
+@media (max-width: 420px), (max-height: 520px) {
+  body[data-previne-map-signature] { --previne-signature-height: 56px; }
+  .previne-institutions--map { padding: 6px 12px; }
+  .previne-institutions--map .previne-institutions__logos { gap: 12px; }
+  .previne-institutions--map .previne-institutions__frame--previne { width: 72px; }
+  .previne-institutions--map .previne-institutions__frame--ufrgs { width: 44px; }
+  .previne-institutions--map .previne-institutions__frame--lagam { width: 84px; }
 }

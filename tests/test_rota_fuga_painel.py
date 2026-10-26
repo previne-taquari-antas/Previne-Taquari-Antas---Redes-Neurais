@@ -383,6 +383,19 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         # a água não captura o toque nas casas
         self.assertIn("map.createPane('agua')", self.html)
 
+    def test_celular_e_acessibilidade(self):
+        h = self.html
+        self.assertIn('<a href="tel:199"><b>199</b></a>', h)          # telefone que liga ao tocar
+        self.assertIn('role="tablist"', h)
+        self.assertIn("L.control.zoom({position:'topright'})", h)   # o painel cobria o + e o −
+        self.assertIn("if(mexeuNoMapa&&!forcar)return;", h)          # trocar de aba não desfaz o zoom
+        self.assertNotIn("{cache:'no-store'}", h)                    # dados revalidados, não baixados de novo
+        self.assertIn('id="resumoToque"', h)                         # toque no celular não cobre o mapa
+        # a cópia de pesquisa é a mesma página, com caminhos ../
+        pq = (RAIZ / "pesquisas" / "santa-tereza-painel-evacuacao.html").read_text(encoding="utf-8")
+        self.assertIn('href="../santa_tereza_painel_casas.html#rotas"', pq)
+        self.assertIn("if(snapM>LONGE_DA_RUA_M)", pq)
+
     def test_mai2024_nao_e_recorde(self):
         for nome in ("santa_tereza_inundacao.html", "santa_tereza_previsao_inundacao.html",
                      "santa_tereza_previsao_inundacao_usuario.html"):
