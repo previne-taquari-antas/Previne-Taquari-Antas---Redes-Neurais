@@ -115,7 +115,12 @@ def brand_page(path: Path, root: Path) -> str:
               f'<div id="previne-institutions" class="{classes}" {MARKER} role="group" aria-label="Identidade institucional: PREVINE, UFRGS e LAGAM">',
               '  <div class="previne-institutions__logos">']
     for name, label, width, height in LOGOS:
-        blocks.append(f'    <span class="previne-institutions__frame previne-institutions__frame--{name}"><img src="{prefix}assets/logos/{name}.png?v={VERSION}" alt="{escape(label, quote=True)}" width="{width}" height="{height}" decoding="async"></span>')
+        img = (f'<img src="{prefix}assets/logos/{name}.png?v={VERSION}" alt="{escape(label, quote=True)}" '
+               f'width="{width}" height="{height}" decoding="async" fetchpriority="low">')
+        # cópia WebP leve (scripts/gerar_logos_web.py), com o PNG original como reserva
+        if (root / f"assets/logos/web/{name}.webp").is_file():
+            img = f'<picture><source srcset="{prefix}assets/logos/web/{name}.webp?v={VERSION}" type="image/webp">{img}</picture>'
+        blocks.append(f'    <span class="previne-institutions__frame previne-institutions__frame--{name}">{img}</span>')
     blocks.extend(['  </div>', '</div>', '<!-- /PREVINE: institutional signature -->', ''])
     signature = newline.join(blocks)
     additions = [(head_position, style), (body_position, signature)]
