@@ -264,6 +264,53 @@ python codigo_python/09_rota_fuga/gerar_painel.py --cidade santa_tereza --republ
 python codigo_python/09_rota_fuga/baixar_nomes_osm.py santa_tereza   # precisa de internet
 ```
 
+### Pontos de encontro pelo mapa único — versão 1 (`pontos_encontro.py`)
+Critério da equipe (out/2026), provisório até o perigo hidrológico do projeto ficar pronto:
+área insegura = mancha do **Mapa Único do Plano Rio Grande** (MUP RS, Área Diretamente
+Atingida das cheias de abril e maio de 2024, SPGG/DEE); área segura = fora dela, a mais de
+**100 m**; ponto de encontro = **trecho de via** do OpenStreetMap (a rede dos painéis casa a
+casa) inteiro fora dessa faixa, para não sugerir lugar no meio do mato. As "áreas edificadas"
+da SEMA não entram. Santa Tereza e Muçum.
+
+Os pontos são escolhidos como os locais altos: um a um, o que mais poupa caminhada do idoso
+(casa·min, teto de 60 min), até 10 pontos ou ganho abaixo de 150 casa·min; caminhada do
+r.walk, com subida do LiDAR em Santa Tereza e no plano em Muçum (sem grade). Casas na mancha
+ou na faixa vão ao ponto mais perto pelas ruas; casa fora da faixa não precisa ir.
+
+A mancha entra por `preparar_mancha.py` (shapefile, GeoPackage, KML ou GeoJSON em qualquer
+sistema de coordenadas → GeoJSON WGS84 recortado por cidade em
+`assets/data/rota_fuga/mup_rs_ada_<cidade>.geojson`); a página é `pontos_encontro.html?cidade=`.
+
+```
+pip install pyogrio pyproj      # só para converter a mancha
+python codigo_python/09_rota_fuga/preparar_mancha.py <arquivo do MUP RS>
+python codigo_python/09_rota_fuga/pontos_encontro.py santa_tereza --gravar
+python codigo_python/09_rota_fuga/pontos_encontro.py mucum --gravar
+```
+
+A mancha publicada vem da FEPAM: "área diretamente atingida 2024"
+(`area_diretamente_atingida_2024.shp`, 482 polígonos por município, SIRGAS 2000, versão de
+03/09/2024; zip `03100958-area-dietamente-atingida-2024.zip`, sha256 `f8934c43…`). O site do
+estado não responde fora do Brasil; o workflow manual `.github/workflows/mancha-mup-rs.yml`
+(`baixar_mancha_mup.py`, com cópia do Internet Archive como reserva) baixa, recorta e recalcula.
+
+Resultado (out/2026), 100 m de afastamento:
+
+| | casas | na mancha | na faixa | fora | pontos | caminhada até o ponto (mediana · p90 · máx.) |
+|---|---|---|---|---|---|---|
+| Santa Tereza | 565 | 372 | 144 | 45 | 6 | 15,0 · 22,2 · 38,0 min |
+| Muçum | 1.937 | 1.690 | 99 | 147 | 6 | 24,5 · 36,1 · 56,7 min |
+
+Em Muçum a mancha cobre quase toda a área urbana (o polígono do município inclui as áreas
+autodeclaradas pela Defesa Civil), então os pontos ficam na borda, a até 1,8 km do centro;
+quatro dos seis locais do Plano de Contingência ficam dentro dela (Hospital, Igreja Matriz,
+Salão José Marcolin e CTG) e o Posto Sander fica fora, a 164 m. O Ginásio de Santa Tereza fica
+fora da mancha de 2024, a 11 m da borda. É o motivo de trocar o mapa único pelo perigo
+hidrológico do projeto na próxima versão.
+
+Para trocar pelo perigo hidrológico do projeto: `preparar_mancha.py <arquivo> --saida-prefixo
+perigo_hidrologico` e `pontos_encontro.py <cidade> --mancha <geojson> --fonte "<descrição>"`.
+
 ### Demanda por destino
 Cada casa recebe `pessoas`: a população da grade IBGE 2022 (domicílios
 ocupados) dividida entre as casas OSM da célula. Casa fora das células com
