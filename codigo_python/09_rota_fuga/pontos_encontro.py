@@ -11,6 +11,10 @@ Critério (equipe do projeto, out/2026):
 - é provisório: quando o perigo hidrológico do projeto ficar pronto, ele substitui o mapa único
   (qualquer mancha em GeoJSON entra por --mancha).
 
+Versões (--versao): "mup" usa o mapa único; "hand" usa, enquanto o perigo hidrológico não chega,
+o modelo HAND do projeto no nível da maior cheia registrada (set/2023 em Santa Tereza, mai/2024
+em Muçum; mancha_hand.py), com o mesmo afastamento e a mesma escolha de pontos.
+
 Escolha dos pontos como em locais_altos.py: um a um, o que mais poupa caminhada do idoso
 (casa·min, teto de 60 min), até 10 pontos ou ganho abaixo de 150 casa·min. A caminhada usa o
 r.walk de caminhada.py, com a subida do LiDAR onde há grade (Santa Tereza) e no plano em Muçum.
@@ -51,6 +55,30 @@ ESTADOS = ("fora", "faixa", "mancha", "sem_via")
 CASAS_CAMPOS = ["lat", "lon", "estado", "ponto", "tempo_s", "dist_m"]
 FONTE_MUP = ("Mapa Único do Plano Rio Grande (MUP RS), Área Diretamente Atingida das cheias de "
              "abril e maio de 2024 (SPGG/DEE, Governo do RS)")
+AVISO = "sugestão técnica, não é abrigo oficial nem confirmado pela Defesa Civil. Em perigo, ligue 199 ou 193."
+# textos da página por versão; "observada": a mancha é área atingida de fato (e não modelada)
+VERSOES = {
+    "mup": {"mancha": "mup_rs_ada_{cidade}.geojson", "saida": "{cidade}_pontos_encontro_mup.json",
+            "rotulo": "mapa único", "titulo": "Mapa Único do Plano Rio Grande", "observada": True,
+            "evento": {"santa_tereza": "cheias de abril e maio de 2024", "mucum": "cheias de abril e maio de 2024"},
+            "evento_curto": {"santa_tereza": "2024", "mucum": "2024"},
+            "fonte": {"santa_tereza": FONTE_MUP, "mucum": FONTE_MUP},
+            "aviso": "Primeira versão, provisória: sugestão técnica, não é abrigo oficial nem confirmado pela Defesa "
+                     "Civil. A mancha do mapa único será trocada pelo perigo hidrológico do projeto. Em perigo, ligue "
+                     "199 ou 193."},
+    "hand": {"mancha": "hand_maior_cheia_{cidade}.geojson", "saida": "{cidade}_pontos_encontro_hand.json",
+             "rotulo": "modelo do projeto", "titulo": "modelo HAND do projeto", "observada": False,
+             "evento": {"santa_tereza": "maior cheia registrada, set/2023, régua 23,65 m",
+                        "mucum": "maior cheia registrada, mai/2024, régua 25,51 m"},
+             "evento_curto": {"santa_tereza": "set/2023", "mucum": "mai/2024"},
+             "fonte": {"santa_tereza": "Modelo HAND do projeto PREVINE (LiDAR, HAND 5 m; régua 1,60 m = HAND 0) no "
+                                       "nível da cheia de set/2023 (régua 23,65 m, HAND 22,1 m); contornos em "
+                                       "revisão (Arroio Marrecão)",
+                       "mucum": "Modelo HAND do projeto PREVINE (mosaico 2 m, drone + ANADEM; régua 5 m = HAND 0) no "
+                                "nível da cheia de mai/2024 (régua 25,51 m, HAND 20,6 m)"},
+             "aviso": "Versão provisória com o modelo HAND do projeto, até o perigo hidrológico ficar pronto: "
+                      "a mancha é modelada, não observada. " + AVISO[0].upper() + AVISO[1:]},
+}
 
 CIDADES = {
     "santa_tereza": {"painel": os.path.join(RAIZ, "santa_tereza_painel_casas.html"), "municipio": "Santa Tereza",
@@ -60,12 +88,12 @@ CIDADES = {
 }
 
 
-def mancha_padrao(cidade):
-    return os.path.join(DADOS, f"mup_rs_ada_{cidade}.geojson")
+def mancha_padrao(cidade, versao="mup"):
+    return os.path.join(DADOS, VERSOES[versao]["mancha"].format(cidade=cidade))
 
 
-def saida_padrao(cidade):
-    return os.path.join(DADOS, f"{cidade}_pontos_encontro_mup.json")
+def saida_padrao(cidade, versao="mup"):
+    return os.path.join(DADOS, VERSOES[versao]["saida"].format(cidade=cidade))
 
 
 class Plano:
@@ -209,7 +237,7 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M):
     for i, pt in enumerate(pontos):
         ts = sorted(ca["tempo_s"] for ca in casas if ca["ponto"] == i)
         pt["n_casas"] = len(ts)
-        pt["pessoas"] = round(sum(ca["pessoas"] for ca in casas if ca["ponto"] == i))
+        pt["pessoas"] = round(math.fsum(ca["pessoas"] for ca in casas if ca["ponto"] == i))  # sum() mudou no Python 3.12
         pt["tempo_mediano_min"] = round(ts[len(ts) // 2] / 60, 1) if ts else None
         pt["tempo_max_min"] = round(ts[-1] / 60, 1) if ts else None
     return {"no_seguro": no_seguro, "aresta_segura": aresta_segura, "candidatos": len(cand), "pontos": pontos,
@@ -226,10 +254,11 @@ def geojson_contorno(g, plano):
     return {"type": m["type"], "coordinates": arred(m["coordinates"])}
 
 
-def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=FONTE_MUP):
-    """JSON da página dos pontos de encontro (pontos_encontro.html?cidade=...)."""
-    cfg = CIDADES[cidade]
-    caminho_mancha = caminho_mancha or mancha_padrao(cidade)
+def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao="mup"):
+    """JSON da página dos pontos de encontro (pontos_encontro.html?cidade=...&mancha=<versao>)."""
+    cfg, v = CIDADES[cidade], VERSOES[versao]
+    caminho_mancha = caminho_mancha or mancha_padrao(cidade, versao)
+    fonte = fonte or v["fonte"][cidade]
     doc = locais_altos.payload(cfg["painel"])
     plano = Plano(doc["nos"])
     mancha = le_mancha(caminho_mancha, plano)
@@ -240,13 +269,14 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=FONTE_MUP):
     est = [c[2] for c in r["casas"]]
     return {
         "schema_version": "previne_pontos_encontro_v1",
-        "municipio": cfg["municipio"],
+        "municipio": cfg["municipio"], "versao": versao,
+        "mancha_rotulo": v["rotulo"], "mancha_titulo": v["titulo"], "mancha_observada": v["observada"],
+        "evento": v["evento"][cidade], "evento_curto": v["evento_curto"][cidade],
         "criterio": f"ponto de encontro = trecho de via (OpenStreetMap) inteiro fora da mancha com {offset_m:g} m de "
                     "afastamento; escolhidos pelo que mais poupa caminhada do idoso (r.walk, 0,9 m/s)",
         "fonte_mancha": fonte, "mancha_arquivo": os.path.relpath(caminho_mancha, RAIZ),
         "mancha_sha256": _sha256(caminho_mancha), "offset_m": offset_m,
-        "aviso": "Primeira versão, provisória: sugestão técnica, não é abrigo oficial nem confirmado pela Defesa Civil. "
-                 "A mancha do mapa único será trocada pelo perigo hidrológico do projeto. Em perigo, ligue 199 ou 193.",
+        "aviso": v["aviso"],
         "resumo": {"casas": len(est), "fora": est.count(0), "faixa": est.count(1), "mancha": est.count(2),
                    "sem_via": est.count(3), "nos_seguros": sum(r["no_seguro"]), "nos": len(doc["nos"]),
                    "trechos_seguros": sum(r["aresta_segura"]), "trechos": len(doc["edges"]),
@@ -276,17 +306,19 @@ def resumo(d):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("cidade", choices=sorted(CIDADES))
-    ap.add_argument("--mancha", help="GeoJSON da área insegura (padrão: assets/data/rota_fuga/mup_rs_ada_<cidade>.geojson)")
+    ap.add_argument("--versao", choices=sorted(VERSOES), default="mup", help="mup (mapa único) ou hand (modelo do projeto)")
+    ap.add_argument("--mancha", help="GeoJSON da área insegura (padrão: o da versão em assets/data/rota_fuga/)")
     ap.add_argument("--offset", type=float, default=OFFSET_M, help="afastamento da mancha, em metros")
-    ap.add_argument("--fonte", default=FONTE_MUP, help="descrição da mancha (vai para o JSON e para a página)")
-    ap.add_argument("--gravar", action="store_true", help="grava assets/data/rota_fuga/<cidade>_pontos_encontro_mup.json")
+    ap.add_argument("--fonte", help="descrição da mancha (padrão: a da versão; vai para o JSON e para a página)")
+    ap.add_argument("--gravar", action="store_true", help="grava assets/data/rota_fuga/<cidade>_pontos_encontro_<versao>.json")
     a = ap.parse_args()
-    d = documento(a.cidade, a.mancha, a.offset, a.fonte)
+    d = documento(a.cidade, a.mancha, a.offset, a.fonte, a.versao)
     print(resumo(d))
     if a.gravar:
-        with open(saida_padrao(a.cidade), "w", encoding="utf-8") as f:
+        saida = saida_padrao(a.cidade, a.versao)
+        with open(saida, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, separators=(",", ":"))
-        print("gravado:", os.path.relpath(saida_padrao(a.cidade), RAIZ))
+        print("gravado:", os.path.relpath(saida, RAIZ))
 
 
 if __name__ == "__main__":
