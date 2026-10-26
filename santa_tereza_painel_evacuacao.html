@@ -454,10 +454,14 @@ async function carregaAltos(){
       icon:L.divIcon({className:'alto-ic',html:'<i></i><b>'+(j+1)+'</b>',iconSize:[30,26],iconAnchor:[15,23],popupAnchor:[0,-20]})}).bindPopup(()=>txtPonto(l,j))));
     if(modo!=='impacto')setModo(modo);
   }catch(e){erroAltos=e.message;console.warn('Rotas de fuga indisponíveis',e);if(modo!=='impacto')setModo(modo);}}
+// sem o JSON dos pontos altos ficam as ruas do painel: azul só onde há água neste nível (sem estilo, o Leaflet pinta tudo de azul)
+function pintaRuasAntigas(h){ruas.forEach(r=>{const a=cotaNosAtuais[r.a],c=cotaNosAtuais[r.c],wet=(a!=null&&a<=h)||(c!=null&&c<=h);
+  r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.45:.9,opacity:wet?.78:.38});});}
 function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
   // sem toque, nada a resumir; com toque, mostraFuga redesenha o resumo com a rota deste nível
   if(!(RA&&ultimoToque))document.getElementById('resumoToque').hidden=true;
   if(RA)RA.ruas.forEach(r=>{const wet=r.cz!=null&&r.cz<=h;r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.6:1,opacity:wet?.8:.45});});
+  else pintaRuasAntigas(h);
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
   document.getElementById('painel').innerHTML='<div class="sub"><b>Toque perto da sua rua</b> para ver a rota de fuga até o local alto mais perto (▲: terreno fora da água de '+MAIOR_CHEIA.rotulo+' pelo MDT), pelo caminho que fica seco por mais tempo. Ruas em azul: com água neste nível da simulação.</div>'+
     '<div class="rota" id="rota" aria-live="polite">'+(RA?'Toque no mapa, perto de uma rua.':erroAltos?'Rotas de fuga indisponíveis agora. Use o <a href="santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.':'Carregando as rotas de fuga…')+'</div>';
@@ -465,7 +469,7 @@ function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
 }
 function renderMargem(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),referencia=nivel<=BANKFULL_M+1e-9;
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
-  if(!RA){document.getElementById('painel').innerHTML='<div class="sub">'+(erroAltos?'Tempo para sair indisponível agora.':'Carregando…')+'</div>';return;}
+  if(!RA){pintaRuasAntigas(h);document.getElementById('painel').innerHTML='<div class="sub">'+(erroAltos?'Tempo para sair indisponível agora.':'Carregando…')+'</div>';return;}
   const tx=taxaCmH/100/60,cl=RA.nos.map((_,i)=>classeFuga(i,h,tx)),cnt={};
   RA.ruas.forEach(r=>{let k=pior(cl[r.a],cl[r.b]);if(r.cz!=null&&r.cz<=h)k='alagada';cnt[k]=(cnt[k]||0)+1;
     r.pl.setStyle(referencia?{color:'#8fa7a0',weight:1.25,opacity:.36}:{color:CORES[k],weight:2.5,opacity:.85});});

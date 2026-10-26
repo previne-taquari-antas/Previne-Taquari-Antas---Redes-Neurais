@@ -406,6 +406,7 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         self.assertIn("r=rotaDe(s)", h)
         self.assertIn("if(novo||!rt.hidden)mostraResumo(res,!!cam)", h)  # resumo do celular acompanha o nível
         self.assertNotIn("saidaDaMancha", h)
+        self.assertEqual(h.count("pintaRuasAntigas(h);"), 2)  # sem o JSON, as ruas antigas não ficam todas azuis
         self.assertNotIn("até o Ginásio", h)
         dados = ler(RAIZ / "assets" / "data" / "rota_fuga" / "santa_tereza_rotas_altas_set2023.json")
         self.assertEqual(len(dados["z_nos"]), len(dados["nos"]))
