@@ -356,6 +356,46 @@ console.log('ok');
         self.assertIn("ok", r.stdout)
 
 
+class SimulacaoEvacuacaoTest(unittest.TestCase):
+    """santa_tereza_painel_evacuacao.html (revisão de primeira visita, out/2026): o link que circula não
+    pode mandar ninguém para o Ginásio sem aviso nem dar rota a partir de um toque longe das ruas."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = (RAIZ / "santa_tereza_painel_evacuacao.html").read_text(encoding="utf-8")
+
+    def test_leva_ao_painel_casa_a_casa(self):
+        self.assertIn('class="casa-cta" href="santa_tereza_painel_casas.html#rotas"', self.html)
+        self.assertIn("<title>Simulação da cheia", self.html)
+        self.assertIn("setModo('rotas'); aj();", self.html)  # "Casas" sem classificação não abre primeiro
+
+    def test_ginasio_avisa_que_alaga_no_mesmo_nivel_do_casa_a_casa(self):
+        m = re.search(r"ABRIGO_ALAGA_HAND=\{santa_tereza_ginasio_esportes:([0-9.]+)\}", self.html)
+        self.assertIsNotNone(m)
+        gin = {a["id"]: a for a in DADOS["santa_tereza"]["abrigos"]}["santa_tereza_ginasio_esportes"]
+        self.assertAlmostEqual(float(m.group(1)), gin["cota_alaga_m"], places=1)
+        self.assertIn("não confirmado pela Defesa Civil", self.html)
+        self.assertIn("já está embaixo d\\'água: não vá para lá", self.html)
+
+    def test_toque_longe_da_rua_nao_vira_rota(self):
+        self.assertIn("if(snapM>LONGE_DA_RUA_M)", self.html)
+        self.assertNotIn("você já está fora da área atingida", self.html)
+        # a água não captura o toque nas casas
+        self.assertIn("map.createPane('agua')", self.html)
+
+    def test_mai2024_nao_e_recorde(self):
+        for nome in ("santa_tereza_inundacao.html", "santa_tereza_previsao_inundacao.html",
+                     "santa_tereza_previsao_inundacao_usuario.html"):
+            arq = RAIZ / nome
+            if not arq.exists():
+                continue
+            s = arq.read_text(encoding="utf-8")
+            with self.subTest(pagina=nome):
+                self.assertNotIn("Recorde mai/2024", s)
+                self.assertNotIn('"pico_obs_cm":2582', s)  # 25,82 m sem fonte primária; SGB: 22,42 m
+                self.assertIn('"pico_obs_cm":2242', s)
+
+
 class AbrigosGeojsonTest(unittest.TestCase):
     def setUp(self):
         self.feats = ler(ABRIGOS)["features"]
