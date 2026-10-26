@@ -27,33 +27,10 @@ jobs:
           python-version: "3.11"
       - name: Dependências
         run: python -m pip install numpy pillow shapely pyogrio pyproj
-      - name: Achar e baixar a área diretamente atingida 2024 (FEPAM)
+      - name: Baixar a área diretamente atingida 2024 (FEPAM ou cópia no Internet Archive)
         run: |
           set -euo pipefail
-          mkdir -p /tmp/mup
-          PAGINA=https://fepam.rs.gov.br/arquivos-geoespaciais-eventos-climaticos-de-maio-de-2024
-          curl -fsSL --retry 3 -A "Mozilla/5.0 (PREVINE; pesquisa UFRGS)" "$PAGINA" -o /tmp/mup/pagina.html
-          python - <<'PY'
-          import html, re, urllib.parse
-          s = open("/tmp/mup/pagina.html", encoding="utf-8", errors="replace").read()
-          base = "https://fepam.rs.gov.br/arquivos-geoespaciais-eventos-climaticos-de-maio-de-2024"
-          links = []
-          for m in re.finditer(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>', s, re.S | re.I):
-              href, texto = m.group(1), re.sub(r"<[^>]+>", " ", m.group(2))
-              texto = " ".join(html.unescape(texto).split())
-              if re.search(r"\.(zip|rar|7z|gpkg|kmz)(\?|$)", href, re.I) or "upload" in href.lower():
-                  links.append((urllib.parse.urljoin(base, href), texto))
-          for u, t in links:
-              print("LINK:", t, "->", u)
-          alvo = [u for u, t in links if re.search(r"\.(zip|rar|7z|gpkg|kmz)(\?|$)", u, re.I)
-                  and re.search(r"atingid|diretamente|\bada\b", t + " " + u, re.I)]
-          if not alvo:
-              raise SystemExit("não achei o arquivo da área diretamente atingida na página")
-          open("/tmp/mup/url.txt", "w").write(alvo[0])
-          print("ESCOLHIDO:", alvo[0])
-          PY
-          curl -fsSL --retry 3 -A "Mozilla/5.0 (PREVINE; pesquisa UFRGS)" "$(cat /tmp/mup/url.txt)" -o /tmp/mup/ada.zip
-          ls -la /tmp/mup/ada.zip && sha256sum /tmp/mup/ada.zip
+          python codigo_python/09_rota_fuga/baixar_mancha_mup.py /tmp/mup
           mkdir -p /tmp/mup/ada && unzip -o -q /tmp/mup/ada.zip -d /tmp/mup/ada
           find /tmp/mup/ada -type f | sed 's/^/ARQ: /'
       - name: Recortar a mancha para Santa Tereza e Muçum
@@ -68,8 +45,6 @@ jobs:
               print(p, "| feições:", i["features"], "| CRS:", i["crs"], "| campos:", list(i["fields"]), "| tipo:", i["geometry_type"])
           PY
           python codigo_python/09_rota_fuga/preparar_mancha.py "${SHPS[@]}"
-          echo "URL: $(cat /tmp/mup/url.txt)" > /tmp/mup/origem.txt
-          sha256sum /tmp/mup/ada.zip >> /tmp/mup/origem.txt
       - name: Pontos de encontro
         run: |
           set -euo pipefail
@@ -94,7 +69,6 @@ jobs:
         with:
           name: mancha-mup-rs
           path: |
-            /tmp/mup/pagina.html
             /tmp/mup/origem.txt
             assets/data/rota_fuga/mup_rs_ada_*.geojson
             assets/data/rota_fuga/*_pontos_encontro_mup.json
