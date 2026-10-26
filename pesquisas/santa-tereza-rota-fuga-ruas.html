@@ -186,7 +186,7 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
  const routeLines=[];
  D.edges.forEach(([a,c,ag])=>{const A=D.nos[a],C=D.nos[c];
    const line=L.polyline([A,C],{color:ag?'#b3382c':'#8fa7b8',weight:ag?2.5:1.5,opacity:ag?.7:.5}).addTo(routeLayer);routeLines.push(line);b.extend(A);b.extend(C);});
- D.abrigos.forEach(a=>L.marker([a.lat,a.lon]).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
+ D.abrigos.forEach(a=>L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome}).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
  let handGeo=null,handVisible=true,scenarioData=null,priorityVisible=true,priorityMarkerRefs=[],selectedScenario='known';
  const handLevelLabel=value=>Number(value).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
  const minutesLabel=value=>Number.isFinite(Number(value))?Math.round(Number(value))+' min':'não calculado';

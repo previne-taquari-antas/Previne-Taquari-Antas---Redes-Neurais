@@ -109,6 +109,60 @@ class StorageTest(unittest.TestCase):
             with self.assertRaises(ValueError):S.archive('n5',now,[],{},{},self.empty,self.hist,root)
             self.assertEqual(file.read_bytes(),original)
 
+    def test_archive_index_is_split_by_day_and_migrates_single_index(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);now=self.data.now
+            # primeiro ciclo cria o historico; os seguintes partem dele, sem alteracoes de registro
+            def hist_em(t):
+                h=copy.deepcopy(self.hist);h['atualizado_em']=C.stamp(t);return h
+            def ciclo(t,before=None):
+                return S.archive('n5',t,[self.p],self.data.levels,self.data.rain,before or self.hist,hist_em(t),root)
+            first=S.archive('n5',now,[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            second=ciclo(now+dt.timedelta(days=1))
+            manifest=json.loads((root/'index.json').read_text(encoding='utf-8'))
+            self.assertEqual(manifest['schema_version'],S.INDEX_MANIFEST)
+            self.assertEqual([x['n'] for x in manifest['dias']],[1,1])
+            entries=S.read_archive_index(root)
+            self.assertEqual([a['arquivo'] for a in entries],[x['arquivo'].split('stz_shadow_archive/')[1] for x in (first,second)])
+            # repetir um ciclo nao duplica e nao regrava o indice de um dia anterior
+            day1=root/entries[0]['arquivo'].split('/')[0]/'index.json';before=day1.read_bytes()
+            ciclo(now+dt.timedelta(days=1))
+            self.assertEqual(len(S.read_archive_index(root)),2);self.assertEqual(day1.read_bytes(),before)
+            # indice unico antigo migra no proximo ciclo, sem perder entradas
+            C.write(root/'index.json',{'schema_version':S.INDEX_V1,'arquivos':entries,'atualizado_em':'x'})
+            for part in root.glob('*/index.json'):part.unlink()
+            third=ciclo(now+dt.timedelta(days=2))
+            migrated=S.read_archive_index(root)
+            self.assertEqual(migrated[:2],entries);self.assertEqual(migrated[2]['arquivo'],third['arquivo'].split('stz_shadow_archive/')[1])
+            self.assertEqual(json.loads((root/'index.json').read_text(encoding='utf-8'))['schema_version'],S.INDEX_MANIFEST)
+            from scripts.recover_stz_shadow_history import recover
+            self.assertEqual(recover(root,'n5'),hist_em(now+dt.timedelta(days=2)))
+            # indice diario apagado ou com contagem divergente falha fechado
+            day1.write_text(json.dumps({'schema_version':S.INDEX_DAY,'dia':day1.parent.name,'arquivos':[]}),encoding='utf-8')
+            with self.assertRaises(ValueError):S.read_archive_index(root)
+            day1.unlink()
+            with self.assertRaises(ValueError):ciclo(now+dt.timedelta(days=3))
+
+    def test_publication_validator_reads_old_single_index_from_head(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);now=self.data.now
+            git=lambda *a:subprocess.run(['git','-c','user.name=t','-c','user.email=t@t',*a],cwd=root,check=True,capture_output=True)
+            git('init','-q')
+            S.archive('n5',now,[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            entries=S.read_archive_index(root)
+            for part in root.glob('*/index.json'):part.unlink()
+            C.write(root/'index.json',{'schema_version':S.INDEX_V1,'arquivos':entries,'atualizado_em':'x'})
+            git('add','-A');git('commit','-qm','indice unico')
+            S.archive('n5',now+dt.timedelta(days=1),[self.p],self.data.levels,self.data.rain,self.empty,self.hist,root)
+            def head(rel):
+                done=subprocess.run(['git','show','HEAD:'+rel],cwd=root,capture_output=True)
+                return json.loads(done.stdout) if done.returncode==0 else None
+            old=S.read_archive_index(root,reader=head)
+            current={a['arquivo']:a for a in S.read_archive_index(root)}
+            self.assertEqual(old,entries)
+            self.assertTrue(all(current.get(a['arquivo'])==a for a in old))
+
     def test_atomic_write_failure_leaves_original_history_bytes(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'history.json';C.write(path,self.hist);before=path.read_bytes()
@@ -148,28 +202,43 @@ class StorageTest(unittest.TestCase):
                              nivel_previsto_cm=430+i,origem='emissao_prospectiva',observado_cm=None))
         return {'schema_version':S.SCHEMA,'shadow_only':True,'registros':rows,'atualizado_em':'2026-11-01T01:17:00'}
 
-    def test_legacy_history_migrates_to_monthly_partitions_in_insertion_order(self):
+    def test_legacy_history_migrates_to_daily_partitions_in_insertion_order(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);legacy=root/'historico.json';parts=root/'hist'
             hist=self.multi_month_history();C.write(legacy,hist)
             before=S.load(parts,legacy);self.assertEqual(before,hist)
             files=S.save(parts,before,before,legacy)
-            self.assertEqual([f.name for f in files],['2026-10.json','2026-11.json'])
+            self.assertEqual([f.name for f in files],['2026-10-31.json','2026-11-01.json'])
             self.assertFalse(legacy.exists())
             self.assertEqual(S.load(parts,legacy)['registros'],hist['registros'])
-            lines=(parts/'2026-11.json').read_text(encoding='utf-8').splitlines()
+            lines=(parts/'2026-11-01.json').read_text(encoding='utf-8').splitlines()
             self.assertEqual(len(lines),4)  # cabecalho, dois registros, fechamento
             with self.assertRaises(FileNotFoundError):S.load(root/'vazio',root/'nao_existe.json')
 
-    def test_partitions_never_drop_months_or_records(self):
+    def test_partitions_never_drop_days_or_records(self):
         with tempfile.TemporaryDirectory() as d:
             parts=Path(d)/'hist';hist=self.multi_month_history()
             S.save(parts,hist,hist)
             fewer=copy.deepcopy(hist);fewer['registros']=fewer['registros'][1:]
             with self.assertRaises(ValueError):S.save(parts,hist,fewer)
             moved=copy.deepcopy(hist);moved['registros'][0]['emitida_em']='2026-11-01T00:00:00'
-            (parts/'2026-10.json').write_text(S.render_partition('2026-10',moved['registros'][:1],'x'),encoding='utf-8')
+            (parts/'2026-10-31.json').write_text(S.render_partition('2026-10-31',moved['registros'][:1],'x'),encoding='utf-8')
             with self.assertRaises(ValueError):S.load(parts)
+
+    def test_monthly_partitions_migrate_to_daily_without_losing_records(self):
+        with tempfile.TemporaryDirectory() as d:
+            parts=Path(d)/'hist';parts.mkdir();hist=self.multi_month_history()
+            # formato antigo: um arquivo por mes
+            for name in ('2026-10','2026-11'):
+                rows=[p for p in hist['registros'] if p['emitida_em'][:7]==name]
+                (parts/f'{name}.json').write_text(S.render_partition(name,rows,hist['atualizado_em']),encoding='utf-8')
+            before=S.load(parts);self.assertEqual(before['registros'],hist['registros'])
+            files=S.save(parts,before,before)
+            self.assertEqual([f.name for f in files],['2026-10-31.json','2026-11-01.json'])
+            self.assertEqual(S.load(parts)['registros'],hist['registros'])
+            # particao diaria apagada depois da migracao: o historico encolhe e salvar falha fechado
+            (parts/'2026-10-31.json').unlink()
+            with self.assertRaises(ValueError):S.save(parts,before,S.load(parts))
 
     def test_publication_validator_reads_committed_partitions_after_migration(self):
         import subprocess

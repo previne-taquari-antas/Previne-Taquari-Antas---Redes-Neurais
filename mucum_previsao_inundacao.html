@@ -428,6 +428,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/js/fmt_quando.js?v=20260916-hora-0h4"></script>
 <script src="assets/js/site_runtime.js?v=20261020-recovery"></script>
+<script src="assets/js/contornos_por_nivel.js?v=20261021-niveis"></script>
 <script src="assets/js/live_feed.js?v=20261020-recovery"></script>
 <script src="assets/previsao_panorama.js?v=20261007-publico-1"></script>
 <script src="assets/previsao_fila.js"></script>
@@ -527,7 +528,7 @@ let handArr=null, curEv=Object.keys(EVENTS)[0];
 let bankfull=500, tIdx=0, playing=false, timer=null, map=null, curS=null;
 const calibByEvent={};
 const LIVE_PAGE_URL='previsao_ao_vivo_mucum.json';
-const LIVE_RAW_URL='https://raw.githubusercontent.com/julianacarolinoreis/Previne-Taquari-Antas---Redes-Neurais/main/previsao_ao_vivo_mucum.json';
+const LIVE_RAW_URL='https://raw.githubusercontent.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/main/previsao_ao_vivo_mucum.json';
 async function fetchLiveJson(){
   return PrevineLiveFeed.fetchLive(LIVE_PAGE_URL);
 }
@@ -630,7 +631,7 @@ function loadHand(){return PrevineSiteRuntime.imageTask(res=>{
   img.src='data:image/png;base64,'+HAND.hand_png_b64;
 });}
 
-function loadContornos(){return PrevineSiteRuntime.fetchResource(CONTORNOS_URL).then(r=>r.json()).then(fc=>{contornos=fc;}).catch(e=>{console.error('falha ao carregar contornos', e); contornos=null;});}
+function loadContornos(){return PrevineContornos.carregar(CONTORNOS_URL).then(fc=>{contornos=fc;}).catch(e=>{console.error('falha ao carregar contornos', e); contornos=null;});}
 
 function loadElevation(){return PrevineSiteRuntime.fetchResource(ELEVATION_URL).then(r=>{
   if(!r.ok) throw new Error('HTTP '+r.status);
@@ -674,8 +675,16 @@ function achaFeature(mLvl){
 function setLayer(layer, mLvl){
   const feat=achaFeature(mLvl);
   layer.clearLayers();
-  if(feat) layer.addData(feat);
+  if(feat&&feat.geometry) layer.addData(feat);
+  // Contornos por nível: a área já vem do índice; a geometria chega em seguida e redesenha.
+  else if(feat&&contornos&&contornos.carregarGeometria) contornos.carregarGeometria(feat).then(redesenharContornos,e=>console.error('falha ao carregar o contorno do nível',feat.properties.nivel_m,e));
   return feat?feat.properties.area_ha:0;
+}
+let redesenhoContornosPendente=false;
+function redesenharContornos(){
+  if(redesenhoContornosPendente) return;
+  redesenhoContornosPendente=true;
+  requestAnimationFrame(()=>{redesenhoContornosPendente=false; renderFrame();});
 }
 
 function renderFrame(){
@@ -828,7 +837,11 @@ function liveHorizonReady(key,D){
 
 function horizonUnavailableReason(D){
   if(!D) return 'sem registro';
-  if(D.disponivel===false) return 'marcado como indisponível';
+  if(D.disponivel===false){
+    // O motivo vem no status do feed (guardrail de erro, telemetria inválida, base atrasada...).
+    const motivo=String(D.status||'').replace(/^indispon[ií]vel:\s*/i,'').split(/;| \(| - /)[0].trim();
+    return motivo||'marcado como indisponível';
+  }
   const falt=[];
   if(!horizonHasForecast(D)) falt.push('previsão ausente');
   if(!parseLocalWhen(D.hora_modelo)) falt.push('hora-base inválida');

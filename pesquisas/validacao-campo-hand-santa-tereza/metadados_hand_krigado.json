@@ -1,0 +1,323 @@
+{
+  "produto": "INUND_HAND_2165.tif (HAND da versão 'HAND 2165' da planilha sumario_erros_hand.xlsx)",
+  "fonte_da_informacao": "linhagem (geoprocessing history) gravada pelo ArcGIS Pro nos .xml de cada arquivo em D:/PREVINE/FAPERGS; a pasta não tem scripts, projetos .aprx/.qgz, logs, readme nem relatórios",
+  "resumo": {
+    "mdt_de_origem": "CLIP_MOSAICO_LIDAR_RS.tif — LiDAR bruto 1 m (recorte do MOSAICO_LIDAR_RS, mosaico de 4 folhas MDT_RS do LiDAR do Governo do RS)",
+    "resolucao": "1 m (KRIG e INUND na mesma grade do CLIP: 12988 × 19426 células)",
+    "rede_de_drenagem": "FILL → FLOWDIR (D8) → FLOWACC → Con(FLOWACC ≥ 1.000.000 células ≈ 1 km²) → StreamLink → StreamToFeature (STREAM, 67 arcos) → exportados 20 arcos para STREAM_TAQUARI_ANTAS (sem cláusula SQL no comando: seleção manual no mapa)",
+    "o_que_foi_krigado": "o campo HAND de STREAM_TAQUARI_ANTAS_pts_elev = RASTERVALU + 21,65, em que RASTERVALU é a cota do LiDAR bruto 1 m (ExtractValuesToPoints, sem interpolação) em todos os 4535 vértices dos arcos do rio. Ou seja, krigou-se uma superfície de água 21,65 m acima da cota do leito.",
+    "krigagem": "Kriging ordinária (ArcGIS Spatial Analyst), modelo esférico: lag 32,08 m, alcance 13.345,28 m, patamar parcial 63,386, pepita 0; célula de saída 1 m; raio de busca variável, 12 pontos",
+    "inund_hand_2165": "RasterCalculator: CLIP_MOSAICO_LIDAR_RS − KRIG_HAND_2165. Negativo = abaixo da superfície de água de 21,65 m. HAND krigado = INUND_HAND_2165 + 21,65 = z_LiDAR − cota do rio krigada.",
+    "significado_de_2165": "limiar de 21,65 m = pico de set/2023 na régua (23,65 m) − zero antigo de 2,00 m (versão 'HAND 2165' / 'lâmina modelo1' da planilha)",
+    "diferenca_para_o_hand_do_site": "não segue o caminho D8 até o rio: a cota de referência é a do rio krigada no próprio local (interpolação espacial, sem conectividade hidrológica nem barreiras). O HAND 5 m do site (gerar_hand_lidar_santa_tereza.py) usa a célula do rio para onde o ponto escoa.",
+    "data": "2026-09-02 (13:39 recorte do LiDAR; 14:14 cálculo do campo HAND; 15:20 krigagem; 15:27 INUND_HAND_2165), hora local do computador que processou",
+    "autor": "não registrado nos metadados (sem contato/autor nos .xml). Processado em ArcGIS Pro 3.3 (13.3.0.52636) no Windows build 26200, na pasta E:\\GUI\\FAPERGS"
+  },
+  "cadeia_de_processamento": [
+    {
+      "produto": "MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "12405400",
+      "software": "Microsoft Windows 10 Version 10.0 (Build 26200) ; Esri ArcGIS 13.3.0.52636",
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "MosaicToNewRaster",
+          "data": "20260902",
+          "hora": "124055",
+          "comando": "MosaicToNewRaster MOSAICO_SH-22-V-D-II-1-SE.tif;MOSAICO_SH-22-V-D-II-2-NE.tif;MOSAICO_SH-22-V-D-II-2-NO.tif;MOSAICO_SH-22-V-D-II-2-SO.tif . MOSAICO_LIDAR_RS.tif # \"32 bit float\" # 1 Last First"
+        }
+      ],
+      "data_arquivo": "2026-09-02T12:40:54"
+    },
+    {
+      "produto": "CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13390300",
+      "software": "Microsoft Windows 10 Version 10.0 (Build 26200) ; Esri ArcGIS 13.3.0.52636",
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "Clip",
+          "data": "20260902",
+          "hora": "133905",
+          "comando": "Clip MOSAICO_LIDAR_RS.tif \"424307,0511 6766344,3822 437294,2307 6785770,0245\" CLIP_MOSAICO_LIDAR_RS.tif \"Polygon Notes\" 3,4e+38 ClippingGeometry NO_MAINTAIN_EXTENT"
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:39:03"
+    },
+    {
+      "produto": "FILL_CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13413300",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "Fill",
+          "data": "20260902",
+          "hora": "134133",
+          "comando": "Fill CLIP_MOSAICO_LIDAR_RS.tif FILL_CLIP_MOSAICO_LIDAR_RS.tif #"
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:41:32"
+    },
+    {
+      "produto": "FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13452800",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "FlowDirection",
+          "data": "20260902",
+          "hora": "134528",
+          "comando": "FlowDirection FILL_CLIP_MOSAICO_LIDAR_RS.tif FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif NORMAL # D8"
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:45:27"
+    },
+    {
+      "produto": "FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13494900",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "FlowAccumulation",
+          "data": "20260902",
+          "hora": "134949",
+          "comando": "FlowAccumulation FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif # Float D8"
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:49:19"
+    },
+    {
+      "produto": "CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13572900",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "Con",
+          "data": "20260902",
+          "hora": "135729",
+          "comando": "Con FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif # \"VALUE >= 1000000\""
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:57:29"
+    },
+    {
+      "produto": "STREAM_CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "13594500",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "StreamLink",
+          "data": "20260902",
+          "hora": "135945",
+          "comando": "StreamLink CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif STREAM_CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif"
+        }
+      ],
+      "data_arquivo": "2026-09-02T13:59:44"
+    },
+    {
+      "produto": "STREAM.shp",
+      "CreaDate": "20260902",
+      "CreaTime": "14003400",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "StreamToFeature",
+          "data": "20260902",
+          "hora": "140034",
+          "comando": "StreamToFeature STREAM_CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif STREAM.shp NO_SIMPLIFY"
+        }
+      ],
+      "data_arquivo": "2026-09-02T14:00:34"
+    },
+    {
+      "produto": "STREAM_TAQUARI_ANTAS.shp",
+      "CreaDate": "20260902",
+      "CreaTime": "14003400",
+      "software": "Microsoft Windows 10 Version 10.0 (Build 26200) ; Esri ArcGIS 13.3.0.52636",
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "StreamToFeature",
+          "data": "20260902",
+          "hora": "140034",
+          "comando": "StreamToFeature STREAM_CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif STREAM.shp NO_SIMPLIFY"
+        },
+        {
+          "ferramenta": "ExportFeatures",
+          "data": "20260902",
+          "hora": "140215",
+          "comando": "ExportFeatures STREAM STREAM_TAQUARI_ANTAS.shp # NOT_USE_ALIAS \"arcid \"arcid\" true true false 10 Long 0 10,First,#,STREAM,arcid,-1,-1;grid_code \"grid_code\" true true false 10 Long 0 10,First,#,STREAM,grid_code,-1,-1;from_node \"from_node\" true true false 10 Long 0 10,First,#,STREAM,from_node,-1,-1;to_node \"to_node\" true true false 10 Long 0 10,First,#,STREAM,to_node,-1,-1\" #"
+        }
+      ],
+      "data_arquivo": "2026-09-02T14:05:02"
+    },
+    {
+      "produto": "STREAM_TAQUARI_ANTAS_pts.shp",
+      "CreaDate": "20260902",
+      "CreaTime": "14003400",
+      "software": "Microsoft Windows 10 Version 10.0 (Build 26200) ; Esri ArcGIS 13.3.0.52636",
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "StreamToFeature",
+          "data": "20260902",
+          "hora": "140034",
+          "comando": "StreamToFeature STREAM_CON_FLOWACC_CLIP_MOSAICO_LIDAR_RS.tif FLOWDIR_CLIP_MOSAICO_LIDAR_RS.tif STREAM.shp NO_SIMPLIFY"
+        },
+        {
+          "ferramenta": "ExportFeatures",
+          "data": "20260902",
+          "hora": "140215",
+          "comando": "ExportFeatures STREAM STREAM_TAQUARI_ANTAS.shp # NOT_USE_ALIAS \"arcid \"arcid\" true true false 10 Long 0 10,First,#,STREAM,arcid,-1,-1;grid_code \"grid_code\" true true false 10 Long 0 10,First,#,STREAM,grid_code,-1,-1;from_node \"from_node\" true true false 10 Long 0 10,First,#,STREAM,from_node,-1,-1;to_node \"to_node\" true true false 10 Long 0 10,First,#,STREAM,to_node,-1,-1\" #"
+        },
+        {
+          "ferramenta": "FeatureVerticesToPoints",
+          "data": "20260902",
+          "hora": "140611",
+          "comando": "FeatureVerticesToPoints STREAM_TAQUARI_ANTAS STREAM_TAQUARI_ANTAS_pts.shp \"All vertices\""
+        }
+      ],
+      "data_arquivo": "2026-09-02T14:06:11"
+    },
+    {
+      "produto": "STREAM_TAQUARI_ANTAS_pts_elev.shp",
+      "CreaDate": "20260902",
+      "CreaTime": "14070900",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "ExtractValuesToPoints",
+          "data": "20260902",
+          "hora": "140709",
+          "comando": "ExtractValuesToPoints STREAM_TAQUARI_ANTAS_pts CLIP_MOSAICO_LIDAR_RS.tif STREAM_TAQUARI_ANTAS_pts_elev.shp NONE VALUE_ONLY"
+        },
+        {
+          "ferramenta": "UpdateSchema",
+          "data": "20260902",
+          "hora": "141022",
+          "comando": "UpdateSchema \"CIMDATA=…\" <operationSequence><workflow><AddField><field_name>HAND</field_name><field_type>DOUBLE</field_type><field_is_nullable>False</field_is_nullable><field_is_required>False</field_is_required></AddField></workflow></operationSequence>"
+        },
+        {
+          "ferramenta": "CalculateField",
+          "data": "20260902",
+          "hora": "141457",
+          "comando": "CalculateField STREAM_TAQUARI_ANTAS_pts_elev HAND \"!RASTERVALU! + 21.65\" Python # Text NO_ENFORCE_DOMAINS"
+        }
+      ],
+      "data_arquivo": "2026-09-02T14:07:09"
+    },
+    {
+      "produto": "KRIG_HAND_2165.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "15204200",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "Kriging",
+          "data": "20260902",
+          "hora": "152042",
+          "comando": "Kriging STREAM_TAQUARI_ANTAS_pts_elev HAND KRIG_HAND_2165.tif \"Spherical 32,080000 13345,280000 63,385851 0,000000\" 1 \"VARIABLE 12\" #"
+        }
+      ],
+      "data_arquivo": "2026-09-02T15:20:34"
+    },
+    {
+      "produto": "INUND_HAND_2165.tif",
+      "CreaDate": "20260902",
+      "CreaTime": "15274600",
+      "software": null,
+      "contato_autor": null,
+      "processos": [
+        {
+          "ferramenta": "RasterCalculator",
+          "data": "20260902",
+          "hora": "152746",
+          "comando": "RasterCalculator \" \"CLIP_MOSAICO_LIDAR_RS.tif\" - \"KRIG_HAND_2165.tif\"\" INUND_HAND_2165.tif"
+        }
+      ],
+      "data_arquivo": "2026-09-02T15:27:37"
+    }
+  ],
+  "rasters": {
+    "CLIP_MOSAICO_LIDAR_RS.tif": {
+      "largura": 12988,
+      "altura": 19426,
+      "resolucao_m": [
+        1.0,
+        1.0
+      ],
+      "tipo": "float32",
+      "nodata": 3.3999999521443642e+38,
+      "crs": "COMPD_CS[\"SIRGAS 2000 / UTM zone 22S + unknown\",PROJCS[\"SIRGAS 2000 / UTM zone 22S\",GEOGCS[\"SIRGAS 2000\",DATUM[\"Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000\",SPHEROID[\"GRS 1980\",6378137,298.257222101004,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"6674\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4674\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-51],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",10000000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"31982\"]],VERT_CS[\"unknown\",VERT_DATUM[\"unknown\",2005],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Up\",UP]]]",
+      "mesma_grade_que_CLIP": true,
+      "min": "48.634754180908",
+      "max": "621.28381347656",
+      "media": "285.24503373395"
+    },
+    "KRIG_HAND_2165.tif": {
+      "largura": 12988,
+      "altura": 19426,
+      "resolucao_m": [
+        1.0,
+        1.0
+      ],
+      "tipo": "float32",
+      "nodata": -3.4028234663852886e+38,
+      "crs": "COMPD_CS[\"SIRGAS 2000 / UTM zone 22S + unknown\",PROJCS[\"SIRGAS 2000 / UTM zone 22S\",GEOGCS[\"SIRGAS 2000\",DATUM[\"Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000\",SPHEROID[\"GRS 1980\",6378137,298.257222101004,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"6674\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4674\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-51],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",10000000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"31982\"]],VERT_CS[\"unknown\",VERT_DATUM[\"unknown\",2005],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Up\",UP]]]",
+      "mesma_grade_que_CLIP": true,
+      "min": "70.756698608398",
+      "max": "88.767044067383",
+      "media": "79.630278286929"
+    },
+    "INUND_HAND_2165.tif": {
+      "largura": 12988,
+      "altura": 19426,
+      "resolucao_m": [
+        1.0,
+        1.0
+      ],
+      "tipo": "float32",
+      "nodata": -3.4028234663852886e+38,
+      "crs": "COMPD_CS[\"SIRGAS 2000 / UTM zone 22S + unknown\",PROJCS[\"SIRGAS 2000 / UTM zone 22S\",GEOGCS[\"SIRGAS 2000\",DATUM[\"Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000\",SPHEROID[\"GRS 1980\",6378137,298.257222101004,AUTHORITY[\"EPSG\",\"7019\"]],AUTHORITY[\"EPSG\",\"6674\"]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4674\"]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"latitude_of_origin\",0],PARAMETER[\"central_meridian\",-51],PARAMETER[\"scale_factor\",0.9996],PARAMETER[\"false_easting\",500000],PARAMETER[\"false_northing\",10000000],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],AUTHORITY[\"EPSG\",\"31982\"]],VERT_CS[\"unknown\",VERT_DATUM[\"unknown\",2005],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Up\",UP]]]",
+      "mesma_grade_que_CLIP": true,
+      "min": "-23.276073455811",
+      "max": "547.18414306641",
+      "media": "205.83143704124"
+    }
+  },
+  "pontos_do_rio": {
+    "arquivo": "STREAM_TAQUARI_ANTAS_pts_elev.shp",
+    "campos": [
+      "arcid",
+      "grid_code",
+      "from_node",
+      "to_node",
+      "ORIG_FID",
+      "RASTERVALU",
+      "HAND"
+    ],
+    "n": 4535,
+    "arcos": 20,
+    "cota_lidar_m": {
+      "min": 49.107,
+      "mediana": 59.109,
+      "max": 67.061
+    },
+    "hand_menos_cota_m": 21.65
+  }
+}

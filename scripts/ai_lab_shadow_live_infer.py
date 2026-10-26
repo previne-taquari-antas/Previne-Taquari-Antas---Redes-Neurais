@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import sys
@@ -170,8 +171,9 @@ def summarize(records: list[dict], key: str) -> dict:
 
 
 def update_history(current: dict, live: dict) -> dict:
-    package = load_json(HISTORY, {"schema_version": 1, "registros": []})
-    records = package.get("registros") or []
+    previous_package = load_json(HISTORY, {"schema_version": 1, "registros": []})
+    records = previous_package.get("registros") or []
+    previous = copy.deepcopy(records)
     obs_map = observation_map(live)
     for row in records:
         if row.get("observado_cm") is not None:
@@ -201,16 +203,22 @@ def update_history(current: dict, live: dict) -> dict:
             ) if k in row}
             merged = dict(current)
             merged.update(observed_fields)
+            # A mesma hora recalculada com o mesmo resultado mantém o carimbo anterior.
+            if {k: v for k, v in merged.items() if k != "generated_at_utc"} == {k: v for k, v in row.items() if k != "generated_at_utc"}:
+                merged["generated_at_utc"] = row.get("generated_at_utc", merged["generated_at_utc"])
             records[i] = merged
             replaced = True
             break
     if not replaced:
         records.append(current)
     records = records[-1200:]
+    # Sem registro novo nem alterado, o arquivo fica como está: antes ele era regravado
+    # (e versionado) a cada ciclo só por causa dos carimbos de hora.
+    unchanged = HISTORY.exists() and records == previous[-1200:]
     package = {
         "schema_version": 1,
         "artifact_id": "previne_ai_lab_shadow_live_history",
-        "updated_at_utc": now_utc(),
+        "updated_at_utc": previous_package.get("updated_at_utc") if unchanged else now_utc(),
         "research_only": True,
         "official_alert": False,
         "registros": records,
@@ -220,7 +228,8 @@ def update_history(current: dict, live: dict) -> dict:
             "operational_reference": summarize(records, "modelo_operacional_previsto_cm"),
         },
     }
-    HISTORY.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if not unchanged:
+        HISTORY.write_text(json.dumps(package, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return package
 
 

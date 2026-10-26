@@ -43,9 +43,6 @@ on:
       - "assets/logos/**"
       - "assets/previsao_panorama.js"
       - "assets/previsao_panorama.css"
-      - "assets/previsao_panorama_usuario.js"
-      - "assets/previsao_panorama_usuario.css"
-      - "assets/previsao_fila_usuario.js"
       - "assets/data/research_*.json"
       - "assets/data/acervo_pesquisas.json"
       - "assets/data/ai_lab/**"
@@ -56,6 +53,8 @@ on:
       - "assets/data/basin_station_forecast_latest.json"
       - "assets/data/agenda_pesquisas.json"
       - "scripts/validate_osm_tiles.py"
+      - "codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py"
+      - "scripts/test_contornos_por_nivel.py"
       - "scripts/apply_institutional_logos.py"
       - "scripts/validar_panorama_site.py"
       - "scripts/validate_santa_tereza_lidar_contract.py"
@@ -158,6 +157,7 @@ jobs:
             scripts/optimize_static_site.py
             scripts/test_static_site_optimization.py
             scripts/test_site_accessibility.py
+            scripts/test_contornos_por_nivel.py
             scripts/test_*.js
             scripts/validate_osm_tiles.py
             scripts/apply_institutional_logos.py
@@ -166,6 +166,7 @@ jobs:
             codigo_python/02_mdt_hand_mancha/gerar_mosaico_mdt.py
             codigo_python/02_mdt_hand_mancha/gerar_mancha_mosaico.py
             codigo_python/02_mdt_hand_mancha/gerar_contornos_vetoriais.py
+            codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py
             codigo_python/02_mdt_hand_mancha/refinar_mdt_santa_tereza.py
             codigo_python/09_rota_fuga/gerar_rota_fuga_santa_tereza.py
             .github/workflows/deploy-pages.yml
@@ -188,6 +189,8 @@ jobs:
           python scripts/validate_site_frontend.py
           python scripts/test_static_site_optimization.py
           python scripts/test_site_accessibility.py
+          python scripts/test_contornos_por_nivel.py
+          node scripts/test_contornos_por_nivel.js
           node scripts/test_live_feed.js
           node scripts/test_ai_lab.js
           node scripts/test_research_patterns.js
@@ -255,6 +258,11 @@ jobs:
           done < <(git ls-files -z)
 
           touch _site/.nojekyll
+
+      - name: Dividir contornos de extravasamento por nível
+        # As páginas de previsão baixam um índice leve e só os níveis desenhados
+        # (assets/js/contornos_por_nivel.js); sem isto, voltam ao arquivo completo.
+        run: python -B codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py --site-dir _site
 
       - name: Aplicar logos PREVINE, UFRGS e LAGAM nas páginas públicas
         run: python -B scripts/apply_institutional_logos.py --site-dir _site

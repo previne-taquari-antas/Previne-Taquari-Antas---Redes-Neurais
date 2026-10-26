@@ -722,15 +722,42 @@ def carregar_historico():
         return []
 
 
+# Carimbos que só registram a passagem do robô pelo registro. Quando o resto do registro
+# não mudou, os carimbos anteriores são mantidos e o arquivo não é regravado: antes, o
+# histórico inteiro era reescrito (e versionado) a cada ciclo de 5 min só por eles.
+CARIMBOS_HISTORICO = ("auditado_em", "criado_em", "criado_em_utc")
+
+
+def preservar_carimbos(registros, anteriores):
+    """Mantém os carimbos anteriores dos registros cujo conteúdo não mudou."""
+    def sem_carimbo(r):
+        return {k: v for k, v in r.items() if k not in CARIMBOS_HISTORICO}
+
+    por_id = {r.get("id"): r for r in anteriores if isinstance(r, dict) and r.get("id")}
+    saida = []
+    for reg in registros:
+        velho = por_id.get(reg.get("id"))
+        if velho is not None and sem_carimbo(reg) == sem_carimbo(velho):
+            reg = {**reg, **{k: velho[k] for k in CARIMBOS_HISTORICO if k in velho and k in reg}}
+        saida.append(reg)
+    return saida
+
 def salvar_historico(registros):
+    """Grava o histórico; devolve False quando nada além dos carimbos mudou (arquivo intacto).
+    Mesma regra de previne/robo/gerar_previsao_ao_vivo.py."""
+    anteriores = carregar_historico()
+    registros = preservar_carimbos(registros[-1200:], anteriores)
+    if os.path.exists(HISTORICO_SAIDA) and registros == anteriores[-1200:]:
+        return False
     pacote = {
         "atualizado_em": agora_brt().isoformat(timespec="seconds"),
         "local": LOCAL,
         "estacao": ALVO,
-        "registros": registros[-1200:],
+        "registros": registros,
     }
     with open(HISTORICO_SAIDA, "w", encoding="utf-8") as f:
         json.dump(pacote, f, ensure_ascii=False, indent=1)
+    return True
 
 
 def hora_cheia(value):

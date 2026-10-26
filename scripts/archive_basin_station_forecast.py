@@ -72,7 +72,8 @@ def archive_snapshot(
         )
 
     archive_dir.mkdir(parents=True, exist_ok=True)
-    serialized = json.dumps(compact, ensure_ascii=False, indent=2) + "\n"
+    # Compacto (sem indentação): ~60% menor; os snapshots antigos, indentados, ficam como estão.
+    serialized = json.dumps(compact, ensure_ascii=False, separators=(",", ":")) + "\n"
     # Content addressing is necessary even when the directory is sparse and
     # older remote snapshots are absent from the working tree. A minute-only
     # name can otherwise overwrite an unseen snapshot when Git stages it.

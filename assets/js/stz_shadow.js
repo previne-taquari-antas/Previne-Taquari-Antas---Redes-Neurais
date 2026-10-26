@@ -43,8 +43,8 @@
     const count=Number.isInteger(feed.historico_registros_n)?feed.historico_registros_n:null;
     const parts=Array.isArray(feed.historico_arquivos)?feed.historico_arquivos:[];
     const latest=parts.length?parts[parts.length-1]:file;
-    const folder=parts.length?' · <a href="'+repo+latest.replace(/\/[^/]+$/,'')+'" target="_blank" rel="noopener">Todos os meses</a>':'';
-    return `<p class="shadow-note">Histórico permanente${count===null?'':': '+count+' previsões registradas'}. <a href="${raw+latest}" target="_blank" rel="noopener">Baixar histórico JSON${parts.length?' do mês':''}</a>${folder}${feed.arquivo_emissao?' · <a href="'+raw+feed.arquivo_emissao.arquivo+'" target="_blank" rel="noopener">Entradas e telemetria desta rodada (.gz)</a>':''}</p>`;
+    const folder=parts.length?' · <a href="'+repo+latest.replace(/\/[^/]+$/,'')+'" target="_blank" rel="noopener">Todos os dias</a>':'';
+    return `<p class="shadow-note">Histórico permanente${count===null?'':': '+count+' previsões registradas'}. <a href="${raw+latest}" target="_blank" rel="noopener">Baixar histórico JSON${parts.length?' do dia mais recente':''}</a>${folder}${feed.arquivo_emissao?' · <a href="'+raw+feed.arquivo_emissao.arquivo+'" target="_blank" rel="noopener">Entradas e telemetria desta rodada (.gz)</a>':''}</p>`;
   }
   function publicPanel(el,feed){
     const p=feed.previsao||{},ok=current(feed,p),m=feed.avaliacao?.total||{},rows=feed.serie_recente||[];

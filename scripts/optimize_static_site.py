@@ -9,13 +9,6 @@ import os
 import re
 from pathlib import Path
 
-ALIASES = {
- 'assets/previsao_panorama_usuario.css':'assets/previsao_panorama.css',
- 'assets/previsao_fila_usuario.js':'assets/previsao_fila.js',
- 'assets/css/gestor_chrome_usuario.css':'assets/css/gestor_chrome.css',
- 'assets/css/previsao_cidades_usuario.css':'assets/css/previsao_cidades.css',
- 'assets/js/previsao_cidades_usuario.js':'assets/js/previsao_cidades.js',
-}
 SCRIPT=re.compile(r'<script\b([^>]*)>([\s\S]*?)</script>',re.I)
 
 def optimize(site):
@@ -23,9 +16,6 @@ def optimize(site):
     stats={'pages':0,'html_before_bytes':0,'html_after_bytes':0,'assets':0,'asset_bytes':0}
     for path in sorted(site.rglob('*.html')):
         original=path.read_text(encoding='utf-8'); text=original
-        for alias,canonical in ALIASES.items():
-            if (site/alias).exists() and (site/canonical).exists():
-                text=text.replace(alias,canonical)
         def extract(match):
             attrs,code=match.groups()
             if len(code.encode('utf-8'))<32768 or re.search(r'\bsrc\s*=',attrs) or 'document.currentScript' in code:

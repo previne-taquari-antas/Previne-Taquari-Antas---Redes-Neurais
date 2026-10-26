@@ -24,9 +24,6 @@ import csv
 import json
 import math
 import os
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -338,58 +335,6 @@ def live_context():
     current["trend_1h_cm"] = None if trend_1h is None else round(trend_1h, 2)
     current["trend_reference_utc"] = prev_dt.isoformat().replace("+00:00", "Z")
     return {"current": current, "warmup_start": warm}
-
-
-def _xml_local(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
-
-
-def _parse_ana_time(value: str):
-    value = (value or "").strip().replace("T", " ")
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M"):
-        try:
-            return datetime.strptime(value[:19], fmt)
-        except ValueError:
-            pass
-    return None
-
-
-def _fetch_ana_rain(station_code: str, start_local: datetime, end_local: datetime) -> dict:
-    params = urllib.parse.urlencode({
-        "codEstacao": station_code,
-        "dataInicio": start_local.strftime("%d/%m/%Y"),
-        "dataFim": end_local.strftime("%d/%m/%Y"),
-    })
-    req = urllib.request.Request(
-        f"{ANA_URL}?{params}",
-        headers={"User-Agent": "previne-hec-warmup/1.0"},
-    )
-    raw = urllib.request.urlopen(req, timeout=30).read()
-    root = ET.fromstring(raw)
-    roots = [root]
-    if (root.text or "").strip().startswith("<"):
-        try:
-            roots.append(ET.fromstring(root.text))
-        except Exception:
-            pass
-    series = {}
-    for rt in roots:
-        for row in rt.iter():
-            fields = {_xml_local(ch.tag): (ch.text or "") for ch in row}
-            stamp = fields.get("DataHora") or fields.get("Data_Hora")
-            rain = fields.get("Chuva") or fields.get("chuva") or fields.get("Precipitacao")
-            if not stamp or rain in (None, ""):
-                continue
-            t = _parse_ana_time(stamp)
-            if t is None or t < start_local or t > end_local:
-                continue
-            try:
-                value = float(str(rain).replace(",", "."))
-            except ValueError:
-                continue
-            hour = t.replace(minute=0, second=0, microsecond=0)
-            series[hour] = series.get(hour, 0.0) + value
-    return series
 
 
 def _load_observed_rain(start_local: datetime, end_local: datetime) -> tuple[dict, dict]:

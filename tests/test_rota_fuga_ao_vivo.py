@@ -170,7 +170,8 @@ class Etapa1Test(unittest.TestCase):
 
 class PaginasTest(unittest.TestCase):
     PAINEIS = [PASTA / "gerar_painel.py", RAIZ / "santa_tereza_painel_casas.html", RAIZ / "mucum_painel_casas.html"]
-    FILAS = [RAIZ / "assets" / "previsao_fila.js", RAIZ / "assets" / "previsao_fila_usuario.js"]
+    # As páginas _usuario usam o mesmo assets/previsao_fila.js (a cópia _usuario foi removida).
+    FILAS = [RAIZ / "assets" / "previsao_fila.js"]
 
     def test_rota_molhada_nao_sai_verde(self):
         for p in self.PAINEIS:

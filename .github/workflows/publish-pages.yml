@@ -31,6 +31,9 @@ jobs:
           # Public static site only; avoid publishing large research and model binaries.
           find . -type f \( -iname '*.html' -o -iname '*.css' -o -iname '*.js' -o -iname '*.json' -o -iname '*.geojson' -o -iname '*.svg' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.ico' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.wasm' -o -iname '*.csv' -o -iname '*.kml' -o -iname '*.topojson' \) -not -path './.git/*' -not -path './.github/*' -size -20M -print0 | while IFS= read -r -d '' f; do mkdir -p "_site/$(dirname "$f")"; cp "$f" "_site/$f"; done
           touch _site/.nojekyll
+          # Contornos de extravasamento por nível: o arquivo completo de Santa Tereza (40 MB)
+          # não entra no _site (limite de 20 MB acima), então os níveis são lidos do checkout.
+          python3 -B codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py --fonte-dir . --site-dir _site
           test -f _site/pesquisas/porto-alegre-moradias-auditoria.html
           du -sh _site
           test "$(du -sm _site | cut -f1)" -lt 950

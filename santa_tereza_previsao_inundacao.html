@@ -449,6 +449,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/js/fmt_quando.js?v=20260916-hora-0h4"></script>
 <script src="assets/js/site_runtime.js?v=20261020-recovery"></script>
+<script src="assets/js/contornos_por_nivel.js?v=20261021-niveis"></script>
 <script src="assets/js/live_feed.js?v=20260921-live-refresh-2"></script>
 <script src="assets/previsao_panorama.js?v=20261008-4h-v11"></script>
 <script src="assets/previsao_fila.js"></script>
@@ -550,7 +551,7 @@ let handArr=null, handLoadPromise=null, curEv=Object.keys(EVENTS)[0];
 let bankfull=160, tIdx=0, playing=false, timer=null, map=null, curS=null;
 const calibByEvent={};
 const LIVE_PAGE_URL='previsao_ao_vivo.json';
-const LIVE_RAW_URL='https://raw.githubusercontent.com/julianacarolinoreis/Previne-Taquari-Antas---Redes-Neurais/main/previsao_ao_vivo.json';
+const LIVE_RAW_URL='https://raw.githubusercontent.com/previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais/main/previsao_ao_vivo.json';
 async function fetchLiveJson(){
   try{
     const data=await PrevineLiveFeed.fetchLive(LIVE_PAGE_URL);
@@ -668,17 +669,14 @@ function ensureHand(){
   return handLoadPromise;
 }
 
-function loadContornos(){return PrevineSiteRuntime.fetchResource(CONTORNOS_URL,{cache:'no-store'}).then(r=>{
-  if(!r.ok) throw new Error('HTTP '+r.status);
-  return r.json();
-}).then(fc=>{
+function loadContornos(){return PrevineContornos.carregar(CONTORNOS_URL).then(fc=>{
   const maxNivel=Math.max(...(fc.features||[]).map(f=>Number(f.properties&&f.properties.nivel_m)));
   if(!Number.isFinite(maxNivel)||maxNivel<24.9){
     throw new Error('contornos desatualizados: máximo '+maxNivel+' m; esperado 25,0 m');
   }
   contornos=fc;
   contornos._maxNivel=maxNivel;
-  console.info('contornos Santa Tereza carregados', {url:CONTORNOS_URL,maxNivel,features:fc.features.length});
+  console.info('contornos Santa Tereza carregados', {url:CONTORNOS_URL,maxNivel,features:fc.features.length,porNivel:!!fc._porNivel});
 }).catch(e=>{console.error('falha ao carregar contornos', e); contornos=null;});}
 
 function loadElevation(){
@@ -773,8 +771,16 @@ function achaFeature(mLvl){
 function setLayer(layer, mLvl){
   const feat=achaFeature(mLvl);
   layer.clearLayers();
-  if(feat) layer.addData(feat);
+  if(feat&&feat.geometry) layer.addData(feat);
+  // Contornos por nível: a área já vem do índice; a geometria chega em seguida e redesenha.
+  else if(feat&&contornos&&contornos.carregarGeometria) contornos.carregarGeometria(feat).then(redesenharContornos,e=>console.error('falha ao carregar o contorno do nível',feat.properties.nivel_m,e));
   return feat?feat.properties.area_ha:0;
+}
+let redesenhoContornosPendente=false;
+function redesenharContornos(){
+  if(redesenhoContornosPendente) return;
+  redesenhoContornosPendente=true;
+  requestAnimationFrame(()=>{redesenhoContornosPendente=false; renderFrame();});
 }
 
 function renderFrame(){
@@ -943,7 +949,11 @@ function liveHorizonReady(key,D){
 
 function horizonUnavailableReason(D){
   if(!D) return 'sem registro';
-  if(D.disponivel===false) return 'marcado como indisponível';
+  if(D.disponivel===false){
+    // O motivo vem no status do feed (guardrail de erro, telemetria inválida, base atrasada...).
+    const motivo=String(D.status||'').replace(/^indispon[ií]vel:\s*/i,'').split(/;| \(| - /)[0].trim();
+    return motivo||'marcado como indisponível';
+  }
   const falt=[];
   if(!horizonHasForecast(D)) falt.push('previsão ausente');
   const base=parseLocalWhen(D.hora_modelo);
