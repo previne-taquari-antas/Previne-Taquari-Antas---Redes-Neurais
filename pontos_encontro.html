@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Pontos de encontro · versão 1 — PREVINE</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'">
+<style>
+*{box-sizing:border-box}html,body,#map{height:100%;margin:0}body{font:14px/1.45 system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#18332a;background:#e6e9e2}
+#map{position:fixed;inset:0}.leaflet-container{background:#e6e9e2}
+.hud{position:absolute;z-index:800;top:12px;left:12px;width:360px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;border-radius:14px;background:rgba(255,255,255,.98);box-shadow:0 4px 20px #0003;padding:14px 16px}
+h1{font-size:18px;line-height:1.23;margin:0 35px 5px 0}p{margin:5px 0 9px}.small{font-size:12px;color:#51665a}
+.header{color:#0d6549;font-weight:700;letter-spacing:.025em;font-size:11px}
+.metric{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #eef2ef;padding:3px 0}.metric b{font-variant-numeric:tabular-nums;white-space:nowrap}
+button{cursor:pointer;border-radius:8px;border:1px solid #b9cfc2;background:#f2f8f5;padding:7px 10px;color:#155b42;font-weight:650}
+#toggle{position:absolute;right:12px;top:10px}#hud.collapse .inner{display:none}
+#resultado{border-radius:9px;background:#ebf7f0;border:1px solid #bed8c8;padding:11px;margin-top:10px;min-height:56px;font-size:13px}
+#resultado.warn{background:#fff7e7;border-color:#edcc88}#resultado.bad{background:#ffefed;border-color:#e0a8a2}
+.aviso{font-size:12px;color:#7a3b12;background:#fff6ea;border:1px solid #f0d3a8;border-radius:8px;padding:7px 9px;margin:8px 0}
+.leg{font-size:12px;margin:8px 0}.tag{display:inline-flex;align-items:center;gap:5px;margin:3px 10px 3px 0}.sw{height:10px;width:16px;display:inline-block;border-radius:2px}
+.cidades a{display:inline-block;margin-right:10px;font-weight:650}.cidades a[aria-current]{color:#18332a;text-decoration:none}
+ol#lista{padding-left:20px;margin:6px 0;font-size:13px}ol#lista li{margin:3px 0}
+.pe-ic{display:flex;align-items:center;justify-content:center;border-radius:50%;background:#14532d;color:#fff;font:700 12px/1 sans-serif;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+a{color:#08724d}.emerg a{font-weight:700}
+@media(max-width:700px){.hud{top:auto;bottom:9px;left:9px;right:9px;width:auto;max-width:none;max-height:50dvh;padding:12px}.hud h1{font-size:16px}#hud.collapse{max-height:72px;overflow:hidden}}
+</style></head><body>
+<div id="map" role="application" aria-label="Mapa dos pontos de encontro, da mancha do mapa único e das ruas"></div>
+<section id="hud" class="hud" aria-live="polite">
+  <button id="toggle" type="button" aria-label="Recolher ou expandir painel" aria-expanded="true">−</button>
+  <div class="header">PREVINE · PONTOS DE ENCONTRO · VERSÃO 1</div>
+  <h1>Pontos de encontro · <span id="cid">…</span></h1>
+  <div class="inner">
+    <p class="cidades" id="cidades"></p>
+    <p class="small"><b>Ponto de encontro</b> = trecho de rua fora da mancha do <b>Mapa Único do Plano Rio Grande</b> (cheias de abril e maio de 2024) e a mais de <b id="offTxt">100</b> m dela. <b>Toque perto da sua rua</b> para ver o caminho a pé até o ponto mais perto.</p>
+    <div class="aviso" id="aviso">Primeira versão, provisória: sugestão técnica, não é abrigo oficial nem confirmado pela Defesa Civil.</div>
+    <p class="small emerg">Em emergência: <a href="tel:199">199</a> (Defesa Civil) · <a href="tel:193">193</a> (Bombeiros)</p>
+    <div id="metricas"></div>
+    <div id="resultado">Carregando…</div>
+    <div class="leg" aria-label="Legenda">
+      <span class="tag"><i class="sw" style="background:#5b8fd6;opacity:.6"></i>mancha do mapa único</span>
+      <span class="tag"><i class="sw" style="border:2px dashed #c2410c;height:8px"></i>faixa de afastamento</span>
+      <span class="tag"><i class="sw" style="background:#1f8a4c"></i>rua fora da faixa</span>
+      <span class="tag"><i class="sw" style="background:#9aa7a0"></i>rua na mancha ou na faixa</span>
+      <span class="tag"><i class="sw" style="background:#1d4ed8;border-radius:50%;width:10px"></i>casa na mancha</span>
+      <span class="tag"><i class="sw" style="background:#ea7a1c;border-radius:50%;width:10px"></i>casa na faixa</span>
+      <span class="tag"><i class="sw" style="background:#fff;border:1px solid #5b6b63;border-radius:50%;width:10px"></i>casa fora</span>
+    </div>
+    <b style="font-size:13px">Pontos sugeridos</b>
+    <ol id="lista"></ol>
+    <p class="small" id="fonte"></p>
+    <p class="small" id="links"></p>
+  </div>
+</section>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>window.L||document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>')</script>
+<script>
+'use strict';
+const CIDADES={santa_tereza:{nome:'Santa Tereza',casas:'santa_tereza_painel_casas.html#rotas',centro:[-29.1745,-51.7347]},
+  mucum:{nome:'Muçum',casas:'mucum_painel_casas.html#rotas',centro:[-29.1655,-51.8715]}};
+const pedido=new URLSearchParams(location.search).get('cidade'),CID=CIDADES[pedido]?pedido:'santa_tereza',C=CIDADES[CID];
+const LONGE_DA_RUA_M=150,VEL=0.9;
+const hud=document.getElementById('hud'),box=document.getElementById('resultado');
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const f0=v=>Math.round(v).toLocaleString('pt-BR'),f1=v=>(Math.round(v*10)/10).toLocaleString('pt-BR');
+const fmtDist=m=>m<1000?Math.round(m)+' m':f1(m/1000)+' km';
+const fmtMin=s=>{const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min';};
+document.getElementById('cid').textContent=C.nome;document.title='Pontos de encontro · '+C.nome+' · versão 1 — PREVINE';
+document.getElementById('cidades').innerHTML=Object.entries(CIDADES).map(([k,v])=>k===CID?'<a aria-current="page">'+v.nome+'</a>':'<a href="?cidade='+k+'">'+v.nome+'</a>').join('');
+document.getElementById('links').innerHTML='<a href="'+C.casas+'">Evacuação casa a casa</a>'+(CID==='santa_tereza'?' · <a href="santa_tereza_painel_evacuacao.html">Simulação da cheia</a>':'')+' · <a href="index.html">Início</a>';
+document.getElementById('toggle').onclick=function(){const c=hud.classList.toggle('collapse');this.textContent=c?'+':'−';this.setAttribute('aria-expanded',String(!c));};
+function metros(a,b){const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin((b[1]-a[1])*r/2)**2;return 2*6371000*Math.asin(Math.sqrt(x));}
+// ponto dentro do polígono (GeoJSON em lon,lat): a faixa decide se o toque está fora da área insegura
+function noAnel(lon,lat,an){let d=false;for(let i=0,j=an.length-1;i<an.length;j=i++){const [xi,yi]=an[i],[xj,yj]=an[j];if((yi>lat)!==(yj>lat)&&lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)d=!d;}return d;}
+function naGeom(lat,lon,g){if(!g)return false;const ps=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];
+  return ps.some(p=>noAnel(lon,lat,p[0])&&!p.slice(1).some(h=>noAnel(lon,lat,h)));}
+let D=null,map=null,cam=null,orig=null,snap=null;
+function lista(){document.getElementById('lista').innerHTML=D.pontos.length?D.pontos.map((p,i)=>'<li><b>Ponto '+(i+1)+'</b>'+(p.rua?' · '+esc(p.rua):'')+
+  '<br><span class="small">'+f0(p.n_casas)+' casas na mancha ou na faixa chegam aqui primeiro · mediana '+(p.tempo_mediano_min==null?'—':f1(p.tempo_mediano_min)+' min')+
+  ', máx. '+(p.tempo_max_min==null?'—':f1(p.tempo_max_min)+' min')+' a pé · <a href="https://www.google.com/maps?q='+p.lat+','+p.lon+'" target="_blank" rel="noopener">abrir no mapa</a></span></li>').join(''):'<li>Nenhum ponto sugerido.</li>';}
+function metricas(){const s=D.resumo;document.getElementById('metricas').innerHTML=
+  [['Casas na mancha',s.mancha],['Casas na faixa de '+f0(D.offset_m)+' m',s.faixa],['Casas fora',s.fora],['Ruas fora da faixa',f0(100*s.trechos_seguros/Math.max(1,s.trechos))+'% dos trechos'],['Pontos sugeridos',D.pontos.length]]
+  .map(([k,v])=>'<div class="metric"><span>'+k+'</span><b>'+(typeof v==='number'?f0(v):v)+'</b></div>').join('');}
+function caminho(n){const pts=[D.nos[n]];let j=n,g=0,d=0;while(D.prox[j]>=0&&g++<6000){const k=D.prox[j];d+=metros(D.nos[j],D.nos[k]);j=k;pts.push(D.nos[j]);}return {pts,d};}
+function limpa(){[cam,orig,snap].forEach(l=>{if(l)map.removeLayer(l);});cam=orig=snap=null;}
+function mostra(lat,lon,casa){limpa();box.className='';
+  let s=-1,bd=Infinity;D.nos.forEach((p,i)=>{const d=metros([lat,lon],p);if(d<bd){bd=d;s=i;}});
+  if(!casa&&bd>LONGE_DA_RUA_M){box.className='warn';box.innerHTML='Você tocou a <b>'+fmtDist(bd)+'</b> da rua mapeada mais próxima. Aproxime o mapa e toque perto da sua rua.';return;}
+  if(casa&&casa.no!=null&&casa.no>=0)s=casa.no;
+  const pe='<br><span class="small">Primeira versão: sugestão técnica, não é abrigo oficial. Siga sempre a Defesa Civil (199).</span>';
+  const fora=casa?casa.estado==='fora':!naGeom(lat,lon,D.faixa),naMancha=casa?casa.estado==='mancha':naGeom(lat,lon,D.mancha);
+  orig=L.circleMarker(D.nos[s],{radius:5,color:'#14532d',fillColor:'#fff',fillOpacity:1,weight:2.5,interactive:false}).addTo(map);
+  if(fora){box.innerHTML='<b>Fora da mancha do mapa único e da faixa de '+f0(D.offset_m)+' m.</b> Por este critério não é preciso ir a um ponto de encontro; numa cheia maior que a de 2024, siga a Defesa Civil.'+pe;return;}
+  const k=D.ponto_no[s];
+  if(k<0){box.className='bad';box.innerHTML='<b>Sem caminho mapeado daqui até um ponto de encontro.</b> Em perigo, suba para um lugar alto e ligue 199 ou 193.'+pe;return;}
+  const p=D.pontos[k],c=caminho(s),dm=c.d+bd,t=D.tempo_no_s[s]+bd/VEL;
+  if(bd>3)snap=L.polyline([[lat,lon],D.nos[s]],{color:'#fff',weight:1.2,dashArray:'4 4',interactive:false}).addTo(map);
+  cam=L.featureGroup([L.polyline(c.pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),L.polyline(c.pts,{color:'#5b2a86',weight:5,opacity:.95,interactive:false})]).addTo(map);
+  box.innerHTML=(naMancha?'<b>Na mancha do mapa único (área atingida em 2024).</b> ':'<b>Na faixa de '+f0(D.offset_m)+' m em volta da mancha.</b> ')+
+    '<br>Ponto de encontro mais perto: <b>ponto '+(k+1)+'</b>'+(p.rua?' ('+esc(p.rua)+')':'')+', a '+fmtDist(dm)+' · cerca de '+fmtMin(t)+' a pé no passo de um idoso (linha roxa).'+
+    '<br>Saia antes de a água chegar às ruas: em 2024 ela cobriu a mancha azul.'+pe;
+  enquadra(cam.getBounds().extend([lat,lon]));}
+// o painel cobre a parte de baixo (celular) ou a esquerda (computador): o caminho fica na parte visível
+function enquadra(bb){const r=hud.getBoundingClientRect(),cel=matchMedia('(max-width:700px)').matches;
+  map.fitBounds(bb,cel?{paddingTopLeft:[24,24],paddingBottomRight:[24,Math.round(r.height)+16],maxZoom:17}:{paddingTopLeft:[Math.round(r.right)+24,24],paddingBottomRight:[60,24],maxZoom:17});
+  box.scrollIntoView({block:'nearest'});}
+function desenha(){
+  map=L.map('map',{zoomControl:false,preferCanvas:true}).setView(C.centro,15);L.control.zoom({position:'topright'}).addTo(map);
+  const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens Esri'});
+  L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{position:'topright'}).addTo(map);
+  map.createPane('agua');map.getPane('agua').style.zIndex=350;map.getPane('agua').style.pointerEvents='none';
+  L.geoJSON(D.faixa,{pane:'agua',interactive:false,style:{color:'#c2410c',weight:1.5,dashArray:'5 4',fill:false}}).addTo(map);
+  L.geoJSON(D.mancha,{pane:'agua',interactive:false,style:{color:'#1e5fbf',weight:1,fillColor:'#5b8fd6',fillOpacity:.32}}).addTo(map);
+  const b=L.latLngBounds();
+  D.arestas.forEach(([a,c,ok])=>{b.extend(D.nos[a]);b.extend(D.nos[c]);L.polyline([D.nos[a],D.nos[c]],{color:ok?'#1f8a4c':'#9aa7a0',weight:ok?2.2:1.3,opacity:ok?.85:.6,interactive:false}).addTo(map);});
+  const F={};D.casas_campos.forEach((k,i)=>F[k]=i);const cor={mancha:'#1d4ed8',faixa:'#ea7a1c',fora:'#ffffff',sem_via:'#6b7280'};
+  const rc=L.canvas({padding:.3,tolerance:8});
+  D.casas.forEach(c=>{const est=D.estados[c[F.estado]],casa={estado:est,no:null};
+    L.circleMarker([c[F.lat],c[F.lon]],{renderer:rc,radius:3.2,color:est==='fora'?'#5b6b63':'#fff',weight:.8,fillColor:cor[est],fillOpacity:.95})
+      .on('click',e=>{L.DomEvent.stopPropagation(e);let s=-1,bd=Infinity;D.nos.forEach((p,i)=>{const d=metros([c[F.lat],c[F.lon]],p);if(d<bd){bd=d;s=i;}});casa.no=s;mostra(c[F.lat],c[F.lon],casa);}).addTo(map);});
+  D.pontos.forEach((p,i)=>L.marker([p.lat,p.lon],{title:'Ponto de encontro '+(i+1),alt:'Ponto de encontro '+(i+1),
+    icon:L.divIcon({className:'pe-ic',html:String(i+1),iconSize:[24,24]})}).bindPopup('<b>Ponto de encontro '+(i+1)+'</b>'+(p.rua?'<br>'+esc(p.rua):'')+
+    '<br>A '+f0(p.dist_mancha_m)+' m da mancha do mapa único.<br><b>Não é abrigo oficial</b>: sem garantia de espaço, cobertura ou atendimento.').addTo(map));
+  if(b.isValid())map.fitBounds(b.pad(.04));
+  map.on('click',e=>mostra(e.latlng.lat,e.latlng.lng,null));}
+fetch('assets/data/rota_fuga/'+CID+'_pontos_encontro_mup.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json();}).then(d=>{D=d;
+  document.getElementById('offTxt').textContent=f0(D.offset_m);document.getElementById('aviso').textContent=D.aviso;
+  document.getElementById('fonte').innerHTML='Mancha: '+esc(D.fonte_mancha)+'. Ruas: OpenStreetMap (a mesma rede do painel casa a casa). '+esc(D.criterio)+'.';
+  metricas();lista();
+  if(!window.L){box.className='bad';box.innerHTML='O mapa não carregou (sem internet ou bloqueio). A lista dos pontos está abaixo. Em emergência: 199 ou 193.';return;}
+  box.textContent='Toque no mapa, perto da sua rua, ou numa casa.';desenha();
+}).catch(e=>{box.className='bad';box.innerHTML='Os pontos de encontro de '+C.nome+' não estão disponíveis agora. Use o <a href="'+C.casas+'">painel casa a casa</a>. Em emergência: 199 ou 193.';console.warn(e);});
+</script>
+</body></html>
