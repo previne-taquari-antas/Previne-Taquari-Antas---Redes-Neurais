@@ -44,7 +44,7 @@ D.mancha.forEach(p=>L.polygon(p,{color:'#1e5fbf',weight:1,fillColor:'#1e5fbf',fi
 const b=L.latLngBounds();
 D.edges.forEach(([a,c,ag])=>{const A=D.nos[a],C=D.nos[c];
   L.polyline([A,C],{color:ag?'#b3382c':'#8fa7b8',weight:ag?2.5:1.5,opacity:ag?.7:.5}).addTo(map);b.extend(A);b.extend(C);});
-D.abrigos.forEach(a=>L.marker([a.lat,a.lon]).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
+D.abrigos.forEach(a=>L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome}).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
 const BB=b.pad(0.05);function ajusta(){map.invalidateSize();map.fitBounds(BB);}
 ajusta();setTimeout(ajusta,300);window.addEventListener('resize',ajusta);
 let cam=null,orig=null;

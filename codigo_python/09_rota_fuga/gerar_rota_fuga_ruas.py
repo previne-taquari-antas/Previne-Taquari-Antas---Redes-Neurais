@@ -1067,7 +1067,7 @@ const txtDemanda=dm=>!dm?'':`<br>Demanda no cenário: ~<b>${dm.pessoas}</b> pess
   (dm.casas_fora_censo?`; ${dm.casas_fora_censo} casas sem moradores no Censo contam 0`:'')+'.';
 const MOT={tempo:m=>`${m} passam de ${TMAX} min até o abrigo oficial`,sem_rota:m=>`${m} sem caminho até abrigo oficial`,ilhada:m=>`${m} ilhadas (rota cruza água)`};
 const txtMotivos=cd=>Object.entries(cd.motivos||{}).map(([k,v])=>(MOT[k]||(m=>m+' '+k))(v)).join(', ');
-D.abrigos.forEach(a=>{b.extend([a.lat,a.lon]);L.marker([a.lat,a.lon]).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo oficial'+
+D.abrigos.forEach(a=>{b.extend([a.lat,a.lon]);L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome}).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo oficial'+
   (a.cota_alaga_m!=null?`<br>alaga a partir de HAND ${a.cota_alaga_m} m${regua(a.cota_alaga_m)}`:'')+txtDemanda(a.demanda));});
 (D.candidatos||[]).forEach(cd=>L.circleMarker([cd.lat,cd.lon],{radius:10,color:'#5b2a86',weight:3,dashArray:'4 3',fillColor:'#d9c6f0',fillOpacity:.7}).addTo(map)
   .bindPopup(`<b>Local candidato</b> (não oficial)<br>Grupo de ${cd.n_casas} casas: ${txtMotivos(cd)}.<br>`+

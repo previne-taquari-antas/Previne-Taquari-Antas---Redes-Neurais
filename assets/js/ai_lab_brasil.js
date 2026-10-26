@@ -81,7 +81,7 @@
       state.stationIndex.push(item);
       if(!state.map) return;
       var icon=L.divIcon({className:'lab-marker',html:'<div class="lab-marker-core"></div>',iconSize:[22,22],iconAnchor:[11,11]});
-      var marker=L.marker([item.lat,item.lon],{icon:icon}).addTo(state.map);
+      var marker=L.marker([item.lat,item.lon],{icon:icon,title:item.name||item.code}).addTo(state.map);
       var popup=document.createElement('div'); popup.className='lab-popup';
       [item.name,item.code,'Clique para abrir o supervisor.'].forEach(function(value,index){
         var child=document.createElement(index===0?'strong':'span'); child.textContent=value; popup.appendChild(child);

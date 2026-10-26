@@ -447,7 +447,7 @@ D.casas.forEach(c=>{
   orig[c.id]=L.polyline(c.rota||[[c.lat,c.lon]],{color:'#ffffff',weight:3,opacity:0,dashArray:'7 8'}).addTo(map);
   rotas[c.id]=L.polyline(c.rota||[[c.lat,c.lon]],{color:'#0f8b46',weight:6,opacity:0}).addTo(map);
   const ic=L.divIcon({className:'',html:'<div class="dot" style="background:#1b7a5a"></div>',iconSize:[22,22],iconAnchor:[11,11]});
-  dots[c.id]=L.marker([c.lat,c.lon],{icon:ic,zIndexOffset:900}).addTo(map).bindTooltip(c.nome,{permanent:true,direction:'right',offset:[12,0],className:'casa-tip'});
+  dots[c.id]=L.marker([c.lat,c.lon],{icon:ic,zIndexOffset:900,title:c.nome}).addTo(map).bindTooltip(c.nome,{permanent:true,direction:'right',offset:[12,0],className:'casa-tip'});
 });
 map.fitBounds(b,{paddingTopLeft:[16,16],paddingBottomRight:[470,90]});
 setTimeout(()=>map.invalidateSize(),200);
