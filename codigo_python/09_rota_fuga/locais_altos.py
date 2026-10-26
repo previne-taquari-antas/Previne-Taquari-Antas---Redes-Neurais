@@ -772,10 +772,12 @@ def calcula(doc, mancha, cidade="santa_tereza"):
     }
 
 
-def pagina_rotas_altas(doc):
-    """Dados de santa_tereza_rotas_altas_set2023.html (rotas no pico até qualquer trecho alto), com o
-    mesmo critério e os mesmos dados do painel: nós altos, mancha da cheia, terreno e pontos altos."""
+def pagina_rotas_altas(doc, cidade="santa_tereza"):
+    """Dados de santa_tereza_rotas_altas_set2023.html (rotas no pico até qualquer trecho alto) e da rota de
+    fuga da simulação da cheia (santa_tereza_painel_evacuacao.html), com o mesmo critério e os mesmos dados
+    do painel: nós altos, mancha da cheia, terreno, pontos altos e a altitude dos nós (caminhada com subida)."""
     alt = doc["altos"]
+    lidar = Lidar(CIDADES[cidade]["lidar"])
     F = {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
     A = {k: i for i, k in enumerate(alt["meta"]["casas_campos"])}
     ch, nos = alt["meta"]["cheia"], doc["nos"]
@@ -791,17 +793,21 @@ def pagina_rotas_altas(doc):
         "local": f"{doc['meta']['municipio']}/RS", "evento": f"Cheia de {ch['rotulo']}", "data_pico": ch["data"],
         "nivel_regua_m": ch["regua_m"], "nivel_regua_sgb_m": ch["regua_sgb_m"], "zero_regua_hand_m": ch["zero_regua_m"],
         "nivel_hand_m": ch["hand_m"], "nivel_mancha_m": alt["meta"]["nivel_mancha_m"], "folga_m": alt["meta"]["folga_m"],
+        "margem_corte_m": alt["meta"]["margem_corte_m"],
         "fonte": "santa_tereza_painel_casas.html (codigo_python/09_rota_fuga/locais_altos.py)",
         "criterio": "terreno alto = fora da mancha da cheia e pelo menos folga_m acima do nível da água no MDT "
                     "(LiDAR 10 m); o mesmo critério do painel de rotas",
         "aviso_estudo": doc["meta"].get("aviso_estudo"),
         "nos": nos, "cota_alaga_nos": doc["cota_no"], "no_alto": alt["no_alto"],
+        "z_nos": [lidar(la, lo) for la, lo in nos],
         "arestas": [[a, b, cz] for a, b, _ag, _pe, cz in doc["edges"]],
         "casas_campos": ["lat", "lon", "proj_lat", "proj_lon", "no", "cota_alaga", "terreno", "acima_agua_m", "ilha_m"],
         "casas": casas, "classes_terreno": alt["meta"]["classes_terreno"],
         "terreno": {"png": alt["terreno"]["png"], "limites": alt["terreno"]["limites"]},
         "mancha_cheia": alt["mancha_cheia"],
-        "locais": [{"id": l["id"], "lat": l["lat"], "lon": l["lon"], "rua": l["rua"]} for l in alt["locais"]],
+        "locais": [{"id": l["id"], "lat": l["lat"], "lon": l["lon"], "rua": l["rua"], "no": l["no"],
+                    "cota_alaga_m": l["cota_alaga_m"], "ilha_m": l["ilha_m"], "encosta_graus": l.get("encosta_graus")}
+                   for l in alt["locais"]],
         "abrigo_referencia": [{"nome": a["nome"], "lat": a["lat"], "lon": a["lon"], "cota_alaga_m": a["cota_alaga_m"]}
                               for a in doc["abrigos"]],
     }

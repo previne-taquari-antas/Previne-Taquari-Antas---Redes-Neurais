@@ -244,6 +244,20 @@ trecho alto) usa os mesmos dados: `--republicar` grava
 painel. Antes, a página usava "HAND acima de 24,05 m" e tratava trecho sem cota
 como desconhecido, deixando de fora justamente os pontos mais altos.
 
+A **simulação da cheia** (`santa_tereza_painel_evacuacao.html`) lê o mesmo JSON
+(com a altitude LiDAR dos nós, `z_nos`, e `margem_corte_m`) e, ao tocar perto de
+uma rua, traça a **rota de fuga até o terreno alto pelo MDT**, não mais até o
+Ginásio (que fica dentro da água de set/2023 e virou só referência): entre os
+caminhos que ficam secos por mais tempo (até o ponto alagar ou o melhor caminho até
+algum nó alto ser cortado, o `gargalo`), o ponto alto (▲) mais perto no passo do
+idoso subindo e descendo; sem ▲ ao alcance, o nó alto mais perto. É a mesma conta
+de `locais_altos.caminhos` e bate com `margem_nos` do painel casa a casa em todos os
+nós com ▲ ao alcance (teste em node). O nível simulado só diz se o caminho ainda
+está seco; "saia até" desconta `margem_corte_m` (1,5 m) e o que o rio sobe na
+caminhada. Ponto que vira ilha antes de set/2023 mostra, tracejada, a alternativa
+que não vira (até 15 min a mais e 30 no total). A aba "Tempo para sair" usa a
+mesma rota.
+
 ```
 python codigo_python/09_rota_fuga/locais_altos.py          # resumo do painel publicado, sem gravar
 python codigo_python/09_rota_fuga/gerar_painel.py --cidade santa_tereza --republicar
