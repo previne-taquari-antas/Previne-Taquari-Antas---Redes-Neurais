@@ -54,7 +54,7 @@
 .quick-stage{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
 .quick-stage input[type=range]{min-width:0;flex:1;accent-color:#0f8b46;touch-action:pan-x}
 .quick-stage button{height:42px;min-width:42px;border:1px solid #bad0c3;border-radius:9px;background:#f2f8f4;color:#126746;font:700 22px/1 sans-serif}
-@media(max-width:700px){.mobile-sheet #sld{display:none}.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
+@media(max-width:700px){.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
 @media (max-width:700px){
  body{overflow:hidden}
  .hud.mobile-sheet,body[data-previne-map-signature] > .hud.mobile-sheet{
@@ -456,6 +456,8 @@ async function carregaAltos(){
     if(modo!=='impacto')setModo(modo);
   }catch(e){erroAltos=e.message;console.warn('Rotas de fuga indisponíveis',e);if(modo!=='impacto')setModo(modo);}}
 function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
+  // sem toque, nada a resumir; com toque, mostraFuga redesenha o resumo com a rota deste nível
+  if(!(RA&&ultimoToque))document.getElementById('resumoToque').hidden=true;
   if(RA)RA.ruas.forEach(r=>{const wet=r.cz!=null&&r.cz<=h;r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.6:1,opacity:wet?.8:.45});});
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
   document.getElementById('painel').innerHTML='<div class="sub"><b>Toque perto da sua rua</b> para ver a rota de fuga até o local alto mais perto (▲: terreno fora da água de '+MAIOR_CHEIA.rotulo+' pelo MDT), pelo caminho que fica seco por mais tempo. Ruas em azul: com água neste nível da simulação.</div>'+
@@ -524,12 +526,12 @@ map.getContainer().style.cursor='crosshair';
 const LONGE_DA_RUA_M=150;
 map.on('click',e=>{if(modo!=='rotas')return;ultimoToque=e.latlng;mostraFuga(e.latlng,true);});
 function limpaFuga(){[cam,orig,safeMark,snapLine].forEach(l=>{if(l)map.removeLayer(l);});cam=orig=safeMark=snapLine=null;}
-function mostraFuga(ll,novo){limpaFuga();const el=document.getElementById('rota');if(!el)return;
+function mostraFuga(ll,novo){limpaFuga();const el=document.getElementById('rota'),rt=document.getElementById('resumoToque');if(!el)return;
   if(!RA){el.innerHTML=erroAltos?'Rotas de fuga indisponíveis agora. Use o <a href="../santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.':'Carregando as rotas de fuga…';return;}
   let s=-1,bd=Infinity;RA.nos.forEach((p,i)=>{const d=metros([ll.lat,ll.lng],p);if(d<bd){bd=d;s=i;}});
   // toque longe das ruas: antes saía uma rota de 13 km dizendo que a pessoa já estava fora da água
   if(bd>LONGE_DA_RUA_M){const m='Você tocou a <b>'+fmtDist(bd)+'</b> da rua mapeada mais próxima. Aproxime o mapa e toque perto da sua rua.';
-    el.innerHTML=m;if(novo)mostraResumo(m,false);return;}
+    el.innerHTML=m;if(novo||!rt.hidden)mostraResumo(m,false);return;}
   const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),r=rotaDe(s);
   orig=L.circleMarker(RA.nos[s],{radius:5,color:'#5b2a86',fillColor:'#fff',fillOpacity:1,weight:2.5,interactive:false}).addTo(map);
   if(bd>3)snapLine=L.polyline([[ll.lat,ll.lng],RA.nos[s]],{color:'#ffffff',weight:1.2,opacity:.8,dashArray:'4 4',interactive:false}).addTo(map);
@@ -561,7 +563,8 @@ function mostraFuga(ll,novo){limpaFuga();const el=document.getElementById('rota'
       '<br><span style="color:#4f5c56">Ponto alto não é abrigo oficial: sem garantia de espaço, cobertura ou atendimento. Chegando lá, avise a Defesa Civil (199).</span>'+casa+pe;
     res='Rota de fuga: '+(l?'ponto alto '+(k+1):'terreno alto')+', <b>'+fmtDist(dm)+'</b> · ~'+fmtMin(min)+' a pé.<br>'+
       (sair==null?'Caminho seco até o topo do modelo.':sair>nivel?'Saia até o rio chegar a <b>'+f1(sair)+' m</b>.':'<b style="color:#9e1b1b">Já passou da hora de sair com folga.</b>');}
-  el.innerHTML=txt;if(novo){mostraResumo(res,!!cam);if(cam)enquadraCaminho();}}
+  // nível mudou: o resumo aberto no celular acompanha a rota nova; só o toque novo reenquadra o mapa
+  el.innerHTML=txt;if(novo||!rt.hidden)mostraResumo(res,!!cam);if(novo&&cam)enquadraCaminho();}
 // celular: resumo curto na folha recolhida, com botão para os detalhes; computador: rola até o resultado
 function mostraResumo(html,detalhes){const r=document.getElementById('resumoToque'),cel=window.matchMedia('(max-width:700px)').matches;
   if(!cel){const el=document.getElementById('rota');if(el)el.scrollIntoView({block:'nearest'});return;}
@@ -586,7 +589,7 @@ function setModo(m){modo=m;
 document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
 document.querySelector('.tabs').addEventListener('keydown',ev=>{const bs=[...document.querySelectorAll('.tabs button')],i=bs.indexOf(document.activeElement);if(i<0)return;
   const j={ArrowRight:(i+1)%bs.length,ArrowLeft:(i-1+bs.length)%bs.length,Home:0,End:bs.length-1}[ev.key];if(j===undefined)return;
-  ev.preventDefault();bs[j].focus();setModo(bs[j].dataset.m);});
+  ev.preventDefault();bs[j].focus();setModo(bs[j].dataset.m);setSheetExpanded(true);});
 
 function updateSheetStatus(){
   document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';

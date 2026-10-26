@@ -391,6 +391,8 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         self.assertIn("if(mexeuNoMapa&&!forcar)return;", h)          # trocar de aba não desfaz o zoom
         self.assertNotIn("{cache:'no-store'}", h)                    # dados revalidados, não baixados de novo
         self.assertIn('id="resumoToque"', h)                         # toque no celular não cobre o mapa
+        self.assertNotIn(".mobile-sheet #sld{display:none}", h)       # folha aberta: o nível continua ajustável
+        self.assertIn("setModo(bs[j].dataset.m);setSheetExpanded(true);", h)  # setas abrem a aba como o toque
         # a cópia de pesquisa é a mesma página, com caminhos ../
         pq = (RAIZ / "pesquisas" / "santa-tereza-painel-evacuacao.html").read_text(encoding="utf-8")
         self.assertIn('href="../santa_tereza_painel_casas.html#rotas"', pq)
@@ -402,6 +404,7 @@ class SimulacaoEvacuacaoTest(unittest.TestCase):
         h = self.html
         self.assertIn("const ARQ_ALTOS='assets/data/rota_fuga/santa_tereza_rotas_altas_set2023.json'", h)
         self.assertIn("r=rotaDe(s)", h)
+        self.assertIn("if(novo||!rt.hidden)mostraResumo(res,!!cam)", h)  # resumo do celular acompanha o nível
         self.assertNotIn("saidaDaMancha", h)
         self.assertNotIn("até o Ginásio", h)
         dados = ler(RAIZ / "assets" / "data" / "rota_fuga" / "santa_tereza_rotas_altas_set2023.json")
