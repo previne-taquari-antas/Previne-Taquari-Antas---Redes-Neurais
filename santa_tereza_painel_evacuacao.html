@@ -51,7 +51,7 @@
 .quick-stage{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
 .quick-stage input[type=range]{min-width:0;flex:1;accent-color:#0f8b46;touch-action:pan-x}
 .quick-stage button{height:42px;min-width:42px;border:1px solid #bad0c3;border-radius:9px;background:#f2f8f4;color:#126746;font:700 22px/1 sans-serif}
-@media(max-width:700px){.mobile-sheet #sld{display:none}.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
+@media(max-width:700px){.mobile-sheet input[type=range]{touch-action:pan-x;pointer-events:auto}.mobile-sheet .quick-stage input[type=range]{min-height:44px;height:44px;margin:0;padding:0}}
 @media (max-width:700px){
  body{overflow:hidden}
  .hud.mobile-sheet,body[data-previne-map-signature] > .hud.mobile-sheet{
@@ -378,6 +378,7 @@ function pior(x,y){return ordem.indexOf(x)<ordem.indexOf(y)?x:y;}
 let modo='rotas';
 function nivelAtual(){return Math.max(BANKFULL_M,Math.min(NVMAX,Number(sld.value)||BANKFULL_M));}
 function renderRotas(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M);
+  document.getElementById('resumoToque').hidden=true;
   ruas.forEach(r=>{const a=cotaNosAtuais[r.a],c=cotaNosAtuais[r.c],wet=(a!=null&&a<=h)||(c!=null&&c<=h);r.pl.setStyle({color:wet?'#1e5fbf':'#8fa7b8',weight:wet?1.45:.9,opacity:wet?.78:.38});});
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
   document.getElementById('painel').innerHTML='<div class="sub"><b>Toque perto da sua rua.</b> Mostramos o caminho a pé até o Ginásio (ponto de referência) e a partir de que nível ele alaga. Ruas em azul: água neste nível da simulação.</div><div class="rota" id="rota" aria-live="polite">Toque no mapa, perto de uma rua.</div>';
@@ -531,7 +532,7 @@ function setModo(m){modo=m;
 document.querySelectorAll('.tabs button').forEach(x=>x.onclick=()=>{setModo(x.dataset.m);setSheetExpanded(true);});
 document.querySelector('.tabs').addEventListener('keydown',ev=>{const bs=[...document.querySelectorAll('.tabs button')],i=bs.indexOf(document.activeElement);if(i<0)return;
   const j={ArrowRight:(i+1)%bs.length,ArrowLeft:(i-1+bs.length)%bs.length,Home:0,End:bs.length-1}[ev.key];if(j===undefined)return;
-  ev.preventDefault();bs[j].focus();setModo(bs[j].dataset.m);});
+  ev.preventDefault();bs[j].focus();setModo(bs[j].dataset.m);setSheetExpanded(true);});
 
 function updateSheetStatus(){
   document.getElementById('sheetLevel').textContent=nivelAtual().toFixed(1).replace('.',',')+' m';
