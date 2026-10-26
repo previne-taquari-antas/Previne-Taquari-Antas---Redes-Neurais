@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PREVINE | Porto Alegre — revisão de domicílios CNEFE × edificações</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{font-family:system-ui,Arial,sans-serif;color:#173041;background:#eef3f7}*{box-sizing:border-box}body{margin:0}header{background:#15394c;color:#fff;padding:10px 17px}h1{font-size:18px;margin:0}header p{font-size:12px;margin:4px 0}main{display:grid;grid-template-columns:minmax(270px,360px) 1fr;height:calc(100dvh - 75px)}aside{overflow:auto;padding:14px;background:white;border-right:1px solid #c7d8df}#map{height:100%;width:100%}label{font-size:13px;font-weight:700;display:block;margin-top:12px}input,select,button{font:inherit;width:100%;margin-top:5px;padding:8px;border:1px solid #c4d0d7;border-radius:6px;background:white}button{cursor:pointer;background:#155b70;color:white;border-color:#155b70}button:disabled{opacity:.5;cursor:not-allowed}.card{padding:10px;border-radius:8px;background:#edf4f6;margin:12px 0;font-size:13px;line-height:1.5}.small{font-size:12px;color:#445660}.item{padding:9px;border-bottom:1px solid #dde4e8;cursor:pointer;font-size:12px}.item:hover{background:#f0f6f7}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px}.red{background:#d96b27}.blue{background:#297ac8}.green{background:#4d8b68}.poa-cluster{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;border:2px solid #fff;background:#136980;color:white;font:700 12px system-ui,sans-serif;box-shadow:0 1px 7px #1633418c;white-space:nowrap}.leaflet-control-attribution{font-size:10px!important}
+@media(max-width:730px){main{height:auto;display:flex;flex-direction:column}aside{order:2}#map{height:54vh;min-height:360px}}
+</style></head><body>
+<header><h1>Porto Alegre · localização de domicílios</h1><p>PREVINE · conferência CNEFE 2022 × edificações OSM · coordenadas originais preservadas</p></header>
+<main><aside>
+<div class="card" id="datasetStatus" aria-live="polite">Carregando coordenadas CNEFE de Porto Alegre (amostra distribuída pela cidade)…</div><label for="csv">Importar outro arquivo CSV (opcional)</label><input type="file" id="csv" accept=".csv,text/csv">
+<label for="geojson">Abrir footprints de edificações próximas (opcional)</label><input type="file" id="geojson" accept=".geojson,.json,application/geo+json"><div class="card" id="stats">O mapa carrega automaticamente uma amostra da auditoria. Os pontos não foram validados individualmente; nenhuma alteração será feita nos dados do IBGE.</div>
+<div class="small"><span class="swatch red"></span>Localização IBGE original &nbsp;<span class="swatch blue"></span>Edificação proposta</div><div class="card small">Visão geral: círculos numerados mostram a quantidade de coordenadas CNEFE da amostra em cada agrupamento. Aproxime até o zoom 16 para ver os pontos laranja individualmente. Ao clicar num ponto, a hipótese de edificação aparece em azul e você pode alternar entre imagem aérea e ruas.</div>
+<label for="filter">Filtrar candidatos</label><select id="filter"><option value="all">Todos</option><option value="esquina_ou_aglomerado_revisar">Esquinas / coordenadas compartilhadas</option><option value="candidato_forte_revisao_visual">Mesmo logradouro e número</option><option value="candidato_incertamente_residencial">Associação incerta</option></select>
+<div class="card"><b>Ponto selecionado</b><div id="details" class="small">Clique em um ponto ou em uma linha abaixo.</div></div>
+<button id="approve" disabled>Registrar revisão visual do ponto</button><button id="export" disabled>Exportar aprovações como CSV</button>
+<div class="small">Aprovação exige conferência de número, fachada e uso residencial; Street View não substitui vistoria nem comprova moradores atuais. Não aplique a camada proposta a mapas de risco como se estivesse validada.</div>
+<h3 style="font-size:14px">Fila de conferência</h3><div id="items"></div>
+</aside><div id="map" role="region" aria-label="Mapa de Porto Alegre com pontos CNEFE e locais candidatos"></div></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.3/papaparse.min.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const map=L.map('map',{preferCanvas:true}).setView([-30.041,-51.218],12);
+// Tiles OSM voluntários não são usados: bloqueio 403 reportado em outubro de 2026.
+const ruas=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Mapa © <a href="https://www.esri.com/">Esri</a> e fornecedores'});
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens © Esri, Maxar, Earthstar Geographics e comunidade GIS'}).addTo(map);
+L.control.layers({'Imagem aérea (edificações)':sat,'Ruas e relevo (Esri)':ruas}).addTo(map);
+let baseErrors=0;
+sat.on('tileerror',()=>{if(++baseErrors>=4&&map.hasLayer(sat)){map.removeLayer(sat);map.addLayer(ruas);$('datasetStatus').textContent='Imagens aéreas indisponíveis neste acesso: mapa de ruas alternativo ativado. Os pontos CNEFE permanecem.';}});
+const layer=L.layerGroup().addTo(map),renderer=L.canvas({padding:.3});
+let data=[],selected=null,selectedIndex=-1,decisions=new Map(),resumoMunicipal=null;
+const buildingLayer=L.geoJSON(null,{style:f=>({color:f.properties?.residencial_explicito?'#237349':'#8f89a0',weight:1,fillOpacity:.07}),onEachFeature:(f,layer)=>layer.on('click',()=>{if(!selected)return;const p=f.properties||{};selected.osm_candidato=p.osm_id;selected.tipo_osm=p.tipo;const c=layer.getBounds().getCenter();selected.lat_proposta=c.lat;selected.lon_proposta=c.lng;selected.street_view_url='https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+c.lat+'%2C'+c.lng;activate(selectedIndex);})}).addTo(map);
+function valid(x){return Number.isFinite(Number(x))&&String(x).trim()!=='';}
+function safe(t){return String(t??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));}
+function activate(i){selectedIndex=i;selected=data[i];if(!selected)return;
+ let r=selected,loc=valid(r.lat_original)&&valid(r.lon_original)?[+r.lat_original,+r.lon_original]:null;
+ if(loc)map.setView(loc,18);$('approve').disabled=!r.osm_candidato;
+ $('details').innerHTML='<p><b>'+safe(r.rua_ibge)+' '+safe(r.numero_ibge)+'</b></p>'+
+ '<p>CNEFE: '+safe(r.id_cnefe)+'<br>Qualidade IBGE: '+safe(r.nv_geo_coord)+'<br>Mesmo ponto: '+safe(r.quantidade_mesmo_ponto)+' domicílio(s)<br>Status: '+safe(r.status)+'</p>'+
+ '<p>OSM candidato: '+safe(r.osm_candidato)+'<br>Tipo OSM: '+safe(r.tipo_osm)+'<br>Distância à edificação: '+safe(r.distancia_footprint_m)+' m</p>'+
+ '<p>'+safe(r.justificativa)+'</p>'+
+ (r.street_view_url?'<a href="'+safe(r.street_view_url)+'" target="_blank" rel="noopener noreferrer">Abrir Street View</a> · ':'')+
+ (loc?'<a href="https://www.google.com/maps?q='+loc[0]+','+loc[1]+'" target="_blank" rel="noopener noreferrer">Coordenada original no mapa</a>':'');
+}
+function render(){
+ layer.clearLayers();
+ if(!data.length)return;
+ const f=$('filter').value,z=map.getZoom(),b=map.getBounds().pad(.12),visible=[];
+ let allFiltered=0;
+ // Somente o retângulo visível é desenhado. Não desenhar milhares de linhas entre coordenadas.
+ data.forEach((r,i)=>{
+   if(f!=='all'&&r.status!==f)return;
+   allFiltered++;
+   const la=Number(r.lat_original),lo=Number(r.lon_original);
+   if(!valid(r.lat_original)||!valid(r.lon_original)||la<-31||la>-29||lo<-52||lo>-50)return;
+   if(b.contains([la,lo]))visible.push({r,i,la,lo});
+ });
+ if(z<16){
+   const grid=new Map();
+   for(const p of visible){
+     const xy=map.latLngToLayerPoint([p.la,p.lo]);
+     const key=Math.floor(xy.x/58)+':'+Math.floor(xy.y/58);
+     let item=grid.get(key);
+     if(!item){item={count:0,lat:0,lon:0};grid.set(key,item);}
+     item.count++;item.lat+=p.la;item.lon+=p.lo;
+   }
+   for(const item of grid.values()){
+     const c=[item.lat/item.count,item.lon/item.count];
+     const count=item.count,shown=count>999?(count/1000).toFixed(1)+'k':String(count);
+     L.marker(c,{icon:L.divIcon({className:'',html:'<span class="poa-cluster">'+shown+'</span>',iconSize:[38,38],iconAnchor:[19,19]})})
+       .addTo(layer).bindTooltip(count+' coordenada(s) CNEFE nesta região. Clique para aproximar.')
+       .on('click',()=>map.setView(c,Math.min(17,z+3)));
+   }
+ }else{
+   for(const p of visible){
+     L.circleMarker([p.la,p.lo],{renderer,radius:5,weight:1,color:'#fff',fillColor:'#da7521',fillOpacity:.9})
+      .addTo(layer).on('click',()=>activate(p.i));
+   }
+   if(selected&&valid(selected.lat_proposta)&&valid(selected.lon_proposta)
+     &&valid(selected.lat_original)&&valid(selected.lon_original)){
+     const a=[+selected.lat_original,+selected.lon_original],q=[+selected.lat_proposta,+selected.lon_proposta];
+     if(b.contains(a)){
+       L.circleMarker(q,{renderer,radius:7,color:'#fff',weight:2,fillColor:'#2478c8',fillOpacity:1})
+        .addTo(layer).bindTooltip('Edificação candidata, ainda não confirmada').on('click',()=>activate(selectedIndex));
+       L.polyline([a,q],{color:'#17749a',weight:2,opacity:.8,interactive:false,dashArray:'5 5'}).addTo(layer);
+     }
+   }
+ }
+ $('stats').textContent=(resumoMunicipal?'Universo CNEFE 2022: '+Number(resumoMunicipal.domicilios_particulares_cnefe).toLocaleString('pt-BR')+' domicílios. ':'')+
+ 'Amostra: '+data.length.toLocaleString('pt-BR')+' coordenadas; '+allFiltered.toLocaleString('pt-BR')+
+ ' no filtro, '+visible.length.toLocaleString('pt-BR')+' no enquadramento. '+
+ (z<16?'Agrupados por proximidade; clique e aproxime para ver cada ponto.':'Pontos individuais originais CNEFE; clique para inspecionar.')+
+ ' '+decisions.size+' revisões registradas. Sem locais aprovados automaticamente.';
+ $('items').replaceChildren();
+ let added=0;
+ for(const p of visible){
+   if(added++>=120)break;
+   const d=document.createElement('div');d.className='item';
+   d.textContent=(p.i+1)+'. '+p.r.rua_ibge+' '+p.r.numero_ibge+' · '+p.r.status+' · '+p.r.quantidade_mesmo_ponto+' domicílio(s) na coordenada';
+   d.onclick=()=>activate(p.i);$('items').appendChild(d);
+ }
+ $('export').disabled=decisions.size===0;
+}
+map.on('zoomend moveend',render);
+$('csv').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;if(typeof Papa==='undefined'){$('stats').textContent='Biblioteca CSV indisponível. Tente novamente com conexão.';return;}
+ Papa.parse(file,{header:true,skipEmptyLines:true,worker:true,complete:r=>{data=r.data.filter(x=>x.id_cnefe);decisions.clear();selected=null;resumoMunicipal=null;$('datasetStatus').textContent='Arquivo local carregado. Localizações ainda exigem conferência visual.';render();},error:e=>{$('stats').textContent='Não foi possível ler o arquivo: '+e.message;}});
+});
+$('geojson').addEventListener('change', e=>{const file=e.target.files[0];if(!file)return;
+ file.text().then(txt=>{const j=JSON.parse(txt);if(j.type!=='FeatureCollection')throw Error('GeoJSON inválido');
+ buildingLayer.clearLayers();buildingLayer.addData(j);$('stats').textContent=(j.features||[]).length+' edificações próximas carregadas; selecione um domicílio e clique no polígono correto.';
+ }).catch(err=>{$('stats').textContent='Erro ao carregar edificações: '+err.message;});
+});
+$('filter').addEventListener('change',render);
+$('approve').addEventListener('click',()=>{if(!selected||!selected.osm_candidato)return;
+ const evidencia=prompt('Descreva a evidência observada (ex.: imagem Street View de 2025 mostra placa número 25 em fachada de residência):');
+ if(!evidencia||!evidencia.trim())return;
+ if(!confirm('Você verificou que o local é residencial e o endereço corresponde a ESTE prédio?'))return;
+ decisions.set(selected.id_cnefe,{id_cnefe:selected.id_cnefe,osm_id:selected.osm_candidato,tipo_confirmado:'domicilio',evidencia:evidencia.trim(),uso_residencial_conferido:'sim'});
+ render();});
+$('export').addEventListener('click',()=>{if(!decisions.size)return;const cols=['id_cnefe','osm_id','tipo_confirmado','evidencia','uso_residencial_conferido'];
+ const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...Array.from(decisions.values(),r=>cols.map(k=>quote(r[k])).join(','))].join('\r\n');
+ const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;a.download='revisoes_aprovadas_porto_alegre.csv';a.click();URL.revokeObjectURL(href);
+});
+async function carregarAmostraAutomatica(){
+ const s=$('datasetStatus');
+ try{
+  const base='../assets/data/porto_alegre/';
+  const [pr,sr]=await Promise.all([fetch(base+'fila_amostra.json?v=20261024-13156',{cache:'no-store'}),fetch(base+'resumo.json?v=20261024-13156',{cache:'no-store'})]);
+  if(!pr.ok||!sr.ok)throw Error('arquivos ainda não disponíveis no site ('+pr.status+'/'+sr.status+')');
+  const [payload,resumo]=await Promise.all([pr.json(),sr.json()]);
+  if(!Array.isArray(payload.dados)||!payload.dados.length)throw Error('arquivo de pontos vazio');
+  data=payload.dados;resumoMunicipal=resumo;decisions.clear();selected=null;
+  render();
+  s.textContent='Mapa carregado: '+data.length.toLocaleString('pt-BR')+' pontos reais CNEFE 2022 em amostra para revisão. Coordenadas laranja: originais IBGE. Azuis: construções candidatas. Sem associações residenciais verificadas. Toque num ponto para ver endereço, qualidade e Street View.';
+ }catch(err){
+  s.textContent='O mapa-base está disponível, mas os dados da amostra ainda não chegaram ao servidor: '+err.message+'. Use o arquivo CSV ou tente abrir novamente.';
+  $('stats').textContent='Visualização sem pontos até a publicação dos dados. Não é erro de localização.';
+ }
+}
+carregarAmostraAutomatica();
+</script></body></html>

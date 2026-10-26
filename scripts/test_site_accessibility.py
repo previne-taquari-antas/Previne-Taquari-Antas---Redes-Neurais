@@ -25,4 +25,14 @@ class AccessibilityBuildTest(unittest.TestCase):
             self.assertEqual(brand_page(page,root),'redirect')
             self.assertEqual(page.read_text(),source)
 
+    def test_logo_webp_com_png_de_reserva(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'assets/logos/web').mkdir(parents=True)
+            (root/'assets/logos/web/lagam.webp').write_bytes(b'RIFF')
+            page=root/'index.html';page.write_text('<html><head><title>x</title></head><body></body></html>')
+            brand_page(page,root);built=page.read_text()
+            self.assertIn('<picture><source srcset="assets/logos/web/lagam.webp',built)
+            self.assertIn('assets/logos/lagam.png',built)  # o PNG original continua como reserva
+            self.assertNotIn('logos/web/previne.webp',built)  # sem cópia leve, só o PNG
+
 if __name__=='__main__':unittest.main()

@@ -469,6 +469,75 @@ class BasinStationForecastTests(unittest.TestCase):
         self.assertTrue(result["forecast_applicable"])
         self.assertEqual(result["forecast_status"], "unavailable")
 
+    def test_failed_large_batch_recovers_valid_sub_batches(self):
+        locations = [
+            {"latitude": -29.0 - i * 0.001, "longitude": -51.0}
+            for i in range(16)
+        ]
+        calls = []
+
+        def fetcher(url):
+            calls.append(url)
+            # The provider rejects overly large requests, but healthy smaller
+            # groups must still be accepted rather than discarded.
+            count = len(url.split("latitude=", 1)[1].split("&", 1)[0].split("%2C"))
+            if count > 12:
+                raise ValueError("HTTP 400: lote muito grande")
+            return [
+                {"hourly": {"time": ["2026-10-23T12:00Z"],
+                            "precipitation_ecmwf_ifs025": [1.0]}}
+                for _ in range(count)
+            ]
+
+        result = feed.fetch_forecast_batch(
+            locations, fetcher=fetcher, fetched_at_utc="2026-10-23T11:00Z"
+        )
+        self.assertEqual(len(result), 16)
+        self.assertTrue(all(row["state"] == "available" for row in result.values()))
+        self.assertGreater(len(calls), 1)
+
+    def test_partial_publication_is_degraded_and_missing_station_stays_unavailable(self):
+        times = ["2026-10-23T12:00Z"]
+        models = {
+            spec["id"]: {
+                **{variable: [1.0] for variable in feed.REQUIRED_FORECAST_VARIABLES},
+                "precipitation_windows": {
+                    f"{hours}h": [1.0]
+                    for hours in feed.PRECIPITATION_WINDOW_HOURS
+                },
+            }
+            for spec in feed.MODEL_SPECS
+        }
+        valid = {
+            "id": "ANA:86472600",
+            "forecast": {"state": "available", "times": times, "models": models},
+        }
+        failed = {
+            "id": "ANA:2",
+            "forecast": {"state": "unavailable", "message": "HTTP 429"},
+        }
+        snapshot = {
+            "generated_at_utc": "2026-10-23T11:00Z",
+            "stations": [valid, failed],
+            "scope": {"station_count": 2, "forecast_station_count": 1},
+            "coverage": {},
+        }
+        feed.prepare_publishable_feed(snapshot)
+        self.assertEqual(snapshot["status"], "RESEARCH_SCREENING_DEGRADED")
+        self.assertEqual(snapshot["scope"]["forecast_station_count"], 1)
+        self.assertFalse(snapshot["coverage"]["forecast_complete"])
+        self.assertEqual(snapshot["coverage"]["forecast_missing_station_count"], 1)
+        self.assertEqual(failed["forecast"]["state"], "unavailable")
+
+    def test_unusable_partial_run_keeps_previous_snapshot(self):
+        partial = {
+            "generated_at_utc": "2026-10-23T11:00Z",
+            "scope": {"station_count": 1, "forecast_station_count": 0},
+            "stations": [{"id": "ANA:1", "forecast": {"state": "unavailable"}}],
+        }
+        with self.assertRaisesRegex(RuntimeError, "Nenhuma estação"):
+            feed.prepare_publishable_feed(partial)
+
     def test_partial_forecast_run_cannot_replace_complete_snapshot(self):
         partial = {
             "scope": {

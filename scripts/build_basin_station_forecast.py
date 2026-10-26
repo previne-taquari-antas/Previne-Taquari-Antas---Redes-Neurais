@@ -1103,6 +1103,128 @@ def _coordinate_coverage(stations: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def fetch_forecast_batch(
+    locations: list[dict[str, float]],
+    *,
+    fetcher=fetch_json,
+    fetched_at_utc: str | None = None,
+    depth: int = 0,
+) -> dict[tuple[float, float], dict[str, Any]]:
+    """Recover healthy coordinates when a large multi-location request fails.
+
+    A 400/timeout or malformed batch must not hide every valid location.
+    Rate limits (429) are not retried by splitting: that would amplify load.
+    Invalid/missing replies are kept explicitly unavailable, never zero-filled.
+    """
+    if not locations:
+        return {}
+    try:
+        response = fetcher(build_open_meteo_url(locations))
+        payloads = response if isinstance(response, list) else [response]
+        if len(payloads) != len(locations):
+            raise ValueError(
+                f"Open-Meteo retornou {len(payloads)} locais para {len(locations)} pedidos"
+            )
+        return {
+            _coordinate_key(location): extract_forecast_payload(
+                payload, fetched_at_utc=fetched_at_utc
+            )
+            for location, payload in zip(locations, payloads)
+        }
+    except Exception as exc:
+        if len(locations) > 12 and depth < 3 and "429" not in str(exc):
+            midpoint = len(locations) // 2
+            left = fetch_forecast_batch(
+                locations[:midpoint], fetcher=fetcher,
+                fetched_at_utc=fetched_at_utc, depth=depth + 1,
+            )
+            right = fetch_forecast_batch(
+                locations[midpoint:], fetcher=fetcher,
+                fetched_at_utc=fetched_at_utc, depth=depth + 1,
+            )
+            return {**left, **right}
+        return {
+            _coordinate_key(location): _unavailable_forecast(
+                f"Rodada não disponível para este lote: {exc}"
+            )
+            for location in locations
+        }
+
+
+def prepare_publishable_feed(feed: dict[str, Any]) -> None:
+    """Publish valid partial coverage, without turning missing data into forecasts.
+
+    The legacy complete-only validator remains available for strict QA. The
+    public operational feed needs honest DEGRADED snapshots whenever one
+    provider/batch fails, rather than freezing all telemetry and all stations.
+    """
+    stations = feed.get("stations") or []
+    if not stations:
+        raise RuntimeError("Catálogo vazio; snapshot anterior preservado.")
+    generated_at = parse_iso(feed.get("generated_at_utc"), default_timezone=UTC)
+    valid_count = 0
+    for station in stations:
+        forecast = station.get("forecast") or {}
+        if forecast.get("state") != "available":
+            continue
+        times = forecast.get("times") or []
+        future_index = next(
+            (i for i, raw in enumerate(times)
+             if (dt := parse_iso(raw, default_timezone=UTC)) is not None
+             and generated_at is not None and dt >= generated_at),
+            None,
+        )
+        models = forecast.get("models") or {}
+        good_models = 0
+        if future_index is not None:
+            for spec in MODEL_SPECS:
+                model = models.get(spec["id"]) or {}
+                required_series_ok = all(
+                    isinstance(model.get(variable), list)
+                    and len(model[variable]) == len(times)
+                    and any(finite(v) is not None for v in model[variable])
+                    for variable in REQUIRED_FORECAST_VARIABLES
+                )
+                windows = model.get("precipitation_windows") or {}
+                windows_ok = all(
+                    isinstance(windows.get(f"{h}h"), list)
+                    and len(windows[f"{h}h"]) == len(times)
+                    and finite(windows[f"{h}h"][future_index]) is not None
+                    for h in PRECIPITATION_WINDOW_HOURS
+                )
+                if required_series_ok and windows_ok:
+                    good_models += 1
+        if good_models < MIN_PRECIPITATION_WINDOW_MODELS:
+            station["forecast"] = _unavailable_forecast(
+                "Menos de três modelos com séries e janelas futuras válidas nesta rodada."
+            )
+        else:
+            valid_count += 1
+
+    if valid_count == 0:
+        raise RuntimeError("Nenhuma estação com três modelos válidos; snapshot anterior preservado.")
+
+    scope = feed.setdefault("scope", {})
+    scope["forecast_station_count"] = valid_count
+    coverage = feed.setdefault("coverage", {})
+    coverage["forecast_missing_station_count"] = len(stations) - valid_count
+    strict_complete = valid_count == len(stations)
+    if strict_complete:
+        try:
+            validate_complete_feed(feed)
+        except RuntimeError:
+            strict_complete = False
+    coverage["forecast_complete"] = strict_complete
+    coverage["message"] = (
+        "Cobertura completa e validada da rodada meteorológica."
+        if strict_complete else
+        f"Cobertura degradada: {valid_count}/{len(stations)} estações com "
+        "três modelos válidos. Estações sem previsão permanecem indisponíveis."
+    )
+    feed["status"] = "RESEARCH_SCREENING" if strict_complete else "RESEARCH_SCREENING_DEGRADED"
+    feed["metric_coverage"] = _metric_coverage(stations)
+
+
 def build_feed(
     *,
     now: datetime | None = None,
@@ -1161,22 +1283,9 @@ def build_feed(
     forecasts_by_coordinate: dict[tuple[float, float], dict[str, Any]] = {}
     for start in range(0, len(forecast_locations), batch_size):
         batch = forecast_locations[start : start + batch_size]
-        try:
-            response = fetcher(build_open_meteo_url(batch))
-            payloads = response if isinstance(response, list) else [response]
-            if len(payloads) != len(batch):
-                raise ValueError(
-                    f"Open-Meteo retornou {len(payloads)} locais para {len(batch)} pedidos"
-                )
-            for location, payload in zip(batch, payloads):
-                forecasts_by_coordinate[_coordinate_key(location)] = extract_forecast_payload(
-                    payload,
-                    fetched_at_utc=iso_utc(now),
-                )
-        except Exception as exc:
-            message = f"Rodada não disponível para este lote: {exc}"
-            for location in batch:
-                forecasts_by_coordinate[_coordinate_key(location)] = _unavailable_forecast(message)
+        forecasts_by_coordinate.update(
+            fetch_forecast_batch(batch, fetcher=fetcher, fetched_at_utc=iso_utc(now))
+        )
         if start + batch_size < len(forecast_locations):
             # Avoid bursting the public endpoint when the catalog is large.
             time.sleep(BATCH_PAUSE_SECONDS)
@@ -1607,7 +1716,7 @@ def main() -> int:
     parser.add_argument("--status-output", type=Path, default=DEFAULT_STATUS_OUTPUT)
     args = parser.parse_args()
     feed = build_feed(include_external=True)
-    validate_complete_feed(feed)
+    prepare_publishable_feed(feed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # JSON compacto: com indent=2 o feed tinha 38 MB (12 MB sem os espaços), era
     # regravado a cada ciclo e baixado inteiro pela página inicial.

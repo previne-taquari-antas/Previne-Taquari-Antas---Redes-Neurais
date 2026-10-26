@@ -167,6 +167,23 @@ class MucumFeedContractTests(unittest.TestCase):
         out = data["4h"]
         self.assertEqual(out["qualidade_ao_vivo"]["status"], "ATENCAO")
         self.assertIn("erro recente do modelo ativo acima do guardrail", out["status"])
+        self.assertEqual(out["bloqueio_publicacao"], "erro_recente_acima_guardrail")
+        self.assertFalse(out["disponivel"])
+        self.assertIsNone(out["nivel_previsto_cm"])
+        self.assertEqual(out["previsao_reprovada_qualidade_cm"], 100.0)
+
+    def test_normal_error_does_not_block_version_b(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        audit = {
+            "n_conferidas": 10,
+            "mae_24h_cm": 8.0,
+            "maior_erro_abs_24h_cm": 19.0,
+        }
+        with mock.patch.object(LIVE, "resumo_auditoria", return_value=audit):
+            LIVE.aplicar_guardrail_qualidade_horizontes({"4h": item}, [])
+        self.assertTrue(item["disponivel"])
+        self.assertEqual(item["nivel_previsto_cm"], 100.0)
+        self.assertNotIn("bloqueio_publicacao", item)
 
     def test_live_freshness_guard_hides_two_hour_old_base(self) -> None:
         item = self._item("8h", 8, 26, "principal", 1)

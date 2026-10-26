@@ -1,0 +1,63 @@
+name: Publicar dados cartográficos Porto Alegre
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publicar-mapa-porto-alegre.yml'
+      - 'scripts/gerar_amostra_espacial_cnefe_poa.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: publicar-amostra-cnefe-poa
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Baixar auditoria concluída de Porto Alegre
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/poa
+          gh run download 40113320191 --name cnefe-porto-alegre-auditoria-40113320191 --dir /tmp/poa --repo "$GITHUB_REPOSITORY"
+          test -s /tmp/poa/revisao_street_view.csv
+          test -s /tmp/poa/resumo.json
+      - name: Publicar pontos espacialmente distribuídos e metadados
+        run: |
+          test -s /tmp/poa/associacoes_auditoria.csv
+          test -s /tmp/poa/resumo.json
+          mkdir -p assets/data/porto_alegre
+          python scripts/gerar_amostra_espacial_cnefe_poa.py \
+            --csv /tmp/poa/associacoes_auditoria.csv \
+            --resumo /tmp/poa/resumo.json \
+            --saida assets/data/porto_alegre/fila_amostra.json
+          cp /tmp/poa/resumo.json assets/data/porto_alegre/resumo.json
+          # O GeoJSON antigo representava somente seis endereços agrupados;
+          # evitar expô-lo como se fosse a cobertura municipal.
+          rm -f assets/data/porto_alegre/amostra_mapa.geojson
+      - name: Gravar amostra pública sem modificar cadastro original
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets/data/porto_alegre
+          if git diff --cached --quiet; then echo "Sem diferenças"; exit 0; fi
+          git commit -m "Publicar amostra auditável dos endereços de Porto Alegre"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "Dados cartográficos publicados no main"
+              exit 0
+            fi
+            echo "Main recebeu alterações concorrentes: repetindo sincronização ($attempt/8)"
+            sleep 3
+          done
+          echo "Falha ao publicar após oito tentativas" >&2
+          exit 1

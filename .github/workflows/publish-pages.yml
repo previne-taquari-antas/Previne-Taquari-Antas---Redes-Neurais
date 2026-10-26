@@ -1,0 +1,42 @@
+name: Publish PREVINE GitHub Pages
+# Reserva manual. O Pages é publicado pelo deploy-pages.yml (validadores, logos,
+# otimização e arquivos > 20 MB, como a mancha por nível de Santa Tereza). Rodando
+# a cada push, os dois disputavam o mesmo site: um falhava com "in progress
+# deployment" ou, terminando por último, publicava esta versão sem a mancha de
+# 45 MB e sem logos. Use só se o deploy-pages.yml estiver quebrado.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  # a mesma fila do deploy-pages.yml: espera o deploy em andamento em vez de falhar
+  group: github-pages-site-recovery-20261024
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+      - name: Build Pages artifact
+        run: |
+          mkdir -p _site
+          # Public static site only; avoid publishing large research and model binaries.
+          find . -type f \( -iname '*.html' -o -iname '*.css' -o -iname '*.js' -o -iname '*.json' -o -iname '*.geojson' -o -iname '*.svg' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.ico' -o -iname '*.woff' -o -iname '*.woff2' -o -iname '*.wasm' -o -iname '*.csv' -o -iname '*.kml' -o -iname '*.topojson' \) -not -path './.git/*' -not -path './.github/*' -size -20M -print0 | while IFS= read -r -d '' f; do mkdir -p "_site/$(dirname "$f")"; cp "$f" "_site/$f"; done
+          touch _site/.nojekyll
+          test -f _site/pesquisas/porto-alegre-moradias-auditoria.html
+          du -sh _site
+          test "$(du -sm _site | cut -f1)" -lt 950
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

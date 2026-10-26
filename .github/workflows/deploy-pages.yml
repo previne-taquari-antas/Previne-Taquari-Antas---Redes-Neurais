@@ -12,6 +12,7 @@ on:
       - "scripts/test_static_site_optimization.py"
       - "scripts/test_site_accessibility.py"
       - "scripts/test_site_recovery.js"
+      - "scripts/test_gt_page.js"
       - "scripts/test_live_feed.js"
       - "scripts/test_ai_lab.js"
       - "scripts/test_research_patterns.js"
@@ -63,6 +64,9 @@ on:
       - "assets/data/estudo_caso_resposta_v002.json"
       - "assets/data/estudo_caso_territorio/**"
       - "assets/data/rota_fuga_santa_tereza*.json"
+      # Dados das páginas de rotas (ex.: santa_tereza_rotas_altas_set2023.json); antes
+      # só o publish-pages.yml, agora manual, publicava JSON fora destas pastas.
+      - "assets/data/rota_fuga/**"
       # HAND/MDT LiDAR de Santa Tereza: qualquer derivado publicado deve
       # disparar Pages imediatamente, sem depender do cron de 2 h.
       - "assets/data/santa_tereza_inundacao/**"
@@ -76,6 +80,7 @@ on:
       - "assets/data/santa_tereza_eventwise_replay_rna_2h/**"
       - "assets/data/servicos/**"
       - "assets/data/vulnerabilidade/**"
+      - "assets/data/porto_alegre/**"
       - ".github/workflows/deploy-pages.yml"
   schedule:
     # Republica o HTML/assets a cada 2 h. O JSON do robô não vai no
@@ -98,6 +103,7 @@ on:
       - "G040 Stage-2 readiness"
       - "Serviços públicos — dados IEDE (bacia Taquari-Antas)"
       - "Vulnerabilidade — dados IBGE (bacia Taquari-Antas)"
+      - "Publicar dados cartográficos Porto Alegre"
     types:
       - completed
 
@@ -110,7 +116,7 @@ concurrency:
   # Todos os eventos publicam o MESMO site: um único deploy por vez.
   # A fila mantém a rodada pendente mais recente; o checkout lê main atual,
   # inclusive mudanças manuais anteriores, sem criar um backlog de builds.
-  group: github-pages-site
+  group: github-pages-site-recovery-20261024
   cancel-in-progress: false
 
 jobs:
@@ -195,6 +201,9 @@ jobs:
           node scripts/test_basin_level_display.js
           node scripts/test_stz_shadow_ui.js
           node scripts/test_stz_v11_ui.js
+
+      - name: Smoke test GT map for Santa Tereza and Mucum
+        run: node scripts/test_gt_page.js
 
       - name: Validate OpenStreetMap tile contract
         run: python scripts/validate_osm_tiles.py

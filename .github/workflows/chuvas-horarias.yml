@@ -57,6 +57,7 @@ jobs:
         run: python -B -m unittest scripts.test_rain_observation_provenance scripts.test_rain_workflow_publication -v
 
       - name: Baixar chuvas horarias e publicar
+        timeout-minutes: 12
         env:
           CEMADEN_TOKEN: ${{ secrets.CEMADEN_TOKEN }}
           ANA_HIDRO_ID: ${{ secrets.ANA_HIDRO_ID }}
@@ -70,7 +71,7 @@ jobs:
           if [ -n "$INI" ]; then args+=(--inicio "$INI"); fi
           if [ -n "$FIM" ]; then args+=(--fim "$FIM"); fi
           coletar() {
-            timeout 120s python -B codigo_python/10_chuvas/baixar_chuvas_horarias.py "${args[@]}" || echo 'Coleta indisponível; validando os arquivos preservados.'
+            timeout 300s python -B codigo_python/10_chuvas/baixar_chuvas_horarias.py "${args[@]}" || echo 'Coleta indisponível; validando os arquivos preservados.'
           }
           preparar_commit() {
             python -B scripts/test_rain_workflow_publication.py --validate-pair --allow-legacy-unchanged

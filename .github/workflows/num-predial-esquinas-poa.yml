@@ -1,0 +1,54 @@
+name: Numeração de esquinas criticas Porto Alegre
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/num-predial-esquinas-poa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  buscar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Buscar 3 areas que agrupam enderecos de varios numeros
+        run: |
+          mkdir -p /tmp/esquinas
+          python - <<'PY'
+          import csv,json,urllib.request,urllib.parse,time,pathlib
+          root='https://gis-smamus.portoalegre.rs.gov.br/server/rest/services/01_PUBLICACOES/nro_imovel/FeatureServer/0/query'
+          bounds=[
+           ('paulino_azurenha',(-51.204,-30.074,-51.189,-30.062)),
+           ('dona_maria',(-51.237,-30.077,-51.225,-30.066)),
+           ('porto_alegre_norte',(-51.200,-29.982,-51.18,-29.968))]
+          with open('/tmp/esquinas/numeracao_esquinas.csv','w',encoding='utf8',newline='') as f:
+              w=csv.writer(f);w.writerow(['objectid','numero','lon','lat','area'])
+              for name,(xmin,ymin,xmax,ymax) in bounds:
+                  params={'f':'geojson','where':'1=1','geometry':f'{xmin},{ymin},{xmax},{ymax}',
+                    'geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','inSR':4326,'outSR':4326,
+                    'outFields':'objectid,textstring','orderByFields':'objectid',
+                    'returnGeometry':'true','resultRecordCount':2000}
+                  allfound=0
+                  for offset in range(0,20000,2000):
+                      params['resultOffset']=offset
+                      with urllib.request.urlopen(urllib.request.Request(root+'?'+urllib.parse.urlencode(params),
+                                  headers={'User-Agent':'PREVINE-public-research/1.0'}),timeout=240) as r:doc=json.load(r)
+                      if doc.get('error'):raise RuntimeError(doc['error'])
+                      fs=doc.get('features') or []
+                      for a in fs:
+                          ring=((a.get('geometry') or {}).get('coordinates') or [[]])[0]
+                          if not ring:continue
+                          x=(min(p[0] for p in ring)+max(p[0] for p in ring))/2
+                          y=(min(p[1] for p in ring)+max(p[1] for p in ring))/2
+                          prop=a.get('properties') or {}
+                          w.writerow([prop.get('objectid'),prop.get('textstring'),round(x,7),round(y,7),name])
+                      allfound+=len(fs)
+                      if len(fs)<2000:break
+                  print('AREA',name,allfound,flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: num-predial-esquinas-porto-alegre
+          path: /tmp/esquinas/
+          retention-days: 30

@@ -86,14 +86,9 @@ VIAS_EXCLUIDAS = "motorway|motorway_link|construction|proposed|raceway|bus_guide
 SO_PE = {"footway", "path", "steps", "pedestrian", "corridor", "bridleway"}
 MARGEM_VIAS_GRAUS = 0.015
 
-# r.walk (GRASS) em s/m para o caminhante de referencia (0,72 s/m = 1,39 m/s).
-VEL_IDOSO = 0.9
-RW_A, RW_B, RW_C, RW_D = 0.72, 6.0, 1.9998, -1.9998
-RW_RAMPA_INGREME = -0.2125
-FATOR_IDOSO = 1.0 / (RW_A * VEL_IDOSO)     # escala o r.walk para 0,9 m/s no plano
-VEL_MAX_DESCIDA = 1.1       # idoso nao desce mais rapido que isso, mesmo em descida suave
-RAMPA_MAX = 0.35            # rampas maiores no MDT em via sao ruido (muro, talude, ponte)
-FATOR_ESCADA = 1.5
+# r.walk do GRASS para o idoso (0,9 m/s no plano): caminhada.py
+from caminhada import (VEL_IDOSO, RW_A, RW_B, RW_C, RW_D, RW_RAMPA_INGREME, FATOR_IDOSO,  # noqa: E402,F401
+                       VEL_MAX_DESCIDA, RAMPA_MAX, FATOR_ESCADA, haversine, tempo_trecho)
 
 COTA_NAO_ALAGA = 65535      # gerar_cota_alaga.py: nao alaga ate NIVEL_MAX_M
 NIVEL_MAX_M = 25.0
@@ -147,13 +142,6 @@ CIDADES = {
         "html": os.path.join(RAIZ, "mucum_rota_fuga_ruas{suf}.html"),
     },
 }
-
-
-def haversine(lon1, lat1, lon2, lat2):
-    R = 6371000.0
-    dlat, dlon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dlon/2)**2
-    return 2 * R * math.asin(math.sqrt(a))
 
 
 def cache_osm(cfg):
@@ -392,21 +380,6 @@ def cotas_dos_nos(cfg, osm):
     ok = sum(z is not None for z in out.values())
     print(f"cotas MDT: {ok}/{len(out)} nos")
     return out
-
-
-def tempo_trecho(d, dh, escada=False):
-    """Segundos de caminhada (idoso) num trecho de d metros com desnível dh (+ sobe)."""
-    if d <= 0:
-        return 0.0
-    rampa = max(-RAMPA_MAX, min(RAMPA_MAX, dh / d))
-    dh = rampa * d
-    t = RW_A * d
-    if dh > 0:
-        t += RW_B * dh
-    elif dh < 0:
-        t += (RW_C if rampa > RW_RAMPA_INGREME else RW_D) * dh
-    t = max(t * FATOR_IDOSO, d / VEL_MAX_DESCIDA)
-    return t * (FATOR_ESCADA if escada else 1.0)
 
 
 def _perfil_linha(p1, p2, comp):

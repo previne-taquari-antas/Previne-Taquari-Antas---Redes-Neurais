@@ -687,7 +687,14 @@
       const row = networkRainWindow(item, hours);
       const mm = num(row.mm);
       const cov = num(row.coverage_ratio);
-      const small = mm == null ? 'indisponível' : row.complete ? 'janela completa' : fmt((cov || 0) * 100, 0) + '% da janela';
+      const endAge = ageHours(row.end_utc);
+      // Completude é diferente de atualidade: 24/24 horas de dois dias atrás
+      // não podem receber o mesmo rótulo de uma janela recente.
+      const staleWindow = endAge == null || endAge > 3;
+      const small = mm == null ? 'indisponível'
+        : row.complete
+          ? (staleWindow ? 'janela completa, mas antiga · ' + ageLabel(endAge) : 'janela completa e recente')
+          : fmt((cov || 0) * 100, 0) + '% da janela' + (staleWindow ? ' · dado antigo' : '');
       return '<div class="network-rain-cell"><span>' + hours + ' h</span><strong>' + (mm == null ? '—' : fmt(mm, 1) + ' mm') + '</strong><small>' + esc(small) + '</small></div>';
     }).join('');
     const modelHtml = Object.entries(item.forecast && item.forecast.models || {}).map(([modelId, model]) => {
@@ -695,9 +702,12 @@
       const h24 = num(windows['24h']);
       const h72 = num(windows['72h']);
       const pState = model && model.precipitation_state ? model.precipitation_state : (model && model.available ? 'available' : 'unavailable');
-      const stateLabel = pState === 'complete' ? 'precipitação completa' : pState === 'partial' ? 'precipitação parcial' : pState === 'unavailable' ? 'precipitação indisponível' : 'modelo disponível';
-      const stateClass = pState === 'partial' ? ' is-partial' : pState === 'unavailable' ? ' is-unavailable' : '';
-      return '<div class="network-model-row' + stateClass + '"><strong>' + esc(networkModelLabel(modelId)) + '</strong><span>' + esc(stateLabel) + '</span><small>+24 h ' + (h24 == null ? '—' : fmt(h24, 1) + ' mm') + ' · +72 h ' + (h72 == null ? '—' : fmt(h72, 1) + ' mm') + '</small></div>';
+      const modelAge = ageHours(item.forecast && item.forecast.fetched_at_utc);
+      const expired = modelAge == null || modelAge > 2;
+      const stateLabel = expired ? 'rodada meteorológica antiga · ' + ageLabel(modelAge)
+        : pState === 'complete' ? 'precipitação completa' : pState === 'partial' ? 'precipitação parcial' : pState === 'unavailable' ? 'precipitação indisponível' : 'modelo disponível';
+      const stateClass = expired || pState === 'unavailable' ? ' is-unavailable' : pState === 'partial' ? ' is-partial' : '';
+      return '<div class="network-model-row' + stateClass + '"><strong>' + esc(networkModelLabel(modelId)) + '</strong><span>' + esc(stateLabel) + '</span><small>' + (expired ? 'valores históricos, não previsão atual · ' : '') + '+24 h ' + (h24 == null ? '—' : fmt(h24, 1) + ' mm') + ' · +72 h ' + (h72 == null ? '—' : fmt(h72, 1) + ' mm') + '</small></div>';
     }).join('');
     let rnaRows = Array.isArray(level.forecasts) ? level.forecasts.slice() : [];
     if (!rnaRows.length && num(level.forecast_cm) != null) rnaRows = [{ label: 'RNA', cm: level.forecast_cm, time: level.forecast_at_utc }];

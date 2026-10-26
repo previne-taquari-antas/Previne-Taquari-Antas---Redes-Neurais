@@ -610,8 +610,19 @@ def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
                 "maior_erro_abs_24h_cm": max24,
                 "modelo": out.get("modelo"),
             }
+            # Falha no guardrail: manter o candidato somente para auditoria,
+            # sem permitir que a interface pública o interprete como previsão.
+            if out.get("nivel_previsto_cm") is not None:
+                out["previsao_reprovada_qualidade_cm"] = out["nivel_previsto_cm"]
+            if out.get("passos"):
+                out["passos_reprovados_qualidade"] = out["passos"]
+            out["nivel_previsto_cm"] = None
+            out["passos"] = []
+            out["disponivel"] = False
+            out["bloqueio_publicacao"] = "erro_recente_acima_guardrail"
             out["status"] = (
-                f"{out['status']} - atencao: erro recente do modelo ativo acima do guardrail"
+                "indisponivel: erro recente do modelo ativo acima do guardrail "
+                "(candidato preservado apenas para auditoria)"
             )
         else:
             out["qualidade_ao_vivo"] = {
@@ -919,7 +930,11 @@ def escrever(top, horizontes, max_stale_h=6):
     # Resiliência: se este ciclo NÃO tem previsão (telemetria da ANA falhou),
     # preserva a última previsão boa (se ainda recente) em vez de apagá-la —
     # assim a página não "cai" para o replay num hiccup transitório da ANA.
-    if not _tem_previsao(top) and os.path.exists(SAIDA):
+    reprovacao_explicita = any(
+        isinstance(item, dict) and item.get("bloqueio_publicacao")
+        for item in (horizontes or {}).values()
+    )
+    if not _tem_previsao(top) and not reprovacao_explicita and os.path.exists(SAIDA):
         try:
             ant = json.load(open(SAIDA, encoding="utf-8"))
             hm = _hora_previsao_mais_recente(ant)

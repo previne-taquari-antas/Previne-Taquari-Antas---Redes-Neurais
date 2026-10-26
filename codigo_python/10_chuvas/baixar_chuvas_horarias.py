@@ -283,7 +283,7 @@ def ana_chuva_horaria(cod, inicio, fim, *, capturas=None):
         url = f"{ANA_URL}?codEstacao={cod}&dataInicio={ini_m:%d/%m/%Y}&dataFim={fim_m:%d/%m/%Y}"
         try:
             consulta = {}
-            xml = http_get(url, timeout=120, captura=consulta)
+            xml = http_get(url, timeout=22, tentativas=2, captura=consulta)
             root = ET.fromstring(xml)
             roots = [root]
             if (root.text or "").strip().startswith("<"):
@@ -331,7 +331,7 @@ def inmet_chuva_horaria(cod, inicio, fim, *, capturas=None):
         url = INMET_URL.format(ini=a_ini.isoformat(), fim=a_fim.isoformat(), cod=cod)
         try:
             consulta = {}
-            bruto = http_get(url, timeout=120, headers={"Accept": "application/json"}, captura=consulta)
+            bruto = http_get(url, timeout=22, tentativas=2, headers={"Accept": "application/json"}, captura=consulta)
             try:
                 dados = json.loads(bruto)
             except Exception:
@@ -378,7 +378,7 @@ def cemaden_chuva_horaria(cod, inicio, fim, *, capturas=None):
                                         "fim": fim_m.strftime("%Y%m%d"), "sensor": "chuva"})
             try:
                 consulta = {}
-                dados = json.loads(http_get(f"{base}?{q}", timeout=120,
+                dados = json.loads(http_get(f"{base}?{q}", timeout=22, tentativas=2,
                                             headers={"token": token}, captura=consulta))
                 n0 = len(serie)
                 for r in (dados if isinstance(dados, list) else dados.get("dados", [])):
@@ -405,7 +405,7 @@ def cemaden_chuva_horaria(cod, inicio, fim, *, capturas=None):
         consulta = {}
         bruto = http_get(
             CEMADEN_URL.format(id_estacao=CEMADEN_ID, horas_menos_um=167),
-            timeout=30, tentativas=2, headers={"Accept": "application/json"}, captura=consulta,
+            timeout=18, tentativas=2, headers={"Accept": "application/json"}, captura=consulta,
         )
         recente = parse_cemaden_chuva(json.loads(bruto.decode("utf-8-sig")), codigo_esperado=cod)
         recente = {hora: valor for hora, valor in recente.items() if inicio <= hora <= fim}
@@ -469,15 +469,20 @@ def main():
     if fim >= agora - dt.timedelta(days=1):
         ultima_cemaden = _ultima_hora(series["chuva_cemaden_4320404010A"])
         atraso_h = None if ultima_cemaden is None else (agora - ultima_cemaden).total_seconds() / 3600
+        # Falha isolada de um sensor NÃO pode congelar todas as estações.
+        # Ausências continuam vazias e as capturas preservam a proveniência real.
+        # O consumidor decide o frescor por estação/janela, nunca pelo êxito
+        # do processo de coleta como um todo.
         if atraso_h is None or atraso_h > 8:
-            raise SystemExit(
-                "QA FALHOU: CEMADEN 432040401A sem observacao nas ultimas 8 horas; "
-                "CSV anterior foi preservado e nao sera substituido"
+            print(
+                "[QA degradada] CEMADEN 432040401A sem dado nas últimas 8h; "
+                "mantendo CEMADEN como atrasado e permitindo outras fontes válidas. "
+                f"Último horário: {ultima_cemaden.isoformat(timespec='minutes') if ultima_cemaden else 'ausente'}"
             )
         ultima_a894 = _ultima_hora(series["chuva_inmet_A894"])
         print(
             "[QA recente] CEMADEN ultima=",
-            ultima_cemaden.isoformat(timespec="minutes"),
+            ultima_cemaden.isoformat(timespec="minutes") if ultima_cemaden else "sem_dado",
             "A894 ultima=",
             ultima_a894.isoformat(timespec="minutes") if ultima_a894 else "sem_dado (estacao em pane)",
         )

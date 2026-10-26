@@ -190,14 +190,29 @@ class PaginasTest(unittest.TestCase):
             "pesquisas/santa-tereza-painel-evacuacao.html", "pesquisas/mucum-painel-evacuacao.html",
             "santa_tereza_rota_fuga_ruas_cenario.html", "mucum_rota_fuga_ruas_cenario.html",
             "pesquisas/santa-tereza-rota-fuga-ruas-cenario.html", "pesquisas/mucum-rota-fuga-ruas-cenario.html")]
+        antigas = [RAIZ / p for p in (
+            "santa_tereza_rota_fuga_cenario.html", "pesquisas/santa-tereza-rota-fuga.html",
+            "pesquisas/santa-tereza-rota-fuga-ruas.html", "pesquisas/mucum-rota-fuga-ruas.html",
+            "pesquisas/mucum-rota-fuga-ruas-fixo.html")]
+        paginas += antigas
         for p in paginas:
             s = p.read_text(encoding="utf-8")
             with self.subTest(arquivo=str(p.relative_to(RAIZ))):
                 self.assertIn("<b>193</b>", s)
                 self.assertIn("<b>199</b>", s)
                 self.assertIn("<b>40199</b>", s)
-                if "rota_fuga_ruas_cenario" in p.name or "rota-fuga-ruas-cenario" in p.name:
+                if "rota_fuga_ruas_cenario" in p.name or "rota-fuga-ruas-cenario" in p.name or p in antigas:
                     self.assertIn("painel_casas.html#rotas", s)
+
+    def test_paineis_por_grade_sobem_90(self):
+        # 40 cm/h dava margem 2 a 5 vezes maior que a subida observada
+        for p in ("santa_tereza_painel_evacuacao.html", "mucum_painel_evacuacao.html",
+                  "pesquisas/santa-tereza-painel-evacuacao.html", "pesquisas/mucum-painel-evacuacao.html"):
+            s = (RAIZ / p).read_text(encoding="utf-8")
+            with self.subTest(arquivo=p):
+                self.assertIn('"taxa_cm_h":90.0', s)
+                self.assertIn('id="sldTaxa" min="10" max="200" value="90"', s)
+                self.assertNotIn("ritmo de recorde", s)
 
     def test_fila_sem_frases_de_comando(self):
         for p in self.FILAS:

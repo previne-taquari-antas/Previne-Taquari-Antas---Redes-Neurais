@@ -23,3 +23,8 @@ A aplicação é idempotente. Cada página recebe uma assinatura acessível no t
 antes da navegação, e os caminhos relativos necessários à sua profundidade.
 Mapas em tela inteira reservam 84 px no topo para a assinatura; a legenda,
 os controles e os painéis permanecem na área do mapa abaixo dela.
+
+`web/previne.webp` e `web/lagam.webp` são cópias reduzidas para exibição, na mesma
+proporção e sem recorte (`scripts/gerar_logos_web.py`); os PNGs acima continuam
+intactos e servem de reserva no `<picture>`. Os dois originais somavam ~1 MB por
+página e atrasavam em ~11 s, no 3G, a mancha de água dos painéis.
