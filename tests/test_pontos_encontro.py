@@ -102,14 +102,15 @@ class CriterioTest(unittest.TestCase):
         self.assertEqual(json.dumps(self.d, sort_keys=True), json.dumps(pe.documento("santa_tereza", self.arq), sort_keys=True))
 
     def test_publicado_bate_com_a_conta(self):
-        for cidade in pe.CIDADES:
-            pub, mancha = Path(pe.saida_padrao(cidade)), Path(pe.mancha_padrao(cidade))
+        for cidade, versao in [(c, v) for c in pe.CIDADES for v in pe.VERSOES]:
+            pub, mancha = Path(pe.saida_padrao(cidade, versao)), Path(pe.mancha_padrao(cidade, versao))
             if not pub.exists():
                 continue
             self.assertTrue(mancha.exists(), f"{pub.name} sem a mancha de origem")
             d = json.loads(pub.read_text(encoding="utf-8"))
+            self.assertEqual(d["versao"], versao)
             self.assertEqual(d["mancha_sha256"], pe._sha256(mancha))
-            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"])
+            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"], versao)
             # a conta (pontos, casas, ruas) bate exatamente; o contorno desenhado da faixa varia nos últimos
             # dígitos entre versões do GEOS (vértices dos arcos do buffer)
             for k in d:
@@ -120,13 +121,39 @@ class CriterioTest(unittest.TestCase):
                     self.assertEqual(json.dumps(d[k], sort_keys=True), json.dumps(novo[k], sort_keys=True), (cidade, k))
 
 
+class VersaoHandTest(unittest.TestCase):
+    """Versão provisória com o modelo HAND do projeto, na maior cheia registrada de cada cidade."""
+
+    def test_mancha_hand_no_nivel_da_maior_cheia(self):
+        esperado = {"santa_tereza": ("set/2023", 23.65, 22.1), "mucum": ("mai/2024", 25.51, 20.6)}
+        for cidade, (cheia, regua, contorno) in esperado.items():
+            caminho = RAIZ / "assets" / "data" / "rota_fuga" / f"hand_maior_cheia_{cidade}.geojson"
+            if not caminho.exists():
+                continue
+            pr = json.loads(caminho.read_text(encoding="utf-8"))["features"][0]["properties"]
+            self.assertEqual((pr["cheia"], pr["regua_m"], pr["nivel_contorno_m"]), (cheia, regua, contorno))
+            # o contorno é o primeiro nível de 0,1 m que cobre a cheia (régua - zero)
+            self.assertGreaterEqual(pr["nivel_contorno_m"] + 1e-9, pr["regua_m"] - pr["zero_regua_m"])
+            self.assertLess(pr["nivel_contorno_m"] - (pr["regua_m"] - pr["zero_regua_m"]), 0.1)
+
+    @unittest.skipIf(pe is None, "sem shapely")
+    def test_textos_da_versao(self):
+        for cidade in pe.CIDADES:
+            for versao, v in pe.VERSOES.items():
+                self.assertTrue(v["evento"][cidade] and v["evento_curto"][cidade] and v["fonte"][cidade])
+        self.assertFalse(pe.VERSOES["hand"]["observada"])  # a página não chama o modelo de "área atingida"
+        self.assertIn("modelada", pe.VERSOES["hand"]["aviso"])
+
+
 class PaginaTest(unittest.TestCase):
     def test_le_o_json_da_cidade_e_avisa(self):
-        self.assertIn("'assets/data/rota_fuga/'+CID+'_pontos_encontro_mup.json'", PAGINA)
+        self.assertIn("'assets/data/rota_fuga/'+CID+'_pontos_encontro_'+VER+'.json'", PAGINA)
+        self.assertIn("VERSOES[qs.get('mancha')]?qs.get('mancha'):'mup'", PAGINA)  # versão fora da lista não monta caminho
         self.assertIn("CIDADES[pedido]?pedido:'santa_tereza'", PAGINA)  # cidade fora da lista não monta caminho
         self.assertIn('<a href="tel:199">199</a>', PAGINA)
         self.assertIn("não é abrigo oficial", PAGINA)
         self.assertIn("Mapa Único do Plano Rio Grande", PAGINA)
+        self.assertIn("D.mancha_observada?'área atingida em ':'cheia de '", PAGINA)
         self.assertIn("if(!casa&&bd>LONGE_DA_RUA_M)", PAGINA)  # toque longe da rua não vira rota
         self.assertNotIn("você já está fora da área atingida", PAGINA)
         self.assertIn("map.getPane('agua').style.pointerEvents='none'", PAGINA)  # a mancha não captura o toque

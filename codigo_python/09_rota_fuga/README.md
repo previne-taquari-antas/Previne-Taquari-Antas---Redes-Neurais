@@ -308,6 +308,22 @@ Salão José Marcolin e CTG) e o Posto Sander fica fora, a 164 m. O Ginásio de 
 fora da mancha de 2024, a 11 m da borda. É o motivo de trocar o mapa único pelo perigo
 hidrológico do projeto na próxima versão.
 
+**Versão com o modelo do projeto** (`--versao hand`, página `&mancha=hand`): enquanto o perigo
+hidrológico não chega, a área insegura é a mancha do modelo HAND do projeto na maior cheia
+registrada, a mesma dos painéis (`mancha_hand.py`, que lê `contornos_mancha.json` e grava
+`hand_maior_cheia_<cidade>.geojson`): Santa Tereza set/2023, régua 23,65 m → HAND 22,1 m (LiDAR,
+contornos em revisão no Marrecão); Muçum mai/2024, régua 25,51 m → HAND 20,6 m (mosaico 2 m,
+régua 5 m = HAND 0). Mesmo afastamento de 100 m e mesma escolha de pontos.
+
+| modelo HAND | casas | na mancha | na faixa | fora | pontos | caminhada até o ponto (mediana · máx.) |
+|---|---|---|---|---|---|---|
+| Santa Tereza (set/2023) | 565 | 264 | 264 | 34 | 5 | 14,1 · 43,8 min |
+| Muçum (mai/2024) | 1.937 | 1.221 | 403 | 312 | 9 | 9,3 · 41,5 min |
+
+Em Muçum o modelo deixa fora da mancha a parte alta do centro, que o mapa único inclui: a
+caminhada mediana até o ponto cai de 24,5 min (mapa único) para 9,3 min. A página alterna as
+duas manchas.
+
 Para trocar pelo perigo hidrológico do projeto: `preparar_mancha.py <arquivo> --saida-prefixo
 perigo_hidrologico` e `pontos_encontro.py <cidade> --mancha <geojson> --fonte "<descrição>"`.
 
