@@ -17,7 +17,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "codigo_python" / "09_rota_fuga"))
 try:
-    from shapely.geometry import Point, Polygon, mapping
+    from shapely.geometry import Point, Polygon, mapping, shape
     from shapely.ops import unary_union
     import pontos_encontro as pe
 except ImportError:  # CI sem shapely
@@ -109,8 +109,15 @@ class CriterioTest(unittest.TestCase):
             self.assertTrue(mancha.exists(), f"{pub.name} sem a mancha de origem")
             d = json.loads(pub.read_text(encoding="utf-8"))
             self.assertEqual(d["mancha_sha256"], pe._sha256(mancha))
-            self.assertEqual(json.dumps(d, sort_keys=True),
-                             json.dumps(pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"]), sort_keys=True))
+            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"])
+            # a conta (pontos, casas, ruas) bate exatamente; o contorno desenhado da faixa varia nos últimos
+            # dígitos entre versões do GEOS (vértices dos arcos do buffer)
+            for k in d:
+                if k in ("mancha", "faixa"):
+                    a, b = shape(d[k]), shape(novo[k])
+                    self.assertLess(a.symmetric_difference(b).area, 1e-3 * b.area, (cidade, k))
+                else:
+                    self.assertEqual(json.dumps(d[k], sort_keys=True), json.dumps(novo[k], sort_keys=True), (cidade, k))
 
 
 class PaginaTest(unittest.TestCase):

@@ -103,7 +103,7 @@ function enquadra(bb){const r=hud.getBoundingClientRect(),cel=matchMedia('(max-w
   box.scrollIntoView({block:'nearest'});}
 function desenha(){
   map=L.map('map',{zoomControl:false,preferCanvas:true}).setView(C.centro,15);L.control.zoom({position:'topright'}).addTo(map);
-  const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+  const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
   const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagens Esri'});
   L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{position:'topright'}).addTo(map);
   map.createPane('agua');map.getPane('agua').style.zIndex=350;map.getPane('agua').style.pointerEvents='none';
