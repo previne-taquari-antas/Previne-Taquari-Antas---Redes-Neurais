@@ -150,8 +150,32 @@
 <link rel="stylesheet" href="assets/css/gestor_chrome.css">
 <link rel="stylesheet" href="assets/css/previsao_cidades.css?v=20261007-cidades-1">
 <link rel="stylesheet" href="assets/css/previsao_publica.css?v=20261007-publico-1">
+<style id="ajustes-publicos">
+  .voltar-site{display:block;padding:8px 16px;font-size:12px;font-weight:600;color:#12654f;text-decoration:none;background:#f2f6f3;border-bottom:1px solid var(--line)}
+  .voltar-site:hover,.voltar-site:focus-visible{text-decoration:underline}
+  .public-defesa-civil{margin:10px 0 0;color:#5d7166;font-size:11px;line-height:1.5}
+  .public-trend-espelho{display:none;margin-top:8px;padding:5px 10px;border-radius:999px;background:#edf6ef;color:#286346;font-size:12px;font-weight:700}
+  @media(max-width:600px){
+    body.public-forecast.has-gestor-chrome.gestor-fill-layout>main{display:flex;flex-direction:column;align-items:stretch}
+    .public-forecast aside.public-sidebar{display:contents}
+    .public-forecast .public-current{order:1;padding:16px 20px;border:1px solid var(--line);border-radius:16px;background:#fff}
+    .public-forecast .public-current .public-number{font-size:44px}
+    .public-trend-espelho:not(:empty){display:inline-block}
+    .public-forecast #overview-trend-badge{display:none}
+    .public-forecast #public-status{order:2;align-self:flex-start}
+    .public-forecast #river-overview{order:3}
+    .public-forecast .public-map-panel{order:4}
+    .public-forecast .forecast-city-context{order:5}
+    .public-forecast .public-prediction{order:6}
+    .public-forecast .public-service-note{order:7}
+    .public-forecast .public-details{order:8}
+    .public-forecast .public-defesa-civil{order:9}
+    .public-forecast .forecast-city-context,.public-forecast .public-details,.public-forecast .public-service-note{padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:#fff}
+  }
+</style>
 </head>
 <body class="has-gestor-chrome gestor-fill-layout public-forecast" data-city-name="Muçum" data-public-state="loading">
+<a class="voltar-site" href="https://www.ufrgs.br/previne/">← Site do PREVINE</a>
 <header>
   <span class="mark"><svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M3 10c3-4 5 4 8 0s5 4 8 0 4 0 6 0M3 16c3-4 5 4 8 0s5 4 8 0 4 0 6 0M3 22c3-4 5 4 8 0s5 4 8 0 4 0 6 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
   <div class="forecast-title"><span class="public-brand-label">PREVINE · TAQUARI–ANTAS</span><h1>Até onde a água pode chegar?</h1><div class="loc">Muçum · bacia Taquari-Antas</div></div>
@@ -221,11 +245,6 @@
       </div>
       <p class="overview-note" id="window-compare-source">A tabela será preenchida somente com previsões e leituras auditáveis.</p>
     </section>
-    <section class="research-separate-link" aria-labelledby="research-separate-title">
-      <h3 id="research-separate-title">Pesquisa “vai mudar ou não?” · 24 h ou mais</h3>
-      <p>Esta pesquisa não faz parte do “Até onde a água pode chegar?”. Ela tem uma página própria, com seus horizontes, fontes e estados experimentais separados.</p>
-      <a href="pesquisa_status_mucum.html">Abrir a pesquisa de Muçum →</a>
-    </section>
      <div class="overview-insights panorama-only">
       <article class="overview-insight">
         <h3>Velocidade do rio</h3>
@@ -241,12 +260,6 @@
         <h3>Robô especializado · Muçum</h3>
         <strong id="overview-robot-label">Robô ao vivo ativo</strong>
         <p id="overview-robot-detail">A estação Muçum é atualizada automaticamente a cada 5 minutos e publica nível observado e previsão experimental de +2 h, +4 h e +8 h, com modelo principal e comparativo quando disponíveis. A pesquisa “vai mudar ou não?” fica em página separada.</p>
-      </article>
-      <article class="overview-insight">
-        <h3>Pesquisa separada</h3>
-        <strong>“Vai mudar ou não?” · 24 h+</strong>
-        <p>Os resultados experimentais ficam na página própria de pesquisa, fora deste panorama de nível e mancha.</p>
-        <a href="pesquisa_status_mucum.html">Abrir pesquisa →</a>
       </article>
     </div>
      <p class="overview-note">Os botões do ao vivo mostram 2 h, os dois candidatos 4 h e os dois candidatos 8 h quando cada saída tem todos os inputs exatos. A pesquisa de 24 h ou mais fica separada e não é probabilidade operacional nem alerta oficial. A camada do mapa é um proxy de extravasamento relativo ao HAND 0 e não substitui alerta oficial.</p>
@@ -267,6 +280,7 @@
     <section class="public-current" aria-labelledby="s-now-label">
       <h3 class="q" id="s-now-label">Último nível observado</h3>
       <span id="s-now" class="public-number">—</span>
+      <span id="public-trend-espelho" class="public-trend-espelho" aria-live="polite"></span>
       <span id="public-observed-when" class="public-time">Consultando a estação…</span>
     </section>
     <section class="public-prediction" aria-labelledby="public-prediction-title">
@@ -291,7 +305,7 @@
         <div class="public-reference"><span>Cota oficial de inundação</span><strong id="s-cota">18,00 m</strong></div>
       </div>
     </details>
-    <p class="public-disclaimer">PREVINE · Pesquisa e previsão experimental.<br><strong>Não é alerta oficial.</strong></p>
+    <p class="public-defesa-civil">Alertas da Defesa Civil: <strong>199</strong> · SMS <strong>40199</strong></p>
     <div class="public-legacy-bindings" hidden aria-hidden="true">
 
 
@@ -317,7 +331,7 @@
         <div><span>Janela de avaliação</span><strong id="briefing-window">7 dias</strong><small id="briefing-window-detail">calculando métricas</small></div>
         <div><span>Base da leitura</span><strong id="briefing-source">—</strong><small id="briefing-source-detail">fontes ainda carregando</small></div>
       </div>
-      <p class="briefing-footnote" id="briefing-footnote">Pesquisa científica; não é alerta oficial, ordem de evacuação ou autorização de rota.</p>
+      <p class="briefing-footnote" id="briefing-footnote">Pesquisa científica.</p>
     </section>
 
     <!-- ===== LINHA DO TEMPO (compartilhada) ===== -->
@@ -1142,7 +1156,7 @@ async function enterLive(){
   liveData=d; prepareLiveData(liveData); updateTelemetryMarkers(liveData); if(window.PREVINE_PANORAMA)PREVINE_PANORAMA.update(liveData,activeLiveData()); liveMode=true; document.body.classList.add('live'); liveIdx=0; const toggle=document.getElementById('live-btn'); if(toggle){toggle.textContent='⏹ Desativar previsão ao vivo · voltar ao histórico';toggle.setAttribute('aria-pressed','true');}
   document.getElementById('live-bar').style.display='';
   document.getElementById('live-hz').style.display='flex';
-  const note=document.getElementById('live-note'); note.style.display=''; note.textContent=d.aviso||'EXPERIMENTAL — não é alerta oficial.';
+  const note=document.getElementById('live-note'); note.style.display=''; note.textContent=d.aviso||'Previsão experimental.';
   if(playing){playing=false; clearTimeout(timer); document.getElementById('play').textContent='▶';}
   if(d.modo==='replay' && Array.isArray(d.passos)){
     renderLiveStep(); clearInterval(liveTimer);
@@ -1208,7 +1222,7 @@ async function init(){
 
   const spatialReady=Promise.all([loadHand(), loadContornos(), loadElevation()]);
   if(typeof L!=='undefined'){
-    map=L.map('map',{scrollWheelZoom:true}).fitBounds(BOUNDS);
+    map=L.map('map',{scrollWheelZoom:false}).fitBounds(BOUNDS);
     const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19,attribution:'© Esri, Maxar'});
     const labels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19});
     const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'});
@@ -1316,6 +1330,12 @@ async function init(){
   enterLive();                // simulador = só AO VIVO (previsão real)
 }
 init();
+</script>
+<script>
+(function(){var o=document.getElementById('overview-trend-badge'),e=document.getElementById('public-trend-espelho');
+if(!o||!e||!window.MutationObserver)return;
+function s(){e.textContent=(o.textContent||'').trim()}
+s();new MutationObserver(s).observe(o,{childList:true,characterData:true,subtree:true})})();
 </script>
 </body>
 </html>
