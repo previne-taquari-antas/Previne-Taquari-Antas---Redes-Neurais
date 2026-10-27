@@ -184,7 +184,7 @@ function setStatusMancha(status,mensagem){
   estadoMancha=status;
   const aviso=document.getElementById('sheetState');
   aviso.hidden=status==='validado';
-  const tc=document.getElementById('aba-impacto');if(tc)tc.textContent=status==='validado'?'Casas em risco':'Casas (em revisão)';
+  const tc=document.getElementById('aba-impacto');if(tc)tc.textContent=status==='validado'?'Casas em risco':status==='previa'?'Casas · prévia':'Casas (em revisão)';
   aviso.textContent=status==='validado'?'':mensagem;
   if(status!=='validado'&&status!=='previa'&&typeof pausarAnimacao==='function')pausarAnimacao();
   if(typeof atualizarBotoesAnimacao==='function')atualizarBotoesAnimacao();
@@ -276,14 +276,18 @@ function carregarPontosCasas(payload){
     const casa={lat:coord[0],lon:coord[1],x:xy[0],y:xy[1],ordem:i+1,cota:null,classe:'distante',distancia:null,marcador:null};
     casa.marcador=L.circleMarker([casa.lat,casa.lon],{renderer:rendererCasas,radius:3.6,weight:1.2,color:'#4f5c56',fillColor:'#ffffff',fillOpacity:.85})
       .bindPopup(()=>{
-        if(estadoMancha!=='validado')
+        if(estadoMancha!=='validado'&&estadoMancha!=='previa')
           return '<b>Casa ou prédio nº '+casa.ordem+'</b> (mapa colaborativo OSM)<br>Ainda <b>sem classificação de risco</b>: a mancha está em revisão. Branco não quer dizer seguro.'+
             '<br><a href="santa_tereza_painel_casas.html#rotas">Para onde ir e quando sair desta casa →</a>';
+        const emPrevia=estadoMancha==='previa';
         const legenda={atingida:'A mancha simulada alcançou este ponto.',iminente:'Água muito próxima deste ponto (até 30 m).',atencao:'Água próxima deste ponto (até 100 m).',distante:'Fora da faixa de proximidade de 100 m neste cenário.'};
         const dist=casa.distancia===null?'':'<br>Distância até a borda da mancha: ~'+Math.round(casa.distancia)+' m.';
-        const limiar=casa.cota===null?'Sem limiar de alagamento identificado nos contornos publicados.':
-          'Primeira interseção: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
-        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+legenda[casa.classe]+dist+'<br>'+limiar+
+        const limiar=emPrevia?'Prévia histórica sem classificação hidráulica validada.':casa.cota===null
+          ?'Sem limiar de alagamento identificado nos contornos publicados.'
+          :'Primeira interseção: régua '+(BANKFULL_M+casa.cota).toFixed(1).replace('.',',')+' m.';
+        return '<b>Edificação OSM #'+casa.ordem+'</b><br>'+
+          (emPrevia?'<b>PRÉVIA VISUAL, NÃO VALIDADA.</b> Cor ilustrativa; não indica segurança nem determina evacuação.<br>':'')+
+          legenda[casa.classe]+dist+'<br>'+limiar+
           '<br><small>Distância planimétrica aproximada, baseada no contorno modelado; ponto OSM não é domicílio validado.</small>';
       });
     casas.push(casa);casasLayer.addLayer(casa.marcador);BBcasas.extend([casa.lat,casa.lon]);
@@ -480,10 +484,8 @@ function renderMargem(){const nivel=nivelAtual(),h=Math.max(0,nivel-BANKFULL_M),
 function renderImpacto(){
   const nivel=nivelAtual();
   document.getElementById('nvtxt').textContent=f1(nivel)+' m';
-  if(estadoMancha!=='validado'){
-    document.getElementById('painel').innerHTML=estadoMancha==='previa'
-      ? '<div class="sub"><b>As casas ainda não têm classificação de risco</b>: a mancha azul é uma simulação com contornos em revisão (inclusive no Marrecão). Branco não quer dizer seguro.</div><div class="rota"><a href="santa_tereza_painel_casas.html#rotas" style="color:#075d40;font-weight:700">Quer saber da sua casa? Para onde ir e quando sair, casa a casa →</a></div>'
-      : '<div class="sub"><b>Carregando ou aguardando prévia visual.</b> A mancha hidráulica ainda não foi validada; os pontos das edificações não indicam segurança. Mova a régua apenas como cenário de estudo.</div>';
+  if(estadoMancha!=='validado'&&estadoMancha!=='previa'){
+    document.getElementById('painel').innerHTML='<div class="sub"><b>Aguardando os contornos da simulação.</b> Os pontos ainda não indicam proximidade da água.</div>';
     return;
   }
   if(estadoCasas!=='ok'||!contornosOrdenados.length){
@@ -491,6 +493,7 @@ function renderImpacto(){
     return;
   }
   const indice=indiceBordaNivel(nivel);
+  const emPrevia=estadoMancha==='previa';
   const cnt={atingida:0,iminente:0,atencao:0,distante:0};
   casas.forEach(c=>{
     const d=distanciaAteMancha(c,indice),classe=classePorDistancia(d);
@@ -500,12 +503,13 @@ function renderImpacto(){
   });
   const fmt=n=>n.toLocaleString('pt-BR'),destacadas=cnt.atingida+cnt.iminente+cnt.atencao;
   document.getElementById('painel').innerHTML=
-    '<div class="sub"><b>Proximidade individual das edificações à mancha simulada.</b> Cada ponto muda de cor conforme o nível da régua. A distância é medida do ponto OSM até a borda do contorno LiDAR, e não por quadrículas do IBGE.</div>'+
+    (emPrevia?'<div class="sub"><b>PRÉVIA VISUAL · CONTORNOS EM REVISÃO.</b> As cores mostram apenas a proximidade geométrica dos pontos OSM à mancha histórica simulada, inclusive no Marrecão. Não representam inundação confirmada, segurança das casas ou decisão de evacuação.</div>':'')+
+    '<div class="sub"><b>Proximidade individual das edificações à mancha simulada.</b> Cada ponto muda de cor conforme o nível da régua. A distância é medida do ponto OSM até a borda do contorno, e não por quadrículas do IBGE.</div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.atencao+'"></i>Laranja · água até 100 m</span><b>'+fmt(cnt.atencao)+'</b></div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.iminente+'"></i>Vermelho · água até 30 m</span><b>'+fmt(cnt.iminente)+'</b></div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.atingida+'"></i>Azul · ponto dentro da mancha</span><b>'+fmt(cnt.atingida)+'</b></div>'+
     '<div class="row"><span><i style="background:'+CORES_CASAS.distante+'"></i>Cinza · fora da faixa de 100 m</span><b>'+fmt(cnt.distante)+'</b></div>'+
-    '<div class="big"><b>'+fmt(destacadas)+'</b> edificações próximas ou atingidas, de '+fmt(casas.length)+' pontos mapeados.</div>'+
+    '<div class="big"><b>'+fmt(destacadas)+'</b> '+(emPrevia?'pontos próximos ou dentro da prévia visual':'edificações próximas ou atingidas')+', de '+fmt(casas.length)+' pontos mapeados.</div>'+
     '<div class="sub">Distâncias planimétricas aproximadas: proximidade não determina profundidade, tempo de chegada ou segurança das rotas. Pontos OSM podem incluir edificações não residenciais; abrigos e ocupação exigem validação local.</div>';
 }
 let redrawPendente=false;
@@ -727,7 +731,7 @@ Promise.allSettled([
       if(!contornosOrdenados.length)throw Error('Prévia sem geometrias');
       contornosGeo=fc;
       ultimaFeatureDesenhada=undefined;
-      setStatusMancha('previa','SIMULAÇÃO VISUAL · CONTORNOS HISTÓRICOS EM REVISÃO · Casas sem classificação de risco.');
+      setStatusMancha('previa','SIMULAÇÃO VISUAL · CONTORNOS HISTÓRICOS EM REVISÃO · Bolinhas mudam de cor pela proximidade à mancha da prévia; não são risco validado.');
     }catch(e){
       console.warn('Prévia ilustrativa indisponível',e);
       contornosGeo=null;contornosOrdenados=[];
