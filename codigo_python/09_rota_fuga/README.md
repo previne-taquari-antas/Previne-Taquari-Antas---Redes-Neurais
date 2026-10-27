@@ -455,6 +455,40 @@ anexos (menos de 30 m² ou mais de 300 m²); em Santa Tereza, não — quase tud
 só `building=yes` e o filtro residencial não separa nada. Fora do recorte
 ficam domicílios ribeirinhos e rurais que o modelo ainda não enxerga.
 
+## Base de ruas: SEMA (BCRS25) × OpenStreetMap
+`vias_sema.py` baixa a seção de transporte da Base Cartográfica Vetorial Contínua
+do RS 1:25.000 (SEMA, publicada pela FEPAM em `ww2.fepam.rs.gov.br/bcrs25/`;
+`Secao_4_Sistema_Transporte.zip`, sha256 `82d00629…dfe23b`) e grava o recorte de
+cada cidade em `assets/data/rota_fuga/sema_bcrs25_vias_<cidade>.geojson`. O site
+do estado não responde fora do Brasil, por isso o download roda no CI
+(`.github/workflows/vias-sema.yml`, só manual). `comparar_vias.py` compara essa base
+com a rede do OSM dos painéis, na caixa onde a rede do painel está completa
+(o recorte de `gerar_rota_fuga_ruas.py` menos 50 m de borda), sem a ferrovia;
+o resultado fica em `assets/data/rota_fuga/comparacao_vias_sema_osm.json`.
+
+| | Santa Tereza | Muçum |
+|---|---|---|
+| Extensão de vias: OSM / SEMA | 44,8 km / 23,0 km | 60,4 km / 19,8 km |
+| Da SEMA, a até 20 m de uma via do OSM | 93% | 99,7% |
+| Do OSM, a até 20 m de uma via da SEMA | 52% | 42% |
+| Diferença de posição onde coincidem (mediana / 90%) | 4 m / 12 m | 3 m / 8 m |
+| Casas com via a até 50 m: OSM / SEMA | 536 / 262 de 565 | 1889 / 724 de 1937 |
+| Só na SEMA (trechos de 50 m ou mais) | 6 trechos, 1,5 km | nenhum |
+
+- **Posição**: onde as duas bases têm a mesma via, a diferença é de poucos metros,
+  dentro do esperado para 1:25.000 (~12 m de erro gráfico).
+- **Conteúdo**: nas duas cidades, a seção de transporte da SEMA só tem rodovias e
+  acessos (estaduais e municipais) e as pontes. As ruas da área urbana não estão
+  nela; por isso metade das casas de Santa Tereza e quase dois terços das de Muçum
+  ficam a mais de 50 m de uma via da SEMA.
+- **Só na SEMA**: em Muçum, nada. Em Santa Tereza, 4 dos 6 trechos são a mesma
+  estrada desenhada a 22–34 m da do OSM. Os outros 2 têm outro traçado (a ~100 m):
+  625 m em −29,1923, −51,7190 e 516 m em −29,1754, −51,7161. Vale olhar na imagem
+  de satélite ou em campo se é estrada que falta no OSM ou traçado antigo.
+- **Conclusão**: para o roteamento a pé, casa a casa, o OSM continua sendo a base.
+  A SEMA serve de conferência das estradas rurais e para dizer de quem é cada
+  rodovia (estadual ou municipal), o que o OSM nem sempre traz.
+
 ## Pendências conhecidas
 - **Locais altos de Santa Tereza**: vistoriar os 9 pontos com a Defesa Civil
   (espaço, acesso, muro, escada, encosta) e decidir quais viram pontos de
@@ -534,3 +568,5 @@ principal (régua_m − 1,6 = HAND), válida só sobre o HAND LiDAR de
   r.walk e ponto de encontro calculado a partir das casas, fora da mancha
   (aqui adaptado como candidatos por cobertura gulosa, ao lado dos abrigos oficiais).
 - © OpenStreetMap contributors (ODbL) — vias e edificações; IBGE — grade estatística.
+- SEMA/RS — Base Cartográfica Vetorial Contínua do Rio Grande do Sul, 1:25.000 (BCRS25),
+  publicada pela FEPAM em http://ww2.fepam.rs.gov.br/bcrs25/ — só para a comparação de vias.
