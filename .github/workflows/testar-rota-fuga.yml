@@ -40,6 +40,9 @@ on:
       - "assets/data/rota_fuga/mup_rs_ada_*.geojson"
       - "assets/data/rota_fuga/*_pontos_encontro_mup.json"
       - "tests/test_pontos_encontro.py"
+      - "assets/data/rota_fuga/sema_bcrs25_vias_*.geojson"
+      - "assets/data/rota_fuga/comparacao_vias_sema_osm.json"
+      - "tests/test_comparar_vias.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
   pull_request:
@@ -81,6 +84,9 @@ on:
       - "assets/data/rota_fuga/mup_rs_ada_*.geojson"
       - "assets/data/rota_fuga/*_pontos_encontro_mup.json"
       - "tests/test_pontos_encontro.py"
+      - "assets/data/rota_fuga/sema_bcrs25_vias_*.geojson"
+      - "assets/data/rota_fuga/comparacao_vias_sema_osm.json"
+      - "tests/test_comparar_vias.py"
       - "tests/test_rota_fuga_ao_vivo.py"
       - ".github/workflows/testar-rota-fuga.yml"
   workflow_dispatch:
@@ -117,6 +123,7 @@ jobs:
             tests/test_rota_fuga_ao_vivo.py
             tests/test_rota_fuga_painel.py
             tests/test_pontos_encontro.py
+            tests/test_comparar_vias.py
             pontos_encontro.html
             assets/data/rota_fuga/
             assets/data/eventos_analise.json
@@ -148,3 +155,5 @@ jobs:
         run: python tests/test_rota_fuga_painel.py -v
       - name: Pontos de encontro (mapa único + 100 m)
         run: python tests/test_pontos_encontro.py -v
+      - name: Comparação de vias SEMA × OSM
+        run: python tests/test_comparar_vias.py -v
