@@ -8,20 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ResearchSeparationTests(unittest.TestCase):
-    def test_operational_panorama_links_to_research_without_embedding_long_panel(self):
-        pages = {
-            "santa_tereza_previsao_inundacao.html": "pesquisa_status.html",
-        }
-        for name, research_page in pages.items():
-            html = (ROOT / name).read_text(encoding="utf-8")
-            self.assertNotIn('class="research-panel', html, msg=name)
-            self.assertIn('class="research-separate-link"', html, msg=name)
-            self.assertIn(research_page, html, msg=name)
-            self.assertNotIn("researchRiskUrl:", html, msg=name)
-
-    def test_mucum_public_forecast_has_no_research_links(self):
+    def test_public_forecast_has_no_research_links(self):
         # Decisão da coordenação: as páginas de pesquisa ficam fora do caminho público por ora.
-        html = (ROOT / "mucum_previsao_inundacao.html").read_text(encoding="utf-8")
+        for name in ("santa_tereza_previsao_inundacao.html", "mucum_previsao_inundacao.html"):
+            self._confere(name)
+
+    def _confere(self, name):
+        html = (ROOT / name).read_text(encoding="utf-8")
         self.assertNotIn('class="research-panel', html)
         self.assertNotIn('class="research-separate-link"', html)
         self.assertNotIn("pesquisa_status", html)
