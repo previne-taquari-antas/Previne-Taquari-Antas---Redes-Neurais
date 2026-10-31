@@ -22,9 +22,9 @@
 <div class="hud">
   <h1>Rota de fuga · Santa Tereza</h1>
   <div class="sub">Prova de conceito (Etapa 1) — <b>previsão ao vivo (RNA 2h/4h)</b></div>
-  <div class="sub">Nível do rio: <span class="lv">1,66 m</span></div>
+  <div class="sub">Nível do rio: <span class="lv">1,61 m</span></div>
   <div class="sub" id="leitura"></div>
-  <div class="sub">Página gerada: 2026-10-31 14:55 (horário de Brasília)</div>
+  <div class="sub">Página gerada: 2026-10-31 15:55 (horário de Brasília)</div>
   <div class="sub" id="nota-leito"></div>
   <div class="aviso" id="velho" hidden></div>
   <div class="aviso">⚠ Prova de conceito (Etapa 1: grade de 30 m, linha reta até o Ginásio de Esportes). Não usar para orientar evacuação real.</div>
@@ -33,7 +33,7 @@
 <div class="leg" id="leg"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const D={"quadras": [], "dlat": 0.00027179104477612065, "dlon": 0.0003111478060046144, "seguro": {"lat": -29.168793, "lon": -51.7327164, "nome": "Ginásio de Esportes", "id": "santa_tereza_ginasio_esportes", "fonte": "Defesa Civil de Santa Tereza (repassado pela usuária via link do Google Maps)", "confirmado": true}, "estacao": {"lat": -29.1781, "lon": -51.7322, "code": "86472600"}, "ponte": {"lat": -29.0908727, "lon": -51.713269, "label": "Ponte Santa Barbara"}, "cores": {"alagada": "#1e5fbf", "critica": "#b3382c", "apertada": "#e8730c", "atencao": "#e3b100", "confortavel": "#1b7a5a"}, "telemetria_em": "2026-10-31T14:45:00-03:00", "velho_min": 180}, RES={"alagada": 0, "critica": 0, "apertada": 0, "atencao": 0, "confortavel": 0};
+const D={"quadras": [], "dlat": 0.00027179104477612065, "dlon": 0.0003111478060046144, "seguro": {"lat": -29.168793, "lon": -51.7327164, "nome": "Ginásio de Esportes", "id": "santa_tereza_ginasio_esportes", "fonte": "Defesa Civil de Santa Tereza (repassado pela usuária via link do Google Maps)", "confirmado": true}, "estacao": {"lat": -29.1781, "lon": -51.7322, "code": "86472600"}, "ponte": {"lat": -29.0908727, "lon": -51.713269, "label": "Ponte Santa Barbara"}, "cores": {"alagada": "#1e5fbf", "critica": "#b3382c", "apertada": "#e8730c", "atencao": "#e3b100", "confortavel": "#1b7a5a"}, "telemetria_em": "2026-10-31T15:45:00-03:00", "velho_min": 180}, RES={"alagada": 0, "critica": 0, "apertada": 0, "atencao": 0, "confortavel": 0};
 // idade da leitura calculada no navegador: vale mesmo se o robô parar de rodar
 let VELHO=false;
 if(D.telemetria_em){const t=new Date(D.telemetria_em),min=Math.round((Date.now()-t)/60000);
