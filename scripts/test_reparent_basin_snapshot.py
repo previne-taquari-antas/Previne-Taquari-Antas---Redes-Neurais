@@ -210,9 +210,14 @@ class WorkflowRetryContractTests(unittest.TestCase):
         self.assertLess(shell.index("scripts/reparent_basin_snapshot.py"), shell.index("git reset --keep origin/main"))
         self.assertNotRegex(shell, r"--force|git rebase|git pull")
         pages = (pub.ROOT / ".github/workflows/deploy-pages.yml").read_text(encoding="utf-8")
-        exact_group = r"^  group: github-pages-site\s*$"
-        self.assertIsNotNone(re.search(exact_group, pages, re.MULTILINE))
-        self.assertIsNone(re.search(exact_group, pages.replace("group: github-pages-site", "group: github-pages-site-${{ github.event_name }}"), re.MULTILINE))
+        # Os dois workflows Pages compartilham uma fila, mesmo se seu nome
+        # mudar durante a recuperação de um deploy bloqueado.
+        groups = re.findall(r"^  group: ([^\r\n]+)$", pages, re.MULTILINE)
+        self.assertEqual(len(groups), 1)
+        pages_group = groups[0].strip()
+        self.assertRegex(pages_group, r"\Agithub-pages-site(?:-[a-z0-9-]+)?\Z")
+        publisher = (pub.ROOT / ".github/workflows/publish-pages.yml").read_text(encoding="utf-8")
+        self.assertIn(f"  group: {pages_group}\n", publisher)
         self.assertIn("cancel-in-progress: false", pages)
         self.assertIn("ref: main", pages)
 
