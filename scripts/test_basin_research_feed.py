@@ -92,8 +92,11 @@ class BasinResearchFeedTests(unittest.TestCase):
             self.assertEqual(primary_4h["inputs_missing"], 0)
             self.assertEqual(primary_4h["inputs_exact"], primary_4h["inputs_total"])
         else:
-            self.assertEqual(primary_4h["input_audit_status"], "ATENCAO")
-            self.assertGreater(primary_4h["inputs_missing"], 0)
+            # Sem previsão publicada não implica inputs ausentes: uma trava
+            # de qualidade/telemetria também pode bloquear todos os números.
+            self.assertNotIn(primary_4h["status"], {"ok", ""})
+            if primary_4h["inputs_missing"] and primary_4h["inputs_missing"] > 0:
+                self.assertNotEqual(primary_4h["input_audit_status"], "NORMAL")
         # A versão B deve ocupar sozinha a chave pública/usuário de 4h.
         self.assertEqual(primary_4h["role"], "principal")
         self.assertNotIn("4h_versao_b", by_key)
@@ -106,8 +109,9 @@ class BasinResearchFeedTests(unittest.TestCase):
             self.assertEqual(santa_4h["inputs_missing"], 0)
             self.assertEqual(santa_4h["inputs_exact"], santa_4h["inputs_total"])
         else:
-            self.assertEqual(santa_4h["input_audit_status"], "ATENCAO")
-            self.assertGreater(santa_4h["inputs_missing"], 0)
+            self.assertNotIn(santa_4h["status"], {"ok", ""})
+            if santa_4h["inputs_missing"] and santa_4h["inputs_missing"] > 0:
+                self.assertNotEqual(santa_4h["input_audit_status"], "NORMAL")
         # A suspensão da RNA de 8h por telemetria inválida é intencional:
         # o feed deve registrar o bloqueio, sem liberar previsão numérica.
         santa_8h = santa_by_key["8h"]
