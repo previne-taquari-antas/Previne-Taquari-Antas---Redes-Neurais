@@ -1,0 +1,51 @@
+name: OSM para os pontos de encontro (versão 2)
+
+# Baixa do OpenStreetMap (Overpass) o tipo de cada via e os lugares de reunião em volta de Santa
+# Tereza e Muçum, para os critérios da versão 2 de codigo_python/09_rota_fuga/pontos_encontro.py,
+# e grava no branch. O Overpass não responde de todo lugar; por isso roda no CI.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/pontos-encontro-v2]
+    paths: [".github/workflows/osm-pontos-encontro.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  osm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dependências
+        run: python -m pip install numpy pillow shapely
+      - name: Baixar do Overpass
+        run: python codigo_python/09_rota_fuga/baixar_osm_encontro.py
+      - name: Gravar no branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/data/rota_fuga/osm_encontro_*.json
+          if git diff --cached --quiet; then echo "nada mudou"; exit 0; fi
+          git commit -m "dados: vias e lugares de reunião do OpenStreetMap para os pontos de encontro"
+          for tentativa in 1 2 3 4 5; do
+            git fetch origin "${GITHUB_REF_NAME}"
+            if git rebase "origin/${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            git rebase --abort || true
+            sleep $((tentativa * 3))
+          done
+          echo "Falha ao gravar no branch; os arquivos ficam no artefato osm-encontro." >&2
+          exit 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: osm-encontro
+          path: assets/data/rota_fuga/osm_encontro_*.json
+          if-no-files-found: warn
