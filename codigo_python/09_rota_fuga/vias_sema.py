@@ -21,6 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import baixar_mancha_mup as bm  # noqa: E402
 
 BASE = "http://ww2.fepam.rs.gov.br/bcrs25/"
+HOST = "ww2.fepam.rs.gov.br"
+# O site só serve http: o arquivo conhecido é conferido pelo sha256. Arquivo novo ou mudado no site
+# faz o download falhar; confira o conteúdo e atualize o valor aqui.
+SHA256 = {"Secao_4_Sistema_Transporte.zip": "82d006295fb4872954a2aebd055ab6b6bc8c3f9af3824cb8ece6ab90fbdfe23b"}
 VIAS = re.compile(r"transp|rodov|vi[aá]rio|via_|vias|arruam|logradouro|estrad|caminho", re.I)
 
 
@@ -42,7 +46,8 @@ def lista(url, nivel=2, vistos=None):
     for href in re.findall(r'href="([^"?#]+)"', s.decode("utf-8", "replace"), re.I):
         u = urllib.parse.urljoin(url, href)
         u = re.sub(r"^https?://web\.archive\.org/web/\d+(id_)?/", "", u)
-        if "fepam.rs.gov.br/bcrs25" not in u:
+        pu = urllib.parse.urlparse(u)
+        if pu.netloc != HOST or not pu.path.startswith("/bcrs25/"):
             continue
         if u.endswith("/") and len(u) > len(url):
             out += lista(u, nivel - 1, vistos)
@@ -70,10 +75,14 @@ def baixar(destino):
                 print(f"não é zip: {final}")
                 continue
             nome = os.path.basename(urllib.parse.unquote(urllib.parse.urlparse(u).path))
+            sha = hashlib.sha256(dados).hexdigest()
+            if SHA256.get(nome) != sha:
+                print(f"sha256 de {nome} não confere ({sha}; esperado {SHA256.get(nome)}): arquivo descartado")
+                return 1
             with open(os.path.join(destino, nome), "wb") as f:
                 f.write(dados)
             zipfile.ZipFile(os.path.join(destino, nome)).extractall(os.path.join(destino, os.path.splitext(nome)[0]))
-            origem.append({"arquivo": u, "baixado_de": final, "sha256": hashlib.sha256(dados).hexdigest(), "bytes": len(dados)})
+            origem.append({"arquivo": u, "baixado_de": final, "sha256": sha, "bytes": len(dados)})
             print(f"OK {nome}: {len(dados) / 1e6:.1f} MB")
             break
     with open(os.path.join(destino, "origem.json"), "w", encoding="utf-8") as f:
@@ -82,11 +91,15 @@ def baixar(destino):
 
 
 def recortar(arquivos):
+    """Grava o recorte de cada cidade; sai com erro (sem gravar nada) se faltar arquivo ou linha."""
+    if not arquivos:
+        raise SystemExit("nenhum .shp para recortar")
     import pyogrio
     import shapely
     from pyproj import CRS, Transformer
     import preparar_mancha
     import pontos_encontro as pe
+    saidas = {}
     for cidade in pe.CIDADES:
         caixa = preparar_mancha.caixa_lonlat([cidade])
         feats = []
@@ -116,6 +129,10 @@ def recortar(arquivos):
                 props["_camada"] = os.path.basename(arq)
                 feats.append({"type": "Feature", "geometry": shapely.geometry.mapping(gg), "properties": props})
             print(f"{cidade}: {os.path.basename(arq)} · {len(geoms)} linhas perto · CRS {crs}")
+        if not feats:
+            raise SystemExit(f"{cidade}: nenhuma linha da SEMA perto da cidade; nada gravado")
+        saidas[cidade] = feats
+    for cidade, feats in saidas.items():
         saida = os.path.join(pe.DADOS, f"sema_bcrs25_vias_{cidade}.geojson")
         with open(saida, "w", encoding="utf-8") as f:
             json.dump({"type": "FeatureCollection", "fonte": "SEMA/FEPAM, BCRS25 1:25.000 (" + BASE + ")",

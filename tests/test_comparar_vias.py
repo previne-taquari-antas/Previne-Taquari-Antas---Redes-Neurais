@@ -20,8 +20,11 @@ except ImportError:  # CI sem shapely
 
 
 def perto(a, b, caminho=()):
-    """Mesmo conteúdo, com folga nos números: o GEOS muda os últimos dígitos dos buffers entre versões."""
+    """Mesmo conteúdo, com folga nos números: o GEOS muda os últimos dígitos dos buffers entre versões.
+    Nas listas de trechos (metros, lat, lon, distância), lat e lon têm folga de 1e-4° (~10 m)."""
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        if len(caminho) >= 3 and str(caminho[-3]).startswith("so_") and caminho[-1] in (1, 2):
+            return abs(a - b) <= 1e-4 or caminho
         return abs(a - b) <= max(0.2, 0.005 * abs(b)) or caminho
     if isinstance(a, dict) and isinstance(b, dict):
         if a.keys() != b.keys():
@@ -44,6 +47,13 @@ class CompararViasTest(unittest.TestCase):
         self.assertEqual((longe[0][0], longe[0][3]), (500, 30))
         self.assertEqual(cv.faltando(LineString([(0, 10), (500, 10)]), b, plano), [])   # dentro dos 20 m
         self.assertEqual(cv.faltando(LineString([(0, 30), (40, 30)]), b, plano), [])    # menos de 50 m
+        with self.assertRaises(ValueError):                                              # base vazia não vira NaN
+            cv.faltando(LineString([(0, 30), (500, 30)]), LineString(), plano)
+
+    def test_coordenadas_dos_trechos_sao_conferidas(self):
+        pub = {"so_na_sema": [[625, -29.19, -51.72, 107]]}
+        self.assertIs(perto(pub, pub), True)
+        self.assertIsNot(perto({"so_na_sema": [[625, -29.0, -51.72, 107]]}, pub), True)
 
     def test_publicado_bate_com_a_conta(self):
         pub = Path(cv.SAIDA)

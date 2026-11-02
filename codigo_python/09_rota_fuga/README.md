@@ -461,10 +461,13 @@ do RS 1:25.000 (SEMA, publicada pela FEPAM em `ww2.fepam.rs.gov.br/bcrs25/`;
 `Secao_4_Sistema_Transporte.zip`, sha256 `82d00629…dfe23b`) e grava o recorte de
 cada cidade em `assets/data/rota_fuga/sema_bcrs25_vias_<cidade>.geojson`. O site
 do estado não responde fora do Brasil, por isso o download roda no CI
-(`.github/workflows/vias-sema.yml`, só manual). `comparar_vias.py` compara essa base
-com a rede do OSM dos painéis, na caixa onde a rede do painel está completa
-(o recorte de `gerar_rota_fuga_ruas.py` menos 50 m de borda), sem a ferrovia;
-o resultado fica em `assets/data/rota_fuga/comparacao_vias_sema_osm.json`.
+(`.github/workflows/vias-sema.yml`, só manual; o arquivo é conferido pelo sha256 e o
+workflow já regrava a comparação). `comparar_vias.py` compara essa base com a rede do
+OSM dos painéis, na caixa em que o painel guarda todas as ruas (o recorte de
+`gerar_rota_fuga_ruas.py` menos 50 m de borda), sem a ferrovia; o resultado fica em
+`assets/data/rota_fuga/comparacao_vias_sema_osm.json`. A rede do painel não é o OSM
+inteiro: ficam de fora pedaços desconectados (menos de 50 nós) e as arestas que cruzam
+a borda.
 
 | | Santa Tereza | Muçum |
 |---|---|---|
@@ -473,18 +476,27 @@ o resultado fica em `assets/data/rota_fuga/comparacao_vias_sema_osm.json`.
 | Do OSM, a até 20 m de uma via da SEMA | 52% | 42% |
 | Diferença de posição onde coincidem (mediana / 90%) | 4 m / 12 m | 3 m / 8 m |
 | Casas com via a até 50 m: OSM / SEMA | 536 / 262 de 565 | 1889 / 724 de 1937 |
-| Só na SEMA (trechos de 50 m ou mais) | 6 trechos, 1,5 km | nenhum |
+| Só na SEMA (trechos de 50 m ou mais) | 6 trechos, 1,5 km | nenhum (o maior tem 49,7 m) |
 
 - **Posição**: onde as duas bases têm a mesma via, a diferença é de poucos metros,
-  dentro do esperado para 1:25.000 (~12 m de erro gráfico).
-- **Conteúdo**: nas duas cidades, a seção de transporte da SEMA só tem rodovias e
-  acessos (estaduais e municipais) e as pontes. As ruas da área urbana não estão
-  nela; por isso metade das casas de Santa Tereza e quase dois terços das de Muçum
-  ficam a mais de 50 m de uma via da SEMA.
+  compatível com o PEC-PCD de 1:25.000 (12,5 m na classe B, 20 m na C; ET-CQDG).
+  É a distância perpendicular ao OSM onde as bases coincidem e inclui o erro do
+  próprio OSM; não é uma avaliação formal do PEC. Com tolerância de 12,5 m ou 30 m
+  em vez de 20 m, a conclusão não muda.
+- **Conteúdo**: nas duas cidades, a Seção 4 (Sistema de Transporte) da BCRS25 só
+  tem trechos do tipo Rodovia ou Acesso (estaduais, municipais e, em Muçum, 0,8 km
+  sem jurisdição informada) e as pontes. As ruas residenciais não estão nela: das
+  ruas `residential` com nome no OSM de Santa Tereza (4,7 km), só 10% ficam a até
+  20 m da SEMA (as `secondary`, 100%; as `tertiary`, 87%). Por isso metade das casas
+  de Santa Tereza e quase dois terços das de Muçum ficam a mais de 50 m de uma via
+  da SEMA. As outras seções da BCRS25, como Localidades, não foram conferidas.
 - **Só na SEMA**: em Muçum, nada. Em Santa Tereza, 4 dos 6 trechos são a mesma
-  estrada desenhada a 22–34 m da do OSM. Os outros 2 têm outro traçado (a ~100 m):
-  625 m em −29,1923, −51,7190 e 516 m em −29,1754, −51,7161. Vale olhar na imagem
-  de satélite ou em campo se é estrada que falta no OSM ou traçado antigo.
+  estrada desenhada a 22–34 m da do OSM. Os outros 2 têm outro traçado. O de 625 m
+  (−29,1923, −51,7190) é a mesma ligação, com uma volta ~100 m a oeste da do OSM. O de
+  516 m (−29,1754, −51,7161) sai da ponta de uma rua sem saída do painel, com cerca de
+  30 casas, e desce até a estrada de baixo. Se existir, é uma segunda saída para essas
+  casas: vale conferir na imagem de satélite ou em campo, e ver se a estrada não está
+  no OSM mas fora da rede do painel.
 - **Conclusão**: para o roteamento a pé, casa a casa, o OSM continua sendo a base.
   A SEMA serve de conferência das estradas rurais e para dizer de quem é cada
   rodovia (estadual ou municipal), o que o OSM nem sempre traz.

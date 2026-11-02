@@ -52,6 +52,8 @@ def faltando(a, b, plano):
     """Pedaços de `a` a mais de TOLERANCIA_M de `b`, com TRECHO_MIN_M ou mais:
     [(metros, lat, lon do meio, distância mediana até `b` em m)], do maior para o menor.
     Distância mediana até DESLOCADO_M: a mesma via desenhada mais longe; acima disso, outro traçado."""
+    if a.is_empty or b.is_empty:
+        raise ValueError("base de vias vazia na área de comparação")
     u = unary_union(_linhas(a.difference(b.buffer(TOLERANCIA_M))))
     out = []
     for p in _linhas(linemerge(u) if u.geom_type == "MultiLineString" else u):

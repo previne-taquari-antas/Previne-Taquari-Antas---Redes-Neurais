@@ -34,18 +34,33 @@ jobs:
               print(p, "| feições:", i["features"], "| CRS:", i["crs"], "| tipo:", i["geometry_type"], "| campos:", list(i["fields"]))
           PY
           python codigo_python/09_rota_fuga/vias_sema.py recortar "${SHPS[@]}"
+      - name: Comparar com o OpenStreetMap dos painéis
+        run: python codigo_python/09_rota_fuga/comparar_vias.py --gravar
       - name: Gravar no branch
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/data/rota_fuga/sema_bcrs25_vias_*.geojson
+          git add assets/data/rota_fuga/sema_bcrs25_vias_*.geojson assets/data/rota_fuga/comparacao_vias_sema_osm.json
           if git diff --cached --quiet; then echo "nada mudou"; exit 0; fi
           git commit -m "dados: base viária da SEMA (BCRS25 1:25.000) recortada para Santa Tereza e Muçum" -m "$(cat /tmp/sema/origem.json)"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # os robôs da previsão fazem commit a cada poucos minutos: rebaseia e tenta de novo
+          for tentativa in 1 2 3 4 5; do
+            git fetch origin "${GITHUB_REF_NAME}"
+            if git rebase "origin/${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            git rebase --abort || true
+            sleep $((tentativa * 3))
+          done
+          echo "Falha ao gravar no branch após 5 tentativas; os arquivos ficam no artefato vias-sema." >&2
+          exit 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: vias-sema
-          path: /tmp/sema/origem.json
+          path: |
+            /tmp/sema/origem.json
+            assets/data/rota_fuga/sema_bcrs25_vias_*.geojson
+            assets/data/rota_fuga/comparacao_vias_sema_osm.json
           if-no-files-found: warn
