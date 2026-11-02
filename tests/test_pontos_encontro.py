@@ -110,7 +110,9 @@ class CriterioTest(unittest.TestCase):
             d = json.loads(pub.read_text(encoding="utf-8"))
             self.assertEqual(d["versao"], versao)
             self.assertEqual(d["mancha_sha256"], pe._sha256(mancha))
-            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"], versao)
+            if d.get("criterios") == "v2":
+                self.assertEqual(d["osm_encontro"]["sha256"], pe._sha256(pe.osm_encontro(cidade)))
+            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"], versao, d.get("criterios", "v1"))
             # a conta (pontos, casas, ruas) bate exatamente; o contorno desenhado da faixa varia nos últimos
             # dígitos entre versões do GEOS (vértices dos arcos do buffer)
             for k in d:
@@ -119,6 +121,41 @@ class CriterioTest(unittest.TestCase):
                     self.assertLess(a.symmetric_difference(b).area, 1e-3 * b.area, (cidade, k))
                 else:
                     self.assertEqual(json.dumps(d[k], sort_keys=True), json.dumps(novo[k], sort_keys=True), (cidade, k))
+
+
+@unittest.skipIf(pe is None, "sem shapely")
+class CriteriosV2Test(unittest.TestCase):
+    """Versão 2: passa carro, longe de deslizamento e preferência por lugar de reunião."""
+
+    def test_pontos_publicados_cumprem_os_criterios(self):
+        with open(pe.DESLIZAMENTOS, encoding="utf-8") as f:
+            desl = [shape(ft["geometry"]).buffer(0) for ft in json.load(f)["features"]]
+        for cidade, versao in [(c, v) for c in pe.CIDADES for v in pe.VERSOES]:
+            pub = Path(pe.saida_padrao(cidade, versao))
+            if not pub.exists():
+                continue
+            d = json.loads(pub.read_text(encoding="utf-8"))
+            if d.get("criterios") != "v2":
+                continue
+            plano = pe.Plano(d["nos"])
+            perto = unary_union([g for g in desl if g.distance(Point(d["pontos"][0]["lon"], d["pontos"][0]["lat"])) < 0.1])
+            for p in d["pontos"]:
+                self.assertIn(p["via"], pe.VIAS_CARRO, (cidade, versao, p["id"]))
+                xy = Point(plano.xy(p["lat"], p["lon"]))
+                dist = plano.de_lonlat(perto).distance(xy) if not perto.is_empty else float("inf")
+                self.assertGreater(dist, pe.DESLIZAMENTO_M, (cidade, versao, p["id"]))
+                self.assertAlmostEqual(dist, p["dist_deslizamento_m"], delta=1.0)
+                if p["lugar"]:
+                    self.assertLessEqual(p["lugar"]["dist_m"], pe.LUGAR_M)
+            s = d["resumo"]["filtro"]
+            self.assertGreaterEqual(s["candidatos_v1"], s["com_carro"])
+            self.assertGreaterEqual(s["com_carro"], s["longe_de_deslizamento"])
+
+    def test_v1_continua_reproduzivel(self):
+        d1 = pe.documento("santa_tereza", pe.mancha_padrao("santa_tereza", "mup"), criterios="v1")
+        self.assertEqual(d1["criterios"], "v1")
+        self.assertNotIn("via", d1["pontos"][0])
+        self.assertEqual(len(d1["pontos"]), 6)  # a primeira versão publicada (#291)
 
 
 class VersaoHandTest(unittest.TestCase):
@@ -157,6 +194,7 @@ class PaginaTest(unittest.TestCase):
         self.assertIn("if(!casa&&bd>LONGE_DA_RUA_M)", PAGINA)  # toque longe da rua não vira rota
         self.assertNotIn("você já está fora da área atingida", PAGINA)
         self.assertIn("map.getPane('agua').style.pointerEvents='none'", PAGINA)  # a mancha não captura o toque
+        self.assertIn("function local(p,sep)", PAGINA)  # versão 2: lugar, carro e deslizamento na lista e no popup
 
 
 if __name__ == "__main__":

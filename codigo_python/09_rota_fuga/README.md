@@ -264,7 +264,7 @@ python codigo_python/09_rota_fuga/gerar_painel.py --cidade santa_tereza --republ
 python codigo_python/09_rota_fuga/baixar_nomes_osm.py santa_tereza   # precisa de internet
 ```
 
-### Pontos de encontro pelo mapa único — versão 1 (`pontos_encontro.py`)
+### Pontos de encontro pelo mapa único (`pontos_encontro.py`)
 Critério da equipe (out/2026), provisório até o perigo hidrológico do projeto ficar pronto:
 área insegura = mancha do **Mapa Único do Plano Rio Grande** (MUP RS, Área Diretamente
 Atingida das cheias de abril e maio de 2024, SPGG/DEE); área segura = fora dela, a mais de
@@ -326,6 +326,39 @@ duas manchas.
 
 Para trocar pelo perigo hidrológico do projeto: `preparar_mancha.py <arquivo> --saida-prefixo
 perigo_hidrologico` e `pontos_encontro.py <cidade> --mancha <geojson> --fonte "<descrição>"`.
+
+**Versão 2 dos critérios** (nov/2026, padrão; `--criterios v1` refaz a primeira). Além da mancha
+e das ruas, o ponto:
+- fica onde **passa carro de resgate**: é ponta de um trecho seguro cuja via no OpenStreetMap é
+  de rodovia a rua residencial ou via de serviço (trilha, caminho, escadaria e estrada de chão
+  `track` ficam de fora);
+- fica a mais de **100 m de cicatriz de deslizamento** mapeada depois de maio/2024
+  (`assets/data/landslides_poly.geojson`);
+- tem **preferência** (30% a mais na escolha, só entre candidatos que já valem um ponto) quando
+  há, a até 80 m e fora da faixa, praça, campo, ginásio, escola, estacionamento, igreja ou centro
+  comunitário do OSM, escola do cadastro estadual (IEDE) ou ponto da Defesa Civil.
+
+O tipo das vias e os lugares vêm de `baixar_osm_encontro.py`
+(`assets/data/rota_fuga/osm_encontro_<cidade>.json`; o Overpass só responde do CI, workflow
+manual `.github/workflows/osm-pontos-encontro.yml`). Ponto que a escolha deixa sem nenhuma casa
+(os seguintes ficaram mais perto de todas) sai da lista.
+
+| caminhada até o ponto (mediana · p90 · máx., min) | v1 | v2 | pontos v1 → v2 |
+|---|---|---|---|
+| Santa Tereza, mapa único | 15,0 · 22,2 · 38,0 | 14,9 · 22,9 · 59,4 | 6 → 5 |
+| Santa Tereza, modelo HAND | 14,1 · 23,0 · 43,8 | 14,4 · 23,0 · 34,2 | 5 → 6 |
+| Muçum, mapa único | 24,5 · 36,1 · 56,7 | 24,5 · 36,1 · 56,7 | 6 → 6 |
+| Muçum, modelo HAND | 9,3 · 16,9 · 41,5 | 9,8 · 16,9 · 41,5 | 9 → 9 |
+
+- Em Santa Tereza, com o mapa único, 8 casas da mancha ou da faixa ficam sem ponto a até 60 min
+  na v2 (na v1, nenhuma): o ponto que as atendia não tinha acesso de carro ou ficava perto de
+  deslizamento.
+- Em Santa Tereza nenhum ponto fica perto de lugar de reunião: praças, igrejas, campos, as duas
+  escolas do centro e o Ginásio estão dentro da mancha ou da faixa nas duas versões. A única
+  escola fora (EMEF Rodrigues Alves) fica longe das ruas candidatas.
+- Em Muçum, com o mapa único, um ponto passou a ser o Posto Sander, ponto de encontro do Plano de
+  Contingência fora da mancha.
+- Nenhum ponto fica a menos de 124 m de cicatriz de deslizamento.
 
 ### Demanda por destino
 Cada casa recebe `pessoas`: a população da grade IBGE 2022 (domicílios
