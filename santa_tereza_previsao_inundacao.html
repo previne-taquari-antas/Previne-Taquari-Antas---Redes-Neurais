@@ -1230,13 +1230,35 @@ function renderLiveStep(){
   const horizons=liveData&&liveData.horizontes||{};
   if(!liveHorizonReady(liveHz,horizons[liveHz])) liveHz=['2h','4h','8h'].find(key=>liveHorizonReady(key,horizons[key]))||null;
   updateLiveHzButtons();
-  if(liveSemDado()){
+  if(liveSemDado()){                 // Sem previsao valida: apresentar a telemetria observada e a causa do bloqueio.
     document.body.classList.add('live');
-    // A leitura observada continua válida como leitura, mesmo sem uma previsão.
     const now=liveNowCm(liveData);
-    EVENTS['__live__']={label:'AO VIVO',horizonte:'—',combo:'—',pers:null,ilustra:false,estatico:false,n:1,pico_obs_cm:now,series:[[liveData.telemetria_ultima_em||liveData.gerado_em,now,null,null]]};
+    const leitura=liveData&&liveData.telemetria_ultima_em;
+    const idade=ageMin(leitura);
+    const modelo=(liveData&&liveData.horizontes&&liveData.horizontes['2h'])||liveData||{};
+    const motivo=String(modelo.status||'aguardando dados horários completos')
+      .replace(/^indispon[ií]vel:\s*/i,'').trim();
+    const bar=document.getElementById('live-bar');
+    if(bar){bar.style.display='';bar.classList.toggle('stale',idade==null||idade>60);}
+    const hzsel=document.getElementById('live-hz'); if(hzsel)hzsel.style.display='none';
+    set('live-kind',now==null?'indisponível':'leitura observada');
+    set('live-when',leitura?('Última leitura '+fmtClockDate(leitura)+(idade!=null?' · '+PrevineFmtQuando.fmtAge(idade):'')):'Sem leitura disponível');
+    set('s-now',now==null?'—':fmtNivel(now));
+    set('r-now',now==null?'—':fmtNivel(now));
+    set('s-fore','—'); set('r-fore','—');
+    const note=document.getElementById('live-note');
+    if(note){
+      note.style.display='';
+      note.textContent=(now==null?'Sem nível observado recente.':'Nível observado da ANA disponível; não é previsão.')
+        +' RNA de 2h indisponível: '+motivo+'. Não foi publicada previsão sem entradas horárias válidas.';
+    }
+    EVENTS['__live__']={
+      label:'AO VIVO',horizonte:'—',combo:'—',pers:null,ilustra:false,
+      estatico:false,n:1,pico_obs_cm:now,
+      series:[[leitura||liveData.consultado_em||liveData.gerado_em,now,null,null]]
+    };
     curEv='__live__'; tIdx=0;
-    updateMapAccessibleSummary(liveData,'indisponível');
+    updateMapAccessibleSummary(liveData,'previsão indisponível');
     renderFrame();
     return;
   }
