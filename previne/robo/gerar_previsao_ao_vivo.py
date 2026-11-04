@@ -539,6 +539,57 @@ def _obter_xml_ana(cod, dias, timeout_s, tentativas_rede, parser, prefixo):
     return None
 
 
+def _recuperar_horas_ana(cod, serie):
+    """Tenta preencher buracos recentes apenas com leituras observadas da ANA.
+
+    Faz uma consulta independente, de janela curta, nos dois hosts oficiais.
+    Nunca interpola, arredonda timestamps ou substitui leituras existentes.
+    Se a hora exata nao estiver em nenhum endpoint, a auditoria continua
+    bloqueando a RNA normalmente.
+    """
+    if cod not in ("86472600", "86472000") or not serie:
+        return serie
+    ultima = max(serie)
+    if agora_brt() - ultima > dt.timedelta(hours=2):
+        return serie
+    base = ultima.replace(minute=0, second=0, microsecond=0)
+    faltantes = {
+        base - dt.timedelta(hours=h) for h in range(7)
+        if base - dt.timedelta(hours=h) not in serie
+    }
+    if not faltantes:
+        return serie
+    inicio = min(faltantes) - dt.timedelta(days=1)
+    fim = agora_brt()
+    for endpoint in (ANA_ESPELHO, ANA):
+        url = (
+            f"{endpoint}?codEstacao={cod}&dataInicio={inicio:%d/%m/%Y}"
+            f"&dataFim={fim:%d/%m/%Y}"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "previne-robo/1.0"})
+            with ANA_HTTP_SEMA:
+                with urllib.request.urlopen(req, timeout=5) as resposta:
+                    xml = resposta.read()
+            observadas, _, _ = _serie_de_xml(xml)
+            recuperadas = []
+            for hora in sorted(faltantes):
+                valor = observadas.get(hora)
+                if valor is not None and _nivel_plausivel(valor, cod):
+                    serie[hora] = valor
+                    recuperadas.append(hora)
+            faltantes.difference_update(recuperadas)
+            print(
+                f"[ANA lacunas {cod}] endpoint={endpoint.split('/')[2]} "
+                f"horas_recuperadas={len(recuperadas)} horas_pendentes={len(faltantes)}"
+            )
+            if not faltantes:
+                break
+        except Exception as exc:
+            print(f"[ANA lacunas {cod}] consulta complementar falhou: {exc}")
+    return serie
+
+
 def buscar_ana(cod, dias=5, tentativas_rede=ANA_RETRIES_NIVEL):
     """Retorna dict {timestamp_da_leitura: nivel_cm}.
 
@@ -552,6 +603,7 @@ def buscar_ana(cod, dias=5, tentativas_rede=ANA_RETRIES_NIVEL):
     if xml is None:
         return {}
     serie, _, ultima_raw = _serie_de_xml(xml)
+    serie = _recuperar_horas_ana(cod, serie)
     if ultima_raw:
         ULTIMA_RAW[cod] = ultima_raw
     chuva, _, ultima_chuva = _serie_chuva_de_xml(xml)
@@ -2795,13 +2847,24 @@ def main():
         ANA_XML_CACHE.clear()
         # O endpoint ANA é consultado de forma serializada; um XML é suficiente
         # para extrair nível e chuva da mesma estação neste ciclo.
+        # Os modelos 8h permanecem suspensos: nao gastar minutos consultando
+        # nove estacoes adicionais e chuvas que nao podem gerar previsao.
+        # Os horizontes ativos 2h/4h exigem ST e Linha Jose Julio.
+        estacoes_ativas = (
+            ESTACOES if not SUSPENSAO_STZ_8H_ATIVA
+            else ("86472600", "86472000")
+        )
         series = buscar_series_paralelo(
-            ESTACOES, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
+            estacoes_ativas, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
         )
-        series["__chuva36h_postos__"] = buscar_series_paralelo(
-            POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
-        )
-        series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
+        if SUSPENSAO_STZ_8H_ATIVA:
+            series["__chuva36h_postos__"] = {}
+            series["__chuva8h_postos__"] = {}
+        else:
+            series["__chuva36h_postos__"] = buscar_series_paralelo(
+                POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
+            )
+            series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
         series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11()
     except Exception as e:
         preservar_saida_valida_em_falha(f"falha na telemetria: {e}", aviso); return
@@ -2825,9 +2888,11 @@ def main():
         out = aplicar_fallback_operacional(cfg, out, series, horas, aviso, estacoes_status)
         horizontes[cfg["horizonte"]] = out
 
+    # Mesmo sem RNA valida, publicar a telemetria observada deste ciclo.
+    # O painel precisa mostrar a medicao recente e os motivos de indisponibilidade,
+    # sem trocar a hora da consulta nem reaproveitar uma previsao vencida.
     if not algum_horizonte_com_previsao(horizontes):
-        preservar_saida_valida_em_falha("inputs incompletos por consulta instavel das estacoes a montante", aviso)
-        return
+        print("[STZ] nenhuma RNA valida neste ciclo; publicando observacoes e diagnosticos")
 
     historico = carregar_historico()
     for out in horizontes.values():
