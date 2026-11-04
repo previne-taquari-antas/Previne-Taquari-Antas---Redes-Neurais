@@ -83,6 +83,11 @@ jobs:
           python -B -m unittest scripts.test_previsao_ao_vivo_schema
 
           git add previsao_ao_vivo.json historico_previsoes_ao_vivo.json
+          # Guarda somente leituras reais de niveis observados (ST e montante),
+          # para reconstruir lags quando o endpoint legado da ANA oscilar.
+          if [ -f assets/data/stz_ana_niveis_observados_cache.json ]; then
+            git add assets/data/stz_ana_niveis_observados_cache.json
+          fi
           if [ -f assets/data/ai_lab/live_inputs_stz_2h.json ]; then
             git add assets/data/ai_lab/live_inputs_stz_2h.json
           fi

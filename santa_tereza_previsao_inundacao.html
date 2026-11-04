@@ -154,7 +154,7 @@
 <link rel="stylesheet" href="assets/previsao_panorama.css?v=20260913-briefing-v1">
 <link rel="stylesheet" href="assets/css/gestor_chrome.css">
 <link rel="stylesheet" href="assets/css/previsao_cidades.css?v=20261007-cidades-1">
-<link rel="stylesheet" href="assets/css/previsao_publica.css?v=20261007-publico-1">
+<link rel="stylesheet" href="assets/css/previsao_publica.css?v=20261104-observado-1">
 <style id="ajustes-publicos">
   .voltar-site{display:block;padding:8px 16px;font-size:12px;font-weight:600;color:#12654f;text-decoration:none;background:#f2f6f3;border-bottom:1px solid var(--line)}
   .voltar-site:hover,.voltar-site:focus-visible{text-decoration:underline}
@@ -307,6 +307,8 @@
       <div class="q">Nível previsto · <span id="s-hz">—</span></div>
       <span id="s-fore" class="public-number">—</span>
       <span id="public-forecast-when" class="public-time">Consultando as previsões…</span>
+      <p id="public-no-forecast-observed" class="public-observed-context" hidden></p>
+      <div id="stz-last-recorded" hidden role="status" aria-live="polite" style="margin-top:14px;padding:13px 12px;border-top:1px solid #d5e0d9;background:rgba(255,255,255,.55);border-radius:10px;color:#344a40;font-size:13px;line-height:1.45"></div>
       <div id="live-horizon-status" class="live-horizon-status" role="status" aria-live="polite" style="display:none"></div>
     </section>
     <p id="public-service-note" class="public-service-note" role="status" hidden></p>
@@ -458,7 +460,7 @@
   </aside>
 
 </main>
-<script src="assets/js/previsao_publica.js?v=20261010-popup-1"></script>
+<script src="assets/js/previsao_publica.js?v=20261104-observado-1"></script>
 <script src="assets/js/previsao_cidades.js?v=20261007-cidades-1"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="assets/js/fmt_quando.js?v=20260916-hora-0h4"></script>
@@ -1230,13 +1232,35 @@ function renderLiveStep(){
   const horizons=liveData&&liveData.horizontes||{};
   if(!liveHorizonReady(liveHz,horizons[liveHz])) liveHz=['2h','4h','8h'].find(key=>liveHorizonReady(key,horizons[key]))||null;
   updateLiveHzButtons();
-  if(liveSemDado()){
+  if(liveSemDado()){                 // Sem previsao valida: apresentar a telemetria observada e a causa do bloqueio.
     document.body.classList.add('live');
-    // A leitura observada continua válida como leitura, mesmo sem uma previsão.
     const now=liveNowCm(liveData);
-    EVENTS['__live__']={label:'AO VIVO',horizonte:'—',combo:'—',pers:null,ilustra:false,estatico:false,n:1,pico_obs_cm:now,series:[[liveData.telemetria_ultima_em||liveData.gerado_em,now,null,null]]};
+    const leitura=liveData&&liveData.telemetria_ultima_em;
+    const idade=ageMin(leitura);
+    const modelo=(liveData&&liveData.horizontes&&liveData.horizontes['2h'])||liveData||{};
+    const motivo=String(modelo.status||'aguardando dados horários completos')
+      .replace(/^indispon[ií]vel:\s*/i,'').trim();
+    const bar=document.getElementById('live-bar');
+    if(bar){bar.style.display='';bar.classList.toggle('stale',idade==null||idade>60);}
+    const hzsel=document.getElementById('live-hz'); if(hzsel)hzsel.style.display='none';
+    set('live-kind',now==null?'indisponível':'leitura observada');
+    set('live-when',leitura?('Última leitura '+fmtClockDate(leitura)+(idade!=null?' · '+PrevineFmtQuando.fmtAge(idade):'')):'Sem leitura disponível');
+    set('s-now',now==null?'—':fmtNivel(now));
+    set('r-now',now==null?'—':fmtNivel(now));
+    set('s-fore','—'); set('r-fore','—');
+    const note=document.getElementById('live-note');
+    if(note){
+      note.style.display='';
+      note.textContent=(now==null?'Sem nível observado recente.':'Nível observado da ANA disponível; não é previsão.')
+        +' RNA de 2h indisponível: '+motivo+'. Não foi publicada previsão sem entradas horárias válidas.';
+    }
+    EVENTS['__live__']={
+      label:'AO VIVO',horizonte:'—',combo:'—',pers:null,ilustra:false,
+      estatico:false,n:1,pico_obs_cm:now,
+      series:[[leitura||liveData.consultado_em||liveData.gerado_em,now,null,null]]
+    };
     curEv='__live__'; tIdx=0;
-    updateMapAccessibleSummary(liveData,'indisponível');
+    updateMapAccessibleSummary(liveData,'previsão indisponível');
     renderFrame();
     return;
   }
@@ -1525,6 +1549,7 @@ if(!o||!e||!window.MutationObserver)return;
 function s(){e.textContent=(o.textContent||'').trim()}
 s();new MutationObserver(s).observe(o,{childList:true,characterData:true,subtree:true})})();
 </script>
+<script src="assets/js/stz_last_recorded_forecast.js"></script>
 </body>
 </html>
 

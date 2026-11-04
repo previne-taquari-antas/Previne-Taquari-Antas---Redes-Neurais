@@ -104,6 +104,7 @@ HAND_ZERO_CM = 160
 SAIDA = "previsao_ao_vivo.json"   # na RAIZ: é onde o simulador publicado lê
 HISTORICO_SAIDA = "historico_previsoes_ao_vivo.json"
 AI_LAB_SHADOW_INPUTS_SAIDA = "assets/data/ai_lab/live_inputs_stz_2h.json"
+ANA_NIVEIS_CACHE_SAIDA = "assets/data/stz_ana_niveis_observados_cache.json"
 AI_LAB_2H_FEATURE_NAMES = [
     "input_01_Nivel_86472600", "input_02_DifN-1h_86472600",
     "input_03_DifN-2h_86472600", "input_04_DifN-4h_86472600",
@@ -171,8 +172,12 @@ POSTOS_CHUVA_36H = ["2851072"]
 # 240 s do workflow. O timeout menor mantém a tentativa no espelho, mas deixa
 # a rodada terminar e publicar o estado honesto de dado ausente quando uma
 # estação realmente não responde.
-ANA_TIMEOUT_NIVEL_S = 8
-ANA_TIMEOUT_CHUVA_S = 6
+# O WS legado da ANA tem respostas lentas/intermitentes. A janela de
+# dados operacionais foi reduzida para 48h; permitir ate 15s por rota
+# antes do espelho evita descartar respostas validas de 9-14 segundos.
+# O limite global do processo no GitHub continua impedindo travamento.
+ANA_TIMEOUT_NIVEL_S = 15
+ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 1
 ANA_RETRIES_CHUVA = 1
 ULTIMA_RAW = {}
@@ -539,19 +544,70 @@ def _obter_xml_ana(cod, dias, timeout_s, tentativas_rede, parser, prefixo):
     return None
 
 
-def buscar_ana(cod, dias=5, tentativas_rede=ANA_RETRIES_NIVEL):
-    """Retorna dict {timestamp_da_leitura: nivel_cm}.
+def _recuperar_horas_ana(cod, serie):
+    """Tenta preencher buracos recentes apenas com leituras observadas da ANA.
 
-    A estação-alvo de Santa Tereza carrega 8 dias para o painel poder desenhar
-    a série observada ANA de 7 dias sem depender dos pontos de auditoria da RNA.
-    As demais estações continuam com a janela curta usada pelos modelos.
+    Faz uma consulta independente, de janela curta, nos dois hosts oficiais.
+    Nunca interpola, arredonda timestamps ou substitui leituras existentes.
+    Se a hora exata nao estiver em nenhum endpoint, a auditoria continua
+    bloqueando a RNA normalmente.
     """
-    if cod == "86472600":
-        dias = max(int(dias or 0), 8)
+    if cod not in ("86472600", "86472000") or not serie:
+        return serie
+    ultima = max(serie)
+    if agora_brt() - ultima > dt.timedelta(hours=2):
+        return serie
+    base = ultima.replace(minute=0, second=0, microsecond=0)
+    faltantes = {
+        base - dt.timedelta(hours=h) for h in range(7)
+        if base - dt.timedelta(hours=h) not in serie
+    }
+    if not faltantes:
+        return serie
+    inicio = min(faltantes) - dt.timedelta(days=1)
+    fim = agora_brt()
+    for endpoint in (ANA_ESPELHO, ANA):
+        url = (
+            f"{endpoint}?codEstacao={cod}&dataInicio={inicio:%d/%m/%Y}"
+            f"&dataFim={fim:%d/%m/%Y}"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "previne-robo/1.0"})
+            with ANA_HTTP_SEMA:
+                with urllib.request.urlopen(req, timeout=5) as resposta:
+                    xml = resposta.read()
+            observadas, _, _ = _serie_de_xml(xml)
+            recuperadas = []
+            for hora in sorted(faltantes):
+                valor = observadas.get(hora)
+                if valor is not None and _nivel_plausivel(valor, cod):
+                    serie[hora] = valor
+                    recuperadas.append(hora)
+            faltantes.difference_update(recuperadas)
+            print(
+                f"[ANA lacunas {cod}] endpoint={endpoint.split('/')[2]} "
+                f"horas_recuperadas={len(recuperadas)} horas_pendentes={len(faltantes)}"
+            )
+            if not faltantes:
+                break
+        except Exception as exc:
+            print(f"[ANA lacunas {cod}] consulta complementar falhou: {exc}")
+    return serie
+
+
+def buscar_ana(cod, dias=2, tentativas_rede=ANA_RETRIES_NIVEL):
+    """Consulta somente 48 h do legado ANA para conseguir respostas em tempo.
+
+    A RNA usa lags ate 21 h; o cache de observacoes reais preserva ate 8
+    dias para panorama e para preencher lags recebidos em ciclos anteriores.
+    Nunca completa lacunas com interpolacao ou previsao.
+    """
+    dias = max(2, int(dias or 2))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_NIVEL_S, tentativas_rede, _serie_de_xml, "ANA")
     if xml is None:
         return {}
     serie, _, ultima_raw = _serie_de_xml(xml)
+    serie = _recuperar_horas_ana(cod, serie)
     if ultima_raw:
         ULTIMA_RAW[cod] = ultima_raw
     chuva, _, ultima_chuva = _serie_chuva_de_xml(xml)
@@ -714,6 +770,69 @@ def buscar_chuvas_8h(series):
     }
     series["__chuva8h_fontes__"] = fontes
     return postos
+
+
+def complementar_niveis_cache_observado(series, caminho=ANA_NIVEIS_CACHE_SAIDA):
+    """Une leituras reais de ciclos anteriores sem preencher horarios sinteticamente.
+
+    Somente observacoes ja recebidas e plausiveis entram. O retorno da ANA neste
+    ciclo prevalece quando houver duplicidade. O cache nao e fonte de telemetria
+    nova: nao alteramos ULTIMA_RAW nem o horario consultado.
+    """
+    codigos = ("86472600", "86472000")
+    if not any(len(series.get(cod) or {}) >= 10 for cod in codigos):
+        return {"cache_lido": False, "horas_resgatadas": {}, "cache_escrito": False}
+    anterior = {}
+    try:
+        with open(caminho, encoding="utf-8") as arquivo:
+            anterior = json.load(arquivo)
+    except (OSError, ValueError) as exc:
+        print(f"[ANA cache] sem cache anterior legivel: {exc}")
+    gravado = (anterior.get("estacoes") or {}) if isinstance(anterior, dict) else {}
+    agora = agora_brt()
+    inicio = agora - dt.timedelta(days=8)
+    novas = {}
+    resgatadas = {}
+    for cod in codigos:
+        atual = dict(series.get(cod) or {})
+        registros = {}
+        for item in (gravado.get(cod) or []):
+            if not isinstance(item, dict):
+                continue
+            ts = _parse_hora(str(item.get("hora") or ""))
+            val = item.get("nivel_cm")
+            try:
+                nivel_cm = float(val)
+            except (TypeError, ValueError):
+                continue
+            if ts and inicio <= ts <= agora and _nivel_plausivel(nivel_cm, cod):
+                registros[ts] = nivel_cm
+        resgatadas[cod] = len([ts for ts in registros if ts not in atual])
+        registros.update({
+            ts: float(val) for ts, val in atual.items()
+            if inicio <= ts <= agora and _nivel_plausivel(val, cod)
+        })
+        # O cache serve para completar lags passados. Uma leitura salva de outro
+        # ciclo nunca transforma uma consulta atual vazia em dado novo.
+        if atual:
+            series[cod] = {**registros, **atual}
+        novas[cod] = [
+            {"hora":ts.isoformat(timespec="minutes"), "nivel_cm": val}
+            for ts, val in sorted(registros.items())
+        ]
+    if any(len(v) >= 10 for v in novas.values()):
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        payload = {
+            "schema_version": "stz_ana_observacoes_exatas_v1",
+            "atualizado_em": agora.isoformat(timespec="seconds"),
+            "nota": "leituras reais ANA, sem interpolacao; cache nao substitui consulta atual",
+            "estacoes": novas,
+        }
+        with open(caminho, "w", encoding="utf-8") as arquivo:
+            json.dump(payload, arquivo, ensure_ascii=False, separators=(",", ":"))
+        print(f"[ANA cache] { {cod: len(v) for cod, v in novas.items()} }")
+        return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": True}
+    return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": False}
 
 
 def buscar_series_paralelo(codigos, funcao, max_workers=ANA_MAX_CONCORRENCIA):
@@ -1187,17 +1306,40 @@ def _chuva_horaria_fim_intervalo(xml):
     }
 
 
-def buscar_chuvas_4h_v11():
-    """Chuva ANA dos postos do V11, reaproveitando o XML de nivel do ciclo."""
+def buscar_chuvas_4h_v11(series=None):
+    """Chuva ANA V11 e recuperação de níveis reais do mesmo XML oficial.
+
+    Se a consulta principal de nível falhou mas o endpoint respondeu à
+    consulta de chuva, o XML contém os dois campos: nenhum dado observado
+    deve ser descartado. Nunca cria medições sintéticas.
+    """
     postos = {}
     for cod in POSTOS_CHUVA_4H_V11:
-        dias = 8 if cod == "86472600" else 5
+        # Janela V11 maxima = 15 h, com margem de 48 h.
+        # Para ST/LJJ preferir o mesmo XML que ja foi obtido pelo nivel;
+        # se a chuva nao estiver preenchida, ainda aproveitamos o nivel real.
+        dias = 2
+        parser = _serie_de_xml if cod in ("86472600", "86472000") else _serie_chuva_de_xml
         try:
             xml = _obter_xml_ana(
                 cod, dias, ANA_TIMEOUT_CHUVA_S, ANA_RETRIES_CHUVA,
-                _serie_chuva_de_xml, "ANA chuva 4h V11",
+                parser, "ANA chuva 4h V11",
             )
             postos[cod] = _chuva_horaria_fim_intervalo(xml) if xml else {}
+            if xml and series is not None and cod in ("86472600", "86472000"):
+                observados, _, raw = _serie_de_xml(xml)
+                serie_atual = series.setdefault(cod, {})
+                novos = 0
+                for hora, nivel_cm in observados.items():
+                    if hora not in serie_atual and _nivel_plausivel(nivel_cm, cod):
+                        serie_atual[hora] = nivel_cm
+                        novos += 1
+                if raw and _nivel_plausivel(raw[1], cod):
+                    anterior = ULTIMA_RAW.get(cod)
+                    if anterior is None or raw[0] > anterior[0]:
+                        ULTIMA_RAW[cod] = raw
+                if novos:
+                    print(f"[ANA niveis via chuva V11 {cod}] leituras_reais_recuperadas={novos}")
         except Exception as exc:
             print(f"[ANA chuva 4h V11 {cod}] erro: {exc}")
             postos[cod] = {}
@@ -2507,6 +2649,22 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             and all(v is not None for v in valores)
             and (not audit or audit.get("status") == "NORMAL")
         )
+        # Um input interpolado nao aparece em "inputs_faltantes", pois tem
+        # valor numerico, mas NAO e um input horario exato da RNA. Exibir
+        # explicitamente a estacao e o horario que precisam ser recuperados.
+        dependencias_nao_exatas = {}
+        for entrada in (audit or {}).get("inputs") or []:
+            for dep in entrada.get("dependencias") or []:
+                if dep.get("metodo") == "EXATO":
+                    continue
+                chave = (str(entrada.get("estacao") or ""), str(dep.get("horario_solicitado") or ""))
+                dependencias_nao_exatas[chave] = {
+                    "estacao": chave[0],
+                    "hora": chave[1],
+                    "metodo_usado_apenas_para_diagnostico": dep.get("metodo"),
+                    "horarios_vizinhos": dep.get("horarios_usados") or [],
+                    "nao_aceito_pela_rna": True,
+                }
         return {
             "hora": candidata.isoformat(timespec="minutes"),
             "pronta": bool(pronta),
@@ -2514,6 +2672,8 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             "inputs_faltantes": faltantes[:12],
             "auditoria_status": (audit or {}).get("status"),
             "n_inputs_nao_exatos": (audit or {}).get("n_inputs_nao_exatos"),
+            "leituras_horarias_nao_exatas_n": len(dependencias_nao_exatas),
+            "leituras_horarias_nao_exatas": list(dependencias_nao_exatas.values())[:24],
         }
     except Exception as e:
         return {
@@ -2795,14 +2955,30 @@ def main():
         ANA_XML_CACHE.clear()
         # O endpoint ANA é consultado de forma serializada; um XML é suficiente
         # para extrair nível e chuva da mesma estação neste ciclo.
+        # Os modelos 8h permanecem suspensos: nao gastar minutos consultando
+        # nove estacoes adicionais e chuvas que nao podem gerar previsao.
+        # Os horizontes ativos 2h/4h exigem ST e Linha Jose Julio.
+        estacoes_ativas = (
+            ESTACOES if not SUSPENSAO_STZ_8H_ATIVA
+            else ("86472600", "86472000")
+        )
         series = buscar_series_paralelo(
-            ESTACOES, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
+            estacoes_ativas, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
         )
-        series["__chuva36h_postos__"] = buscar_series_paralelo(
-            POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
-        )
-        series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
-        series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11()
+        if SUSPENSAO_STZ_8H_ATIVA:
+            series["__chuva36h_postos__"] = {}
+            series["__chuva8h_postos__"] = {}
+        else:
+            series["__chuva36h_postos__"] = buscar_series_paralelo(
+                POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
+            )
+            series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
+        series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11(series)
+        try:
+            cache_meta = complementar_niveis_cache_observado(series)
+            print("[ANA cache] resumo", cache_meta)
+        except Exception as exc:
+            print("[ANA cache] contingencia nao bloqueante:", exc)
     except Exception as e:
         preservar_saida_valida_em_falha(f"falha na telemetria: {e}", aviso); return
 
@@ -2825,9 +3001,11 @@ def main():
         out = aplicar_fallback_operacional(cfg, out, series, horas, aviso, estacoes_status)
         horizontes[cfg["horizonte"]] = out
 
+    # Mesmo sem RNA valida, publicar a telemetria observada deste ciclo.
+    # O painel precisa mostrar a medicao recente e os motivos de indisponibilidade,
+    # sem trocar a hora da consulta nem reaproveitar uma previsao vencida.
     if not algum_horizonte_com_previsao(horizontes):
-        preservar_saida_valida_em_falha("inputs incompletos por consulta instavel das estacoes a montante", aviso)
-        return
+        print("[STZ] nenhuma RNA valida neste ciclo; publicando observacoes e diagnosticos")
 
     historico = carregar_historico()
     for out in horizontes.values():
