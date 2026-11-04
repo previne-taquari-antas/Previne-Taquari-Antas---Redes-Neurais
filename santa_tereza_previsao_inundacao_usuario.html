@@ -1209,24 +1209,36 @@ function liveSemDado(){
   return !algum;
 }
 function renderLiveStep(){
-  if(liveSemDado()){                 // estado honesto: não inventa cenário de 12h
+  if(liveSemDado()){                 // Sem previsao valida: apresentar a telemetria observada e a causa do bloqueio.
     document.body.classList.add('live');
-    const bar=document.getElementById('live-bar'); if(bar){ bar.style.display=''; bar.classList.add('stale'); }
-    const hzsel=document.getElementById('live-hz'); if(hzsel) hzsel.style.display='none';
-    const q=liveData.telemetria_ultima_em;
-    const qAge=ageMin(q);
-    set('live-kind','indisponível');
-    set('live-when',q?`Última leitura ${fmtClockDate(q)}${qAge!=null?' · '+PrevineFmtQuando.fmtAge(qAge):''}`:'Sem leitura recente');
+    const now=liveNowCm(liveData);
+    const leitura=liveData&&liveData.telemetria_ultima_em;
+    const idade=ageMin(leitura);
+    const modelo=(liveData&&liveData.horizontes&&liveData.horizontes['2h'])||liveData||{};
+    const motivo=String(modelo.status||'aguardando dados horários completos')
+      .replace(/^indispon[ií]vel:\s*/i,'').trim();
+    const bar=document.getElementById('live-bar');
+    if(bar){bar.style.display='';bar.classList.toggle('stale',idade==null||idade>60);}
+    const hzsel=document.getElementById('live-hz'); if(hzsel)hzsel.style.display='none';
+    set('live-kind',now==null?'indisponível':'leitura observada');
+    set('live-when',leitura?('Última leitura '+fmtClockDate(leitura)+(idade!=null?' · '+PrevineFmtQuando.fmtAge(idade):'')):'Sem leitura disponível');
+    set('s-now',now==null?'—':fmtNivel(now));
+    set('r-now',now==null?'—':fmtNivel(now));
+    set('s-fore','—'); set('r-fore','—');
     const note=document.getElementById('live-note');
-    if(note){ note.style.display='';
-      note.textContent='Estação de Santa Tereza sem dado recente da ANA neste momento'
-        + (q?(' (última leitura '+fmtWhen(q)+')'):'')
-        + ' — a previsão de 2h/4h/8h volta assim que a telemetria retornar; o robô é agendado a cada ~5 min.'; }
-    updateMapAccessibleSummary(liveData,'indisponível');
-    // limpa a mancha e os números do cenário que ficaram na tela
-    ['s-now','s-fore','s-drio','s-newarea','s-atot','s-conf','s-hz2','s-hz','s-falta-now','s-falta-fore'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent='—'; });
-    const csvg=document.getElementById('s-cota-chart'); if(csvg)csvg.innerHTML='';
-    if(uncLayer) uncLayer.clearLayers(); if(foreLayer) foreLayer.clearLayers(); if(nowLayer) nowLayer.clearLayers(); if(foreOutlineLayer) foreOutlineLayer.clearLayers();
+    if(note){
+      note.style.display='';
+      note.textContent=(now==null?'Sem nível observado recente.':'Nível observado da ANA disponível; não é previsão.')
+        +' RNA de 2h indisponível: '+motivo+'. Não foi publicada previsão sem entradas horárias válidas.';
+    }
+    EVENTS['__live__']={
+      label:'AO VIVO',horizonte:'—',combo:'—',pers:null,ilustra:false,
+      estatico:false,n:1,pico_obs_cm:now,
+      series:[[leitura||liveData.consultado_em||liveData.gerado_em,now,null,null]]
+    };
+    curEv='__live__'; tIdx=0;
+    updateMapAccessibleSummary(liveData,'previsão indisponível');
+    renderFrame();
     return;
   }
   const L=activeLiveData();
