@@ -591,15 +591,14 @@ def _recuperar_horas_ana(cod, serie):
     return serie
 
 
-def buscar_ana(cod, dias=5, tentativas_rede=ANA_RETRIES_NIVEL):
-    """Retorna dict {timestamp_da_leitura: nivel_cm}.
+def buscar_ana(cod, dias=2, tentativas_rede=ANA_RETRIES_NIVEL):
+    """Consulta somente 48 h do legado ANA para conseguir respostas em tempo.
 
-    A estação-alvo de Santa Tereza carrega 8 dias para o painel poder desenhar
-    a série observada ANA de 7 dias sem depender dos pontos de auditoria da RNA.
-    As demais estações continuam com a janela curta usada pelos modelos.
+    A RNA usa lags ate 21 h; o cache de observacoes reais preserva ate 8
+    dias para panorama e para preencher lags recebidos em ciclos anteriores.
+    Nunca completa lacunas com interpolacao ou previsao.
     """
-    if cod == "86472600":
-        dias = max(int(dias or 0), 8)
+    dias = max(2, int(dias or 2))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_NIVEL_S, tentativas_rede, _serie_de_xml, "ANA")
     if xml is None:
         return {}
@@ -1312,11 +1311,15 @@ def buscar_chuvas_4h_v11(series=None):
     """
     postos = {}
     for cod in POSTOS_CHUVA_4H_V11:
-        dias = 8 if cod == "86472600" else 5
+        # Janela V11 maxima = 15 h, com margem de 48 h.
+        # Para ST/LJJ preferir o mesmo XML que ja foi obtido pelo nivel;
+        # se a chuva nao estiver preenchida, ainda aproveitamos o nivel real.
+        dias = 2
+        parser = _serie_de_xml if cod in ("86472600", "86472000") else _serie_chuva_de_xml
         try:
             xml = _obter_xml_ana(
                 cod, dias, ANA_TIMEOUT_CHUVA_S, ANA_RETRIES_CHUVA,
-                _serie_chuva_de_xml, "ANA chuva 4h V11",
+                parser, "ANA chuva 4h V11",
             )
             postos[cod] = _chuva_horaria_fim_intervalo(xml) if xml else {}
             if xml and series is not None and cod in ("86472600", "86472000"):
