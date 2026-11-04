@@ -33,11 +33,20 @@
       const when = document.createElement('small'); when.textContent = ok ? fmt().fmtClock(data.hora_alvo) : 'indisponível';
       button.replaceChildren(label, when);
       button.title = ok ? 'Previsão para ' + fmt().fmtClockDate(data.hora_alvo) : 'Previsão de ' + key.replace('h', ' horas') + ' indisponível';
-      if (!ok && key !== '8h') missing.push(key.replace('h', ' h'));
+      if (!ok && key !== '8h') {
+        const state = String(data && data.status || '').toLowerCase();
+        const hint = /base da rna|hora cheia|dependencias temporais|dependências temporais/.test(state)
+          ? 'faltam leituras horárias exatas'
+          : /chuva|precipit/.test(state) ? 'faltam observações de chuva'
+          : /sem hora valida|sem hora válida|inputs incompletos/.test(state)
+            ? 'entradas do modelo incompletas'
+            : 'sem previsão válida';
+        missing.push(key.replace('h', ' h') + ': ' + hint);
+      }
     });
     const status = document.getElementById('live-horizon-status');
     if (status) {
-      status.textContent = missing.length ? 'Sem previsão disponível: ' + missing.join(', ') + '.' : '';
+      status.textContent = missing.length ? missing.join(' · ') + '. Últimas medições não substituem previsões.' : '';
       status.style.display = missing.length ? '' : 'none';
     }
   }
@@ -71,6 +80,16 @@
     put('s-hz', hasForecast ? '+' + options.horizon.replace('h', ' h') : 'sem previsão');
     put('s-fore', hasForecast ? level(options.forecastCm) : '—');
     put('public-forecast-when', hasForecast ? 'Para ' + fmt().fmtClockDate(selected.hora_alvo) : 'Aguardando uma nova previsão');
+    const observedMirror = document.getElementById('public-no-forecast-observed');
+    if (observedMirror) {
+      const show = !hasForecast && numeric(options.nowCm);
+      observedMirror.hidden = !show;
+      if (show) {
+        observedMirror.textContent = 'Último nível observado da ANA: ' + level(options.nowCm)
+          + (telemetryWhen ? ' · ' + fmt().fmtClockDate(telemetryWhen) : '')
+          + '. Medição da régua, não previsão.';
+      }
+    }
     put('public-map-caption', 'Água estimada em ' + document.body.dataset.cityName + (hasForecast ? ' · previsão para ' + fmt().fmtClock(selected.hora_alvo) : ' · sem previsão disponível'));
     put('map-accessible-summary', document.body.dataset.cityName + ': último nível observado ' + level(options.nowCm) + '. ' + (hasForecast ? 'Previsão de ' + options.horizon.replace('h', ' horas') + ': ' + level(options.forecastCm) + ', para ' + fmt().fmtClockDate(selected.hora_alvo) + '. ' : 'Sem previsão disponível. ') + 'A mancha representa uma estimativa espacial em estudo.');
     const note = document.getElementById('public-service-note');
