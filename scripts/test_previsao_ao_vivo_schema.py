@@ -288,5 +288,74 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertEqual(list(rain.values()), [1.2])
 
 
+    def test_ana_gap_recovery_only_adds_official_exact_measurements(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        t = live.dt.datetime
+        observed = {
+            t(2026, 11, 4, 12): 272.0,
+            t(2026, 11, 4, 10): 319.0,
+            t(2026, 11, 4, 8): 335.0,
+        }
+        payload = b"""<root>
+        <row><DataHora>2026-11-04T11:00:00</DataHora><Nivel>295</Nivel></row>
+        <row><DataHora>2026-11-04T09:30:00</DataHora><Nivel>324</Nivel></row>
+        <row><DataHora>2026-11-04T12:00:00</DataHora><Nivel>999</Nivel></row>
+        </root>"""
+        class Response:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def read(self):
+                return payload
+
+        urls = []
+        def fake_urlopen(request, timeout):
+            urls.append(request.full_url)
+            return Response()
+
+        with patch.object(live, "agora_brt", return_value=t(2026, 11, 4, 12, 45)):
+            with patch.object(live.urllib.request, "urlopen", side_effect=fake_urlopen):
+                recovered = live._recuperar_horas_ana("86472600", dict(observed))
+        self.assertEqual(recovered[t(2026, 11, 4, 11)], 295.0)
+        self.assertEqual(recovered[t(2026, 11, 4, 12)], 272.0)
+        self.assertNotIn(t(2026, 11, 4, 9), recovered)
+        self.assertNotIn(t(2026, 11, 4, 9, 30), recovered)
+        self.assertGreaterEqual(len(urls), 1)
+        self.assertTrue(all("ana.gov.br" in url for url in urls))
+
+    def test_suspended_8h_does_not_trigger_8h_ana_or_rain_downloads(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        t = live.dt.datetime(2026, 11, 4, 12)
+        stations = []
+        def fake_fetch(codes, func, max_workers=1):
+            stations.append(list(codes))
+            return {
+                code: {t: 272.0 if code == "86472600" else 379.0}
+                for code in codes
+            }
+
+        with patch.object(live, "buscar_series_paralelo", side_effect=fake_fetch), \
+             patch.object(live, "buscar_chuvas_8h", side_effect=AssertionError("8h")) as rain8, \
+             patch.object(live, "buscar_chuvas_4h_v11", return_value={}), \
+             patch.object(live, "carregar_historico", return_value=[]), \
+             patch.object(live, "salvar_historico"), \
+             patch.object(live, "conferir_historico", return_value=[]), \
+             patch.object(live, "resumo_auditoria", return_value={}), \
+             patch.object(live, "escrever_pacote") as published, \
+             patch.object(live, "escrever_janela_inputs_ai_lab"), \
+             patch.object(live, "preservar_saida_valida_em_falha") as preserve:
+            live.main()
+        self.assertEqual(stations, [["86472600", "86472000"]])
+        rain8.assert_not_called()
+        preserve.assert_not_called()
+        published.assert_called_once()
+        horizons = published.call_args.args[0]
+        self.assertIsNone(horizons["2h"]["nivel_previsto_cm"])
+        self.assertFalse(horizons["8h"]["disponivel"])
+
+
 if __name__ == "__main__":
     unittest.main()
