@@ -1303,8 +1303,13 @@ def _chuva_horaria_fim_intervalo(xml):
     }
 
 
-def buscar_chuvas_4h_v11():
-    """Chuva ANA dos postos do V11, reaproveitando o XML de nivel do ciclo."""
+def buscar_chuvas_4h_v11(series=None):
+    """Chuva ANA V11 e recuperação de níveis reais do mesmo XML oficial.
+
+    Se a consulta principal de nível falhou mas o endpoint respondeu à
+    consulta de chuva, o XML contém os dois campos: nenhum dado observado
+    deve ser descartado. Nunca cria medições sintéticas.
+    """
     postos = {}
     for cod in POSTOS_CHUVA_4H_V11:
         dias = 8 if cod == "86472600" else 5
@@ -1314,6 +1319,20 @@ def buscar_chuvas_4h_v11():
                 _serie_chuva_de_xml, "ANA chuva 4h V11",
             )
             postos[cod] = _chuva_horaria_fim_intervalo(xml) if xml else {}
+            if xml and series is not None and cod in ("86472600", "86472000"):
+                observados, _, raw = _serie_de_xml(xml)
+                serie_atual = series.setdefault(cod, {})
+                novos = 0
+                for hora, nivel_cm in observados.items():
+                    if hora not in serie_atual and _nivel_plausivel(nivel_cm, cod):
+                        serie_atual[hora] = nivel_cm
+                        novos += 1
+                if raw and _nivel_plausivel(raw[1], cod):
+                    anterior = ULTIMA_RAW.get(cod)
+                    if anterior is None or raw[0] > anterior[0]:
+                        ULTIMA_RAW[cod] = raw
+                if novos:
+                    print(f"[ANA niveis via chuva V11 {cod}] leituras_reais_recuperadas={novos}")
         except Exception as exc:
             print(f"[ANA chuva 4h V11 {cod}] erro: {exc}")
             postos[cod] = {}
@@ -2929,7 +2948,7 @@ def main():
                 POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
             )
             series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
-        series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11()
+        series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11(series)
         try:
             cache_meta = complementar_niveis_cache_observado(series)
             print("[ANA cache] resumo", cache_meta)
