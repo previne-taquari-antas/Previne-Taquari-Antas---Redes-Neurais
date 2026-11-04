@@ -390,5 +390,30 @@ class LiveFeedContractTests(unittest.TestCase):
                 self.assertEqual(unavailable["86472600"], {})
 
 
+    def test_4h_rain_response_recovers_real_station_levels(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        xml = b"""<root>
+        <row><DataHora>2026-11-04T14:00:00</DataHora><Nivel>272</Nivel><Chuva>0.0</Chuva></row>
+        <row><DataHora>2026-11-04T15:00:00</DataHora><Nivel>270</Nivel><Chuva>0.0</Chuva></row>
+        </root>"""
+        original_raw = dict(live.ULTIMA_RAW)
+        try:
+            live.ULTIMA_RAW.clear()
+            series = {"86472600": {}, "86472000": {}}
+            def fake_xml(cod, *args, **kwargs):
+                return xml if cod == "86472600" else None
+
+            with patch.object(live, "_obter_xml_ana", side_effect=fake_xml):
+                live.buscar_chuvas_4h_v11(series)
+            ts = live.dt.datetime(2026, 11, 4, 15)
+            self.assertEqual(series["86472600"][ts], 270.0)
+            self.assertEqual(live.ULTIMA_RAW["86472600"], (ts, 270.0))
+            self.assertEqual(series["86472000"], {})
+        finally:
+            live.ULTIMA_RAW.clear()
+            live.ULTIMA_RAW.update(original_raw)
+
+
 if __name__ == "__main__":
     unittest.main()
