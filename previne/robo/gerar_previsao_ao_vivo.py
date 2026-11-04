@@ -104,6 +104,7 @@ HAND_ZERO_CM = 160
 SAIDA = "previsao_ao_vivo.json"   # na RAIZ: é onde o simulador publicado lê
 HISTORICO_SAIDA = "historico_previsoes_ao_vivo.json"
 AI_LAB_SHADOW_INPUTS_SAIDA = "assets/data/ai_lab/live_inputs_stz_2h.json"
+ANA_NIVEIS_CACHE_SAIDA = "assets/data/stz_ana_niveis_observados_cache.json"
 AI_LAB_2H_FEATURE_NAMES = [
     "input_01_Nivel_86472600", "input_02_DifN-1h_86472600",
     "input_03_DifN-2h_86472600", "input_04_DifN-4h_86472600",
@@ -766,6 +767,69 @@ def buscar_chuvas_8h(series):
     }
     series["__chuva8h_fontes__"] = fontes
     return postos
+
+
+def complementar_niveis_cache_observado(series, caminho=ANA_NIVEIS_CACHE_SAIDA):
+    """Une leituras reais de ciclos anteriores sem preencher horarios sinteticamente.
+
+    Somente observacoes ja recebidas e plausiveis entram. O retorno da ANA neste
+    ciclo prevalece quando houver duplicidade. O cache nao e fonte de telemetria
+    nova: nao alteramos ULTIMA_RAW nem o horario consultado.
+    """
+    codigos = ("86472600", "86472000")
+    if not any(len(series.get(cod) or {}) >= 10 for cod in codigos):
+        return {"cache_lido": False, "horas_resgatadas": {}, "cache_escrito": False}
+    anterior = {}
+    try:
+        with open(caminho, encoding="utf-8") as arquivo:
+            anterior = json.load(arquivo)
+    except (OSError, ValueError) as exc:
+        print(f"[ANA cache] sem cache anterior legivel: {exc}")
+    gravado = (anterior.get("estacoes") or {}) if isinstance(anterior, dict) else {}
+    agora = agora_brt()
+    inicio = agora - dt.timedelta(days=8)
+    novas = {}
+    resgatadas = {}
+    for cod in codigos:
+        atual = dict(series.get(cod) or {})
+        registros = {}
+        for item in (gravado.get(cod) or []):
+            if not isinstance(item, dict):
+                continue
+            ts = _parse_hora(str(item.get("hora") or ""))
+            val = item.get("nivel_cm")
+            try:
+                nivel_cm = float(val)
+            except (TypeError, ValueError):
+                continue
+            if ts and inicio <= ts <= agora and _nivel_plausivel(nivel_cm, cod):
+                registros[ts] = nivel_cm
+        resgatadas[cod] = len([ts for ts in registros if ts not in atual])
+        registros.update({
+            ts: float(val) for ts, val in atual.items()
+            if inicio <= ts <= agora and _nivel_plausivel(val, cod)
+        })
+        # O cache serve para completar lags passados. Uma leitura salva de outro
+        # ciclo nunca transforma uma consulta atual vazia em dado novo.
+        if atual:
+            series[cod] = {**registros, **atual}
+        novas[cod] = [
+            {"hora":ts.isoformat(timespec="minutes"), "nivel_cm": val}
+            for ts, val in sorted(registros.items())
+        ]
+    if any(len(v) >= 10 for v in novas.values()):
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        payload = {
+            "schema_version": "stz_ana_observacoes_exatas_v1",
+            "atualizado_em": agora.isoformat(timespec="seconds"),
+            "nota": "leituras reais ANA, sem interpolacao; cache nao substitui consulta atual",
+            "estacoes": novas,
+        }
+        with open(caminho, "w", encoding="utf-8") as arquivo:
+            json.dump(payload, arquivo, ensure_ascii=False, separators=(",", ":"))
+        print(f"[ANA cache] { {cod: len(v) for cod, v in novas.items()} }")
+        return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": True}
+    return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": False}
 
 
 def buscar_series_paralelo(codigos, funcao, max_workers=ANA_MAX_CONCORRENCIA):
@@ -2866,6 +2930,11 @@ def main():
             )
             series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
         series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11()
+        try:
+            cache_meta = complementar_niveis_cache_observado(series)
+            print("[ANA cache] resumo", cache_meta)
+        except Exception as exc:
+            print("[ANA cache] contingencia nao bloqueante:", exc)
     except Exception as e:
         preservar_saida_valida_em_falha(f"falha na telemetria: {e}", aviso); return
 
