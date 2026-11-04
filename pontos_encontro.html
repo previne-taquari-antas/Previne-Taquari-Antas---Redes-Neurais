@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Pontos de encontro · versão 2 — PREVINE</title>
+<title>Pontos de encontro — PREVINE</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'">
 <style>
 *{box-sizing:border-box}html,body,#map{height:100%;margin:0}body{font:14px/1.45 system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#18332a;background:#e6e9e2}
@@ -20,6 +20,11 @@ button{cursor:pointer;border-radius:8px;border:1px solid #b9cfc2;background:#f2f
 ol#lista{padding-left:20px;margin:6px 0;font-size:13px}ol#lista li{margin:3px 0}
 .pe-ic{display:flex;align-items:center;justify-content:center;border-radius:50%;background:#14532d;color:#fff;font:700 12px/1 sans-serif;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45)}
 a{color:#08724d}.emerg a{font-weight:700}
+.plano{border:1px solid #cfe0d6;border-radius:10px;padding:8px 11px 10px;margin:10px 0;background:#f7fbf9}.plano legend{font-weight:700;font-size:13px;padding:0 4px}
+.plano label{display:block;font-size:12px;font-weight:650;margin:7px 0 3px}.plano .linha{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.plano input,.plano select{font:inherit;padding:5px 7px;border:1px solid #b9cfc2;border-radius:7px;background:#fff}.plano input{width:72px}.plano select{max-width:100%}
+#planoRes{margin-top:8px;font-size:12.5px}#planoRes b{font-variant-numeric:tabular-nums}
+.plano button:focus-visible,.plano input:focus-visible,.plano select:focus-visible{outline:3px solid #0d6549;outline-offset:1px}
 @media(max-width:700px){.hud{top:auto;bottom:9px;left:9px;right:9px;width:auto;max-width:none;max-height:50dvh;padding:12px}.hud h1{font-size:16px}#hud.collapse{max-height:72px;overflow:hidden}}
 </style></head><body>
 <div id="map" role="application" aria-label="Mapa dos pontos de encontro, da mancha de inundação e das ruas"></div>
@@ -30,10 +35,27 @@ a{color:#08724d}.emerg a{font-weight:700}
   <div class="inner">
     <p class="cidades" id="cidades"></p>
     <p class="cidades small" id="versoes"></p>
-    <p class="small"><b>Ponto de encontro</b> = trecho de rua fora da mancha do <b id="manchaTitulo">Mapa Único do Plano Rio Grande</b> (<span id="manchaEvento">cheias de abril e maio de 2024</span>) e a mais de <b id="offTxt">100</b> m dela. <b>Toque perto da sua rua</b> para ver o caminho a pé até o ponto mais perto.</p>
+    <p class="small"><b>Ponto de encontro</b> = trecho de rua, onde passa carro, fora da mancha do <b id="manchaTitulo">Mapa Único do Plano Rio Grande</b> (<span id="manchaEvento">cheias de abril e maio de 2024</span>) e a mais de <b id="offTxt">100</b> m dela. <b>Toque perto da sua rua</b> para ver o caminho a pé até o ponto mais perto.</p>
     <div class="aviso" id="aviso">Versão provisória: sugestão técnica, não é abrigo oficial nem confirmado pela Defesa Civil.</div>
     <p class="small emerg">Em emergência: <a href="tel:199">199</a> (Defesa Civil) · <a href="tel:193">193</a> (Bombeiros)</p>
     <div id="metricas"></div>
+    <fieldset class="plano" id="plano" hidden>
+      <legend>Planejar os pontos</legend>
+      <label for="tMax">Tempo máximo de caminhada até o ponto (passo de idoso)</label>
+      <div class="linha"><input id="tMax" type="number" min="5" max="60" step="1" value="20" inputmode="numeric"> min
+        <span class="small">sugerido: <b id="tSug">20</b> min</span></div>
+      <label for="modo">Quem define os pontos</label>
+      <select id="modo">
+        <option value="algoritmo">Algoritmo: o menor número de pontos</option>
+        <option value="plano">Plano de contingência: só os pontos oficiais</option>
+        <option value="plano+algoritmo">Plano de contingência + algoritmo para o que faltar</option>
+      </select>
+      <p class="small" id="oficiaisTxt"></p>
+      <div class="linha"><button id="calc" type="button">Calcular</button></div>
+      <div id="planoRes" aria-live="polite"></div>
+      <div class="linha" style="margin-top:8px"><button id="csvCasas" type="button">Baixar relatório por casa (CSV)</button>
+        <button id="csvPontos" type="button">Baixar lista dos pontos (CSV)</button></div>
+    </fieldset>
     <div id="resultado">Carregando…</div>
     <div class="leg" aria-label="Legenda">
       <span class="tag"><i class="sw" style="background:#5b8fd6;opacity:.6"></i><span id="legMancha">mancha do mapa único</span></span>
@@ -44,7 +66,7 @@ a{color:#08724d}.emerg a{font-weight:700}
       <span class="tag"><i class="sw" style="background:#ea7a1c;border-radius:50%;width:10px"></i>casa na faixa</span>
       <span class="tag"><i class="sw" style="background:#fff;border:1px solid #5b6b63;border-radius:50%;width:10px"></i>casa fora</span>
     </div>
-    <b style="font-size:13px">Pontos sugeridos</b>
+    <b style="font-size:13px">Pontos de encontro</b>
     <ol id="lista"></ol>
     <p class="small" id="fonte"></p>
     <p class="small" id="links"></p>
@@ -52,6 +74,7 @@ a{color:#08724d}.emerg a{font-weight:700}
 </section>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>window.L||document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>')</script>
+<script src="assets/js/pontos_plano.js"></script>
 <script>
 'use strict';
 const CIDADES={santa_tereza:{nome:'Santa Tereza',casas:'santa_tereza_painel_casas.html#rotas',centro:[-29.1745,-51.7347]},
@@ -65,7 +88,7 @@ const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const f0=v=>Math.round(v).toLocaleString('pt-BR'),f1=v=>(Math.round(v*10)/10).toLocaleString('pt-BR');
 const fmtDist=m=>m<1000?Math.round(m)+' m':f1(m/1000)+' km';
 const fmtMin=s=>{const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min';};
-document.getElementById('cid').textContent=C.nome;document.title='Pontos de encontro · '+C.nome+' · versão 2 — PREVINE';
+document.getElementById('cid').textContent=C.nome;document.title='Pontos de encontro · '+C.nome+' — PREVINE';
 document.getElementById('cidades').innerHTML=Object.entries(CIDADES).map(([k,v])=>k===CID?'<a aria-current="page">'+v.nome+'</a>':'<a href="?cidade='+k+'&mancha='+VER+'">'+v.nome+'</a>').join('');
 document.getElementById('versoes').innerHTML='Mancha: '+Object.entries(VERSOES).map(([k,v])=>k===VER?'<a aria-current="page">'+v+'</a>':'<a href="?cidade='+CID+'&mancha='+k+'">'+v+'</a>').join(' · ');
 document.getElementById('links').innerHTML='<a href="'+C.casas+'">Evacuação casa a casa</a>'+(CID==='santa_tereza'?' · <a href="santa_tereza_painel_evacuacao.html">Simulação da cheia</a>':'')+' · <a href="index.html">Início</a>';
@@ -75,16 +98,17 @@ function metros(a,b){const r=Math.PI/180,x=Math.sin((b[0]-a[0])*r/2)**2+Math.cos
 function noAnel(lon,lat,an){let d=false;for(let i=0,j=an.length-1;i<an.length;j=i++){const [xi,yi]=an[i],[xj,yj]=an[j];if((yi>lat)!==(yj>lat)&&lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)d=!d;}return d;}
 function naGeom(lat,lon,g){if(!g)return false;const ps=g.type==='Polygon'?[g.coordinates]:g.type==='MultiPolygon'?g.coordinates:[];
   return ps.some(p=>noAnel(lon,lat,p[0])&&!p.slice(1).some(h=>noAnel(lon,lat,h)));}
-let D=null,map=null,cam=null,orig=null,snap=null;
+let D=null,map=null,cam=null,orig=null,snap=null,marcas=null,PL=null;
 // versão 2: onde fica o ponto (lugar de reunião, carro, distância a deslizamento)
 function local(p,sep){const t=[];if(p.lugar)t.push('perto de '+esc(p.lugar.tipo)+(p.lugar.nome?' ('+esc(p.lugar.nome)+')':'')+', a '+f0(p.lugar.dist_m)+' m');
   else if('lugar' in p)t.push('só a rua, sem praça, campo ou escola perto');
   if(p.via)t.push('passa carro');if(p.dist_deslizamento_m!=null)t.push(f0(p.dist_deslizamento_m)+' m do deslizamento mais perto');return t.length?sep+t.join(' · '):'';}
-function lista(){document.getElementById('lista').innerHTML=D.pontos.length?D.pontos.map((p,i)=>'<li><b>Ponto '+(i+1)+'</b>'+(p.rua?' · '+esc(p.rua):'')+
+function nomePonto(p){return p.nome?esc(p.nome)+(p.rua?' · '+esc(p.rua):''):p.rua?esc(p.rua):'';}
+function lista(){document.getElementById('lista').innerHTML=D.pontos.length?D.pontos.map((p,i)=>'<li><b>Ponto '+(i+1)+'</b>'+(p.origem==='plano'?' · <b>plano de contingência</b>':'')+(nomePonto(p)?' · '+nomePonto(p):'')+
   '<br><span class="small">'+local(p,'').replace(/^./,c=>c.toUpperCase())+(local(p,'')?'<br>':'')+f0(p.n_casas)+' casas na mancha ou na faixa chegam aqui primeiro · mediana '+(p.tempo_mediano_min==null?'—':f1(p.tempo_mediano_min)+' min')+
   ', máx. '+(p.tempo_max_min==null?'—':f1(p.tempo_max_min)+' min')+' a pé · <a href="https://www.google.com/maps?q='+p.lat+','+p.lon+'" target="_blank" rel="noopener">abrir no mapa</a></span></li>').join(''):'<li>Nenhum ponto sugerido.</li>';}
 function metricas(){const s=D.resumo;document.getElementById('metricas').innerHTML=
-  [['Casas na mancha',s.mancha],['Casas na faixa de '+f0(D.offset_m)+' m',s.faixa],['Casas fora',s.fora],['Ruas fora da faixa',f0(100*s.trechos_seguros/Math.max(1,s.trechos))+'% dos trechos'],['Pontos sugeridos',D.pontos.length]]
+  [['Casas na mancha',s.mancha],['Casas na faixa de '+f0(D.offset_m)+' m',s.faixa],['Casas fora',s.fora],['Ruas fora da faixa',f0(100*s.trechos_seguros/Math.max(1,s.trechos))+'% dos trechos'],['Pontos de encontro',D.pontos.length]]
   .map(([k,v])=>'<div class="metric"><span>'+k+'</span><b>'+(typeof v==='number'?f0(v):v)+'</b></div>').join('');}
 function caminho(n){const pts=[D.nos[n]];let j=n,g=0,d=0;while(D.prox[j]>=0&&g++<6000){const k=D.prox[j];d+=metros(D.nos[j],D.nos[k]);j=k;pts.push(D.nos[j]);}return {pts,d};}
 function limpa(){[cam,orig,snap].forEach(l=>{if(l)map.removeLayer(l);});cam=orig=snap=null;}
@@ -102,9 +126,59 @@ function mostra(lat,lon,casa){limpa();box.className='';
   if(bd>3)snap=L.polyline([[lat,lon],D.nos[s]],{color:'#fff',weight:1.2,dashArray:'4 4',interactive:false}).addTo(map);
   cam=L.featureGroup([L.polyline(c.pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),L.polyline(c.pts,{color:'#5b2a86',weight:5,opacity:.95,interactive:false})]).addTo(map);
   box.innerHTML=(naMancha?'<b>Na mancha do '+esc(D.mancha_rotulo)+' ('+(D.mancha_observada?'área atingida em ':'cheia de ')+esc(D.evento_curto)+').</b> ':'<b>Na faixa de '+f0(D.offset_m)+' m em volta da mancha.</b> ')+
-    '<br>Ponto de encontro mais perto: <b>ponto '+(k+1)+'</b>'+(p.rua?' ('+esc(p.rua)+')':'')+', a '+fmtDist(dm)+' · cerca de '+fmtMin(t)+' a pé no passo de um idoso (linha roxa).'+
+    '<br>Ponto de encontro mais perto: <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+', a '+fmtDist(dm)+' · cerca de '+fmtMin(t)+' a pé no passo de um idoso (linha roxa).'+
+    (PL&&t>PL.tempo_max_min*60?'<br><b>Acima do tempo máximo de '+f0(PL.tempo_max_min)+' min</b>: nenhum ponto seguro fica a menos que isso daqui. Saia mais cedo ou combine transporte com a Defesa Civil.':'')+
     '<br>Saia antes de a água chegar às ruas: '+(D.mancha_observada?'em '+esc(D.evento_curto)+' ela cobriu':'na cheia de '+esc(D.evento_curto)+' o modelo cobre')+' a mancha azul.'+pe;
   enquadra(cam.getBounds().extend([lat,lon]));}
+function marcaPontos(){if(!marcas)return;marcas.clearLayers();
+  D.pontos.forEach((p,i)=>L.marker([p.lat,p.lon],{title:'Ponto de encontro '+(i+1),alt:'Ponto de encontro '+(i+1),
+    icon:L.divIcon({className:'pe-ic',html:String(i+1),iconSize:[24,24]})}).bindPopup('<b>Ponto de encontro '+(i+1)+'</b>'+(p.origem==='plano'?' · plano de contingência':'')+(nomePonto(p)?'<br>'+nomePonto(p):'')+
+    '<br>A '+f0(p.dist_mancha_m)+' m da mancha do '+esc(D.mancha_rotulo)+'.'+local(p,'<br>')+'<br><b>Não é abrigo oficial</b>: sem garantia de espaço, cobertura ou atendimento.').addTo(marcas));}
+// plano: a página refaz no navegador a mesma conta do Python (assets/js/pontos_plano.js) com o tempo e a origem escolhidos
+function aplica(r){const R=D.plano,teto=r.tempo_max_min*600,seg=R.oficiais.filter(o=>o.seguro),F={};D.casas_campos.forEach((k,i)=>F[k]=i);
+  D.pontos=r.pontos.map((q,i)=>{const b=q.origem==='plano'?seg[q.indice]:R.candidatos[q.indice],ts=[],ps=[];
+    r.casas.forEach((c,j)=>{if(c[0]===i){ts.push(c[1]);ps.push(R.casas[j][3]);}});ts.sort((x,y)=>x-y);
+    const p=Object.assign({},b,{id:'encontro_'+(i+1),origem:q.origem,n_casas:ts.length,n_casas_no_limite:ts.filter(t=>t<=teto).length,
+      pessoas:Math.round(ps.reduce((a,v)=>a+v,0)),tempo_mediano_min:ts.length?Math.round(ts[ts.length>>1]/60)/10:null,tempo_max_min:ts.length?Math.round(ts[ts.length-1]/60)/10:null});
+    delete p.seguro;delete p.dist_no_m;if(q.origem==='algoritmo'||p.lat==null){p.lat=D.nos[q.no][0];p.lon=D.nos[q.no][1];}return p;});
+  D.prox=r.prox;D.ponto_no=r.ponto_no;D.tempo_no_s=r.tempo_no_ds.map(v=>v==null?null:Math.round(v/10));
+  r.casas.forEach((c,j)=>{const h=D.casas[j];h[F.ponto]=c[0];h[F.tempo_s]=c[1]==null?null:Math.round(c[1]/10);h[F.dist_m]=c[2];if(F.alcance!=null)h[F.alcance]=c[3];});
+  PL=r;metricas();lista();marcaPontos();limpa();resumoPlano();}
+function resumoPlano(){const r=PL.resumo,T=f0(PL.tempo_max_min),el=document.getElementById('planoRes');
+  let h='<b>'+D.pontos.length+' ponto'+(D.pontos.length===1?'':'s')+'</b> · <b>'+f0(r.no_limite)+'</b> de '+f0(r.precisam)+' casas da mancha e da faixa chegam a um ponto em até '+T+' min.';
+  if(r.sem_ponto_possivel)h+='<br><b>'+f0(r.sem_ponto_possivel)+' casas</b> não alcançam nenhum ponto seguro em '+T+' min, qualquer que seja a escolha: precisam sair antes ou de outro jeito (transporte).';
+  const fora=r.precisam-r.no_limite-r.sem_ponto_possivel;if(fora>0)h+='<br>'+f0(fora)+' casas alcançariam um ponto do algoritmo em '+T+' min, mas não um dos pontos escolhidos.';
+  if(PL.modo!=='algoritmo'&&!D.plano.oficiais.some(o=>o.seguro))h+='<br><b>Nenhum ponto do plano de contingência fica fora da área insegura</b> nesta mancha.';
+  el.innerHTML=h;}
+function textoOficiais(){const o=D.plano.oficiais;if(!o.length)return 'Não há pontos do plano de contingência cadastrados para '+C.nome+'.';
+  return 'Pontos do plano de contingência: '+o.map(x=>esc(x.nome)+(x.seguro?' (fora da área insegura)':' (<b>dentro da mancha ou da faixa</b>)')).join('; ')+'.';}
+function calcula(){const t=Math.min(60,Math.max(5,Number(document.getElementById('tMax').value)||D.plano.tempo_sugerido_min)),m=document.getElementById('modo').value;
+  document.getElementById('tMax').value=t;aplica(PontosPlano.planeja(D.plano,t,m));
+  try{const u=new URL(location.href);u.searchParams.set('tempo',String(t));u.searchParams.set('modo',m);history.replaceState(null,'',u);}catch(e){}}
+// relatório: CSV com ponto e vírgula e vírgula decimal (abre direto no Excel em português)
+function csv(linhas,nome){const txt='\ufeff'+linhas.map(l=>l.map(v=>{const s=v==null?'':typeof v==='number'?String(v).replace('.',','):String(v);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(';')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'}));a.download=nome;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+const SIT={mancha:'na mancha',faixa:'na faixa de afastamento',fora:'fora (não precisa ir)',sem_via:'sem rua mapeada perto'};
+function relatorio_por_casa(){const F={};D.casas_campos.forEach((k,i)=>F[k]=i);const T=PL?PL.tempo_max_min:D.plano.padrao.tempo_max_min;
+  const L0=[['casa','latitude','longitude','situacao','ponto','ponto_local','tempo_min','distancia_m','ate_o_tempo_maximo','pontos_ao_alcance','tempo_maximo_min','modo','mancha']];
+  D.casas.forEach((c,i)=>{const k=c[F.ponto],p=k>=0?D.pontos[k]:null,est=D.estados[c[F.estado]],t=c[F.tempo_s];
+    L0.push([i+1,c[F.lat],c[F.lon],SIT[est]||est,p?k+1:'',p?(p.nome||p.rua||'rua sem nome'):'',t==null?'':Math.round(t/6)/10,c[F.dist_m]==null?'':Math.round(c[F.dist_m]),
+      est==='fora'?'':t!=null&&t<=T*60?'sim':'não',F.alcance!=null&&est!=='fora'?c[F.alcance]:'',T,PL?PL.modo:D.plano.padrao.modo,D.mancha_rotulo]);});
+  csv(L0,'relatorio_casas_'+CID+'_'+VER+'_'+T+'min.csv');}
+function relatorio_pontos(){const T=PL?PL.tempo_max_min:D.plano.padrao.tempo_max_min;
+  const L0=[['ponto','origem','nome_ou_rua','latitude','longitude','casas','casas_ate_o_tempo_maximo','pessoas','tempo_mediano_min','tempo_max_min','lugar_de_reuniao','via','deslizamento_mais_perto_m','distancia_da_mancha_m']];
+  D.pontos.forEach((p,i)=>L0.push([i+1,p.origem==='plano'?'plano de contingência':'algoritmo',p.nome||p.rua||'rua sem nome',p.lat,p.lon,p.n_casas,p.n_casas_no_limite,p.pessoas,p.tempo_mediano_min,p.tempo_max_min,
+    p.lugar?p.lugar.tipo+(p.lugar.nome?' ('+p.lugar.nome+')':''):'',p.via||'',p.dist_deslizamento_m,p.dist_mancha_m]));
+  csv(L0,'pontos_'+CID+'_'+VER+'_'+T+'min.csv');}
+function preparaPlano(){if(!D.plano||!window.PontosPlano)return;const P=D.plano,fs=document.getElementById('plano');fs.hidden=false;
+  document.getElementById('tSug').textContent=f0(P.tempo_sugerido_min);document.getElementById('oficiaisTxt').innerHTML=textoOficiais();
+  const t=Number(qs.get('tempo')),m=qs.get('modo');document.getElementById('tMax').value=t>=5&&t<=60?t:P.padrao.tempo_max_min;
+  document.getElementById('modo').value=PontosPlano.MODOS.includes(m)?m:P.padrao.modo;
+  document.getElementById('calc').onclick=calcula;document.getElementById('tMax').onchange=calcula;document.getElementById('modo').onchange=calcula;
+  document.getElementById('csvCasas').onclick=relatorio_por_casa;document.getElementById('csvPontos').onclick=relatorio_pontos;
+  if(Number(document.getElementById('tMax').value)!==P.padrao.tempo_max_min||document.getElementById('modo').value!==P.padrao.modo)calcula();
+  else{PL={tempo_max_min:P.padrao.tempo_max_min,modo:P.padrao.modo,resumo:P.resumo};resumoPlano();}}
 // o painel cobre a parte de baixo (celular) ou a esquerda (computador): o caminho fica na parte visível
 function enquadra(bb){const r=hud.getBoundingClientRect(),cel=matchMedia('(max-width:700px)').matches;
   map.fitBounds(bb,cel?{paddingTopLeft:[24,24],paddingBottomRight:[24,Math.round(r.height)+16],maxZoom:17}:{paddingTopLeft:[Math.round(r.right)+24,24],paddingBottomRight:[60,24],maxZoom:17});
@@ -124,17 +198,15 @@ function desenha(){
   D.casas.forEach(c=>{const est=D.estados[c[F.estado]],casa={estado:est,no:null};
     L.circleMarker([c[F.lat],c[F.lon]],{renderer:rc,radius:3.2,color:est==='fora'?'#5b6b63':'#fff',weight:.8,fillColor:cor[est],fillOpacity:.95})
       .on('click',e=>{L.DomEvent.stopPropagation(e);let s=-1,bd=Infinity;D.nos.forEach((p,i)=>{const d=metros([c[F.lat],c[F.lon]],p);if(d<bd){bd=d;s=i;}});casa.no=s;mostra(c[F.lat],c[F.lon],casa);}).addTo(map);});
-  D.pontos.forEach((p,i)=>L.marker([p.lat,p.lon],{title:'Ponto de encontro '+(i+1),alt:'Ponto de encontro '+(i+1),
-    icon:L.divIcon({className:'pe-ic',html:String(i+1),iconSize:[24,24]})}).bindPopup('<b>Ponto de encontro '+(i+1)+'</b>'+(p.rua?'<br>'+esc(p.rua):'')+
-    '<br>A '+f0(p.dist_mancha_m)+' m da mancha do '+esc(D.mancha_rotulo)+'.'+local(p,'<br>')+'<br><b>Não é abrigo oficial</b>: sem garantia de espaço, cobertura ou atendimento.').addTo(map));
+  marcas=L.layerGroup().addTo(map);marcaPontos();
   if(b.isValid())map.fitBounds(b.pad(.04));
   map.on('click',e=>mostra(e.latlng.lat,e.latlng.lng,null));}
 fetch('assets/data/rota_fuga/'+CID+'_pontos_encontro_'+VER+'.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json();}).then(d=>{D=d;
   document.getElementById('manchaTitulo').textContent=D.mancha_titulo;document.getElementById('manchaEvento').textContent=D.evento;
   document.getElementById('legMancha').textContent='mancha do '+D.mancha_rotulo;
   document.getElementById('offTxt').textContent=f0(D.offset_m);document.getElementById('aviso').textContent=D.aviso;
-  document.getElementById('fonte').innerHTML='Mancha: '+esc(D.fonte_mancha)+'. Ruas: OpenStreetMap (a mesma rede do painel casa a casa)'+(D.criterios==='v2'?'; tipo das vias e lugares de reunião também do OpenStreetMap, escolas do cadastro estadual, abrigos da Defesa Civil e cicatrizes de deslizamento de 2024':'')+'. '+esc(D.criterio)+'.';
-  metricas();lista();
+  document.getElementById('fonte').innerHTML='Mancha: '+esc(D.fonte_mancha)+'. Ruas: OpenStreetMap (a mesma rede do painel casa a casa)'+(D.criterios==='v2'||D.criterios==='v3'?'; tipo das vias e lugares de reunião também do OpenStreetMap, escolas do cadastro estadual, abrigos da Defesa Civil e cicatrizes de deslizamento de 2024':'')+'. '+esc(D.criterio)+'.';
+  metricas();lista();preparaPlano();
   if(!window.L){box.className='bad';box.innerHTML='O mapa não carregou (sem internet ou bloqueio). A lista dos pontos está abaixo. Em emergência: 199 ou 193.';return;}
   box.textContent='Toque no mapa, perto da sua rua, ou numa casa.';desenha();
 }).catch(e=>{box.className='bad';box.innerHTML='Os pontos de encontro de '+C.nome+' não estão disponíveis agora. Use o <a href="'+C.casas+'">painel casa a casa</a>. Em emergência: 199 ou 193.';console.warn(e);});

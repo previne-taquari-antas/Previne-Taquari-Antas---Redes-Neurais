@@ -56,6 +56,7 @@ from shapely.strtree import STRtree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from caminhada import VEL_IDOSO, haversine, tempo_trecho  # noqa: E402
 import locais_altos  # noqa: E402
+import plano_pontos  # noqa: E402
 
 RAIZ = locais_altos.RAIZ
 DADOS = os.path.join(RAIZ, "assets", "data", "rota_fuga")
@@ -65,6 +66,8 @@ PONTOS_MAX = locais_altos.LOCAIS_MAX
 GANHO_MIN_CASA_MIN = locais_altos.GANHO_MIN_CASA_MIN
 TEMPO_TETO_S = locais_altos.TEMPO_TETO_S
 SIMPLIFICA_M = 5.0  # contorno do mapa (a conta usa a mancha inteira)
+TEMPO_SUGERIDO_MIN = 20   # tempo máximo a pé sugerido (equipe, nov/2026); a página deixa mudar
+CRITERIOS = ("v1", "v2", "v3")
 DESLIZAMENTO_M = 100.0
 LUGAR_M = 80.0
 BONUS_LUGAR = 0.3
@@ -255,7 +258,17 @@ def ate_os_pontos(radj, fontes, teto=INF):
     return t, d, prox, dono
 
 
-def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v2"):
+def oficiais(cidade):
+    """Pontos do plano de contingência e da Defesa Civil da cidade (assets/data/servicos/abrigos.geojson)."""
+    with open(os.path.join(SERVICOS, "abrigos.geojson"), encoding="utf-8") as f:
+        fs = json.load(f)["features"]
+    return [{"nome": ft["properties"]["nome"], "tipo": ft["properties"].get("tipo"),
+             "lon": ft["geometry"]["coordinates"][0], "lat": ft["geometry"]["coordinates"][1]}
+            for ft in fs if ft["properties"].get("municipio") == CIDADES[cidade]["municipio"]]
+
+
+def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo_max_min=TEMPO_SUGERIDO_MIN,
+            modo="algoritmo"):
     """Pontos de encontro da cidade com a `mancha` (shapely, metros no `plano`). Determinístico."""
     cfg = CIDADES[cidade]
     nos, F = doc["nos"], {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
@@ -269,7 +282,8 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v2"):
     cand = sorted({k for (a, b, *_), ok in zip(doc["edges"], aresta_segura) if ok for k in (a, b)})
     filtro = {"candidatos_v1": len(cand)}
     via_no, desl_no, lugar_no, bonus = {}, {}, {}, {}
-    if criterios == "v2":
+    desl = None
+    if criterios in ("v2", "v3"):
         caixa = _caixa(xy, 3000.0)
         tipos = tipo_das_arestas(doc, cidade, plano)
         for (a, b, *_), ok, tp in zip(doc["edges"], aresta_segura, tipos):
@@ -316,6 +330,22 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v2"):
         if estado in ("mancha", "faixa"):
             pend.append(len(casas) - 1)
 
+    ruas = locais_altos._json(cfg["nomes"])["ruas"] if cfg.get("nomes") and os.path.exists(cfg["nomes"]) else []
+
+    def meta(k):
+        rr = locais_altos._rua_mais_proxima(ruas, nos[k], locais_altos.RAIO_RUA_M) if ruas else []
+        m = {"rua": f"{rr[0][1]} com {rr[1][1]}" if len(rr) >= 2 else rr[0][1] if rr else None,
+             "dist_mancha_m": round(mancha.distance(Point(xy[k])), 1)}
+        if criterios in ("v2", "v3"):
+            dd = desl_no.get(k, desl.distance(Point(xy[k])) if desl is not None else INF)
+            m.update({"via": via_no.get(k), "dist_deslizamento_m": None if dd == INF else round(dd),
+                      "lugar": lugar_no.get(k)})
+        return m
+
+    if criterios == "v3":
+        return _calcula_cobertura(doc, nos, xy, z, casas, cand, meta, no_seguro, aresta_segura, zp, cidade, plano,
+                                  filtro, tempo_max_min, modo, zona)
+
     # tempo de cada casa a pé até cada candidato (teto de 60 min, como no guloso)
     M = np.full((len(pend), len(cand)), TEMPO_TETO_S, dtype=np.float64)
     for j, s in enumerate(cand):
@@ -351,18 +381,8 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v2"):
     # cada nó da rede segue até o ponto mais perto (a página traça o caminho de qualquer toque)
     t, d, prox, dono = ate_os_pontos(radj, escolhidos)
     idx = {s: i for i, s in enumerate(escolhidos)}
-    ruas = locais_altos._json(cfg["nomes"])["ruas"] if cfg.get("nomes") and os.path.exists(cfg["nomes"]) else []
-    pontos = []
-    for i, s in enumerate(escolhidos):
-        rr = locais_altos._rua_mais_proxima(ruas, nos[s], locais_altos.RAIO_RUA_M) if ruas else []
-        rua = f"{rr[0][1]} com {rr[1][1]}" if len(rr) >= 2 else rr[0][1] if rr else None
-        afast = mancha.distance(Point(xy[s]))
-        pt = {"id": f"encontro_{i + 1}", "lat": nos[s][0], "lon": nos[s][1], "no": s, "rua": rua,
-              "dist_mancha_m": round(afast, 1)}
-        if criterios == "v2":
-            pt.update({"via": via_no.get(s), "dist_deslizamento_m": None if desl_no[s] == INF else round(desl_no[s]),
-                       "lugar": lugar_no.get(s)})
-        pontos.append(pt)
+    pontos = [{"id": f"encontro_{i + 1}", "lat": nos[s][0], "lon": nos[s][1], "no": s, **meta(s)}
+              for i, s in enumerate(escolhidos)]
     saida_casas = []
     for ca in casas:
         n, ok = ca["no"], ca["estado"] in ("mancha", "faixa")
@@ -378,9 +398,71 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v2"):
         pt["tempo_mediano_min"] = round(ts[len(ts) // 2] / 60, 1) if ts else None
         pt["tempo_max_min"] = round(ts[-1] / 60, 1) if ts else None
     return {"no_seguro": no_seguro, "aresta_segura": aresta_segura, "candidatos": len(cand), "filtro": filtro,
-            "pontos": pontos,
+            "pontos": pontos, "casas_campos": CASAS_CAMPOS,
             "casas": saida_casas, "prox": prox, "tempo_no_s": [None if v == INF else round(v) for v in t],
             "ponto_no": [idx[o] if o >= 0 else -1 for o in dono], "zona": zona}
+
+
+def rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano):
+    """Bloco "plano" do JSON: a rede em inteiros que plano_pontos.py e assets/js/pontos_plano.js usam."""
+    arestas = []
+    for a, b, *_ in doc["edges"]:
+        d = haversine(nos[a][1], nos[a][0], nos[b][1], nos[b][0])
+        dh = z[b] - z[a] if z[a] is not None and z[b] is not None else 0.0
+        arestas.append([a, b, int(round(tempo_trecho(d, dh) * 10)), int(round(tempo_trecho(d, -dh) * 10)), int(round(d * 10))])
+    cs = []
+    for ca in casas:
+        ok = ca["no"] is not None and ca["no"] >= 0 and ca["d0"] is not None
+        cs.append([ca["no"] if ok else -1, int(round(ca["d0"] / VEL_IDOSO * 10)) if ok else 0,
+                   round(ca["d0"], 1) if ok else 0, round(ca["pessoas"], 2), int(ca["estado"] in ("mancha", "faixa"))])
+    ofs = []
+    for o in oficiais(cidade):
+        p = plano.xy(o["lat"], o["lon"])
+        k = min(range(len(nos)), key=lambda i: ((xy[i][0] - p[0]) ** 2 + (xy[i][1] - p[1]) ** 2, i))
+        ofs.append({**o, "no": k, "dist_no_m": round(math.dist(p, xy[k]), 1),
+                    "seguro": bool(no_seguro[k] and not zp.contains(Point(p))), **meta(k)})
+    return {"n_nos": len(nos), "arestas": arestas, "casas": cs, "candidatos": [{"no": k, **meta(k)} for k in cand],
+            "oficiais": ofs, "tempo_sugerido_min": TEMPO_SUGERIDO_MIN, "modos": list(plano_pontos.MODOS),
+            "pontos_max": plano_pontos.PONTOS_MAX}
+
+
+def pontos_do_plano(rede, r):
+    """Pontos (com o que a página mostra) e casas no formato do JSON, a partir de plano_pontos.planeja."""
+    teto = r["tempo_max_min"] * 600
+    pontos = []
+    for i, p in enumerate(r["pontos"]):
+        base = rede["oficiais"][[j for j, o in enumerate(rede["oficiais"]) if o["seguro"]][p["indice"]]] \
+            if p["origem"] == "plano" else rede["candidatos"][p["indice"]]
+        info = {k: v for k, v in base.items() if k not in ("seguro", "dist_no_m")}
+        ts = sorted(c[1] for c in r["casas"] if c[0] == i)
+        pess = [rede["casas"][j][3] for j, c in enumerate(r["casas"]) if c[0] == i]
+        pontos.append({"id": f"encontro_{i + 1}", "origem": p["origem"], **info,
+                       "lat": base.get("lat", None), "lon": base.get("lon", None),
+                       "n_casas": len(ts), "n_casas_no_limite": sum(1 for t in ts if t <= teto),
+                       "pessoas": round(math.fsum(pess)),
+                       "tempo_mediano_min": round(ts[len(ts) // 2] / 600, 1) if ts else None,
+                       "tempo_max_min": round(ts[-1] / 600, 1) if ts else None})
+    return pontos
+
+
+def _calcula_cobertura(doc, nos, xy, z, casas, cand, meta, no_seguro, aresta_segura, zp, cidade, plano, filtro,
+                       tempo_max_min, modo, zona):
+    rede = rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano)
+    r = plano_pontos.planeja(rede, tempo_max_min, modo)
+    pontos = pontos_do_plano(rede, r)
+    for p, q in zip(pontos, r["pontos"]):
+        if p["lat"] is None or p["origem"] == "algoritmo":  # o ponto fica no nó da rede
+            p["lat"], p["lon"] = nos[q["no"]]
+    saida_casas = []
+    for ca, (pk, tds, dm, alc) in zip(casas, r["casas"]):
+        saida_casas.append([ca["lat"], ca["lon"], ESTADOS.index(ca["estado"]), pk,
+                            None if tds is None else round(tds / 10), dm, alc])
+    filtro = {**filtro, "oficiais": len(rede["oficiais"]), "oficiais_seguros": sum(o["seguro"] for o in rede["oficiais"])}
+    return {"no_seguro": no_seguro, "aresta_segura": aresta_segura, "candidatos": len(cand), "filtro": filtro,
+            "pontos": pontos, "casas_campos": CASAS_CAMPOS + ["alcance"], "casas": saida_casas,
+            "prox": r["prox"], "ponto_no": r["ponto_no"],
+            "tempo_no_s": [None if v is None else round(v / 10) for v in r["tempo_no_ds"]], "zona": zona,
+            "plano": {**rede, "padrao": {"tempo_max_min": tempo_max_min, "modo": modo}, "resumo": r["resumo"]}}
 
 
 def geojson_contorno(g, plano):
@@ -392,7 +474,8 @@ def geojson_contorno(g, plano):
     return {"type": m["type"], "coordinates": arred(m["coordinates"])}
 
 
-def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao="mup", criterios="v2"):
+def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao="mup", criterios="v3",
+              tempo_max_min=TEMPO_SUGERIDO_MIN, modo="algoritmo"):
     """JSON da página dos pontos de encontro (pontos_encontro.html?cidade=...&mancha=<versao>)."""
     cfg, v = CIDADES[cidade], VERSOES[versao]
     caminho_mancha = caminho_mancha or mancha_padrao(cidade, versao)
@@ -400,19 +483,23 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
     doc = locais_altos.payload(cfg["painel"])
     plano = Plano(doc["nos"])
     mancha = le_mancha(caminho_mancha, plano)
-    r = calcula(doc, mancha, plano, cidade, offset_m, criterios)
+    r = calcula(doc, mancha, plano, cidade, offset_m, criterios, tempo_max_min, modo)
     # recorte do desenho à volta da rede (a mancha do estado vai além)
     xs, ys = zip(*(plano.xy(la, lo) for la, lo in doc["nos"]))
     caixa = LineString([(min(xs) - 1500, min(ys) - 1500), (max(xs) + 1500, max(ys) + 1500)]).envelope
     est = [c[2] for c in r["casas"]]
     criterio = (f"ponto de encontro = trecho de via (OpenStreetMap) inteiro fora da mancha com {offset_m:g} m de "
                 "afastamento")
-    if criterios == "v2":
+    if criterios in ("v2", "v3"):
         criterio += (f", onde passa carro, a mais de {DESLIZAMENTO_M:g} m de cicatriz de deslizamento, com preferência "
                      f"para praça, campo, escola, ginásio ou estacionamento a até {LUGAR_M:g} m")
-    criterio += "; escolhidos pelo que mais poupa caminhada do idoso (r.walk, 0,9 m/s)"
+    if criterios == "v3":
+        criterio += (f"; o menor número de pontos que leva as casas da mancha e da faixa a um ponto em até "
+                     f"{tempo_max_min:g} min a pé no passo do idoso (r.walk, 0,9 m/s)")
+    else:
+        criterio += "; escolhidos pelo que mais poupa caminhada do idoso (r.walk, 0,9 m/s)"
     extra = {}
-    if criterios == "v2":
+    if criterios in ("v2", "v3"):
         with open(osm_encontro(cidade), encoding="utf-8") as f:
             osm = json.load(f)
         extra = {"osm_encontro": {"arquivo": os.path.relpath(osm_encontro(cidade), RAIZ),
@@ -421,7 +508,7 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
                  "parametros": {"deslizamento_m": DESLIZAMENTO_M, "lugar_m": LUGAR_M, "bonus_lugar": BONUS_LUGAR,
                                 "vias_carro": sorted(VIAS_CARRO)}}
     return {
-        "schema_version": "previne_pontos_encontro_v2" if criterios == "v2" else "previne_pontos_encontro_v1",
+        "schema_version": f"previne_pontos_encontro_{criterios}",
         "criterios": criterios, **extra,
         "municipio": cfg["municipio"], "versao": versao,
         "mancha_rotulo": v["rotulo"], "mancha_titulo": v["titulo"], "mancha_observada": v["observada"],
@@ -437,8 +524,8 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
         "nos": doc["nos"],
         "arestas": [[a, b, int(ok)] for (a, b, *_), ok in zip(doc["edges"], r["aresta_segura"])],
         "prox": r["prox"], "ponto_no": r["ponto_no"], "tempo_no_s": r["tempo_no_s"],
-        "estados": list(ESTADOS), "casas_campos": CASAS_CAMPOS, "casas": r["casas"],
-        "pontos": r["pontos"],
+        "estados": list(ESTADOS), "casas_campos": r["casas_campos"], "casas": r["casas"],
+        "pontos": r["pontos"], **({"plano": r["plano"]} if "plano" in r else {}),
         "mancha": geojson_contorno(mancha.intersection(caixa), plano),
         "faixa": geojson_contorno(r["zona"].intersection(caixa), plano),
     }
@@ -467,10 +554,13 @@ def main():
     ap.add_argument("--mancha", help="GeoJSON da área insegura (padrão: o da versão em assets/data/rota_fuga/)")
     ap.add_argument("--offset", type=float, default=OFFSET_M, help="afastamento da mancha, em metros")
     ap.add_argument("--fonte", help="descrição da mancha (padrão: a da versão; vai para o JSON e para a página)")
-    ap.add_argument("--criterios", choices=("v1", "v2"), default="v2", help="v2: carro, deslizamento e lugar de reunião")
+    ap.add_argument("--criterios", choices=CRITERIOS, default="v3",
+                    help="v3: menos pontos dentro do tempo máximo; v2: carro, deslizamento e lugar de reunião")
+    ap.add_argument("--tempo-max", type=float, default=TEMPO_SUGERIDO_MIN, help="v3: tempo máximo a pé, em minutos")
+    ap.add_argument("--modo", choices=plano_pontos.MODOS, default="algoritmo", help="v3: quem define os pontos")
     ap.add_argument("--gravar", action="store_true", help="grava assets/data/rota_fuga/<cidade>_pontos_encontro_<versao>.json")
     a = ap.parse_args()
-    d = documento(a.cidade, a.mancha, a.offset, a.fonte, a.versao, a.criterios)
+    d = documento(a.cidade, a.mancha, a.offset, a.fonte, a.versao, a.criterios, a.tempo_max, a.modo)
     print(resumo(d))
     if a.gravar:
         saida = saida_padrao(a.cidade, a.versao)

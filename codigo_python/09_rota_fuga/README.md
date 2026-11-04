@@ -360,6 +360,42 @@ manual `.github/workflows/osm-pontos-encontro.yml`). Ponto que a escolha deixa s
   Contingência fora da mancha.
 - Nenhum ponto fica a menos de 124 m de cicatriz de deslizamento.
 
+**Versão 3: menos pontos para um tempo máximo** (nov/2026, padrão; conversa com a equipe sobre a
+cheia de set/2023 em Santa Tereza). Os candidatos são os da versão 2 (carro, deslizamento, lugar de
+reunião); a escolha muda:
+- o usuário define o **tempo máximo de caminhada** até o ponto, no passo de idoso; o sugerido é
+  **20 min** (`TEMPO_SUGERIDO_MIN`);
+- escolhe **quem define os pontos**: o algoritmo, só os pontos do plano de contingência
+  (`assets/data/servicos/abrigos.geojson`, os que ficam fora da mancha e da faixa) ou o plano e,
+  para as casas que ficam além do tempo, o algoritmo. Nesse modo o ponto oficial vem primeiro: a
+  rua que chega a um ponto oficial dentro do tempo vai a ele;
+- o algoritmo usa o **menor número de pontos** que leva a esse tempo toda casa da mancha e da faixa
+  que consegue chegar a algum ponto seguro (guloso: o ponto que atende mais casas ainda sem ponto;
+  depois sai o ponto que não faz falta a nenhuma casa);
+- a página refaz a conta no navegador (`assets/js/pontos_plano.js`, a mesma de `plano_pontos.py`, em
+  inteiros; `PlanoParidadeTest` confere que dão igual) e exporta o **relatório por casa** (CSV com
+  ponto, tempo, distância, se fica dentro do tempo e quantos pontos estão ao alcance) e a lista dos
+  pontos. A página de set/2023 (`santa_tereza_rotas_altas_set2023.html`) leva ao plano de Santa
+  Tereza com a mancha do modelo.
+
+Pontos do algoritmo · casas que chegam a um ponto no tempo / casas da mancha e da faixa · casas que
+não chegam a nenhum ponto seguro nesse tempo:
+
+| | 15 min | 20 min (sugerido) | 30 min |
+|---|---|---|---|
+| Santa Tereza, mapa único | 7 · 297/516 · 219 | 6 · 435/516 · 81 | 3 · 478/516 · 38 |
+| Santa Tereza, modelo HAND (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
+| Muçum, mapa único | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
+| Muçum, modelo HAND | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
+
+- Em Santa Tereza, na cheia de set/2023, 109 casas não chegam a nenhum ponto seguro em 20 min a pé,
+  qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 4.
+- O único ponto do plano em Santa Tereza (o Ginásio) fica na mancha ou na faixa nas duas manchas:
+  o modo "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo)
+  ficam fora da área insegura.
+- A conta não olha a capacidade: em Muçum um ponto chega a receber mais de mil casas. O espaço de
+  cada ponto ainda precisa ser conferido em campo.
+
 ### Demanda por destino
 Cada casa recebe `pessoas`: a população da grade IBGE 2022 (domicílios
 ocupados) dividida entre as casas OSM da célula. Casa fora das células com
