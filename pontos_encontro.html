@@ -167,7 +167,7 @@ function resumoPlano(){const r=PL.resumo,T=f0(PL.tempo_max_min),el=document.getE
   if(PL.modo!=='algoritmo'&&!D.plano.oficiais.some(o=>o.seguro))h+='<br><b>Nenhum ponto do plano de contingência fica fora da área insegura</b> nesta mancha.';
   el.innerHTML=h;}
 function textoOficiais(){const o=D.plano.oficiais;if(!o.length)return 'Não há pontos do plano de contingência cadastrados para '+C.nome+'.';
-  return 'Pontos do plano de contingência: '+o.map(x=>esc(x.nome)+(x.seguro?' (fora da área insegura)':' (<b>dentro da mancha ou da faixa</b>)')).join('; ')+'.';}
+  return 'Pontos do plano de contingência: '+o.map(x=>esc(x.nome)+(x.seguro?' (fora da área insegura)':x.ilhado?' (<b>vira ilha: as ruas dali não saem da cidade sem passar pela água</b>)':' (<b>dentro da mancha ou da faixa</b>)')).join('; ')+'.';}
 // tempo em minutos inteiros de 5 a 60; vazio, zero ou texto volta ao sugerido (o mesmo para o campo e o endereço)
 function tempoValido(v){const n=Math.round(Number(v));return Number.isFinite(n)&&n>0&&String(v).trim()!==''?Math.min(60,Math.max(5,n)):D.plano.tempo_sugerido_min;}
 function calcula(){const t=tempoValido(document.getElementById('tMax').value),m=document.getElementById('modo').value;

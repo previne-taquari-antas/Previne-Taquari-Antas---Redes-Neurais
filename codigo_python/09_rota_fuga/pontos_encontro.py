@@ -69,6 +69,7 @@ SIMPLIFICA_M = 5.0  # contorno do mapa (a conta usa a mancha inteira)
 TEMPO_SUGERIDO_MIN = 20   # tempo máximo a pé sugerido (equipe, nov/2026); a página deixa mudar
 CRITERIOS = ("v1", "v2", "v3")
 DESLIZAMENTO_M = 100.0
+BORDA_SAIDA_M = 150.0  # saída seca: ruas fora da mancha que chegam a menos disso da borda da rede (saem da cidade)
 LUGAR_M = 80.0
 BONUS_LUGAR = 0.3
 VIA_OSM_M = 10.0  # trecho do painel recebe o tipo da via do OSM a até 10 m do seu meio
@@ -169,6 +170,38 @@ def lugares(cidade, plano, caixa):
                 lo, la = ft["geometry"]["coordinates"][:2]
                 out.append((tipo, ft["properties"].get("nome"), Point(plano.xy(la, lo))))
     return [x for x in out if not x[2].is_empty and x[2].intersects(caixa)]
+
+
+def saida_seca(doc, xy, mancha):
+    """Nós cuja rede de ruas fora da mancha chega à borda da rede mapeada: com a água no auge, dali ainda dá
+    para sair da cidade sem atravessar água. Ponto fora disso vira ilha."""
+    mp = prep(mancha)
+    n = len(xy)
+    adj = [[] for _ in range(n)]
+    for a, b, *_ in doc["edges"]:
+        if not mp.intersects(LineString([xy[a], xy[b]])):
+            adj[a].append(b)
+            adj[b].append(a)
+    xs, ys = [p[0] for p in xy], [p[1] for p in xy]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    borda = [min(x - x0, x1 - x, y - y0, y1 - y) < BORDA_SAIDA_M for x, y in xy]
+    ok, visto = [False] * n, [False] * n
+    for s in range(n):
+        if visto[s] or not adj[s]:
+            continue
+        comp, pilha = [], [s]
+        visto[s] = True
+        while pilha:
+            u = pilha.pop()
+            comp.append(u)
+            for w in adj[u]:
+                if not visto[w]:
+                    visto[w] = True
+                    pilha.append(w)
+        if any(borda[u] for u in comp):
+            for u in comp:
+                ok[u] = True
+    return ok
 
 
 def tipo_das_arestas(doc, cidade, plano):
@@ -311,6 +344,12 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
             desl_no[k] = desl.distance(Point(xy[k])) if desl is not None else INF
         cand = [k for k in cand if desl_no[k] > DESLIZAMENTO_M]
         filtro["longe_de_deslizamento"] = len(cand)
+    sai = None
+    if criterios == "v3":
+        sai = saida_seca(doc, xy, mancha)
+        cand = [k for k in cand if sai[k]]
+        filtro["com_saida_seca"] = len(cand)
+    if criterios in ("v2", "v3"):
         lgs = [x for x in lugares(cidade, plano, caixa) if not zona.contains(x[2])]
         arv = STRtree([g for _t, _n, g in lgs])
         for k in cand:
@@ -357,7 +396,7 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
 
     if criterios == "v3":
         return _calcula_cobertura(doc, nos, xy, z, casas, cand, meta, no_seguro, aresta_segura, zp, cidade, plano,
-                                  filtro, tempo_max_min, modo, zona, mancha)
+                                  filtro, tempo_max_min, modo, zona, mancha, sai)
 
     # tempo de cada casa a pé até cada candidato (teto de 60 min, como no guloso)
     M = np.full((len(pend), len(cand)), TEMPO_TETO_S, dtype=np.float64)
@@ -416,7 +455,7 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
             "ponto_no": [idx[o] if o >= 0 else -1 for o in dono], "zona": zona}
 
 
-def rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano, mancha):
+def rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano, mancha, sai=None):
     """Bloco "plano" do JSON: a rede em inteiros que plano_pontos.py e assets/js/pontos_plano.js usam."""
     arestas = []
     for a, b, *_ in doc["edges"]:
@@ -432,8 +471,10 @@ def rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano,
     for o in oficiais(cidade):
         p = plano.xy(o["lat"], o["lon"])
         k = min(range(len(nos)), key=lambda i: ((xy[i][0] - p[0]) ** 2 + (xy[i][1] - p[1]) ** 2, i))
-        ofs.append({**o, "no": k, "dist_no_m": round(math.dist(p, xy[k]), 1),
-                    "seguro": bool(no_seguro[k] and not zp.contains(Point(p))), **meta(k),
+        fora = bool(no_seguro[k] and not zp.contains(Point(p)))
+        ilha = bool(fora and sai is not None and not sai[k])
+        ofs.append({**o, "no": k, "dist_no_m": round(math.dist(p, xy[k]), 1), "ilhado": ilha,
+                    "seguro": fora and not ilha, **meta(k),
                     "dist_mancha_m": round(mancha.distance(Point(p)), 1)})  # do ponto oficial, não do nó
     return {"n_nos": len(nos), "arestas": arestas, "casas": cs, "candidatos": [{"no": k, **meta(k)} for k in cand],
             "oficiais": ofs, "tempo_sugerido_min": TEMPO_SUGERIDO_MIN, "modos": list(plano_pontos.MODOS),
@@ -469,8 +510,8 @@ def pontos_do_plano(rede, r):
 
 
 def _calcula_cobertura(doc, nos, xy, z, casas, cand, meta, no_seguro, aresta_segura, zp, cidade, plano, filtro,
-                       tempo_max_min, modo, zona, mancha):
-    rede = rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano, mancha)
+                       tempo_max_min, modo, zona, mancha, sai):
+    rede = rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano, mancha, sai)
     r = plano_pontos.planeja(rede, tempo_max_min, modo)
     pontos = pontos_do_plano(rede, r)
     for p, q in zip(pontos, r["pontos"]):
@@ -514,6 +555,8 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
     est = [c[2] for c in r["casas"]]
     criterio = (f"ponto de encontro = trecho de via (OpenStreetMap) inteiro fora da mancha com {offset_m:g} m de "
                 "afastamento")
+    if criterios == "v3":
+        criterio += ", com saída seca (ruas fora da mancha que levam para fora da cidade)"
     if criterios in ("v2", "v3"):
         criterio += (f", onde passa carro, a mais de {DESLIZAMENTO_M:g} m de cicatriz de deslizamento" +
                      (f"; praça, campo, escola, ginásio ou estacionamento a até {LUGAR_M:g} m só desempata"

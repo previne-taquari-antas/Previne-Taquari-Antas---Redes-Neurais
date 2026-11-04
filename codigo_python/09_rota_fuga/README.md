@@ -394,17 +394,23 @@ não chegam a nenhum ponto seguro nesse tempo:
 
 | | 15 min | 20 min (sugerido) | 30 min |
 |---|---|---|---|
-| Santa Tereza, modelo do projeto (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
-| Muçum, mapa único + modelo | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
-| Muçum, modelo do projeto | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
+| Santa Tereza, modelo do projeto (set/2023) | 6 · 296/528 · 232 | 6 · 415/528 · 113 | 5 · 508/528 · 20 |
+| Muçum, mapa único + modelo | 5 · 179/1.789 · 1.610 | 5 · 354/1.789 · 1.435 | 4 · 923/1.789 · 866 |
+| Muçum, modelo do projeto | 10 · 1.273/1.624 · 351 | 7 · 1.453/1.624 · 171 | 6 · 1.539/1.624 · 85 |
 
-- Em Santa Tereza, na cheia de set/2023, 109 casas não chegam a nenhum ponto seguro em 20 min a pé,
-  qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 4.
+- Em Santa Tereza, na cheia de set/2023, 113 casas não chegam a nenhum ponto seguro em 20 min a pé,
+  qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 20.
 - O único ponto do plano em Santa Tereza (o Ginásio) fica dentro da mancha de set/2023: o modo
   "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo) ficam
   fora da área insegura.
-- Ainda abertos (apontados na revisão): pontos que viram ilha quando a água sobe (sem saída seca),
-  rotas que passam por trechos que inundam e, em Santa Tereza, casas que a página de set/2023 manda
+- **Saída seca** (nov/2026): o ponto só vale se as ruas fora da mancha que passam por ele chegam à borda
+  da rede mapeada (a menos de 150 m dela, `saida_seca`), isto é, dali dá para sair da cidade sem
+  atravessar água. Isso tirou 3 pontos que viravam ilha: Santa Tereza (16 casas), Muçum mapa único
+  (825 casas, num trecho seco de 1 km sem saída) e Muçum modelo (100 casas, numa rua de 40 m). Com
+  20 min, as casas que chegam a tempo ficaram em 415/528 (Santa Tereza), 354/1.789 (Muçum, mapa único)
+  e 1.453/1.624 (Muçum, modelo); as casas que dependiam do ponto ilhado agora andam mais. Em Muçum
+  (mapa único) um ponto passou a receber 1.417 casas.
+- Ainda abertos (apontados na revisão): rotas que passam por trechos que inundam e, em Santa Tereza, casas que a página de set/2023 manda
   ficar em terreno alto e que aqui recebem ponto de encontro.
 - "Pessoas" por ponto soma só as casas com morador atribuído pela grade do Censo; casas sem esse dado
   contam 0, então o total por ponto fica abaixo do real (há pontos com casas e 0 pessoas).

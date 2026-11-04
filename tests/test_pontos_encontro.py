@@ -225,6 +225,21 @@ class PlanoTest(unittest.TestCase):
             for p in d["pontos"]:
                 self.assertFalse(cheia.contains(Point(p["lon"], p["lat"])), (cidade, versao, p["id"]))
 
+    def test_nenhum_ponto_vira_ilha(self):
+        """Do ponto, as ruas fora da mancha levam para fora da cidade (saída seca)."""
+        for (cidade, versao), d in self.pub.items():
+            doc = locais_altos.payload(pe.CIDADES[cidade]["painel"])
+            plano = pe.Plano(doc["nos"])
+            xy = [plano.xy(la, lo) for la, lo in doc["nos"]]
+            somada = pe.mancha_somada(cidade, versao)
+            mancha = pe.le_mancha([pe.mancha_padrao(cidade, versao)] + ([somada] if somada else []), plano)
+            sai = pe.saida_seca(doc, xy, mancha)
+            for p in d["pontos"]:
+                self.assertTrue(sai[p["no"]], (cidade, versao, p["id"]))
+            for o in d["plano"]["oficiais"]:
+                if o["seguro"]:
+                    self.assertTrue(sai[o["no"]], (cidade, versao, o["nome"]))
+
     def test_tempo_em_minutos_inteiros(self):
         import plano_pontos
         d = next(iter(self.pub.values()), None)
