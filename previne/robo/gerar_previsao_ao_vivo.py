@@ -172,8 +172,12 @@ POSTOS_CHUVA_36H = ["2851072"]
 # 240 s do workflow. O timeout menor mantém a tentativa no espelho, mas deixa
 # a rodada terminar e publicar o estado honesto de dado ausente quando uma
 # estação realmente não responde.
-ANA_TIMEOUT_NIVEL_S = 8
-ANA_TIMEOUT_CHUVA_S = 6
+# O WS legado da ANA tem respostas lentas/intermitentes. A janela de
+# dados operacionais foi reduzida para 48h; permitir ate 15s por rota
+# antes do espelho evita descartar respostas validas de 9-14 segundos.
+# O limite global do processo no GitHub continua impedindo travamento.
+ANA_TIMEOUT_NIVEL_S = 15
+ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 1
 ANA_RETRIES_CHUVA = 1
 ULTIMA_RAW = {}
