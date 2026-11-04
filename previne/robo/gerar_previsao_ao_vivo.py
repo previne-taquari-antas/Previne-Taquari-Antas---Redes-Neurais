@@ -2642,6 +2642,22 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             and all(v is not None for v in valores)
             and (not audit or audit.get("status") == "NORMAL")
         )
+        # Um input interpolado nao aparece em "inputs_faltantes", pois tem
+        # valor numerico, mas NAO e um input horario exato da RNA. Exibir
+        # explicitamente a estacao e o horario que precisam ser recuperados.
+        dependencias_nao_exatas = {}
+        for entrada in (audit or {}).get("inputs") or []:
+            for dep in entrada.get("dependencias") or []:
+                if dep.get("metodo") == "EXATO":
+                    continue
+                chave = (str(entrada.get("estacao") or ""), str(dep.get("horario_solicitado") or ""))
+                dependencias_nao_exatas[chave] = {
+                    "estacao": chave[0],
+                    "hora": chave[1],
+                    "metodo_usado_apenas_para_diagnostico": dep.get("metodo"),
+                    "horarios_vizinhos": dep.get("horarios_usados") or [],
+                    "nao_aceito_pela_rna": True,
+                }
         return {
             "hora": candidata.isoformat(timespec="minutes"),
             "pronta": bool(pronta),
@@ -2649,6 +2665,8 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             "inputs_faltantes": faltantes[:12],
             "auditoria_status": (audit or {}).get("status"),
             "n_inputs_nao_exatos": (audit or {}).get("n_inputs_nao_exatos"),
+            "leituras_horarias_nao_exatas_n": len(dependencias_nao_exatas),
+            "leituras_horarias_nao_exatas": list(dependencias_nao_exatas.values())[:24],
         }
     except Exception as e:
         return {
