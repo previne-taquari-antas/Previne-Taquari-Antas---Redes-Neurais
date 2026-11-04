@@ -42,6 +42,24 @@ for (const city of ['santa_tereza', 'mucum']) {
 console.log('OK público: alvo futuro, zero válido, falta de dados, replay e modelos comparativos');
 
 
+// Arquivo histórico é um painel independente: nunca libera o horizonte
+// operacional nem transforma uma leitura observada em previsão.
+const stzHistoricalJs = fs.readFileSync(
+  path.join(root, 'assets/js/stz_last_recorded_forecast.js'), 'utf8');
+new Function(stzHistoricalJs);
+assert.match(stzHistoricalJs, /historico_previsoes_ao_vivo\.json/);
+assert.match(stzHistoricalJs, /não ao vivo/);
+assert.match(stzHistoricalJs, /medição ANA, não previsão/);
+for (const filename of [
+  'santa_tereza_previsao_inundacao.html',
+  'santa_tereza_previsao_inundacao_usuario.html'
+]) {
+  const page = fs.readFileSync(path.join(root, filename), 'utf8');
+  assert.match(page, /id="stz-last-recorded"[^>]*hidden/);
+  assert.match(page, /assets\/js\/stz_last_recorded_forecast\.js/);
+}
+console.log('OK STZ: histórico separado e leitura das 14h não simulada como previsão.');
+
 // A versão B é a única RNA de 4h em ambas as páginas de Muçum.
 const normalize4h = require('../assets/js/live_feed.js').selectPublicMucum4h;
 const old = {modelo:'006', horizonte:'4h', disponivel:true, nivel_previsto_cm:472};
