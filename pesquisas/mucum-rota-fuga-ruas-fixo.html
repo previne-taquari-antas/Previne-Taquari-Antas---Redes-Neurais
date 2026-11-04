@@ -55,7 +55,7 @@ map.on('click',e=>{const i0=noProximo(e.latlng.lat,e.latlng.lng);const pts=[];le
   orig=L.circleMarker([D.nos[i0][0],D.nos[i0][1]],{radius:7,color:'#0f8b46',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
   const ab=D.abrigos.find(x=>x.id===D.dest[i0])||D.abrigos[0];const dm=D.dist_m[i0],ag=D.agua_m[i0];
   document.getElementById('rota').innerHTML=`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>Distância a pé: <b>${(dm/1000).toFixed(2)} km</b>`+
-    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que alaga.</span>`:`<br><span style="color:#0f8b46">Rota fora da mancha.</span>`);});
+    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que inunda.</span>`:`<br><span style="color:#0f8b46">Rota fora da mancha.</span>`);});
 document.getElementById('leg').innerHTML='<b>Mapa</b><br><i style="background:#0f8b46"></i>sua rota até o abrigo<br>'+
- '<i style="background:#b3382c"></i>rua que alaga<br><i style="background:#8fa7b8"></i>rua fora da mancha<br><i style="background:#1e5fbf;opacity:.4"></i>área de inundação';
+ '<i style="background:#b3382c"></i>rua que inunda<br><i style="background:#8fa7b8"></i>rua fora da mancha<br><i style="background:#1e5fbf;opacity:.4"></i>área de inundação';
 </script></body></html>

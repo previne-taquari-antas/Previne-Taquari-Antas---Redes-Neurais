@@ -33,7 +33,7 @@
 
   function reversa(rede) {
     const rev = Array.from({ length: rede.n_nos }, () => []);
-    for (const [a, b, tab, tba] of rede.arestas) { rev[b].push([a, tab]); rev[a].push([b, tba]); }
+    for (const [a, b, tab, tba, l] of rede.arestas) { rev[b].push([a, tab, l]); rev[a].push([b, tba, l]); }
     return rev;
   }
 
@@ -63,23 +63,20 @@
     return out;
   }
 
-  function destino(rede, rev, fontes) {
-    const n = rede.n_nos, tt = Array(n).fill(Infinity), dono = Array(n).fill(-1), prox = Array(n).fill(-1), dist = Array(n).fill(0);
+  // Dijkstra de várias fontes; empate: menor ponto, menor nó seguinte, aresta mais curta
+  function destino(rev, n, fontes) {
+    const tt = Array(n).fill(Infinity), dono = Array(n).fill(-1), prox = Array(n).fill(-1), lp = Array(n).fill(0), dist = Array(n).fill(0);
     const q = Fila();
-    fontes.forEach((s, k) => { if (tt[s] === Infinity || k < dono[s]) { tt[s] = 0; dono[s] = k; q.push([0, k, s]); } });
+    fontes.forEach((s, k) => { if (tt[s] === Infinity) { tt[s] = 0; dono[s] = k; q.push([0, k, s]); } });
     while (q.size) {
       const [tu, ku, u] = q.pop();
       if (tu !== tt[u] || ku !== dono[u]) continue;
-      for (const [v, w] of rev[u]) {
+      for (const [v, w, l] of rev[u]) {
         const nt = tu + w;
-        if (menor([nt, ku, u], [tt[v], dono[v] >= 0 ? dono[v] : n, prox[v] >= 0 ? prox[v] : n])) {
-          tt[v] = nt; dono[v] = ku; prox[v] = u; q.push([nt, ku, v]);
+        if (menor([nt, ku, u, l], [tt[v], dono[v] >= 0 ? dono[v] : n, prox[v] >= 0 ? prox[v] : n, lp[v]])) {
+          tt[v] = nt; dono[v] = ku; prox[v] = u; lp[v] = l; q.push([nt, ku, v]);
         }
       }
-    }
-    const comp = new Map();
-    for (const [a, b, , , l] of rede.arestas) {
-      for (const k of [a + ',' + b, b + ',' + a]) comp.set(k, Math.min(l, comp.has(k) ? comp.get(k) : l));
     }
     const feito = Array(n).fill(false);
     for (let v0 = 0; v0 < n; v0++) {
@@ -87,19 +84,23 @@
       while (v >= 0 && !feito[v]) { pilha.push(v); v = prox[v]; }
       for (let j = pilha.length - 1; j >= 0; j--) {
         const u = pilha[j];
-        dist[u] = prox[u] >= 0 ? dist[prox[u]] + comp.get(u + ',' + prox[u]) : 0; feito[u] = true;
+        dist[u] = prox[u] >= 0 ? dist[prox[u]] + lp[u] : 0; feito[u] = true;
       }
     }
     return { tt, dono, prox, dist };
   }
+  const publica = a => ({ prox: a.prox, ponto_no: a.dono, tempo_no_ds: a.tt.map(v => v === Infinity ? null : v) });
 
   function planeja(rede, tempoMaxMin, modo) {
     modo = modo || 'algoritmo';
     if (!MODOS.includes(modo)) throw Error('modo ' + modo);
-    const teto = Math.round(tempoMaxMin * 600), rev = reversa(rede);
-    const oficiais = modo !== 'algoritmo' ? rede.oficiais.filter(o => o.seguro) : [];
+    if (!Number.isInteger(tempoMaxMin) || tempoMaxMin <= 0) throw Error('tempo máximo em minutos inteiros');
+    const teto = tempoMaxMin * 600, n = rede.n_nos, rev = reversa(rede);
+    let oficiais = []; const vistos = new Set();
+    for (const o of rede.oficiais) if (o.seguro && !vistos.has(o.no)) { vistos.add(o.no); oficiais.push(o); }
+    const cob = cobertura(rede, rev, oficiais.map(o => o.no).concat(rede.candidatos.map(c => c.no)), teto);
+    if (modo === 'algoritmo') oficiais = [];
     const cands = modo !== 'plano' ? rede.candidatos : [];
-    const cob = cobertura(rede, rev, oficiais.map(o => o.no).concat(cands.map(c => c.no)), teto);
     let escolhidos = oficiais.map((o, j) => ['plano', j]);
     const coberta = new Set(), usados = new Set(oficiais.map(o => o.no));
     for (const o of oficiais) for (const i of cob.get(o.no).keys()) coberta.add(i);
@@ -118,36 +119,35 @@
       for (const i of cob.get(cands[melhor].no).keys()) coberta.add(i);
     }
     const noDe = e => e[0] === 'plano' ? oficiais[e[1]].no : cands[e[1]].no;
-    const doAlgoritmo = escolhidos.filter(e => e[0] === 'algoritmo').reverse();
-    for (const e of doAlgoritmo) {
+    for (const e of escolhidos.filter(e => e[0] === 'algoritmo').reverse()) {
       const outros = escolhidos.filter(x => x !== e), resto = new Set();
       for (const x of outros) for (const i of cob.get(noDe(x)).keys()) resto.add(i);
       if ([...cob.get(noDe(e)).keys()].every(i => resto.has(i))) escolhidos = outros;
     }
-    const fontes = escolhidos.map(noDe), r = destino(rede, rev, fontes), possivel = new Set();
+    const fontes = escolhidos.map(noDe), todos = destino(rev, n, fontes);
     const nOf = escolhidos.filter(e => e[0] === 'plano').length;
-    if (nOf > 0 && nOf < fontes.length) { // plano primeiro: nó que chega a um ponto oficial até o teto vai a ele
-      const r1 = destino(rede, rev, fontes.slice(0, nOf));
-      for (let v = 0; v < rede.n_nos; v++) {
-        if (r1.tt[v] <= teto) { r.tt[v] = r1.tt[v]; r.dono[v] = r1.dono[v]; r.prox[v] = r1.prox[v]; r.dist[v] = r1.dist[v]; }
-      }
-    }
-    for (const c of cob.values()) for (const i of c.keys()) possivel.add(i);
+    const plano = nOf > 0 && nOf < fontes.length ? destino(rev, n, fontes.slice(0, nOf)) : null;
+    const arvs = [todos, plano], noArv = Array.from({ length: n }, (_, v) => plano && plano.tt[v] <= teto ? 1 : 0);
     const casas = rede.casas.map(([no, d0, dm0, , precisa], i) => {
-      if (!precisa || no < 0 || r.dono[no] < 0) return [-1, null, null, 0];
+      if (!precisa || no < 0 || todos.dono[no] < 0) return [-1, null, null, 0, 0];
+      const a = plano && d0 + plano.tt[no] <= teto ? 1 : 0, r = arvs[a];
       const alc = fontes.filter(s => cob.get(s).has(i)).length;
-      return [r.dono[no], d0 + r.tt[no], Math.round((dm0 + r.dist[no] / 10) * 10) / 10, alc];
+      return [r.dono[no], d0 + r.tt[no], Math.round((dm0 + r.dist[no] / 10) * 10) / 10, alc, a];
     });
+    const possivel = new Set();
+    for (const c of cob.values()) for (const i of c.keys()) possivel.add(i);
     const precisam = rede.casas.map((c, i) => c[4] && c[0] >= 0 ? i : -1).filter(i => i >= 0);
+    const noLim = precisam.filter(i => casas[i][1] !== null && casas[i][1] <= teto).length;
+    const sem = precisam.filter(i => !possivel.has(i)).length;
     return {
       tempo_max_min: tempoMaxMin, modo,
       pontos: escolhidos.map(e => ({ origem: e[0], indice: e[1], no: noDe(e) })),
-      casas, prox: r.prox, ponto_no: r.dono, tempo_no_ds: r.tt.map(v => v === Infinity ? null : v),
-      resumo: {
-        precisam: precisam.length,
-        no_limite: precisam.filter(i => casas[i][1] !== null && casas[i][1] <= teto).length,
-        sem_ponto_possivel: precisam.filter(i => !possivel.has(i)).length
-      }
+      casas,
+      prox: noArv.map((a, v) => arvs[a].prox[v]),
+      ponto_no: noArv.map((a, v) => arvs[a].dono[v]),
+      tempo_no_ds: noArv.map((a, v) => arvs[a].tt[v] === Infinity ? null : arvs[a].tt[v]),
+      arvores: [publica(todos)].concat(plano ? [publica(plano)] : []),
+      resumo: { precisam: precisam.length, no_limite: noLim, sem_ponto_possivel: sem, fora_dos_escolhidos: precisam.length - noLim - sem }
     };
   }
 

@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Raster da cota que alaga cada pixel (m HAND), para o roteamento por nível.
+"""Raster da cota que inunda cada pixel (m HAND), para o roteamento por nível.
 
 Mesmo critério de contornos_mancha.json (gerar_contornos_vetoriais.py): um
-pixel alaga no nível L quando HAND <= L e está ligado ao talvegue por pixels
+pixel inunda no nível L quando HAND <= L e está ligado ao talvegue por pixels
 com HAND <= L. Aqui o resultado vira um raster só (o menor L de cada pixel),
 de 0 a 25 m em passos de 0,1 m — os contornos param em 15 m, abaixo do
 recorde de 2024 em Santa Tereza (HAND ~21,8 m).
 
 Saída: assets/data/rota_fuga/cota_alaga_<cidade>.tif, uint16 em decímetros,
 recortado na área das vias do gerador de rotas.
-  NAO_ALAGA (65535) = não alaga até 25 m.
+  NAO_ALAGA (65535) = não inunda até 25 m.
 
   python codigo_python/09_rota_fuga/gerar_cota_alaga.py [mucum|santa_tereza]
 """
@@ -67,7 +67,7 @@ def gera_de_contornos(slug):
         ds.update_tags(unidade="decimetro HAND", nao_alaga=str(NAO_ALAGA), nivel_max_m=str(NIVEL_MAX_DM / 10),
                        fonte=os.path.relpath(cfg["contornos"], rf_mod.RAIZ))
     print(f"{slug}: {len(feats)} contornos -> {out} ({largura}x{altura}, "
-          f"{int((cota != NAO_ALAGA).sum())} pixels alagáveis, {time.time() - t0:.0f} s)")
+          f"{int((cota != NAO_ALAGA).sum())} pixels inundáveis, {time.time() - t0:.0f} s)")
 
 
 def gera(slug):

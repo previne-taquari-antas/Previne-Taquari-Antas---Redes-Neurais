@@ -60,7 +60,7 @@ class GradeCasas:
     def celula(self, geom):
         """{n_casas, tempo_s, tempo_p90_s, dist_m, abrigo, no, cota_min} da célula.
 
-        cota_min: menor cota de alagamento entre as casas (None = nenhuma alaga
+        cota_min: menor cota de inundação entre as casas (None = nenhuma inunda
         ou célula sem casa).
         """
         dentro = []

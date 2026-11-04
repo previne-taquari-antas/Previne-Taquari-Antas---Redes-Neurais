@@ -18,7 +18,7 @@
 <div id="map"></div>
 <div class="hud">
   <h1>Rota de fuga · <span id="cid"></span></h1>
-  <div class="aviso-versao" style="background:#fdecea;border:1px solid #f2b8b2;color:#8f2a20;border-radius:8px;padding:7px 10px;font-size:13px;margin:6px 0"><b>Versão antiga (14/08/2026):</b> rotas sem as casas e sem os trechos que alagam destacados. As rotas atuais estão no <a href="../mucum_painel_casas.html#rotas">painel casa a casa</a>.</div>
+  <div class="aviso-versao" style="background:#fdecea;border:1px solid #f2b8b2;color:#8f2a20;border-radius:8px;padding:7px 10px;font-size:13px;margin:6px 0"><b>Versão antiga (14/08/2026):</b> rotas sem as casas e sem os trechos que inundam destacados. As rotas atuais estão no <a href="../mucum_painel_casas.html#rotas">painel casa a casa</a>.</div>
   <div class="canais-oficiais" style="font-size:12px;color:#4a5a52;padding:0 0 6px">Em emergência: <b>193</b> (Bombeiros) · <b>199</b> (Defesa Civil) · alertas por SMS: envie seu CEP para <b>40199</b>.</div>
   <div class="sub">Ruas do OpenStreetMap · caminho mínimo evitando a mancha</div>
   <div class="sub" id="meta"></div>
@@ -57,7 +57,7 @@ map.on('click',e=>{const i0=noProximo(e.latlng.lat,e.latlng.lng);const pts=[];le
   orig=L.circleMarker([D.nos[i0][0],D.nos[i0][1]],{radius:7,color:'#0f8b46',fillColor:'#fff',fillOpacity:1,weight:3}).addTo(map);
   const ab=D.abrigos.find(x=>x.id===D.dest[i0])||D.abrigos[0];const dm=D.dist_m[i0],ag=D.agua_m[i0];
   document.getElementById('rota').innerHTML=`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>Distância a pé: <b>${(dm/1000).toFixed(2)} km</b>`+
-    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que alaga.</span>`:`<br><span style="color:#0f8b46">Rota fora da mancha.</span>`);});
+    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que inunda.</span>`:`<br><span style="color:#0f8b46">Rota fora da mancha.</span>`);});
 document.getElementById('leg').innerHTML='<b>Mapa</b><br><i style="background:#0f8b46"></i>sua rota até o abrigo<br>'+
- '<i style="background:#b3382c"></i>rua que alaga<br><i style="background:#8fa7b8"></i>rua fora da mancha<br><i style="background:#1e5fbf;opacity:.4"></i>área de inundação';
+ '<i style="background:#b3382c"></i>rua que inunda<br><i style="background:#8fa7b8"></i>rua fora da mancha<br><i style="background:#1e5fbf;opacity:.4"></i>área de inundação';
 </script></body></html>

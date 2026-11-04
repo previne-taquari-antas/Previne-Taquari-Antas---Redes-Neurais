@@ -59,7 +59,7 @@ PASSO 0,1 M (não 0,5 m) — achado depois de publicar com 0,5 m
 ---------------------------------------------------------------
 Nas páginas AO VIVO (previsao), o site mostra 3 níveis ao mesmo tempo
 (agora/previsto/incerteza) e colore em laranja só a área NOVA (previsto
-além do que já tá alagado agora). Com passo 0,5 m, "agora" e "previsto"
+além do que já tá inundado agora). Com passo 0,5 m, "agora" e "previsto"
 quase sempre caíam no MESMO nível arredondado — ex.: agora=13,21 m e
 previsto=13,03 m (diferença real de 18 cm) os dois arredondavam pra
 13,0 m, a área laranja sumia por completo (virava tudo azul, mesmo

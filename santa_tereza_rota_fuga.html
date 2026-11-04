@@ -59,7 +59,7 @@ D.quadras.forEach(q=>{
   rect.bindPopup(`<b>Quadra</b><br>${q.min_ate_agua<=0?'<b>Abaixo do nível atual do rio</b>':'Água chega em <b>'+q.min_ate_agua+' min</b>'}<br>`+
     `Caminhada até ${D.seguro.nome} (idoso, linha reta × 1,4): <b>${q.min_caminhada_idoso} min</b> · ${q.dist_m} m<br>`+
     (q.min_ate_agua<=0?'':`Margem: <b>${q.margem_min} min</b> — ${ROT[q.classe]}<br>`)+
-    `<span style="color:#5b6b62">cota que alaga: ${q.cota_alaga_m} m · HAND ${q.hand_m} m</span>`);
+    `<span style="color:#5b6b62">cota que inunda: ${q.cota_alaga_m} m · HAND ${q.hand_m} m</span>`);
   rect.addTo(map); b.extend([q.lat,q.lon]);
 });
 if(D.quadras.length&&D.quadras.every(q=>q.classe==='alagada'))

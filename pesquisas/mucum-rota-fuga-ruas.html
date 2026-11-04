@@ -214,7 +214,7 @@ function d2(la1,lo1,la2,lo2){const dy=la1-la2,dx=(lo1-lo2)*Math.cos(la1*Math.PI/
 function noProximo(lat,lon){let best=-1,bd=1e9;for(let i=0;i<D.nos.length;i++){const d=d2(lat,lon,D.nos[i][0],D.nos[i][1]);if(d<bd){bd=d;best=i;}}return best;}
 function hasFloodEvidence(){return Boolean((D.mancha||[]).length||(D.agua_m||[]).some(v=>Number.isFinite(v)&&v>0)||(D.edges||[]).some(e=>e&&e[2]));}
 function destinationKind(ab){if(!ab)return'referência do estudo';const key=(ab.id+' '+ab.nome).toLowerCase();if(key.includes('hospital')||key.includes('posto'))return'ponto de encontro / apoio';if(municipal&&municipal.pontos_encontro&&municipal.pontos_encontro.some(p=>p.id===ab.id))return'ponto de encontro';return'abrigo planejado';}
-function routeRiskMarkup(ag){if(!hasFloodEvidence())return'<span class="route-unknown">⚠ Segurança não classificável: a mancha e os trechos alagáveis não estão carregados nesta captura.</span>';return ag>0?`<span class="route-unknown">⚠ ${Math.round(ag)} m passam por área com evidência de alagamento.</span>`:'<span class="ok">trechos alagáveis não identificados nesta captura</span>';}
+function routeRiskMarkup(ag){if(!hasFloodEvidence())return'<span class="route-unknown">⚠ Segurança não classificável: a mancha e os trechos inundáveis não estão carregados nesta captura.</span>';return ag>0?`<span class="route-unknown">⚠ ${Math.round(ag)} m passam por área com evidência de inundação.</span>`:'<span class="ok">trechos inundáveis não identificados nesta captura</span>';}
 map.on('click',e=>{const i0=noProximo(e.latlng.lat,e.latlng.lng);const pts=[];let i=i0,g=0;
   while(i>=0&&g++<6000){pts.push(D.nos[i]);const nx=D.prox[i];if(nx===i||nx<0)break;i=nx;}
   if(cam)map.removeLayer(cam);if(orig)map.removeLayer(orig);
@@ -223,7 +223,7 @@ map.on('click',e=>{const i0=noProximo(e.latlng.lat,e.latlng.lng);const pts=[];le
   const ab=D.abrigos.find(x=>x.id===D.dest[i0])||D.abrigos[0];const dm=D.dist_m[i0],ag=D.agua_m[i0];const kind=destinationKind(ab);const bridgeNote=(municipal&&municipal.pontes&&municipal.pontes.some(p=>p.status_operacional==='desconhecido'))?'<span class="route-unknown">Pontes: há status operacional desconhecido; a passagem não está validada.</span>':'';
   document.getElementById('rota').innerHTML=`<b>Hipótese de rota · ${kind}</b><br>Destino de referência: <b>${ab?ab.nome:'não identificado'}</b><br>Distância estimada: <b>${(dm/1000).toFixed(2)} km</b><br>`+routeRiskMarkup(ag)+bridgeNote;});
 document.getElementById('leg').innerHTML='<b>Mapa de pesquisa</b><br><i style="background:#0f8b46"></i>hipótese de rota<br>'+
- '<i style="background:#b3382c"></i>trecho com evidência de alagamento<br><i style="background:#8fa7b8"></i>rede viária de estudo<br><i style="background:#1e5fbf;opacity:.4"></i>mancha válida, quando carregada';
+ '<i style="background:#b3382c"></i>trecho com evidência de inundação<br><i style="background:#8fa7b8"></i>rede viária de estudo<br><i style="background:#1e5fbf;opacity:.4"></i>mancha válida, quando carregada';
 let locationMarker=null,accuracyCircle=null,locationRoute=null;
 const byId=id=>document.getElementById(id);
  function haversine(la1,lo1,la2,lo2){const R=6371000,rad=Math.PI/180,a=Math.sin((la2-la1)*rad/2)**2+Math.cos(la1*rad)*Math.cos(la2*rad)*Math.sin((lo2-lo1)*rad/2)**2;return 2*R*Math.asin(Math.sqrt(a));}

@@ -1,13 +1,13 @@
 # Rotas de fuga / evacuação — Etapa 2 (roteamento por ruas)
 
 Roteamento **real por ruas** (OpenStreetMap + caminho mínimo Dijkstra) de cada
-casa até o ponto de encontro/abrigo mais próximo, **evitando a área que alaga**.
+casa até o ponto de encontro/abrigo mais próximo, **evitando a área que inunda**.
 Cobre **Santa Tereza** e **Muçum** com um gerador único.
 
 ## Ordem de execução
 
 ```bash
-# 1. Cota de alagamento por pixel (uma vez por MDT; ~1 min por cidade)
+# 1. Cota de inundação por pixel (uma vez por MDT; ~1 min por cidade)
 python codigo_python/09_rota_fuga/gerar_cota_alaga.py
 
 # 2. Rotas (por cidade e fonte de nível)
@@ -46,9 +46,9 @@ Saídas: `assets/data/rota_fuga/rota_fuga_ruas_<cidade>*.json` +
 
 ## Método
 
-### Área que alaga
+### Área que inunda
 `gerar_cota_alaga.py` grava `cota_alaga_<cidade>.tif`: para cada pixel do
-mosaico 2 m, o menor nível HAND (0 a 25 m, passo 0,1 m) em que ele alaga
+mosaico 2 m, o menor nível HAND (0 a 25 m, passo 0,1 m) em que ele inunda
 **ligado ao rio** — o mesmo critério de `contornos_mancha.json`, que para em
 15 m (abaixo do recorde de 2024 em Santa Tereza, HAND ~21,8 m). Nas casas,
 o raster concorda com os contornos (a 13 m, 77 casas em comum; os contornos
@@ -56,8 +56,8 @@ suavizados pegam algumas a mais).
 
 Cada trecho de rua guarda o perfil desse raster a cada 4 m. No nível L, a
 **fração** do trecho abaixo de L entra no custo: `tempo × (1 + 60 × fração)`.
-Ponte e túnel não usam o perfil (o rio embaixo não alaga o tabuleiro): alagam
-quando uma cabeceira alaga. Abrigo que alaga no nível sai do roteamento.
+Ponte e túnel não usam o perfil (o rio embaixo não inunda o tabuleiro): inundam
+quando uma cabeceira inunda. Abrigo que inunda no nível sai do roteamento.
 
 O mapa mostra os contornos do site até 15 m; acima disso, o próprio raster.
 
@@ -65,7 +65,7 @@ O mapa mostra os contornos do site até 15 m; acima disso, o próprio raster.
 A origem é cada edificação do OpenStreetMap (`osm_casas_<cidade>.json`),
 ligada pela perpendicular à via mais próxima (até 80 m). A rede inclui
 calçadões, caminhos e escadarias, baixada num recorte 0,015° maior que o das
-casas (`osm_vias_pe_ampla_<cidade>.json`). A cota de alagamento da casa é a
+casas (`osm_vias_pe_ampla_<cidade>.json`). A cota de inundação da casa é a
 menor entre os vértices e o ponto interno da edificação.
 
 Não entram como casa: tags não residenciais (indústria, galpão, comércio,
@@ -79,7 +79,7 @@ Situação de cada casa no nível de projeto:
 |---|---|
 | `ok` | rota até o abrigo dentro do tempo, ou casa seca com rota seca |
 | `excede` | casa na água e rota acima de `--tempo-max` |
-| `ilhada` | casa seca, mas a rota cruza área que alaga (qualquer trecho: 40 cm de água já derrubam um idoso) |
+| `ilhada` | casa seca, mas a rota cruza área que inunda (qualquer trecho: 40 cm de água já derrubam um idoso) |
 | `sem_rota` | sem via a 80 m, ou ligada a um trecho de rede sem caminho até abrigo oficial |
 
 Trechos de rede desconectados da rede principal (50+ nós) ficam no grafo se
@@ -100,7 +100,7 @@ HAND 0 a 25 m (passo 1 m): próximo nó, abrigo e tempo por nó; nó, tempo e
 ### Pontos de encontro candidatos
 Três tipos de casa pedem outro ponto de encontro: na água e acima de
 `--tempo-max` (`tempo`), ligada a um trecho de rede sem caminho até abrigo
-oficial (`sem_rota`) e ilhada. O local candidato é um nó que só alaga **2 m
+oficial (`sem_rota`) e ilhada. O local candidato é um nó que só inunda **2 m
 acima** do nível de projeto, em rampa de até **15 %**.
 
 A escolha é por **cobertura gulosa**: um local atende a casa se ela chega lá
@@ -111,7 +111,7 @@ o local que atende mais casas na água ou sem rota (mínimo 3); depois, os que
 atendem mais ilhadas (mínimo 5); até 8 locais.
 
 O JSON traz por candidato os motivos, o pior tempo antes/depois, a cota em
-que ele alaga, a rampa e a **demanda**, além da rota até ele (`rota_cand`) e,
+que ele inunda, a rampa e a **demanda**, além da rota até ele (`rota_cand`) e,
 por casa, `cand`, `tempo_cand_s` e `no_cand`. **Capacidade não é avaliada** —
 são sugestões para a Defesa Civil, não abrigos oficiais.
 
@@ -142,8 +142,8 @@ borda em ~0,8 m):
 3. fora da mancha, cada pixel é **alto** (terreno pelo menos **2 m** acima do
    nível da água), **sem folga** (menos de 2 m) ou **abaixo da água** (abaixo da
    água na borda sem estar na mancha: atrás de aterro ou barreira no modelo,
-   pode ter alagado). "Sem folga" pode ficar abaixo de 76,47 m (a legenda diz
-   isso). Nó de rua ou casa que o HAND alaga no nível da mancha (22,1 m) fica
+   pode ter inundado). "Sem folga" pode ficar abaixo de 76,47 m (a legenda diz
+   isso). Nó de rua ou casa que o HAND inunda no nível da mancha (22,1 m) fica
    dentro dela mesmo que o pixel de 10 m na borda caia fora; e só é **alto** se
    o HAND também tiver a folga (≥ 24,05 m): MDT e HAND discordam em ±1–2 m, e 8
    casas com HAND de 23,2 a 24,1 m liam "não precisa sair".
@@ -205,7 +205,7 @@ ficava a 2 m de uma), escolhidos um a um pelo que mais poupa caminhada
 cadeira de rodas; 229 de 366 rotas). Nome: rua com nome a até 25 m e lugares a até
 150 m (`osm_nomes_santa_tereza.json`, de `baixar_nomes_osm.py`; escolas e UBS de
 `assets/data/servicos`), cada lugar com a situação em 2023 (a EMEI Descobrindo
-Caminhos, perto do ponto 1, alagou). O OSM de Santa Tereza tem poucos nomes de
+Caminhos, perto do ponto 1, inundou). O OSM de Santa Tereza tem poucos nomes de
 rua.
 
 Resultado (out/2026, terceira revisão): no recorte, 2.237 ha de terreno alto,
@@ -223,7 +223,7 @@ de decisão (**Sua casa · Para onde ir · Quando sair · Evite**); o abrigo ofi
 os números técnicos ficam em "detalhes". Em Margem e Quem sai, vale a melhor
 saída entre o abrigo oficial e o ponto alto (casa ou rua no alto = segura).
 Célula IBGE sem casa mapeada fica "sem avaliação", fora da contagem de risco, a
-não ser que o centro alague ou que a célula seja inteira alta (dentro do recorte,
+não ser que o centro inunde ou que a célula seja inteira alta (dentro do recorte,
 todo pixel alto; fora, fora da mancha HAND de 24,1 m com todo o LiDAR acima de
 78,47 m). Na cheia de set/2023, "precisam sair ou de apoio" fica em 468 pessoas
 (antes: 971, com ~610 moradores rurais contados pelo acesso ao Ginásio; depois
@@ -248,7 +248,7 @@ A **simulação da cheia** (`santa_tereza_painel_evacuacao.html`) lê o mesmo JS
 (com a altitude LiDAR dos nós, `z_nos`, e `margem_corte_m`) e, ao tocar perto de
 uma rua, traça a **rota de fuga até o terreno alto pelo MDT**, não mais até o
 Ginásio (que fica dentro da água de set/2023 e virou só referência): entre os
-caminhos que ficam secos por mais tempo (até o ponto alagar ou o melhor caminho até
+caminhos que ficam secos por mais tempo (até o ponto inundar ou o melhor caminho até
 algum nó alto ser cortado, o `gargalo`), o ponto alto (▲) mais perto no passo do
 idoso subindo e descendo; sem ▲ ao alcance, o nó alto mais perto. É a mesma conta
 de `locais_altos.caminhos` e bate com `margem_nos` do painel casa a casa em todos os
@@ -274,7 +274,8 @@ da SEMA não entram. Santa Tereza e Muçum.
 
 Os pontos são escolhidos como os locais altos: um a um, o que mais poupa caminhada do idoso
 (casa·min, teto de 60 min), até 10 pontos ou ganho abaixo de 150 casa·min; caminhada do
-r.walk, com subida do LiDAR em Santa Tereza e no plano em Muçum (sem grade). Casas na mancha
+r.walk, com subida do LiDAR em Santa Tereza e no plano em Muçum (há grade de terreno de 10 m de Muçum em
+`assets/data/mucum_inundacao/mdt/`, ainda não usada aqui: os tempos de Muçum saem curtos onde há subida). Casas na mancha
 ou na faixa vão ao ponto mais perto pelas ruas; casa fora da faixa não precisa ir.
 
 A mancha entra por `preparar_mancha.py` (shapefile, GeoPackage, KML ou GeoJSON em qualquer
@@ -356,9 +357,9 @@ manual `.github/workflows/osm-pontos-encontro.yml`). Ponto que a escolha deixa s
 - Em Santa Tereza nenhum ponto fica perto de lugar de reunião: praças, igrejas, campos, as duas
   escolas do centro e o Ginásio estão dentro da mancha ou da faixa nas duas versões. A única
   escola fora (EMEF Rodrigues Alves) fica longe das ruas candidatas.
-- Em Muçum, com o mapa único, um ponto passou a ser o Posto Sander, ponto de encontro do Plano de
+- (v2) Em Muçum, com o mapa único, um ponto passou a ser o Posto Sander, ponto de encontro do Plano de
   Contingência fora da mancha.
-- Nenhum ponto fica a menos de 124 m de cicatriz de deslizamento.
+- (v2) Nenhum ponto ficava a menos de 124 m de cicatriz de deslizamento (na v3, 115 m).
 
 **Versão 3: menos pontos para um tempo máximo** (nov/2026, padrão; conversa com a equipe sobre a
 cheia de set/2023 em Santa Tereza). Os candidatos são os da versão 2 (carro, deslizamento, lugar de
@@ -378,21 +379,35 @@ reunião); a escolha muda:
   pontos. A página de set/2023 (`santa_tereza_rotas_altas_set2023.html`) leva ao plano de Santa
   Tereza com a mancha do modelo.
 
+**Revisão de nov/2026** (três verificações independentes: página, algoritmo e critérios):
+- **Santa Tereza usa só a mancha do site** (modelo do projeto, cheia de set/2023): o mapa único é de
+  2024 e deixava de fora áreas que inundaram em 2023 (um ponto com 110 casas ficava dentro da cheia de
+  set/2023). A página não oferece mais o mapa único em Santa Tereza.
+- Em Muçum, a versão "mapa único" soma a maior cheia do modelo (mai/2024); ali a mancha do modelo já
+  cabe quase toda no mapa único e os pontos não mudam.
+- O guloso deu o mínimo exato de pontos (programação inteira) nos 4 casos de 20 min; numa varredura de
+  5 a 60 min, usou 1 ponto a mais que o mínimo em 13 de 224 casos.
+- O lugar de reunião, na v3, só desempata: a escolha é pelo número de casas atendidas.
+
 Pontos do algoritmo · casas que chegam a um ponto no tempo / casas da mancha e da faixa · casas que
 não chegam a nenhum ponto seguro nesse tempo:
 
 | | 15 min | 20 min (sugerido) | 30 min |
 |---|---|---|---|
-| Santa Tereza, mapa único | 7 · 297/516 · 219 | 6 · 435/516 · 81 | 3 · 478/516 · 38 |
-| Santa Tereza, modelo HAND (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
-| Muçum, mapa único | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
-| Muçum, modelo HAND | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
+| Santa Tereza, modelo do projeto (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
+| Muçum, mapa único + modelo | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
+| Muçum, modelo do projeto | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
 
 - Em Santa Tereza, na cheia de set/2023, 109 casas não chegam a nenhum ponto seguro em 20 min a pé,
   qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 4.
-- O único ponto do plano em Santa Tereza (o Ginásio) fica na mancha ou na faixa nas duas manchas:
-  o modo "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo)
-  ficam fora da área insegura.
+- O único ponto do plano em Santa Tereza (o Ginásio) fica dentro da mancha de set/2023: o modo
+  "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo) ficam
+  fora da área insegura.
+- Ainda abertos (apontados na revisão): pontos que viram ilha quando a água sobe (sem saída seca),
+  rotas que passam por trechos que inundam e, em Santa Tereza, casas que a página de set/2023 manda
+  ficar em terreno alto e que aqui recebem ponto de encontro.
+- "Pessoas" por ponto soma só as casas com morador atribuído pela grade do Censo; casas sem esse dado
+  contam 0, então o total por ponto fica abaixo do real (há pontos com casas e 0 pessoas).
 - A conta não olha a capacidade: em Muçum um ponto chega a receber mais de mil casas. O espaço de
   cada ponto ainda precisa ser conferido em campo.
 
@@ -409,27 +424,27 @@ casas na água que vão até ele e, nos candidatos, as ilhadas e sem rota.
 |---|---|---|
 | Casas (OSM) | 1937 | 565 |
 | HAND do cenário | 13,0 m | 13,4 m |
-| Na área que alaga | 115 | 18 |
+| Na área que inunda | 115 | 18 |
 | Na água acima de 30 min | 47 → **0** | 14 → **0** |
 | Sem caminho até abrigo oficial (outra margem) | 0 | 46 → **0** |
 | Casas secas ilhadas | 194 → **62** | 425 → **27** |
 | Locais candidatos | 4 | 5 |
 
 (antes → com candidatos; ilhada = a rota até o abrigo oficial cruza qualquer
-trecho que alaga. As que restam não têm caminho seco até nenhum local alto
+trecho que inunda. As que restam não têm caminho seco até nenhum local alto
 fora da água: abrigar-se no próprio local ou sair antes.)
 
 Santa Tereza usa o HAND LiDAR do `main` (`contornos_mancha.json`, 0–25 m) com
-a calibração de campo régua 1,60 m = HAND 0; a cota de alagamento é
+a calibração de campo régua 1,60 m = HAND 0; a cota de inundação é
 rasterizada desses contornos (`gerar_cota_alaga.py`, `cota_de_contornos`). O
-Ginásio (único abrigo) só alaga em HAND 21,3 m (régua 22,9 m), mas a via até
-ele alaga a partir de HAND 13,0 m perto de (−29,1726, −51,7237): ~35 m de
+Ginásio (único abrigo) só inunda em HAND 21,3 m (régua 22,9 m), mas a via até
+ele inunda a partir de HAND 13,0 m perto de (−29,1726, −51,7237): ~35 m de
 rua com ~40 cm de água no cenário deixam 361 casas ilhadas, todas atendidas
 por um candidato do lado seco. A outra margem é ligada ao centro só por uma
 lacuna de ~190 m perto de (−29,1794, −51,7344) que cruza o canal do rio
 (ponte ou balsa), não rua faltando; o candidato de lá atende as 46 casas.
 
-Muçum: o Salão José Marcolin alaga a partir de HAND 18 m (régua 23 m) e o
+Muçum: o Salão José Marcolin inunda a partir de HAND 18 m (régua 23 m) e o
 CTG Sentinela a partir de 20,6 m.
 
 ## Camadas derivadas
@@ -459,7 +474,7 @@ parou em 22,32 m —, set/2023 23,65 m, a maior; os 25,82 m de "referência" par
 mai/2024 que estavam aqui não tinham fonte primária;
 Muçum: jul/2020 22,11 m, nov/2023 22,99 m, mai/2024 25,51 m — set/2023 fica de
 fora porque a série termina subindo em 21,18 m). Cada abrigo e candidato diz até
-onde fica seco e se alagaria em cada cheia; a aba Rotas avisa o que alagaria na
+onde fica seco e se inundaria em cada cheia; a aba Rotas avisa o que inundaria na
 maior delas. Em Muçum, o popup traz a capacidade planejada do Plano de
 Contingência de jul/2026 (`mucum_contingencia_202607.json`; faixa quando o plano
 diverge) e avisa quando a demanda do cenário passa dela.
@@ -516,7 +531,7 @@ comparadas com os domicílios (`dom`). O script que a fez
 | Edificações OSM nesse recorte / domicílios | 1,19 | 1,85 |
 | Fora ou parcialmente fora do recorte | 341 | 363 |
 | … em células que tocam a mancha | 112 | 73 |
-| … ponderando pela área alagada da célula | ~32 | ~19 |
+| … ponderando pela área inundada da célula | ~32 | ~19 |
 
 Dentro do recorte, nenhuma célula com 5+ domicílios tem menos da metade das
 edificações esperadas. Em Muçum, o excesso de edificações bate com galpões e
@@ -586,7 +601,7 @@ a borda.
   de estudo some sozinho.
 - **Rotas × água plana**: o corte das rotas usa o HAND por trecho; com a água
   plana medida em campo, ~41 rotas cortariam antes da casa (revisão de out/2026).
-  Falta uma cota de alagamento pelo plano para nós e trechos na área dos pontos
+  Falta uma cota de inundação pelo plano para nós e trechos na área dos pontos
   RTK. Faltam também cenários acima de 2023 (+1 e +2 m) e marcas de cheia no norte,
   no sul e a montante no vale do afluente.
 - **Referência do HAND**: o talvegue do mosaico tem poços e degraus; trocar
