@@ -24,7 +24,7 @@ a{color:#08724d}.emerg a{font-weight:700}
 .plano label{display:block;font-size:12px;font-weight:650;margin:7px 0 3px}.plano .linha{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .plano input,.plano select{font:inherit;padding:5px 7px;border:1px solid #b9cfc2;border-radius:7px;background:#fff}.plano input{width:72px}.plano select{width:100%;max-width:100%}
 #planoRes{margin-top:8px;font-size:12.5px}#planoRes b{font-variant-numeric:tabular-nums}
-@media(max-width:700px){.plano button,.plano input,.plano select{min-height:44px}}
+@media(max-width:700px){#toggle{min-width:44px;min-height:44px}.plano button,.plano input,.plano select{min-height:44px}}
 .plano button:focus-visible,.plano input:focus-visible,.plano select:focus-visible{outline:3px solid #0d6549;outline-offset:1px}
 @media(max-width:700px){.hud{top:auto;bottom:9px;left:9px;right:9px;width:auto;max-width:none;max-height:50dvh;padding:12px}.hud h1{font-size:16px}#hud.collapse{max-height:72px;overflow:hidden}}
 </style></head><body>
@@ -80,11 +80,12 @@ a{color:#08724d}.emerg a{font-weight:700}
 'use strict';
 const CIDADES={santa_tereza:{nome:'Santa Tereza',casas:'santa_tereza_painel_casas.html#rotas',centro:[-29.1745,-51.7347]},
   mucum:{nome:'Muçum',casas:'mucum_painel_casas.html#rotas',centro:[-29.1655,-51.8715]}};
-const VERSOES={mup:'Mapa único (2024)',hand:'Modelo do projeto (HAND)'};
+const VERSOES={mup:'Mapa único (2024) + maior cheia do modelo',hand:'Modelo do projeto (HAND)'};
 const qs=new URLSearchParams(location.search),pedido=qs.get('cidade'),CID=CIDADES[pedido]?pedido:'santa_tereza',C=CIDADES[CID];
 // Santa Tereza usa a mancha do site (modelo do projeto, cheia de set/2023), melhor que o mapa único ali
 const MANCHAS={santa_tereza:['hand'],mucum:['mup','hand']},OPC=MANCHAS[CID];
 const VER=OPC.includes(qs.get('mancha'))?qs.get('mancha'):OPC[0];
+if(qs.get('mancha')&&qs.get('mancha')!==VER)try{const u=new URL(location.href);u.searchParams.set('mancha',VER);history.replaceState(null,'',u);}catch(e){}
 const LONGE_DA_RUA_M=150,VEL=0.9;
 const hud=document.getElementById('hud'),box=document.getElementById('resultado');
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -130,13 +131,16 @@ function mostra(lat,lon,casa){limpa();box.className='';ultimo=[lat,lon,casa];
   const F={};D.casas_campos.forEach((x,i)=>F[x]=i);
   const hc=casa?D.casas[casa.i]:null,arv=casa&&PL&&PL.casas&&PL.arvores?PL.arvores[PL.casas[casa.i][4]]:null;
   const k=hc?hc[F.ponto]:D.ponto_no[s];
+  if(!D.pontos.length){box.className='bad';box.innerHTML='<b>Este plano não tem nenhum ponto de encontro</b>'+(PL&&PL.modo==='plano'?': nenhum ponto do plano de contingência fica fora da área insegura. Escolha "plano + algoritmo".':'.')+pe;return;}
   if(k<0||k==null){box.className='bad';box.innerHTML='<b>Sem caminho mapeado daqui até um ponto de encontro.</b> Em perigo, suba para um lugar alto e ligue 199 ou 193.'+pe;return;}
-  const c=caminho(s,arv?arv.prox:null),p=D.pontos[k],dm=hc&&hc[F.dist_m]!=null?hc[F.dist_m]:c.d+bd,t=hc&&hc[F.tempo_s]!=null?hc[F.tempo_s]:D.tempo_no_s[s]+bd/VEL;
+  const c=caminho(s,arv?arv.prox:null),p=D.pontos[k],dm=hc&&hc[F.dist_m]!=null?hc[F.dist_m]:c.d+bd;
+  const tds=casa&&PL&&PL.casas?PL.casas[casa.i][1]:PL&&PL.tempo_no_ds&&PL.tempo_no_ds[s]!=null?PL.tempo_no_ds[s]+Math.round(bd/VEL*10):null;
+  const t=tds!=null?tds/10:hc&&hc[F.tempo_s]!=null?hc[F.tempo_s]:D.tempo_no_s[s]+bd/VEL,acima=PL&&t*10>PL.tempo_max_min*600;
   if(bd>3)snap=L.polyline([[lat,lon],D.nos[s]],{color:'#fff',weight:1.2,dashArray:'4 4',interactive:false}).addTo(map);
   cam=L.featureGroup([L.polyline(c.pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),L.polyline(c.pts,{color:'#5b2a86',weight:5,opacity:.95,interactive:false})]).addTo(map);
   box.innerHTML=(naMancha?'<b>Na mancha do '+esc(D.mancha_rotulo)+' ('+(D.mancha_observada?'área atingida em ':'cheia de ')+esc(D.evento_curto)+').</b> ':'<b>Na faixa de '+f0(D.offset_m)+' m em volta da mancha.</b> ')+
-    '<br>Ponto de encontro mais perto: <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+', a '+fmtDist(dm)+' · cerca de '+fmtMin(t)+' a pé no passo de um idoso (linha roxa).'+
-    (PL&&t>PL.tempo_max_min*60?'<br><b>Acima do tempo máximo de '+f0(PL.tempo_max_min)+' min</b>'+(PL.modo==='algoritmo'?': nenhum ponto seguro fica a menos que isso daqui.':' com os pontos deste plano.')+' Saia mais cedo ou combine transporte com a Defesa Civil.':'')+
+    '<br>Ponto de encontro mais perto: <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+', a '+fmtDist(dm)+' · '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso (linha roxa).'+
+    (acima?'<br><b>Acima do tempo máximo de '+f0(PL.tempo_max_min)+' min</b>'+(PL.modo==='algoritmo'?': nenhum ponto seguro fica a menos que isso daqui.':' com os pontos deste plano.')+' Saia mais cedo ou combine transporte com a Defesa Civil.':'')+
     '<br>Saia antes de a água chegar às ruas: '+(D.mancha_observada?'em '+esc(D.evento_curto)+' ela cobriu':'na cheia de '+esc(D.evento_curto)+' o modelo cobre')+' a mancha azul.'+pe;
   enquadra(cam.getBounds().extend([lat,lon]));}
 function marcaPontos(){if(!marcas)return;marcas.clearLayers();

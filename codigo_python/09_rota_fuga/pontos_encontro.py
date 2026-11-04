@@ -101,7 +101,7 @@ VERSOES = {
     "mup": {"mancha": "mup_rs_ada_{cidade}.geojson", "somar": "hand_maior_cheia_{cidade}.geojson",
             "saida": "{cidade}_pontos_encontro_mup.json",
             "rotulo": "mapa único e da maior cheia", "titulo": "Mapa Único do Plano Rio Grande somado à maior cheia registrada",
-            "observada": False,
+            "observada": True,  # quase toda observada (2024); a cheia do modelo cabe nela em Muçum
             "evento": {"santa_tereza": "cheias de abril e maio de 2024 (mapa único) e de set/2023, régua 23,65 m (modelo do projeto)",
                        "mucum": "cheias de abril e maio de 2024 (mapa único e modelo do projeto, régua 25,51 m)"},
             "evento_curto": {"santa_tereza": "2023 e 2024", "mucum": "2024"},

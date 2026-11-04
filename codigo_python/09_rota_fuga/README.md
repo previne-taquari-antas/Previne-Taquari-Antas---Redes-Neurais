@@ -406,6 +406,8 @@ não chegam a nenhum ponto seguro nesse tempo:
 - Ainda abertos (apontados na revisão): pontos que viram ilha quando a água sobe (sem saída seca),
   rotas que passam por trechos que inundam e, em Santa Tereza, casas que a página de set/2023 manda
   ficar em terreno alto e que aqui recebem ponto de encontro.
+- "Pessoas" por ponto soma só as casas com morador atribuído pela grade do Censo; casas sem esse dado
+  contam 0, então o total por ponto fica abaixo do real (há pontos com casas e 0 pessoas).
 - A conta não olha a capacidade: em Muçum um ponto chega a receber mais de mil casas. O espaço de
   cada ponto ainda precisa ser conferido em campo.
 

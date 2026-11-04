@@ -193,7 +193,7 @@ const CORES={alagada:'#1f4e9c',ilhada:'#9d4edd',isolada:'#2b2b2b',sem_abrigo:'#6
 const ROT={alagada:'já na água',ilhada:'ilhada — rota já cruza água',critica:'crítica — não sai a pé a tempo',apertada:'apertada (menos de 15 min)',atencao:'atenção (menos de 1 h)',confortavel:'confortável (mais de 1 h)',seguro:'rota não inunda',isolada:'isolada — a água cortou o caminho até abrigo seco',sem_abrigo:'sem abrigo oficial seco neste nível',sem_rota:'sem rota (sem via mapeada ou sem abrigo seco)'};
 const ORDEM=['alagada','ilhada','isolada','sem_abrigo','critica','apertada','atencao','confortavel','seguro','sem_rota'];
 ROT.sem_abrigo=`sem ${ABN} seco neste nível`;
-if(D.altos){ROT.seguro='fora da água: casa no alto ou caminho que não inunda';ROT.sem_rota='sem avaliação (sem casa ou rua mapeada)';
+if(D.altos){ROT.seguro='fora da água: casa no alto ou caminho sem trecho inundado';ROT.sem_rota='sem avaliação (sem casa ou rua mapeada)';
   ROT.ilhada='ilhada — a água cortou o caminho ou a saída da rua (precisa de apoio)';}
 const URG=k=>ORDEM.indexOf(k);
 const pior=(x,y)=>URG(x)<=URG(y)?x:y;
@@ -354,7 +354,7 @@ const casasImp=D.casas.map((c,ci)=>L.circleMarker([c[CF.lat],c[CF.lon]],{rendere
   .bindPopup(()=>{const k=casaCl[ci],p=c[CF.pessoas],cota=COTA_EF[ci];
     return `<span class="sw" style="background:${CORES[k]}"></span><b>${ROT[k]}</b><br>`+
       (p==null?'Fora das células com moradores no Censo 2022':`~${fm(p)} pessoas (IBGE 2022)`)+
-      (cota!=null?`<br>${cota!==c[CF.cota_alaga]?'Pode inundar':'Alaga'} a partir de ${txtNivel(cota)}.`:'<br>Não inunda até o nível mapeado.');}));
+      (cota!=null?`<br>${cota!==c[CF.cota_alaga]?'Pode inundar':'Inunda'} a partir de ${txtNivel(cota)}.`:'<br>Não inunda até o nível mapeado.');}));
 const casasImpLayer=L.layerGroup(casasImp);
 const txtDemanda=dm=>!dm?'':`<br>Demanda no cenário: ~<b>${dm.pessoas}</b> pessoas de ${dm.casas} casas na água`+
   (dm.casas_isoladas?` + ~${dm.pessoas_isoladas} de ${dm.casas_isoladas} casas isoladas`:'')+
@@ -471,7 +471,7 @@ function cenTaxa(t){return t<40?'(cheia lenta)':t<90?'':t<150?'(média de set/20
 function alertaNivel(){if(modo==='rotas')return;const h=nivelAtual(),k=kNivel(h);
   const al=D.abrigos.filter(a=>a.cota_alaga_m!=null&&a.cota_alaga_m<=NV.hand_m[k]).map(a=>esc(a.nome));
   if(al.length)document.getElementById('painel').insertAdjacentHTML('afterbegin',
-    `<div class="aviso">${al.length===D.abrigos.length?`<b>Nenhum ${ABN} fica seco neste nível.</b> `:''}Alaga(m): ${al.join(', ')}.`+
+    `<div class="aviso">${al.length===D.abrigos.length?`<b>Nenhum ${ABN} fica seco neste nível.</b> `:''}Inunda(m): ${al.join(', ')}.`+
     (AL?' '+txtPontosSecos(NV.hand_m[k]):'')+'</div>');
   if(h>=M.nivel_max_m)document.getElementById('painel').insertAdjacentHTML('afterbegin',
     `<div class="aviso">Acima de ${txtNivel(M.nivel_max_m)} o modelo não tem mancha: a área que inunda fica subestimada.</div>`);}
@@ -657,7 +657,7 @@ sld.oninput=redraw;sldTaxa.oninput=redraw;
 document.getElementById('selPrep').onchange=e=>{prepMin=+e.target.value;redraw();};
 document.getElementById('taxatxt').textContent=taxaCmH;document.getElementById('taxacen').textContent=cenTaxa(taxaCmH);
 if(M.abrigos_alagados.length){const e=document.getElementById('alertas');e.classList.remove('hide');
-  e.textContent='No cenário, alaga(m): '+M.abrigos_alagados.join(', ')+'. Nos níveis em que um abrigo inunda, ele sai das rotas.';}
+  e.textContent='No cenário, inunda(m): '+M.abrigos_alagados.join(', ')+'. Nos níveis em que um abrigo inunda, ele sai das rotas.';}
 let carregouContornos=false;
 const mIni=location.hash.slice(1);setModo(M.modos.includes(mIni)?mIni:AL?'rotas':M.modos.includes('impacto')?'impacto':M.modos[0]); aj(); setTimeout(aj,300);
 // girar a tela ou dar zoom no navegador não tira a casa escolhida do mapa
