@@ -30,7 +30,7 @@
   <h1>Se a água chega em 4 horas…</h1>
   <div class="body">
     <div class="muted">Santa Tereza · cenário de cheia (rio subindo <b id="taxa"></b> cm/h, ritmo de jul/2024). Previsão de nível pela RNA do PREVINE.</div>
-    <div class="step"><div class="ic">🏠</div><div>Uma casa na parte baixa (cota que alaga: <b id="cota"></b> m).<br>
+    <div class="step"><div class="ic">🏠</div><div>Uma casa na parte baixa (cota que inunda: <b id="cota"></b> m).<br>
       <span class="muted">A água chega aqui em <b id="tagua"></b> — daqui a <b id="magua"></b>.</span></div></div>
     <div class="step"><div class="ic">🚶</div><div>A pé até o <b id="abrigo"></b>: <b id="dist"></b>, <b id="tid"></b> (idoso) / <b id="tad"></b> (adulto).<br>
       <span class="muted" id="aguatxt"></span></div></div>
@@ -54,7 +54,7 @@ const rota=L.polyline(C.fuga.rota,{color:'#0f8b46',weight:6,opacity:.95}).addTo(
 L.marker([C.abrigo_pt.lat,C.abrigo_pt.lon]).addTo(map).bindPopup('<b>'+C.abrigo_pt.nome+'</b><br>ponto de encontro / abrigo');
 // casa (marcador pulsante)
 const casaIcon=L.divIcon({className:'',html:'<div style="position:relative"><div style="position:absolute;left:-13px;top:-13px;width:26px;height:26px;border-radius:50%;background:#e8730c;animation:pulse 1.6s infinite"></div><div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:#b3382c;border:2px solid #fff">🏠</div></div>',iconSize:[0,0]});
-L.marker([C.casa.lat,C.casa.lon],{icon:casaIcon}).addTo(map).bindPopup('<b>Casa (exemplo)</b><br>HAND '+C.casa.hand_m+' m · alaga na cota '+C.casa.cota_alaga_m+' m');
+L.marker([C.casa.lat,C.casa.lon],{icon:casaIcon}).addTo(map).bindPopup('<b>Casa (exemplo)</b><br>HAND '+C.casa.hand_m+' m · inunda na cota '+C.casa.cota_alaga_m+' m');
 map.fitBounds(rota.getBounds().pad(0.35));
 setTimeout(()=>{map.invalidateSize();map.fitBounds(rota.getBounds().pad(0.35));},300);
 // preenche textos
@@ -65,7 +65,7 @@ tagua.textContent=CE.hora_agua; magua.textContent=fm(CE.min_ate_agua);
 abrigo.textContent=F.abrigo; dist.textContent=(F.dist_m/1000).toFixed(2)+' km';
 tid.textContent=fm(F.min_idoso); tad.textContent=fm(F.min_adulto);
 document.getElementById('aguatxt').innerHTML = F.agua_m>0
-  ? '⚠ '+F.agua_m+' m da rota passam por área que alaga — por isso sair cedo importa.'
+  ? '⚠ '+F.agua_m+' m da rota passam por área que inunda — por isso sair cedo importa.'
   : 'Rota inteira fora da mancha de inundação.';
 // linha do tempo: barra = min_ate_agua; caminhada ocupa o inicio; folga = resto
 const tot=CE.min_ate_agua, cam=F.min_idoso, folga=Math.max(0,tot-cam);

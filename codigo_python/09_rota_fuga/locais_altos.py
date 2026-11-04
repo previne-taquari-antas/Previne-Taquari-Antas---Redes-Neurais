@@ -23,10 +23,10 @@ TERRENO ALTO = o que ficou FORA da mancha de set/2023, visto no MDT (LiDAR de
     1,8 m acima da borda do HAND; a borda sozinha baixa para 72–73 m no sul;
   - fora da mancha, o pixel é "alto" se o terreno fica pelo menos 2 m acima do
     nível da água; "abaixo da água" quando fica abaixo da água na borda sem
-    estar na mancha (atrás de aterro ou barreira no modelo: pode ter alagado; o
+    estar na mancha (atrás de aterro ou barreira no modelo: pode ter inundado; o
     remanso do Marrecão ainda não foi validado); o resto é "sem folga" (fora da
     mancha, mas sem 2 m sobre a água estimada; pode ficar abaixo de 76,47 m);
-  - casa ou rua que o HAND alaga com menos de 2 m sobre a cheia (HAND < 24,05 m)
+  - casa ou rua que o HAND inunda com menos de 2 m sobre a cheia (HAND < 24,05 m)
     não é "alta", mesmo com o MDT alto: os dois modelos discordam em ±1–2 m.
 Folga de 2 m: o erro que conta aqui é o do terreno de 10 m. LiDAR 10 m − RTK nos
 19 vértices: NMAD 0,71 m, máximo +1,46 m (H003, um limite de set/2023: a água
@@ -45,14 +45,14 @@ entorno de 3×3 (30 m: a grade de 10 m é o vizinho mais próximo do LiDAR de 1 
 erra ±1–2 m em declive) e fica a mais de 100 m das cicatrizes de deslizamento
 do inventário de 2024 (landslides_poly.geojson): na chuva que enche o rio, o pé
 do morro também é perigoso.
-Nós de rua e casas que o HAND alaga na cheia ficam "dentro" mesmo que o pixel
+Nós de rua e casas que o HAND inunda na cheia ficam "dentro" mesmo que o pixel
 de 10 m na borda caia fora da mancha. Cada casa vai pelo caminho mais rápido
 entre os que continuam secos pelo menos até a água chegar na própria casa; se
 nenhum continua, pelo que
 fica seco até o nível mais alto possível, e a casa precisa sair antes dele
 (`corte_m`). O acesso da casa até a rua (até o pé da perpendicular e dali ao
 nó) entra no corte: `doc["acesso_cota"]`, o nível HAND em que esse trecho
-alaga, vem dos contornos (gerar_painel.cota_acesso). Tempo do idoso com subidas
+inunda, vem dos contornos (gerar_painel.cota_acesso). Tempo do idoso com subidas
 (caminhada.py) no mesmo LiDAR.
 
 Saídas da cidade (para as ilhas): pontas de rua altas na borda da rede e pontas
@@ -352,7 +352,7 @@ def classes_do_png(uri):
 
 
 def grafo(doc, z):
-    """Lista de adjacência dirigida: (vizinho, segundos, metros, cota em que o trecho alaga)."""
+    """Lista de adjacência dirigida: (vizinho, segundos, metros, cota em que o trecho inunda)."""
     nos = doc["nos"]
     adj = [[] for _ in nos]
     for a, b, _ag, pe, cz in doc["edges"]:
@@ -386,7 +386,7 @@ def gargalo(adj, cota_no, alvos):
 
 
 def caminhos(adj, cota_no, origem, t0, d0, limiar, alvos):
-    """Dijkstra só por trechos e nós que alagam em `limiar` ou acima; tempo até cada alvo."""
+    """Dijkstra só por trechos e nós que inundam em `limiar` ou acima; tempo até cada alvo."""
     tempo, dist, ant = {origem: t0}, {origem: d0}, {origem: -1}
     pq = [(t0, origem)]
     achados = {}
@@ -473,7 +473,7 @@ def nomeia(local, ruas, lugares, terreno):
     p = (local["lat"], local["lon"])
     rr = _rua_mais_proxima(ruas, p, RAIO_RUA_M) if ruas else []
     perto = sorted((round(_dist(p, (q["lat"], q["lon"]))), q["nome"], q["lat"], q["lon"]) for q in lugares if q["nome"])
-    # a referência também diz se ficou na água: ninguém deve ir até um prédio que alagou
+    # a referência também diz se ficou na água: ninguém deve ir até um prédio que inundou
     perto = [{"nome": n, "m": d, "terreno": (terreno.ponto(la, lo) or ("sem_dado",))[0]}
              for d, n, la, lo in perto if d <= RAIO_LUGAR_M][:3]
     if len(rr) >= 2:
@@ -609,7 +609,7 @@ def calcula(doc, mancha, cidade="santa_tereza"):
     hand_alto = crit["celula_hand_min_m"]  # HAND da cheia + folga, o critério fora do recorte do MDT
 
     def no_terreno(la, lo, cota):
-        """Classe do pixel; ponto que o HAND alaga na cheia fica "dentro" (na borda, o pixel de 10 m erra);
+        """Classe do pixel; ponto que o HAND inunda na cheia fica "dentro" (na borda, o pixel de 10 m erra);
         com o MDT alto mas o HAND a menos da folga sobre a cheia, "sem_folga" (os dois discordam em ±1–2 m)."""
         t = terreno.ponto(la, lo) or ("sem_dado", None, None)
         if cota <= hand_cheia:
@@ -632,7 +632,7 @@ def calcula(doc, mancha, cidade="santa_tereza"):
     ruas = _json(cfg["nomes"])["ruas"] if os.path.exists(cfg["nomes"]) else []
     saidas = saidas_da_cidade(doc, no_alto, ruas)
     ilha = gargalo(adj, cota_no, saidas)  # nível em que o nó perde a última ligação seca com uma saída
-    # nível HAND em que o acesso da casa até a rua alaga (contornos; gerar_painel.cota_acesso)
+    # nível HAND em que o acesso da casa até a rua inunda (contornos; gerar_painel.cota_acesso)
     acesso = doc.get("acesso_cota") or [None] * len(doc["casas"])
 
     casas = []

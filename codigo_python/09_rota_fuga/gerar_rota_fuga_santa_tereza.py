@@ -8,7 +8,7 @@ GitHub Actions):
 
   1. TERRENO  -> HAND embutido em santa_tereza_previsao_inundacao.html (fonte autoritativa
      que o popup do mapa usa). Para cada célula do terreno, a cota de régua
-     em que ela começa a alagar é  ZERO_REGUA + HAND.
+     em que ela começa a inundar é  ZERO_REGUA + HAND.
   2. PREVISÃO -> previsao_ao_vivo.json (nível atual + trajetória da RNA de 2h/4h).
      Cruzando a trajetória com a cota da célula sai o TEMPO ATÉ A ÁGUA CHEGAR.
   3. FUGA     -> tempo de caminhada até o Ginásio de Esportes (ponto de encontro
@@ -140,7 +140,7 @@ def trajetoria_nivel(cenario):
 
 def tempo_ate(cota_m, pts):
     """Minutos até a trajetória atingir cota_m. None se não atinge no horizonte.
-    <=0 se a célula já está alagada agora."""
+    <=0 se a célula já está inundada agora."""
     if pts[0][1] >= cota_m:
         return 0.0
     for (ma, na), (mb, nb) in zip(pts, pts[1:]):
@@ -169,7 +169,7 @@ def monta_quadras(hand, geo, pts):
             blk = hand[by:by + px_por_bloco_y, bx:bx + px_por_bloco_x]
             if blk.size == 0:
                 continue
-            h = float(np.min(blk))                 # ponto mais baixo = alaga primeiro
+            h = float(np.min(blk))                 # ponto mais baixo = inunda primeiro
             if h <= 0 or h > HAND_MAX_HABITAVEL:
                 continue
             # centro da célula em lat/lon (imagem: linha 0 = Norte)
@@ -183,7 +183,7 @@ def monta_quadras(hand, geo, pts):
             cota = ZERO_REGUA_M + h
             tw = tempo_ate(cota, pts)
             if tw is None:
-                continue                            # não alaga no horizonte -> fora do mapa
+                continue                            # não inunda no horizonte -> fora do mapa
             dist = haversine_m(lat, lon, PONTO_SEGURO["lat"], PONTO_SEGURO["lon"]) * FATOR_DESVIO
             t_idoso = dist / VEL_IDOSO_MS / 60.0
             t_adulto = dist / VEL_ADULTO_MS / 60.0
@@ -317,7 +317,7 @@ D.quadras.forEach(q=>{
   rect.bindPopup(`<b>Quadra</b><br>${q.min_ate_agua<=0?'<b>Abaixo do nível atual do rio</b>':'Água chega em <b>'+q.min_ate_agua+' min</b>'}<br>`+
     `Caminhada até ${D.seguro.nome} (idoso, linha reta × 1,4): <b>${q.min_caminhada_idoso} min</b> · ${q.dist_m} m<br>`+
     (q.min_ate_agua<=0?'':`Margem: <b>${q.margem_min} min</b> — ${ROT[q.classe]}<br>`)+
-    `<span style="color:#5b6b62">cota que alaga: ${q.cota_alaga_m} m · HAND ${q.hand_m} m</span>`);
+    `<span style="color:#5b6b62">cota que inunda: ${q.cota_alaga_m} m · HAND ${q.hand_m} m</span>`);
   rect.addTo(map); b.extend([q.lat,q.lon]);
 });
 if(D.quadras.length&&D.quadras.every(q=>q.classe==='alagada'))

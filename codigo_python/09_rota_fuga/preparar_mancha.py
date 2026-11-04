@@ -3,7 +3,7 @@
 sistema de coordenadas) no GeoJSON WGS84 recortado por cidade que pontos_encontro.py lê.
 
 Feito para a Área Diretamente Atingida do Mapa Único do Plano Rio Grande (MUP RS) e, depois,
-para o perigo hidrológico do projeto. Junta todos os polígonos do arquivo (alagamento,
+para o perigo hidrológico do projeto. Junta todos os polígonos do arquivo (inundação,
 inundação, enxurrada e deslizamento contam como área atingida) e recorta a caixa da rede de
 ruas da cidade com 3 km de folga. Os atributos não vão para a saída; o arquivo de origem
 fica registrado no "properties" (nome e sha256).

@@ -12,13 +12,13 @@ A origem e cada edificacao (casa a casa):
                rampa do r.walk do GRASS (Naismith + correcao de Langmuir):
                subir custa mais, descer suave ajuda, descer ingreme custa.
                Grafo direcionado: ida e volta do mesmo trecho custam diferente.
-  3. AGUA   -> raster da cota que alaga cada pixel (gerar_cota_alaga.py, HAND
+  3. AGUA   -> raster da cota que inunda cada pixel (gerar_cota_alaga.py, HAND
                ligado ao rio, 0-25 m). Cada trecho guarda o perfil amostrado
                a cada 4 m; no nivel L, a FRACAO do trecho abaixo de L e
                penalizada (nao apagada: quem esta dentro precisa poder sair).
-               Ponte so alaga se uma das cabeceiras alaga.
+               Ponte so inunda se uma das cabeceiras inunda.
   4. ABRIGOS-> pontos de encontro oficiais (abrigos.geojson, filtrados pela
-               cidade). Abrigo que alaga no nivel sai do roteamento.
+               cidade). Abrigo que inunda no nivel sai do roteamento.
   5. CASAS  -> edificacoes do OSM. Cada casa liga na via mais proxima
                (pe da perpendicular) e herda o caminho desse ponto ao abrigo.
                Situacao: ok, excede (na agua e acima do tempo maximo), ilhada
@@ -90,7 +90,7 @@ MARGEM_VIAS_GRAUS = 0.015
 from caminhada import (VEL_IDOSO, RW_A, RW_B, RW_C, RW_D, RW_RAMPA_INGREME, FATOR_IDOSO,  # noqa: E402,F401
                        VEL_MAX_DESCIDA, RAMPA_MAX, FATOR_ESCADA, haversine, tempo_trecho)
 
-COTA_NAO_ALAGA = 65535      # gerar_cota_alaga.py: nao alaga ate NIVEL_MAX_M
+COTA_NAO_ALAGA = 65535      # gerar_cota_alaga.py: nao inunda ate NIVEL_MAX_M
 NIVEL_MAX_M = 25.0
 PASSO_PERFIL_M = 4.0
 NIVEIS_ROTA_M = [float(n) for n in range(0, int(NIVEL_MAX_M) + 1)]
@@ -98,7 +98,7 @@ AGUA_ILHADA_M = 0.0         # casa seca cuja rota cruza qualquer agua fica "ilha
 TELEMETRIA_VELHA_MIN = nivel_ao_vivo.TELEMETRIA_VELHA_MIN
 
 TEMPO_MAX_MIN = 30.0
-CAND_FOLGA_COTA_M = 2.0     # candidato so alaga pelo menos 2 m acima do nivel de projeto
+CAND_FOLGA_COTA_M = 2.0     # candidato so inunda pelo menos 2 m acima do nivel de projeto
 CAND_RAMPA_MAX = 0.15
 CAND_GANHO_MIN = 5          # novo candidato precisa atender 5 casas ainda sem solucao...
 CAND_URG_MIN = 3            # ... ou 3 na agua / sem rota
@@ -119,7 +119,7 @@ CIDADES = {
         "forecast": os.path.join(RAIZ, "previsao_ao_vivo.json"),
         # Calibração de campo: régua 1,60 m = HAND 0 no rio principal, válida só
         # sobre o HAND LiDAR de contornos_mancha.json (gerar_hand_lidar_santa_tereza.py);
-        # por isso a cota de alagamento sai dos contornos e não do mosaico 2 m.
+        # por isso a cota de inundação sai dos contornos e não do mosaico 2 m.
         "zero_regua_m": 1.6, "nivel_padrao": 13.4, "cenario_regua_cm": 1500.0,
         "cota_de_contornos": True,
         "fonte_mancha": "HAND LiDAR de campo (contornos_mancha.json, 0-25 m, rasterizados por gerar_cota_alaga.py)",
@@ -303,9 +303,9 @@ def carrega_mancha(cfg, nivel):
 
 
 class Inundacao:
-    """Cota (m HAND) em que cada ponto alaga, do raster de gerar_cota_alaga.py.
+    """Cota (m HAND) em que cada ponto inunda, do raster de gerar_cota_alaga.py.
 
-    `cota` devolve inf para "não alaga até 25 m" e para pontos fora do raster.
+    `cota` devolve inf para "não inunda até 25 m" e para pontos fora do raster.
     """
 
     def __init__(self, cfg):
@@ -392,8 +392,8 @@ def _perfil_linha(p1, p2, comp):
 def monta_grafo(osm, cotas, inund, min_comp=None):
     """Grafo direcionado das vias a pé, sem nível: use aplica_nivel antes de rotear.
 
-    Arestas: comp (m), t (s), dh, perfil (cotas de alagamento ao longo do trecho).
-    Nós: lon, lat, z (MDT), hand (cota em que o nó alaga) e comp (0 = rede
+    Arestas: comp (m), t (s), dh, perfil (cotas de inundação ao longo do trecho).
+    Nós: lon, lat, z (MDT), hand (cota em que o nó inunda) e comp (0 = rede
     principal). min_comp=None guarda só a rede principal; senão, também os
     trechos desconectados com pelo menos min_comp nós.
     """
@@ -416,7 +416,7 @@ def monta_grafo(osm, cotas, inund, min_comp=None):
                 continue
             if elevada:
                 dh = (zb - za) * comp / total if za is not None and zb is not None else 0.0
-                # ponte/túnel: alaga quando alguma cabeceira do way alaga
+                # ponte/túnel: inunda quando alguma cabeceira do way inunda
                 px, py = [nodes[nd[0]][0], nodes[nd[-1]][0]], [nodes[nd[0]][1], nodes[nd[-1]][1]]
             else:
                 z1, z2 = cotas.get(a), cotas.get(b)
@@ -448,7 +448,7 @@ def monta_grafo(osm, cotas, inund, min_comp=None):
 
 
 def aplica_nivel(G, nivel):
-    """Fração alagada e peso de cada aresta no nível HAND dado. Devolve nº de trechos com água."""
+    """Fração inundada e peso de cada aresta no nível HAND dado. Devolve nº de trechos com água."""
     n = 0
     for _u, _v, e in G.edges(data=True):
         f = float(np.count_nonzero(e["perfil"] <= nivel)) / len(e["perfil"])
@@ -566,7 +566,7 @@ def _rampa_no(G, n):
 def casas_alvo(proj, custos, nivel, tempo_max_s):
     """{índice da casa: motivo} das casas que precisam de outro ponto de encontro.
 
-    tempo    -> na área que alaga e acima do tempo máximo até o abrigo;
+    tempo    -> na área que inunda e acima do tempo máximo até o abrigo;
     sem_rota -> ligada à rede, mas num trecho sem caminho até abrigo seco;
     ilhada   -> fora da água, mas a rota cruza mais de AGUA_ILHADA_M de água.
     """
@@ -604,7 +604,7 @@ def sugere_pontos(G, proj, fontes_oficiais, nivel, tempo_max_s):
     Locais que atendem pelo menos CAND_URG_MIN casas na água ou sem rota vêm
     antes; as ilhadas (secas) só desempatam e depois ganham locais próprios.
 
-    Local = nó que só alaga CAND_FOLGA_COTA_M acima do nível, em rampa de até
+    Local = nó que só inunda CAND_FOLGA_COTA_M acima do nível, em rampa de até
     CAND_RAMPA_MAX. Atende a casa se ela chega lá em até tempo_max_s (idoso)
     pelo caminho de menor peso e, se a casa é ilhada, cruzando no máximo
     AGUA_ILHADA_M de água. Para quando o ganho fica abaixo de CAND_GANHO_MIN
@@ -712,7 +712,7 @@ def pessoas_por_casa(cfg, proj):
 
 
 def fontes_secas(abrigos, nivel):
-    """Abrigos que não alagam no nível; se todos alagam, nenhum."""
+    """Abrigos que não inundam no nível; se todos inundam, nenhum."""
     return {a["node"]: a["id"] for a in abrigos if a["cota_alaga"] > nivel}
 
 
@@ -783,12 +783,12 @@ def main():
     fontes = fontes_secas(abrigos, nivel)
     alagados = [a["nome"] for a in abrigos if a["cota_alaga"] <= nivel]
     for a in abrigos:
-        cz = "nao alaga ate 25 m" if math.isinf(a["cota_alaga"]) else f"alaga em HAND {a['cota_alaga']:.1f} m"
+        cz = "nao inunda ate 25 m" if math.isinf(a["cota_alaga"]) else f"inunda em HAND {a['cota_alaga']:.1f} m"
         print(f"  abrigo {a['nome']}: {cz}")
     if alagados:
-        print(f"AVISO: abrigos alagados em HAND {nivel:.1f} m: {alagados}")
+        print(f"AVISO: abrigos inundados em HAND {nivel:.1f} m: {alagados}")
     if not fontes:
-        print("AVISO: todos os abrigos alagam neste nivel; rotas para eles mesmo assim")
+        print("AVISO: todos os abrigos inundam neste nivel; rotas para eles mesmo assim")
         fontes = {a["node"]: a["id"] for a in abrigos}
     rot = roteia(G, fontes)
 
@@ -880,7 +880,7 @@ def main():
     for cd in candidatos:
         dm = demanda.get(cd["id"], {})
         print(f"  {cd['id']} (cobre {cd['n_cobre']}): {cd['n_casas']} casas {cd['motivos']}, pior "
-              f"{cd['pior_antes_min']} -> {cd['pior_depois_min']} min · alaga em "
+              f"{cd['pior_antes_min']} -> {cd['pior_depois_min']} min · inunda em "
               f"{cd['cota_alaga_m'] if cd['cota_alaga_m'] is not None else '>25'} m · rampa {cd['rampa']} · "
               f"demanda {dm.get('pessoas', 0)} pessoas na agua + {dm.get('pessoas_isoladas', 0)} isoladas")
     for m, r in resumo_cand.items():
@@ -943,7 +943,7 @@ def main():
                  "casas_campos": CASAS_CAMPOS, "etapa": 2, "nivel": meta_nivel,
                  "modelo_tempo": "r.walk (Naismith + Langmuir) escalado p/ idoso 0,9 m/s; MDT mosaico 2 m",
                  "modelo_agua": "fração do trecho abaixo do nível (cota_alaga_<cidade>.tif, HAND ligado ao rio); "
-                                "ponte alaga pela cabeceira",
+                                "ponte inunda pela cabeceira",
                  "referencia_metodo": "Gandra Franco (2026), doi:10.5281/zenodo.20402230",
                  "fonte_rede": "© OpenStreetMap contributors (ODbL), vias a pé",
                  "fonte_casas": "© OpenStreetMap contributors (ODbL), building",
@@ -1004,7 +1004,7 @@ _TEMPLATE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
   <button class="dobra" onclick="const h=this.parentNode;h.classList.toggle('min');document.getElementById('leg').style.display=h.classList.contains('min')?'none':''">–</button>
   <h1>Rota de fuga · <span id="cid"></span></h1>
   <div class="corpo">
-  <div class="sub">Cada casa do OpenStreetMap · tempo a pé (idoso) com subidas, até o abrigo oficial, evitando a área que alaga</div>
+  <div class="sub">Cada casa do OpenStreetMap · tempo a pé (idoso) com subidas, até o abrigo oficial, evitando a área que inunda</div>
   <div class="sub" id="meta"></div>
   <div class="aviso" id="alertas" style="display:none"></div>
   <div class="aviso">Protótipo (Etapa 2). Pontos de encontro oficiais (Defesa Civil). Não substitui orientação oficial em emergência.</div>
@@ -1028,23 +1028,23 @@ const regua=h=>ZR!=null?` (régua ${(h+ZR).toFixed(1).replace('.',',')} m)`:'';
  const al=nv.alarmes_regua_m||{};
  const alTxt=(al.atencao&&al.alerta&&al.inundacao)?` · alarmes ${al.atencao}/${al.alerta}/${al.inundacao} m`:'';
  if(nv.fonte==='live'){const at=(nv.nivel_atual_cm/100).toFixed(2),pk=(nv.nivel_pico_cm/100).toFixed(2);
-   t=`Ao vivo: rio ${at} m · pico previsto ${pk} m`+(nv.transbordando?` · área que alaga em HAND ${D.meta.nivel_projeto_m} m`:` · abaixo do transbordamento (${nv.bankfull_m} m)`)+alTxt;}
+   t=`Ao vivo: rio ${at} m · pico previsto ${pk} m`+(nv.transbordando?` · área que inunda em HAND ${D.meta.nivel_projeto_m} m`:` · abaixo do transbordamento (${nv.bankfull_m} m)`)+alTxt;}
  else{t=`${nv.rotulo||''}`+(nv.calibrar_regua?' (nível provisório — calibrar régua)':'')+alTxt;}
  const nc=D.meta.n_casas||0, nm=D.meta.n_casas_mancha||0;
- document.getElementById('meta').textContent=t+` · ${nc} casas`+(nm?` (${nm} na área que alaga)`:'')+` · ${D.meta.gerado_em}`;
+ document.getElementById('meta').textContent=t+` · ${nc} casas`+(nm?` (${nm} na área que inunda)`:'')+` · ${D.meta.gerado_em}`;
  const al2=[];
  if(nv.dados_desatualizados)al2.push(`Dados do rio de ${nv.telemetria_em||'?'} — desatualizados.`);
- if(D.meta.nivel_acima_do_mapeado)al2.push(`Nível acima do mapeado (${D.meta.nivel_max_mapeado_m} m HAND): área que alaga subestimada.`);
- if((D.meta.abrigos_alagados||[]).length)al2.push(`Abrigo(s) que alagam neste nível: ${D.meta.abrigos_alagados.join(', ')}.`);
+ if(D.meta.nivel_acima_do_mapeado)al2.push(`Nível acima do mapeado (${D.meta.nivel_max_mapeado_m} m HAND): área que inunda subestimada.`);
+ if((D.meta.abrigos_alagados||[]).length)al2.push(`Abrigo(s) que inundam neste nível: ${D.meta.abrigos_alagados.join(', ')}.`);
  if(al2.length){const e=document.getElementById('alertas');e.style.display='';e.innerHTML=al2.join('<br>');}
  const ne=D.meta.n_casas_excede||0, cands=D.candidatos||[], nsr=D.meta.n_casas_mancha_sem_rota||0, nil=D.meta.n_casas_ilhadas||0;
  const RC=D.meta.candidatos_resumo||{}, dep=m=>(RC[m]||{}).depois;
  const comC=m=>cands.length&&dep(m)!=null?` Com os candidatos: <b>${dep(m)}</b>.`:'';
  const linhas=[];
- if(ne)linhas.push(`<b>${ne}</b> casa(s) na área que alaga levam mais de <b>${TMAX} min</b> até o abrigo oficial.`+comC('tempo'));
- if(nsr&&!(RC.sem_rota||{}).antes)linhas.push(`<b>${nsr}</b> casa(s) na área que alaga sem caminho mapeado até um abrigo oficial seco.`);
+ if(ne)linhas.push(`<b>${ne}</b> casa(s) na área que inunda levam mais de <b>${TMAX} min</b> até o abrigo oficial.`+comC('tempo'));
+ if(nsr&&!(RC.sem_rota||{}).antes)linhas.push(`<b>${nsr}</b> casa(s) na área que inunda sem caminho mapeado até um abrigo oficial seco.`);
  if((RC.sem_rota||{}).antes)linhas.push(`<b>${RC.sem_rota.antes}</b> casa(s) ligadas a ruas sem caminho até abrigo oficial (outra margem ou trecho isolado).`+comC('sem_rota'));
- if(nil)linhas.push(`<b>${nil}</b> casa(s) fora da água ficam <b>ilhadas</b>: a rota até o abrigo oficial passa por área que alaga.`+comC('ilhada'));
+ if(nil)linhas.push(`<b>${nil}</b> casa(s) fora da água ficam <b>ilhadas</b>: a rota até o abrigo oficial passa por área que inunda.`+comC('ilhada'));
  if(cands.length)linhas.push(`${cands.length} local(is) candidato(s) em roxo — sugestão para a Defesa Civil avaliar, não ponto oficial.`);
  if(linhas.length){const dg=document.getElementById('diag');dg.style.display='';dg.innerHTML=linhas.join('<br>');}
 })();
@@ -1068,12 +1068,12 @@ const txtDemanda=dm=>!dm?'':`<br>Demanda no cenário: ~<b>${dm.pessoas}</b> pess
 const MOT={tempo:m=>`${m} passam de ${TMAX} min até o abrigo oficial`,sem_rota:m=>`${m} sem caminho até abrigo oficial`,ilhada:m=>`${m} ilhadas (rota cruza água)`};
 const txtMotivos=cd=>Object.entries(cd.motivos||{}).map(([k,v])=>(MOT[k]||(m=>m+' '+k))(v)).join(', ');
 D.abrigos.forEach(a=>{b.extend([a.lat,a.lon]);L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome}).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo oficial'+
-  (a.cota_alaga_m!=null?`<br>alaga a partir de HAND ${a.cota_alaga_m} m${regua(a.cota_alaga_m)}`:'')+txtDemanda(a.demanda));});
+  (a.cota_alaga_m!=null?`<br>inunda a partir de HAND ${a.cota_alaga_m} m${regua(a.cota_alaga_m)}`:'')+txtDemanda(a.demanda));});
 (D.candidatos||[]).forEach(cd=>L.circleMarker([cd.lat,cd.lon],{radius:10,color:'#5b2a86',weight:3,dashArray:'4 3',fillColor:'#d9c6f0',fillOpacity:.7}).addTo(map)
   .bindPopup(`<b>Local candidato</b> (não oficial)<br>Grupo de ${cd.n_casas} casas: ${txtMotivos(cd)}.<br>`+
     (cd.pior_antes_min!=null&&cd.pior_depois_min!=null?`Pior tempo: ${Math.round(cd.pior_antes_min)} → ${Math.round(cd.pior_depois_min)} min.<br>`:
      cd.pior_depois_min!=null?`Pior tempo até aqui: ${Math.round(cd.pior_depois_min)} min.<br>`:'')+
-    `Alaga: ${cd.cota_alaga_m!=null?'HAND '+cd.cota_alaga_m+' m'+regua(cd.cota_alaga_m):'não alaga até '+D.meta.nivel_max_mapeado_m+' m'} · rampa ${Math.round(cd.rampa*100)}%.`+
+    `Alaga: ${cd.cota_alaga_m!=null?'HAND '+cd.cota_alaga_m+' m'+regua(cd.cota_alaga_m):'não inunda até '+D.meta.nivel_max_mapeado_m+' m'} · rampa ${Math.round(cd.rampa*100)}%.`+
     txtDemanda(cd.demanda)+`<br><i>Capacidade não avaliada. Validar com a Defesa Civil.</i>`));
 const BB=b.pad(0.05);function ajusta(){map.invalidateSize();map.fitBounds(BB);}
 ajusta();setTimeout(ajusta,300);window.addEventListener('resize',ajusta);
@@ -1106,12 +1106,12 @@ function mostraCasa(i){
   const cota=c[F.cota_alaga];
   document.getElementById('rota').innerHTML=`<b>Rota até ${ab?ab.nome:'abrigo'}</b><br>A pé: <b>${(c[F.dist_m]/1000).toFixed(2)} km</b> · <b>${fmin(c[F.tempo_s])}</b> (idoso)`+
     (sb>=1?` · sobe ${Math.round(sb)} m`:'')+
-    (cota!=null?`<br>A casa alaga a partir de HAND ${cota} m${regua(cota)}.`:'<br>A casa não alaga até o nível mapeado.')+
+    (cota!=null?`<br>A casa inunda a partir de HAND ${cota} m${regua(cota)}.`:'<br>A casa não inunda até o nível mapeado.')+
     (st==='excede'?`<br><span style="color:#6b1a1a">Passa de ${TMAX} min até o abrigo oficial.</span>`:'')+
     (st==='ilhada'?`<br><span style="color:#4b2c78"><b>Ilhada</b>: a casa fica seca, mas a rota cruza água. Sair cedo ou abrigar-se no local.</span>`:'')+
-    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que alaga.</span>`:`<br><span style="color:#0f8b46">Rota fora da área que alaga.</span>`)+txtC+
+    (ag>0?`<br><span style="color:#b3382c">⚠ ${Math.round(ag)} m passam por área que inunda.</span>`:`<br><span style="color:#0f8b46">Rota fora da área que inunda.</span>`)+txtC+
     (c[F.tempo_direto_s]!=null&&c[F.tempo_direto_s]<0.8*c[F.tempo_s]&&(c[F.agua_direto_m]||0)>0?
-      `<br><span style="color:#4a5a52">O caminho mais curto (${fmin(c[F.tempo_direto_s])}) atravessa ${Math.round(c[F.agua_direto_m]||0)} m de área que alaga — só serve antes da água chegar.</span>`:'');
+      `<br><span style="color:#4a5a52">O caminho mais curto (${fmin(c[F.tempo_direto_s])}) atravessa ${Math.round(c[F.agua_direto_m]||0)} m de área que inunda — só serve antes da água chegar.</span>`:'');
 }
 map.on('click',e=>{
   let best=-1,bd=1e18;
@@ -1122,13 +1122,13 @@ map.on('click',e=>{
 window.mostraCasa=mostraCasa;
 if(innerWidth<600){document.getElementById('hud').classList.add('min');document.getElementById('leg').style.display='none';}
 document.getElementById('leg').innerHTML='<b>Mapa</b><br><i style="background:#0f8b46"></i>rota da casa até o abrigo<br>'+
- '<i style="background:#e8730c;border-radius:50%"></i>casa na área que alaga<br>'+
- '<i style="background:#c0392b;border-radius:50%"></i>na área que alaga, acima de '+TMAX+' min<br>'+
+ '<i style="background:#e8730c;border-radius:50%"></i>casa na área que inunda<br>'+
+ '<i style="background:#c0392b;border-radius:50%"></i>na área que inunda, acima de '+TMAX+' min<br>'+
  '<i style="background:#a689d6;border-radius:50%"></i>ilhada (rota cruza água)<br>'+
  '<i style="background:#c5c5c5;border-radius:50%"></i>sem caminho até abrigo oficial<br>'+
  '<i style="background:#f4f7f5;border:1px solid #3d4a44;border-radius:50%;box-sizing:border-box"></i>casa fora da água<br>'+
  '<i style="background:#d9c6f0;border:2px dashed #5b2a86;border-radius:50%;box-sizing:border-box"></i>local candidato (não oficial)<br>'+
- '<i style="background:#b3382c"></i>via que alaga<br><i style="background:#8fa7b8"></i>via seca (tracejada: só a pé)<br><i style="background:#1e5fbf;opacity:.4"></i>área que alaga';
+ '<i style="background:#b3382c"></i>via que inunda<br><i style="background:#8fa7b8"></i>via seca (tracejada: só a pé)<br><i style="background:#1e5fbf;opacity:.4"></i>área que inunda';
 </script></body></html>"""
 
 

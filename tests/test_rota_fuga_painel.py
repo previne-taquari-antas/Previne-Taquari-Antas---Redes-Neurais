@@ -429,7 +429,7 @@ assert.ok(k>=0);const r=rotaDe(k),a=alternativa(k,r);
 assert.ok(RA.ligado[a.alvo]&&a.t>=r.t&&a.t<=r.t+900);
 // saia antes: corte menos o erro do modelo e o que o rio sobe na caminhada (90 cm/h)
 assert.strictEqual(regSair({lim:16,t:3600}),Math.floor((16-1.5-0.9+1.6)*10)/10);
-// caminho cortado antes de o próprio ponto alagar: no nível do corte não há mais rota; 1,5 m antes já é tarde
+// caminho cortado antes de o próprio ponto inundar: no nível do corte não há mais rota; 1,5 m antes já é tarde
 const i=RA.nos.findIndex((_,j)=>{const q=rotaDe(j);return q&&q.lim>5&&q.lim<cotaV(j);}),q=rotaDe(i);
 assert.ok(i>=0);
 assert.strictEqual(classeFuga(i,q.lim,0.015),'rota_comprometida');

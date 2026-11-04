@@ -34,7 +34,7 @@ A classe “percurso computável” significa somente que o grafo encontra um ca
 
 ## Correções de 24/10/2026
 1. A origem com cota de inundação ausente deixa de gerar percurso.
-2. A origem alagada no cenário não recebe falsa rota seca na cota escolhida.
+2. A origem inundada no cenário não recebe falsa rota seca na cota escolhida.
 3. Ligação da edificação a nó viário acima de 60 m deixa de gerar percurso, mesmo que o roteamento do restante da rua seja possível.
 4. Trechos sem cota utilizável ou identificados como ponte são excluídos da busca.
 5. Um caminho sem margem HAND modelada de 1 m é sinalizado como pendência em vez de linha azul de saída.
@@ -48,7 +48,7 @@ A classe “percurso computável” significa somente que o grafo encontra um ca
 - **Pontes e passagens:** vistoriar cabeceiras, tabuleiro, danos, circulação efetiva e eventual interdição. Nenhuma ponte é declarada liberada automaticamente.
 - **Destinos:** distinguir rua elevada de abrigo ou refúgio; verificar acessibilidade, espaço, capacidade, abertura e perigos locais, junto à Defesa Civil.
 - **Cenários:** comparar com cotas e manchas de 2023/2024 e outros eventos, hidrodinâmica, velocidade, remanso (incluindo Arroio Marrecão), efeito de correnteza e bloqueios reais de rua.
-- **Publicação:** validar construção do GitHub Pages e testar navegador/celular com mapa visível e popup para pontos em áreas secas, alagadas e sem dados; não divulgar como guia operacional antes de validação institucional e de campo.
+- **Publicação:** validar construção do GitHub Pages e testar navegador/celular com mapa visível e popup para pontos em áreas secas, inundadas e sem dados; não divulgar como guia operacional antes de validação institucional e de campo.
 
 ## Regra de interpretação
 **Verde = compatibilidade computacional preliminar**, nunca via liberada. **Azul = hipótese de trajeto pelas vias a trecho alto**, nunca rota certificada. **Cinza/amarelo = dado ou acesso insuficiente**, não prova de isolamento. **Vermelho = origem na mancha do cenário**, não indicação de nível observado em tempo real. A seleção do nível HAND é um exercício; mudanças hidrológicas reais podem invalidar qualquer resultado.
