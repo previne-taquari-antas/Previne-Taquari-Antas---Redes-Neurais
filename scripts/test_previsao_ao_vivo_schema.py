@@ -357,5 +357,38 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertFalse(horizons["8h"]["disponivel"])
 
 
+    def test_ana_observed_cache_recovers_only_existing_exact_hours(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        t = live.dt.datetime(2026, 11, 4, 14)
+        full = {t - live.dt.timedelta(hours=h): 350.0 + h for h in range(12)}
+        with tempfile.TemporaryDirectory() as folder:
+            path = str(Path(folder) / "exact_levels.json")
+            with patch.object(live, "agora_brt", return_value=t):
+                series = {"86472600": dict(full), "86472000": {}}
+                saved = live.complementar_niveis_cache_observado(series, caminho=path)
+                self.assertTrue(saved["cache_escrito"])
+                hole = t - live.dt.timedelta(hours=4)
+                second = dict(full)
+                del second[hole]
+                # O cache soma apenas medições anteriormente recebidas: não
+                # há interpolação nem alteração do valor observado deste ciclo.
+                current = {"86472600": second, "86472000": {}}
+                recovered = live.complementar_niveis_cache_observado(current, caminho=path)
+                self.assertEqual(recovered["horas_resgatadas"]["86472600"], 1)
+                self.assertEqual(current["86472600"][hole], full[hole])
+                self.assertNotIn(t - live.dt.timedelta(hours=13), current["86472600"])
+                self.assertEqual(current["86472600"][t], 350.0)
+
+                # Sem dados reais atuais, não mascarar a perda de telemetria
+                # usando o último ciclo como se fosse a leitura corrente.
+                unavailable = {"86472600": {}, "86472000": {}}
+                result = live.complementar_niveis_cache_observado(
+                    unavailable, caminho=path
+                )
+                self.assertFalse(result["cache_escrito"])
+                self.assertEqual(unavailable["86472600"], {})
+
+
 if __name__ == "__main__":
     unittest.main()
