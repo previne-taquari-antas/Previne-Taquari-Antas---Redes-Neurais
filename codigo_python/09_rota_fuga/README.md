@@ -274,7 +274,8 @@ da SEMA não entram. Santa Tereza e Muçum.
 
 Os pontos são escolhidos como os locais altos: um a um, o que mais poupa caminhada do idoso
 (casa·min, teto de 60 min), até 10 pontos ou ganho abaixo de 150 casa·min; caminhada do
-r.walk, com subida do LiDAR em Santa Tereza e no plano em Muçum (sem grade). Casas na mancha
+r.walk, com subida do LiDAR em Santa Tereza e no plano em Muçum (há grade de terreno de 10 m de Muçum em
+`assets/data/mucum_inundacao/mdt/`, ainda não usada aqui: os tempos de Muçum saem curtos onde há subida). Casas na mancha
 ou na faixa vão ao ponto mais perto pelas ruas; casa fora da faixa não precisa ir.
 
 A mancha entra por `preparar_mancha.py` (shapefile, GeoPackage, KML ou GeoJSON em qualquer
@@ -356,9 +357,9 @@ manual `.github/workflows/osm-pontos-encontro.yml`). Ponto que a escolha deixa s
 - Em Santa Tereza nenhum ponto fica perto de lugar de reunião: praças, igrejas, campos, as duas
   escolas do centro e o Ginásio estão dentro da mancha ou da faixa nas duas versões. A única
   escola fora (EMEF Rodrigues Alves) fica longe das ruas candidatas.
-- Em Muçum, com o mapa único, um ponto passou a ser o Posto Sander, ponto de encontro do Plano de
+- (v2) Em Muçum, com o mapa único, um ponto passou a ser o Posto Sander, ponto de encontro do Plano de
   Contingência fora da mancha.
-- Nenhum ponto fica a menos de 124 m de cicatriz de deslizamento.
+- (v2) Nenhum ponto ficava a menos de 124 m de cicatriz de deslizamento (na v3, 115 m).
 
 **Versão 3: menos pontos para um tempo máximo** (nov/2026, padrão; conversa com a equipe sobre a
 cheia de set/2023 em Santa Tereza). Os candidatos são os da versão 2 (carro, deslizamento, lugar de
@@ -378,21 +379,33 @@ reunião); a escolha muda:
   pontos. A página de set/2023 (`santa_tereza_rotas_altas_set2023.html`) leva ao plano de Santa
   Tereza com a mancha do modelo.
 
+**Revisão de nov/2026** (três verificações independentes: página, algoritmo e critérios):
+- **Santa Tereza usa só a mancha do site** (modelo do projeto, cheia de set/2023): o mapa único é de
+  2024 e deixava de fora áreas que alagaram em 2023 (um ponto com 110 casas ficava dentro da cheia de
+  set/2023). A página não oferece mais o mapa único em Santa Tereza.
+- Em Muçum, a versão "mapa único" soma a maior cheia do modelo (mai/2024); ali a mancha do modelo já
+  cabe quase toda no mapa único e os pontos não mudam.
+- O guloso deu o mínimo exato de pontos (programação inteira) nos 4 casos de 20 min; numa varredura de
+  5 a 60 min, usou 1 ponto a mais que o mínimo em 13 de 224 casos.
+- O lugar de reunião, na v3, só desempata: a escolha é pelo número de casas atendidas.
+
 Pontos do algoritmo · casas que chegam a um ponto no tempo / casas da mancha e da faixa · casas que
 não chegam a nenhum ponto seguro nesse tempo:
 
 | | 15 min | 20 min (sugerido) | 30 min |
 |---|---|---|---|
-| Santa Tereza, mapa único | 7 · 297/516 · 219 | 6 · 435/516 · 81 | 3 · 478/516 · 38 |
-| Santa Tereza, modelo HAND (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
-| Muçum, mapa único | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
-| Muçum, modelo HAND | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
+| Santa Tereza, modelo do projeto (set/2023) | 6 · 296/528 · 232 | 7 · 419/528 · 109 | 6 · 524/528 · 4 |
+| Muçum, mapa único + modelo | 6 · 265/1.789 · 1.524 | 6 · 614/1.789 · 1.175 | 5 · 1.228/1.789 · 561 |
+| Muçum, modelo do projeto | 10 · 1.360/1.624 · 264 | 7 · 1.485/1.624 · 139 | 6 · 1.539/1.624 · 85 |
 
 - Em Santa Tereza, na cheia de set/2023, 109 casas não chegam a nenhum ponto seguro em 20 min a pé,
   qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 4.
-- O único ponto do plano em Santa Tereza (o Ginásio) fica na mancha ou na faixa nas duas manchas:
-  o modo "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo)
-  ficam fora da área insegura.
+- O único ponto do plano em Santa Tereza (o Ginásio) fica dentro da mancha de set/2023: o modo
+  "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo) ficam
+  fora da área insegura.
+- Ainda abertos (apontados na revisão): pontos que viram ilha quando a água sobe (sem saída seca),
+  rotas que passam por trechos que alagam e, em Santa Tereza, casas que a página de set/2023 manda
+  ficar em terreno alto e que aqui recebem ponto de encontro.
 - A conta não olha a capacidade: em Muçum um ponto chega a receber mais de mil casas. O espaço de
   cada ponto ainda precisa ser conferido em campo.
 

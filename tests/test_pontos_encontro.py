@@ -112,10 +112,13 @@ class CriterioTest(unittest.TestCase):
             d = json.loads(pub.read_text(encoding="utf-8"))
             self.assertEqual(d["versao"], versao)
             self.assertEqual(d["mancha_sha256"], pe._sha256(mancha))
+            somada = pe.mancha_somada(cidade, versao)
+            if somada:  # o mapa único soma a maior cheia do modelo (set/2023 em Santa Tereza)
+                self.assertEqual(d["mancha_somada"]["sha256"], pe._sha256(somada))
             if d.get("criterios") in ("v2", "v3"):
                 self.assertEqual(d["osm_encontro"]["sha256"], pe._sha256(pe.osm_encontro(cidade)))
             padrao = d.get("plano", {}).get("padrao", {"tempo_max_min": pe.TEMPO_SUGERIDO_MIN, "modo": "algoritmo"})
-            novo = pe.documento(cidade, str(mancha), d["offset_m"], d["fonte_mancha"], versao, d.get("criterios", "v1"),
+            novo = pe.documento(cidade, None, d["offset_m"], d["fonte_mancha"], versao, d.get("criterios", "v1"),
                                 padrao["tempo_max_min"], padrao["modo"])
             # a conta (pontos, casas, ruas) bate exatamente; o contorno desenhado da faixa varia nos últimos
             # dígitos entre versões do GEOS (vértices dos arcos do buffer)
@@ -190,6 +193,15 @@ class PlanoTest(unittest.TestCase):
             res = r["resumo"]
             # toda casa que alcança algum candidato em 20 min chega a um ponto escolhido em 20 min
             self.assertEqual(res["no_limite"] + res["sem_ponto_possivel"], res["precisam"], k)
+            self.assertEqual(res["fora_dos_escolhidos"], 0, k)
+            # plano + algoritmo também cobre todas (o oficial vem primeiro só para quem chega a ele no tempo)
+            r2 = plano_pontos.planeja(rede, 20, "plano+algoritmo")
+            self.assertEqual(r2["resumo"]["fora_dos_escolhidos"], 0, k)
+            seg = len({o["no"] for o in rede["oficiais"] if o["seguro"]})
+            for i, c in enumerate(r2["casas"]):
+                if c[4] == 1:  # foi ao ponto oficial: chega nele no tempo
+                    self.assertLess(c[0], seg)
+                    self.assertLessEqual(c[1], teto)
             # nenhum ponto sobra: cada um é o único a até 20 min de pelo menos uma casa
             for j, p in enumerate(r["pontos"]):
                 self.assertTrue(any(c[0] == j and c[3] == 1 and c[1] <= teto for c in r["casas"]), (k, p))
@@ -204,6 +216,22 @@ class PlanoTest(unittest.TestCase):
             r2 = plano_pontos.planeja(d["plano"], 20, "plano+algoritmo")
             self.assertEqual([p["no"] for p in r2["pontos"][:len(seguros)]], [o["no"] for o in seguros], k)
             self.assertGreaterEqual(r2["resumo"]["no_limite"], r["resumo"]["no_limite"], k)
+
+    def test_nenhum_ponto_na_cheia_do_modelo(self):
+        """O mapa único é de 2024; os pontos também ficam fora da maior cheia do modelo (set/2023 em Santa Tereza)."""
+        for (cidade, versao), d in self.pub.items():
+            fc = json.loads(Path(pe.DADOS, f"hand_maior_cheia_{cidade}.geojson").read_text(encoding="utf-8"))
+            cheia = unary_union([shape(f["geometry"]) for f in fc["features"]])
+            for p in d["pontos"]:
+                self.assertFalse(cheia.contains(Point(p["lon"], p["lat"])), (cidade, versao, p["id"]))
+
+    def test_tempo_em_minutos_inteiros(self):
+        import plano_pontos
+        d = next(iter(self.pub.values()), None)
+        if d is None:
+            self.skipTest("sem JSON")
+        with self.assertRaises(ValueError):
+            plano_pontos.planeja(d["plano"], 19.5, "algoritmo")
 
     def test_mais_tempo_nao_pede_mais_casas_fora(self):
         import plano_pontos
@@ -271,7 +299,8 @@ class VersaoHandTest(unittest.TestCase):
 class PaginaTest(unittest.TestCase):
     def test_le_o_json_da_cidade_e_avisa(self):
         self.assertIn("'assets/data/rota_fuga/'+CID+'_pontos_encontro_'+VER+'.json'", PAGINA)
-        self.assertIn("VERSOES[qs.get('mancha')]?qs.get('mancha'):'mup'", PAGINA)  # versão fora da lista não monta caminho
+        self.assertIn("OPC.includes(qs.get('mancha'))?qs.get('mancha'):OPC[0]", PAGINA)  # versão fora da lista não monta caminho
+        self.assertIn("santa_tereza:['hand']", PAGINA)  # Santa Tereza usa só a mancha do site (set/2023)
         self.assertIn("CIDADES[pedido]?pedido:'santa_tereza'", PAGINA)  # cidade fora da lista não monta caminho
         self.assertIn('<a href="tel:199">199</a>', PAGINA)
         self.assertIn("não é abrigo oficial", PAGINA)
@@ -284,6 +313,8 @@ class PaginaTest(unittest.TestCase):
         self.assertIn('src="assets/js/pontos_plano.js"', PAGINA)  # versão 3: a página refaz o plano no navegador
         self.assertIn("PontosPlano.planeja(", PAGINA)
         self.assertIn("relatorio_por_casa", PAGINA)
+        self.assertIn("s=D.plano?D.plano.casas[casa.i][0]:-1", PAGINA)  # toque na casa usa o mesmo nó do relatório
+        self.assertIn("ds<=T*600", PAGINA)  # o relatório compara o tempo exato, não o arredondado
 
 
 if __name__ == "__main__":
