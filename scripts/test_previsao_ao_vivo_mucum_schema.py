@@ -266,6 +266,19 @@ class MucumFeedContractTests(unittest.TestCase):
         self.assertTrue(rain)
 
 
+    def test_missing_current_ana_allows_historical_levels_but_not_forecast(self) -> None:
+        data = copy.deepcopy(self.data)
+        data["telemetria_ultima_em"] = None
+        for item in data["horizontes"].values():
+            item["nivel_previsto_cm"] = None
+            item["disponivel"] = False
+            item["status"] = "sem dado recente em Muçum"
+        validate_data(data)
+        data["horizontes"]["2h"]["nivel_previsto_cm"] = 640
+        data["horizontes"]["2h"]["disponivel"] = True
+        with self.assertRaises(SystemExit):
+            validate_data(data)
+
     def test_ana_query_uses_three_days_for_target_and_rain(self) -> None:
         with mock.patch.object(LIVE, "_obter_xml_ana", return_value=None) as request:
             LIVE.buscar_ana(LIVE.ALVO)
