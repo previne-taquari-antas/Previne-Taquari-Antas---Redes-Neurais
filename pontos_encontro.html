@@ -22,9 +22,12 @@ ol#lista{padding-left:20px;margin:6px 0;font-size:13px}ol#lista li{margin:3px 0}
 a{color:#08724d}.emerg a{font-weight:700}
 .plano{border:1px solid #cfe0d6;border-radius:10px;padding:8px 11px 10px;margin:10px 0;background:#f7fbf9;min-width:0;max-width:100%}.plano legend{font-weight:700;font-size:13px;padding:0 4px}
 .plano label{display:block;font-size:12px;font-weight:650;margin:7px 0 3px}.plano .linha{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.plano input,.plano select{font:inherit;padding:5px 7px;border:1px solid #b9cfc2;border-radius:7px;background:#fff}.plano input{width:72px}.plano select{width:100%;max-width:100%}
+.plano select{font:inherit;padding:5px 7px;border:1px solid #b9cfc2;border-radius:7px;background:#fff;width:100%;max-width:100%}
+.plano input[type=range]{width:100%;margin:4px 0 2px;accent-color:#155b42}.plano output{font-weight:700;color:#18332a;font-variant-numeric:tabular-nums}
+.tempos{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.tempos button{padding:4px 2px;font-weight:600;line-height:1.15}.tempos small{display:block;font-size:10.5px;font-weight:500}.tempos button[aria-pressed=true]{background:#155b42;color:#fff;border-color:#155b42}
+#planoRes[aria-busy=true]{opacity:.55}
 #planoRes{margin-top:8px;font-size:12.5px}#planoRes b{font-variant-numeric:tabular-nums}
-@media(max-width:700px){#toggle{min-width:44px;min-height:44px}.plano button,.plano input,.plano select{min-height:44px}}
+@media(max-width:700px){#toggle{min-width:44px;min-height:44px}.plano button,.plano select{min-height:44px}.plano input[type=range]{min-height:36px}}
 .plano button:focus-visible,.plano input:focus-visible,.plano select:focus-visible{outline:3px solid #0d6549;outline-offset:1px}
 @media(max-width:700px){.hud{top:auto;bottom:9px;left:9px;right:9px;width:auto;max-width:none;max-height:50dvh;padding:12px}.hud h1{font-size:16px}#hud.collapse{max-height:72px;overflow:hidden}}
 </style></head><body>
@@ -42,9 +45,11 @@ a{color:#08724d}.emerg a{font-weight:700}
     <div id="metricas"></div>
     <fieldset class="plano" id="plano" hidden>
       <legend>Planejar os pontos</legend>
-      <label for="tMax">Tempo máximo de caminhada até o ponto (passo de idoso)</label>
-      <div class="linha"><input id="tMax" type="number" min="5" max="60" step="1" value="20" inputmode="numeric"> min
-        <span class="small">sugerido: <b id="tSug">20</b> min</span></div>
+      <label for="tMax">Tempo máximo de caminhada até o ponto (passo de idoso): <output id="tVal" for="tMax">20 min</output></label>
+      <input id="tMax" type="range" min="5" max="60" step="1" value="20" aria-valuetext="20 minutos">
+      <div class="linha tempos" role="group" aria-label="Escolher um tempo">
+        <button type="button" data-t="10">10 min</button><button type="button" data-t="15">15 min</button>
+        <button type="button" data-t="20" id="tSugBtn"><span id="tSug">20</span> min<small>sugerido</small></button><button type="button" data-t="30">30 min</button></div>
       <label for="modo">Quem define os pontos</label>
       <select id="modo">
         <option value="algoritmo">Algoritmo: o menor número de pontos</option>
@@ -52,7 +57,6 @@ a{color:#08724d}.emerg a{font-weight:700}
         <option value="plano+algoritmo">Plano de contingência + algoritmo para o que faltar</option>
       </select>
       <p class="small" id="oficiaisTxt"></p>
-      <div class="linha"><button id="calc" type="button">Calcular</button></div>
       <div id="planoRes" aria-live="polite"></div>
       <div class="linha" style="margin-top:8px"><button id="csvCasas" type="button">Baixar relatório por casa (CSV)</button>
         <button id="csvPontos" type="button">Baixar lista dos pontos (CSV)</button></div>
@@ -107,6 +111,8 @@ const plural=(n,um,varios)=>f0(n)+' '+(n===1?um:varios);
 // versão 2: onde fica o ponto (lugar de reunião, carro, distância a deslizamento)
 function local(p,sep){const t=[];if(p.lugar)t.push('perto de '+esc(p.lugar.tipo)+(p.lugar.nome?' ('+esc(p.lugar.nome)+')':'')+', a '+f0(p.lugar.dist_m)+' m');
   else if('lugar' in p)t.push('só a rua, sem praça, campo ou escola perto');
+  if(p.terreno_alto)t.push('terreno alto'+(p.acima_agua_m!=null?', '+f1(p.acima_agua_m)+' m acima da água da maior cheia':''));
+  if(p.ilhado)t.push('<b>fica ilhado na cheia</b>: seco, mas as ruas para fora passam pela água; vá antes de a água subir e leve água, comida e remédios');
   if(p.via)t.push('passa carro');if(p.dist_deslizamento_m!=null)t.push(f0(p.dist_deslizamento_m)+' m do deslizamento mais perto');return t.length?sep+t.join(' · '):'';}
 function nomePonto(p){return p.nome?esc(p.nome)+(p.rua?' · '+esc(p.rua):''):p.rua?esc(p.rua):'';}
 function lista(){document.getElementById('lista').innerHTML=D.pontos.length?D.pontos.map((p,i)=>'<li><b>Ponto '+(i+1)+'</b>'+(p.origem==='plano'?' · <b>plano de contingência</b>':'')+(nomePonto(p)?' · '+nomePonto(p):'')+
@@ -165,13 +171,25 @@ function resumoPlano(){const r=PL.resumo,T=f0(PL.tempo_max_min),el=document.getE
   const fora=r.fora_dos_escolhidos!=null?r.fora_dos_escolhidos:r.precisam-r.no_limite-r.sem_ponto_possivel;
   if(fora>0)h+='<br><b>'+plural(fora,'casa','casas')+'</b> '+(fora===1?'chegaria':'chegariam')+' a um ponto seguro em '+T+' min, mas não a um dos pontos deste plano'+(PL.modo==='algoritmo'?'':': use "plano + algoritmo" para cobri-'+(fora===1?'la':'las'))+'.';
   if(PL.modo!=='algoritmo'&&!D.plano.oficiais.some(o=>o.seguro))h+='<br><b>Nenhum ponto do plano de contingência fica fora da área insegura</b> nesta mancha.';
+  const sug=D.plano.tempo_sugerido_min;
+  if(PL.tempo_max_min!==sug){const ref=plano(sug,PL.modo);
+    h+='<br><span class="small">'+(PL.tempo_max_min<sug?'Menos tempo de caminhada pede mais pontos, cada um mais perto das casas':'Com mais tempo, menos pontos dão conta, mas as pessoas andam mais')+
+      ': com '+sug+' min (sugerido) seriam '+plural(ref.pontos.length,'ponto','pontos')+' e '+f0(ref.resumo.no_limite)+' casas no tempo.</span>';}
   el.innerHTML=h;}
 function textoOficiais(){const o=D.plano.oficiais;if(!o.length)return 'Não há pontos do plano de contingência cadastrados para '+C.nome+'.';
-  return 'Pontos do plano de contingência: '+o.map(x=>esc(x.nome)+(x.seguro?' (fora da área insegura)':' (<b>dentro da mancha ou da faixa</b>)')).join('; ')+'.';}
+  return 'Pontos do plano de contingência: '+o.map(x=>esc(x.nome)+(x.seguro?' (fora da área insegura)':x.ilhado?' (<b>vira ilha: as ruas dali não saem da cidade sem passar pela água</b>)':' (<b>dentro da mancha ou da faixa</b>)')).join('; ')+'.';}
 // tempo em minutos inteiros de 5 a 60; vazio, zero ou texto volta ao sugerido (o mesmo para o campo e o endereço)
 function tempoValido(v){const n=Math.round(Number(v));return Number.isFinite(n)&&n>0&&String(v).trim()!==''?Math.min(60,Math.max(5,n)):D.plano.tempo_sugerido_min;}
-function calcula(){const t=tempoValido(document.getElementById('tMax').value),m=document.getElementById('modo').value;
-  document.getElementById('tMax').value=t;aplica(PontosPlano.planeja(D.plano,t,m));
+const CACHE=new Map();
+function plano(t,m){const k=t+'|'+m;if(!CACHE.has(k))CACHE.set(k,PontosPlano.planeja(D.plano,t,m));return CACHE.get(k);}
+// a barra mostra o valor enquanto se arrasta e calcula logo depois (resultados guardados: voltar é instantâneo)
+function mostraTempo(t){const el=document.getElementById('tMax');el.value=t;el.setAttribute('aria-valuetext',t+' minutos');
+  document.getElementById('tVal').textContent=t+' min';document.querySelectorAll('.tempos button').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.t)===t)));}
+let espera=null;
+function agenda(){const t=tempoValido(document.getElementById('tMax').value);mostraTempo(t);
+  document.getElementById('planoRes').setAttribute('aria-busy','true');clearTimeout(espera);espera=setTimeout(calcula,180);}
+function calcula(){clearTimeout(espera);const t=tempoValido(document.getElementById('tMax').value),m=document.getElementById('modo').value;
+  mostraTempo(t);aplica(plano(t,m));document.getElementById('planoRes').removeAttribute('aria-busy');
   try{const u=new URL(location.href);u.searchParams.set('tempo',String(t));u.searchParams.set('modo',m);history.replaceState(null,'',u);}catch(e){}}
 // relatório: CSV com ponto e vírgula e vírgula decimal (abre direto no Excel em português)
 function csv(linhas,nome){const txt='\ufeff'+linhas.map(l=>l.map(v=>{const s=v==null?'':typeof v==='number'?String(v).replace('.',','):String(v);return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(';')).join('\r\n');
@@ -194,7 +212,9 @@ function preparaPlano(){if(!D.plano||!window.PontosPlano)return;const P=D.plano,
   // "+" sem codificar no endereço vira espaço
   const tq=qs.get('tempo'),m=(qs.get('modo')||'').replace(/ /g,'+');document.getElementById('tMax').value=tq==null?P.padrao.tempo_max_min:tempoValido(tq);
   document.getElementById('modo').value=PontosPlano.MODOS.includes(m)?m:P.padrao.modo;
-  document.getElementById('calc').onclick=calcula;document.getElementById('tMax').onchange=calcula;document.getElementById('modo').onchange=calcula;
+  const tm=document.getElementById('tMax');tm.oninput=agenda;tm.onchange=calcula;document.getElementById('modo').onchange=calcula;
+  document.querySelectorAll('.tempos button').forEach(b=>b.onclick=()=>{mostraTempo(Number(b.dataset.t));calcula();});
+  document.getElementById('tSugBtn').dataset.t=String(P.tempo_sugerido_min);
   document.getElementById('csvCasas').onclick=relatorio_por_casa;document.getElementById('csvPontos').onclick=relatorio_pontos;
   calcula();}  // refaz no navegador (dá o mesmo que o publicado no padrão) e guarda tempos exatos e caminhos
 // o painel cobre a parte de baixo (celular) ou a esquerda (computador): o caminho fica na parte visível
