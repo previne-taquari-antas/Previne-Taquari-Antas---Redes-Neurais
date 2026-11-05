@@ -498,8 +498,8 @@ def rede_plano(doc, nos, xy, z, casas, cand, meta, no_seguro, zp, cidade, plano,
         k = min(range(len(nos)), key=lambda i: ((xy[i][0] - p[0]) ** 2 + (xy[i][1] - p[1]) ** 2, i))
         fora = bool(no_seguro[k] and not zp.contains(Point(p)))
         ilha = bool(fora and sai is not None and not sai[k])
-        ofs.append({**o, "no": k, "dist_no_m": round(math.dist(p, xy[k]), 1), "ilhado": ilha,
-                    "seguro": fora and not ilha, **meta(k),
+        ofs.append({**o, "no": k, "dist_no_m": round(math.dist(p, xy[k]), 1), **meta(k),
+                    "ilhado": ilha, "seguro": fora and not ilha,  # depois do meta(k): é o do ponto oficial, não do nó
                     "dist_mancha_m": round(mancha.distance(Point(p)), 1)})  # do ponto oficial, não do nó
     return {"n_nos": len(nos), "arestas": arestas, "casas": cs, "candidatos": [{"no": k, **meta(k)} for k in cand],
             "oficiais": ofs, "tempo_sugerido_min": TEMPO_SUGERIDO_MIN, "modos": list(plano_pontos.MODOS),
