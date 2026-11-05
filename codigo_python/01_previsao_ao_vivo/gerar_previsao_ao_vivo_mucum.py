@@ -290,15 +290,14 @@ def _obter_xml_ana(cod, dias, timeout_s, tentativas_rede, parser, prefixo):
     return None
 
 
-def buscar_ana(cod, dias=6, tentativas_rede=ANA_RETRIES_NIVEL):
-    """Telemetria da ANA com janela ampliada na estação-alvo.
+def buscar_ana(cod, dias=3, tentativas_rede=ANA_RETRIES_NIVEL):
+    """Consulta curta de 3 dias para nivel observado real.
 
-    Muçum carrega 8 dias para o painel poder desenhar 7 dias de nível
-    observado diretamente da ANA/SGB, sem depender dos pares usados na
-    auditoria das RNAs. As estações auxiliares mantêm a janela curta.
+    A maior janela de chuva exige 48h e a maior defasagem de nivel e menor.
+    Requisitar 8 dias na estacao-alvo sobrecarregava o servico legado ANA.
+    O panorama de 7 dias e preservado juntando apenas observacoes anteriores.
     """
-    if cod == ALVO:
-        dias = max(int(dias or 0), 8)
+    dias = max(3, int(dias or 3))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_NIVEL_S, tentativas_rede, _serie_de_xml, "ANA")
     if xml is None:
         return {}
@@ -311,10 +310,9 @@ def buscar_ana(cod, dias=6, tentativas_rede=ANA_RETRIES_NIVEL):
     return serie
 
 
-def buscar_ana_chuva(cod, dias=6, tentativas_rede=ANA_RETRIES_CHUVA):
-    """Busca chuva observada e devolve somente acumulados horários reais."""
-    if cod == ALVO:
-        dias = max(int(dias or 0), 8)
+def buscar_ana_chuva(cod, dias=3, tentativas_rede=ANA_RETRIES_CHUVA):
+    """Consulta 3 dias: 48h de chuva mais margem e reuso do XML de nivel."""
+    dias = max(3, int(dias or 3))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_CHUVA_S, tentativas_rede, _serie_chuva_de_xml, "ANA chuva")
     if xml is None:
         return {}
@@ -579,12 +577,29 @@ def base_saida(cfg, nivel_agora, nivel_prev, t, status, faltantes=None, nivel_ba
     return out
 
 def serie_observada_ana_publica(series, dias=7):
-    """Série observada real de Muçum, independente da auditoria das RNAs."""
-    serie = (series or {}).get(ALVO, {}) or {}
+    """Une observacoes ANA de ciclos anteriores ao intervalo consultado.
+
+    O historico em SAIDA e exclusivamente de leituras reais anteriormente
+    publicadas, nao interpoladas. Nao retroalimenta os modelos nem altera
+    ULTIMA_RAW: nenhuma observacao velha vira nivel "agora".
+    """
+    serie = {}
+    if os.path.exists(SAIDA):
+        try:
+            with open(SAIDA, encoding="utf-8") as arq:
+                anterior = json.load(arq)
+            for item in anterior.get("serie_observada_ana", []):
+                hora = _parse_hora(item.get("hora"))
+                valor = item.get("nivel_cm")
+                if hora is not None and nivel_plausivel(valor, ALVO):
+                    serie[hora] = float(valor)
+        except (ValueError, TypeError, OSError, AttributeError) as exc:
+            print("[Mucum historico observado] nao foi possivel reaproveitar:", exc)
+    serie.update((series or {}).get(ALVO, {}) or {})
     if not serie:
         return []
-    ultimo = max(serie)
-    inicio = ultimo - dt.timedelta(days=dias)
+    # A janela e definida pelo horario de consulta, nunca pelo dado velho.
+    inicio = agora_brt() - dt.timedelta(days=dias)
     return [
         {"hora": hora.isoformat(timespec="minutes"), "nivel_cm": round(float(valor), 3)}
         for hora, valor in sorted(serie.items())
@@ -637,16 +652,22 @@ def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
 
 def aplicar_guardrail_frescor_horizontes(horizontes, telemetria_em):
     """Não publica como previsão ao vivo uma RNA horária com base velha."""
-    if telemetria_em is None:
-        return horizontes
+    # A telemetria pode estar defasada (ou ausente) em relacao ao relogio real.
+    # Comparar apenas base x ultima telemetria permitiria publicar previsoes
+    # para horarios ja passados depois de uma longa falha ANA.
+    agora = agora_brt()
     for out in horizontes.values():
         hm = _parse_hora(out.get("hora_modelo") or "")
         if hm is None or out.get("nivel_previsto_cm") is None:
             continue
         if out.get("input_grade") != "hourly_exact":
             continue
-        atraso_h = (telemetria_em - hm).total_seconds() / 3600.0
-        out["atraso_base_telemetria_h"] = round(atraso_h, 3)
+        atraso_telemetria_h = ((telemetria_em - hm).total_seconds() / 3600.0
+                               if telemetria_em is not None else 0.0)
+        atraso_relogio_h = max(0.0, (agora - hm).total_seconds() / 3600.0)
+        atraso_h = max(atraso_telemetria_h, atraso_relogio_h)
+        out["atraso_base_telemetria_h"] = round(atraso_telemetria_h, 3)
+        out["idade_base_relogio_h"] = round(atraso_relogio_h, 3)
         if atraso_h >= HOURLY_BASE_STALE_LAG_H:
             out["previsao_stale_candidata_cm"] = out.get("nivel_previsto_cm")
             if out.get("passos"):
