@@ -31,6 +31,9 @@ on:
       - "Atualiza feed meteorológico de Muçum"
       - "Chuvas horarias (ANA + INMET + CEMADEN)"
       - "Contexto automático da pesquisa da bacia"
+      # Santa Tereza conclui em ciclos frequentes: atua como disparador de
+      # recuperacao caso o encadeamento de Muçum seja interrompido.
+      - "Previsao ao vivo - Santa Tereza"
     types:
       - completed
 
@@ -38,7 +41,7 @@ jobs:
   prever:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     concurrency:
       group: previsao-ao-vivo-mucum
       # Uma nova rodada nunca pode cancelar uma consulta em andamento. O
@@ -62,7 +65,7 @@ jobs:
           git pull --rebase --autostash origin main
           python -B -m py_compile codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py scripts/validar_previsao_ao_vivo_mucum.py scripts/test_previsao_ao_vivo_mucum_schema.py
           python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema
-          timeout --signal=TERM --kill-after=20s 600s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
+          PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 540s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
           python -B scripts/validar_previsao_ao_vivo_mucum.py
           git add previsao_ao_vivo_mucum.json historico_previsoes_ao_vivo_mucum.json
           if git diff --staged --quiet; then
@@ -98,7 +101,8 @@ jobs:
           if [ "${PREVINE_JOB_STATUS}" = "success" ]; then
             espera=180
           else
-            espera=600
+            # A espera anterior de 600s estourava o timeout apos falhas ANA.
+            espera=120
           fi
           echo "status anterior=${PREVINE_JOB_STATUS}; proximo ciclo em ${espera}s"
           sleep "${espera}"
