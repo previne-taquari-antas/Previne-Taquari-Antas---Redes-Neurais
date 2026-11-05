@@ -43,7 +43,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: previsao-ao-vivo-mucum
+      # Fila recuperada: a execucao de 05/11 anterior ficou presa na espera
+      # longa de falha e nao pode bloquear a versao corrigida.
+      group: previsao-ao-vivo-mucum-recuperado
       # Uma nova rodada nunca pode cancelar uma consulta em andamento. O
       # padrao do Actions conserva uma execucao pendente enquanto a atual
       # termina, evitando lacunas e mantendo a fila sob controle.
