@@ -313,8 +313,21 @@ def oficiais(cidade):
             for ft in fs if ft["properties"].get("municipio") == CIDADES[cidade]["municipio"]]
 
 
+def terreno_alto(cidade, versao, n_nos):
+    """Nós em terreno alto pelo MDT na cheia da versão (fora da mancha e com folga acima da água medida), do
+    mesmo cálculo da página de set/2023 (locais_altos.py). Só Santa Tereza na mancha do modelo, que é a mesma."""
+    if cidade != "santa_tereza" or versao != "hand":
+        return None
+    with open(os.path.join(DADOS, "santa_tereza_rotas_altas_set2023.json"), encoding="utf-8") as f:
+        ra = json.load(f)
+    if len(ra["no_alto"]) != n_nos:
+        raise SystemExit("rede da página de set/2023 diferente da do painel")
+    return {"no_alto": [bool(v) for v in ra["no_alto"]], "agua_m": locais_altos.CIDADES["santa_tereza"]["cheia"]["agua_max_rtk_m"],
+            "folga_m": ra["folga_m"]}
+
+
 def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo_max_min=TEMPO_SUGERIDO_MIN,
-            modo="algoritmo"):
+            modo="algoritmo", altos=None):
     """Pontos de encontro da cidade com a `mancha` (shapely, metros no `plano`). Determinístico."""
     cfg = CIDADES[cidade]
     nos, F = doc["nos"], {k: i for i, k in enumerate(doc["meta"]["casas_campos"])}
@@ -327,13 +340,19 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
     # ponto de encontro: nó que é ponta de um trecho de via inteiro fora da faixa
     cand = sorted({k for (a, b, *_), ok in zip(doc["edges"], aresta_segura) if ok for k in (a, b)})
     filtro = {"candidatos_v1": len(cand)}
+    # terreno alto pelo MDT (v3): seguro pela altura, mesmo a menos de offset_m da mancha (o centro de Santa Tereza)
+    alto = [False] * len(nos)
+    if criterios == "v3" and altos:
+        alto = [altos["no_alto"][k] and not mp.contains(Point(xy[k])) for k in range(len(nos))]
+        cand = sorted(set(cand) | {k for k in range(len(nos)) if alto[k]})
+        filtro["com_terreno_alto"] = len(cand)
     via_no, desl_no, lugar_no, bonus = {}, {}, {}, {}
     desl = None
     if criterios in ("v2", "v3"):
         caixa = _caixa(xy, 3000.0)
         tipos = tipo_das_arestas(doc, cidade, plano)
         for (a, b, *_), ok, tp in zip(doc["edges"], aresta_segura, tipos):
-            if ok and tp:
+            if (ok or (alto[a] and alto[b])) and tp:
                 for k in (a, b):  # a melhor via da ponta: a de carro, se houver
                     if via_no.get(k) not in VIAS_CARRO:
                         via_no[k] = tp
@@ -347,10 +366,11 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
     sai = None
     if criterios == "v3":
         sai = saida_seca(doc, xy, mancha)
-        cand = [k for k in cand if sai[k]]
+        cand = [k for k in cand if sai[k] or alto[k]]  # terreno alto ilhado vale (seco); baixo ilhado, não
         filtro["com_saida_seca"] = len(cand)
     if criterios in ("v2", "v3"):
-        lgs = [x for x in lugares(cidade, plano, caixa) if not zona.contains(x[2])]
+        # com terreno alto (v3), vale o lugar fora da água, mesmo na faixa (a praça do centro de Santa Tereza)
+        lgs = [x for x in lugares(cidade, plano, caixa) if not (mancha if any(alto) else zona).contains(x[2])]
         arv = STRtree([g for _t, _n, g in lgs])
         for k in cand:
             i = arv.query_nearest(Point(xy[k]), max_distance=LUGAR_M, return_distance=True, all_matches=True)
@@ -388,6 +408,11 @@ def calcula(doc, mancha, plano, cidade, offset_m=OFFSET_M, criterios="v3", tempo
         rr = locais_altos._rua_mais_proxima(ruas, nos[k], locais_altos.RAIO_RUA_M) if ruas else []
         m = {"rua": f"{rr[0][1]} com {rr[1][1]}" if len(rr) >= 2 else rr[0][1] if rr else None,
              "dist_mancha_m": round(mancha.distance(Point(xy[k])), 1)}
+        if criterios == "v3" and sai is not None:
+            m["ilhado"] = not sai[k]
+            if alto[k]:
+                m["terreno_alto"] = True
+                m["acima_agua_m"] = round(z[k] - altos["agua_m"], 1) if z[k] is not None else None
         if criterios in ("v2", "v3"):
             dd = desl_no.get(k, desl.distance(Point(xy[k])) if desl is not None else INF)
             m.update({"via": via_no.get(k), "dist_deslizamento_m": None if dd == INF else round(dd),
@@ -548,7 +573,8 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
     doc = locais_altos.payload(cfg["painel"])
     plano = Plano(doc["nos"])
     mancha = le_mancha([caminho_mancha] + ([somada] if somada else []), plano)
-    r = calcula(doc, mancha, plano, cidade, offset_m, criterios, tempo_max_min, modo)
+    altos = terreno_alto(cidade, versao, len(doc["nos"])) if caminho_mancha == mancha_padrao(cidade, versao) else None
+    r = calcula(doc, mancha, plano, cidade, offset_m, criterios, tempo_max_min, modo, altos)
     # recorte do desenho à volta da rede (a mancha do estado vai além)
     xs, ys = zip(*(plano.xy(la, lo) for la, lo in doc["nos"]))
     caixa = LineString([(min(xs) - 1500, min(ys) - 1500), (max(xs) + 1500, max(ys) + 1500)]).envelope
@@ -557,6 +583,9 @@ def documento(cidade, caminho_mancha=None, offset_m=OFFSET_M, fonte=None, versao
                 "afastamento")
     if criterios == "v3":
         criterio += ", com saída seca (ruas fora da mancha que levam para fora da cidade)"
+        if altos:
+            criterio += ("; terreno alto pelo MDT (2 m ou mais acima da água medida) vale mesmo perto da mancha "
+                         "e mesmo ilhado")
     if criterios in ("v2", "v3"):
         criterio += (f", onde passa carro, a mais de {DESLIZAMENTO_M:g} m de cicatriz de deslizamento" +
                      (f"; praça, campo, escola, ginásio ou estacionamento a até {LUGAR_M:g} m só desempata"

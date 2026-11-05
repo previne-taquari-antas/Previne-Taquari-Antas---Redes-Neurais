@@ -107,6 +107,8 @@ const plural=(n,um,varios)=>f0(n)+' '+(n===1?um:varios);
 // versão 2: onde fica o ponto (lugar de reunião, carro, distância a deslizamento)
 function local(p,sep){const t=[];if(p.lugar)t.push('perto de '+esc(p.lugar.tipo)+(p.lugar.nome?' ('+esc(p.lugar.nome)+')':'')+', a '+f0(p.lugar.dist_m)+' m');
   else if('lugar' in p)t.push('só a rua, sem praça, campo ou escola perto');
+  if(p.terreno_alto)t.push('terreno alto'+(p.acima_agua_m!=null?', '+f1(p.acima_agua_m)+' m acima da água da maior cheia':''));
+  if(p.ilhado)t.push('<b>fica ilhado na cheia</b>: seco, mas as ruas para fora passam pela água; vá antes de a água subir e leve água, comida e remédios');
   if(p.via)t.push('passa carro');if(p.dist_deslizamento_m!=null)t.push(f0(p.dist_deslizamento_m)+' m do deslizamento mais perto');return t.length?sep+t.join(' · '):'';}
 function nomePonto(p){return p.nome?esc(p.nome)+(p.rua?' · '+esc(p.rua):''):p.rua?esc(p.rua):'';}
 function lista(){document.getElementById('lista').innerHTML=D.pontos.length?D.pontos.map((p,i)=>'<li><b>Ponto '+(i+1)+'</b>'+(p.origem==='plano'?' · <b>plano de contingência</b>':'')+(nomePonto(p)?' · '+nomePonto(p):'')+

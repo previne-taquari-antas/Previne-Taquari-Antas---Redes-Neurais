@@ -155,7 +155,7 @@ class CriteriosV2Test(unittest.TestCase):
                 if p["lugar"]:
                     self.assertLessEqual(p["lugar"]["dist_m"], pe.LUGAR_M)
             s = d["resumo"]["filtro"]
-            self.assertGreaterEqual(s["candidatos_v1"], s["com_carro"])
+            self.assertGreaterEqual(s.get("com_terreno_alto", s["candidatos_v1"]), s["com_carro"])
             self.assertGreaterEqual(s["com_carro"], s["longe_de_deslizamento"])
 
     def test_v1_continua_reproduzivel(self):
@@ -234,11 +234,26 @@ class PlanoTest(unittest.TestCase):
             somada = pe.mancha_somada(cidade, versao)
             mancha = pe.le_mancha([pe.mancha_padrao(cidade, versao)] + ([somada] if somada else []), plano)
             sai = pe.saida_seca(doc, xy, mancha)
-            for p in d["pontos"]:
-                self.assertTrue(sai[p["no"]], (cidade, versao, p["id"]))
+            for p in d["pontos"]:  # terreno alto pelo MDT pode ficar ilhado (seco); lugar baixo, não
+                self.assertTrue(sai[p["no"]] or p.get("terreno_alto"), (cidade, versao, p["id"]))
+                self.assertEqual(p.get("ilhado", False), not sai[p["no"]], (cidade, versao, p["id"]))
             for o in d["plano"]["oficiais"]:
                 if o["seguro"]:
                     self.assertTrue(sai[o["no"]], (cidade, versao, o["nome"]))
+
+    def test_terreno_alto_conta_em_santa_tereza(self):
+        """O centro de Santa Tereza (praça, ~84 m; água de set/2023 a 76,47 m) é terreno alto e pode ser ponto."""
+        d = self.pub.get(("santa_tereza", "hand"))
+        if d is None:
+            self.skipTest("sem o JSON de Santa Tereza")
+        altos = [c for c in d["plano"]["candidatos"] if c.get("terreno_alto")]
+        self.assertTrue(altos)
+        for c in altos:
+            self.assertGreaterEqual(c["acima_agua_m"], 2.0 - 1e-9)  # folga da página de set/2023
+        centro = Point(-51.735912, -29.1697563)  # Campanário da Igreja
+        plano = pe.Plano(d["nos"])
+        perto = [c for c in altos if Point(plano.xy(*d["nos"][c["no"]])).distance(Point(plano.xy(-29.1697563, -51.735912))) < 150]
+        self.assertTrue(perto, centro)
 
     def test_tempo_em_minutos_inteiros(self):
         import plano_pontos

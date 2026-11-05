@@ -394,12 +394,12 @@ não chegam a nenhum ponto seguro nesse tempo:
 
 | | 15 min | 20 min (sugerido) | 30 min |
 |---|---|---|---|
-| Santa Tereza, modelo do projeto (set/2023) | 6 · 296/528 · 232 | 6 · 415/528 · 113 | 5 · 508/528 · 20 |
+| Santa Tereza, modelo do projeto (set/2023) | 11 · 508/528 · 20 | 9 · 523/528 · 5 | 6 · 528/528 · 0 |
 | Muçum, mapa único + modelo | 5 · 179/1.789 · 1.610 | 5 · 354/1.789 · 1.435 | 4 · 923/1.789 · 866 |
 | Muçum, modelo do projeto | 10 · 1.273/1.624 · 351 | 7 · 1.453/1.624 · 171 | 6 · 1.539/1.624 · 85 |
 
-- Em Santa Tereza, na cheia de set/2023, 113 casas não chegam a nenhum ponto seguro em 20 min a pé,
-  qualquer que seja a escolha: precisam sair antes ou de transporte. Com 30 min, sobram 20.
+- Em Santa Tereza, na cheia de set/2023, com o terreno alto, só 5 casas não chegam a um ponto seguro em
+  20 min a pé; com 30 min, nenhuma.
 - O único ponto do plano em Santa Tereza (o Ginásio) fica dentro da mancha de set/2023: o modo
   "plano de contingência" fica sem ponto. Em Muçum, 1 ponto oficial (mapa único) e 2 (modelo) ficam
   fora da área insegura.
@@ -410,6 +410,14 @@ não chegam a nenhum ponto seguro nesse tempo:
   20 min, as casas que chegam a tempo ficaram em 415/528 (Santa Tereza), 354/1.789 (Muçum, mapa único)
   e 1.453/1.624 (Muçum, modelo); as casas que dependiam do ponto ilhado agora andam mais. Em Muçum
   (mapa único) um ponto passou a receber 1.417 casas.
+- **Terreno alto pelo MDT conta** (nov/2026, Santa Tereza): o afastamento de 100 m é horizontal e deixava
+  de fora o centro, que fica a 28 m da mancha mas 6 a 8 m acima da água de set/2023 (praça a ~84 m; água
+  medida a 76,47 m). Agora o nó que a página de set/2023 marca como terreno alto (fora da mancha e 2 m ou
+  mais acima da água, LiDAR 10 m) é candidato mesmo dentro da faixa, e mesmo ilhado: seco, mas com
+  as saídas passando pela água (o caminho do centro para fora desce a 70,9 m). A página avisa "fica ilhado
+  na cheia: vá antes de a água subir e leve água, comida e remédios". Com 20 min, Santa Tereza passa de
+  415 para 523 das 528 casas, com 9 pontos (um deles na Avenida Itália, no centro, com 176 casas).
+  Muçum ainda não tem esse cálculo (falta a água medida de referência no MDT).
 - Ainda abertos (apontados na revisão): rotas que passam por trechos que inundam e, em Santa Tereza, casas que a página de set/2023 manda
   ficar em terreno alto e que aqui recebem ponto de encontro.
 - "Pessoas" por ponto soma só as casas com morador atribuído pela grade do Censo; casas sem esse dado
