@@ -40,8 +40,19 @@ def validate_data(data: dict) -> None:
     if telemetria_publicada is not None and not (-500 <= float(telemetria_publicada) <= 5000):
         raise SystemExit("telemetria publicada de Muçum fora da faixa plausível")
     ultima_feed = str(data.get("telemetria_ultima_em") or "")[:16]
-    if str(serie_observada[-1].get("hora") or "")[:16] != ultima_feed:
-        raise SystemExit("último ponto observado de Muçum não coincide com a telemetria publicada")
+    if ultima_feed:
+        if str(serie_observada[-1].get("hora") or "")[:16] != ultima_feed:
+            raise SystemExit("último ponto observado de Muçum não coincide com a telemetria publicada")
+    else:
+        # Falha de coleta atual: manter o historico ANA observado com horario
+        # original, mas jamais permitir previsao enquanto nao houver leitura
+        # atual confirmada. Nao fabricar o carimbo de uma telemetria nova.
+        horizontes_sem_telemetria = data.get("horizontes") or {}
+        if data.get("nivel_previsto_cm") is not None or any(
+            isinstance(item, dict) and item.get("nivel_previsto_cm") is not None
+            for item in horizontes_sem_telemetria.values()
+        ):
+            raise SystemExit("Muçum sem telemetria atual nao pode publicar previsao")
     if data.get("serie_observada_ana_n") != len(serie_observada):
         raise SystemExit("contador da série observada ANA de Muçum inconsistente")
 
