@@ -1,0 +1,36 @@
+name: Auditoria isolada das entradas STZ 8h
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/auditoria-stz-8h-inputs.yml'
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Preparar dependencias
+        run: pip install numpy==2.4.6 scipy==1.17.1 h5py==3.16.0
+      - name: Consultar somente entradas sem executar RNAs
+        run: |
+          python -B -m py_compile scripts/auditar_stz_8h_inputs_live.py
+          PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=15s 480s python -m scripts.auditar_stz_8h_inputs_live
+      - name: Publicar somente diagnostico
+        run: |
+          git config user.name "previne-auditoria"
+          git config user.email "previne-auditoria@users.noreply.github.com"
+          git add assets/data/stz_8h_inputs_audit_latest.json
+          if git diff --staged --quiet; then
+            echo "nenhuma alteracao na auditoria"
+          else
+            git commit -m "audit(stz): cobertura real das entradas RNA 8h [skip ci]"
+            git pull --rebase --autostash origin main
+            git push
+          fi
