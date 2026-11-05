@@ -190,10 +190,11 @@ class MucumFeedContractTests(unittest.TestCase):
         item["hora_modelo"] = "2026-08-28T16:00:00"
         item["passos"] = [["2026-08-28T16:00:00", 100, 101, 120]]
         data = {"8h": item}
-        LIVE.aplicar_guardrail_frescor_horizontes(
-            data,
-            dt.datetime(2026, 8, 28, 18, 15),
-        )
+        with mock.patch.object(LIVE, "agora_brt", return_value=dt.datetime(2026, 8, 28, 18, 15)):
+            LIVE.aplicar_guardrail_frescor_horizontes(
+                data,
+                dt.datetime(2026, 8, 28, 18, 15),
+            )
         out = data["8h"]
         self.assertFalse(out["disponivel"])
         self.assertIsNone(out["nivel_previsto_cm"])
@@ -205,10 +206,11 @@ class MucumFeedContractTests(unittest.TestCase):
         item = self._item("4h", 4, 15, "principal", 1)
         item["hora_modelo"] = "2026-08-28T17:00:00"
         data = {"4h": item}
-        LIVE.aplicar_guardrail_frescor_horizontes(
-            data,
-            dt.datetime(2026, 8, 28, 18, 15),
-        )
+        with mock.patch.object(LIVE, "agora_brt", return_value=dt.datetime(2026, 8, 28, 18, 15)):
+            LIVE.aplicar_guardrail_frescor_horizontes(
+                data,
+                dt.datetime(2026, 8, 28, 18, 15),
+            )
         out = data["4h"]
         self.assertTrue(out["disponivel"])
         self.assertIsNotNone(out["nivel_previsto_cm"])
@@ -262,6 +264,47 @@ class MucumFeedContractTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertTrue(levels)
         self.assertTrue(rain)
+
+
+    def test_ana_query_uses_three_days_for_target_and_rain(self) -> None:
+        with mock.patch.object(LIVE, "_obter_xml_ana", return_value=None) as request:
+            LIVE.buscar_ana(LIVE.ALVO)
+            self.assertEqual(request.call_args.args[1], 3)
+            LIVE.buscar_ana_chuva(LIVE.ALVO)
+            self.assertEqual(request.call_args.args[1], 3)
+
+    def test_wall_clock_blocks_prediction_when_ana_telemetry_is_old(self) -> None:
+        base = dt.datetime(2026, 11, 4, 22)
+        item = self._item("2h", 2, 14, "principal", None)
+        item["hora_modelo"] = base.isoformat()
+        item["status"] = "ok"
+        with mock.patch.object(LIVE, "agora_brt", return_value=base + dt.timedelta(hours=8)):
+            LIVE.aplicar_guardrail_frescor_horizontes({"2h": item}, base)
+        self.assertIsNone(item["nivel_previsto_cm"])
+        self.assertFalse(item["disponivel"])
+        self.assertGreaterEqual(item["idade_base_relogio_h"], 8)
+
+    def test_previous_observed_ana_levels_are_retained_only_as_history(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "mucum.json"
+            path.write_text(json.dumps({"serie_observada_ana": [
+                {"hora": "2026-11-05T06:00", "nivel_cm": 575},
+                {"hora": "2026-11-05T07:00", "nivel_cm": 579},
+            ]}), encoding="utf-8")
+            with mock.patch.object(LIVE, "SAIDA", str(path)), mock.patch.object(
+                LIVE, "agora_brt", return_value=dt.datetime(2026, 11, 5, 9)
+            ):
+                vals = LIVE.serie_observada_ana_publica({
+                    LIVE.ALVO: {dt.datetime(2026, 11, 5, 7): 581,
+                                dt.datetime(2026, 11, 5, 8): 590}
+                })
+        self.assertEqual(
+            vals,
+            [{"hora": "2026-11-05T06:00", "nivel_cm": 575.0},
+             {"hora": "2026-11-05T07:00", "nivel_cm": 581.0},
+             {"hora": "2026-11-05T08:00", "nivel_cm": 590.0}],
+        )
 
 
 if __name__ == "__main__":
