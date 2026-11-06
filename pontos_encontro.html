@@ -50,8 +50,9 @@ a{color:#08724d}.emerg a{font-weight:700}
   <div class="header">PREVINE · PONTOS DE ENCONTRO · PROVISÓRIO</div>
   <h1>Pontos de encontro · <span id="cid">…</span></h1>
   <div class="inner">
+    <p><a href="cenario_municipal.html" style="display:block;padding:10px;border:2px solid #155b42;border-radius:8px;font-weight:700">Configurar município, bases, bloqueios e abrigos →</a></p>
     <p class="cidades" id="cidades"></p>
-    <p class="intro">Para onde ir <b>a pé, antes de a água chegar</b>. Escolha quanto tempo a pessoa consegue caminhar e veja quantos pontos são precisos para atender as casas.</p>
+    <p class="intro">Estudo de referência para o planejamento municipal. Compare o tempo de caminhada e as sugestões de pontos. Para usar bases próprias e configurar o cenário, abra o módulo municipal acima.</p>
     <p class="small">Cheia de referência: <span id="manchaEvento">…</span>.</p>
     <p class="aviso"><b>Estudo do projeto, não é orientação oficial.</b> Em perigo, siga a Defesa Civil: <a href="tel:199">199</a> · Bombeiros: <a href="tel:193">193</a>.</p>
     <p class="cidades small" id="versoes"></p>
@@ -66,7 +67,7 @@ a{color:#08724d}.emerg a{font-weight:700}
     </fieldset>
     <fieldset class="passo" id="plano2" hidden>
       <legend><span class="num" aria-hidden="true">2</span> De onde vêm os pontos?</legend>
-      <label class="opc"><input type="radio" name="modo" value="algoritmo"><span><b>Sugestão do PREVINE</b><small>O menor número de pontos que atende as casas no tempo escolhido.</small></span></label>
+      <label class="opc"><input type="radio" name="modo" value="algoritmo"><span><b>Sugestão do PREVINE</b><small>Seleção heurística de pontos para atender as edificações no tempo escolhido.</small></span></label>
       <label class="opc"><input type="radio" name="modo" value="plano"><span><b>Só o Plano de Contingência</b><small>Os pontos oficiais da Defesa Civil que ficam fora da área que inunda.</small></span></label>
       <label class="opc"><input type="radio" name="modo" value="plano+algoritmo"><span><b>Plano de Contingência + sugestões</b><small>Os pontos oficiais primeiro; o PREVINE sugere outros para quem fica longe deles.</small></span></label>
       <p class="small" id="oficiaisTxt"></p>
@@ -87,11 +88,11 @@ a{color:#08724d}.emerg a{font-weight:700}
     <details class="leg" open><summary>Como ler o mapa</summary>
       <span class="tag"><i class="sw" style="background:#5b8fd6;opacity:.6"></i><span id="legMancha">área que inunda</span></span>
       <span class="tag"><i class="sw" style="border:2px dashed #c2410c;height:8px"></i>100 m em volta dela</span>
-      <span class="tag"><i class="sw" style="background:#1f8a4c"></i>rua segura</span>
+      <span class="tag"><i class="sw" style="background:#1f8a4c"></i>via elegível no cenário</span>
       <span class="tag"><i class="sw" style="background:#9aa7a0"></i>rua que inunda ou fica perto da água</span>
       <span class="tag"><i class="sw" style="background:#1d4ed8;border-radius:50%;width:10px"></i>casa na área que inunda</span>
       <span class="tag"><i class="sw" style="background:#ea7a1c;border-radius:50%;width:10px"></i>casa a menos de 100 m dela</span>
-      <span class="tag"><i class="sw" style="background:#fff;border:1px solid #5b6b63;border-radius:50%;width:10px"></i>casa que não precisa sair</span>
+      <span class="tag"><i class="sw" style="background:#fff;border:1px solid #5b6b63;border-radius:50%;width:10px"></i>edificação fora da área considerada</span>
       <span class="tag"><i class="pe-ic sm" aria-hidden="true">1</i>ponto sugerido pelo PREVINE</span>
       <span class="tag"><i class="pe-ic sm of" aria-hidden="true">1</i>ponto do Plano de Contingência</span>
       <span class="tag"><i class="sw" style="background:#5b2a86;height:5px"></i>caminho a pé até o ponto</span>
@@ -220,7 +221,7 @@ function criterios(){const T=PL?PL.tempo_max_min:D.plano.tempo_sugerido_min,alto
     'Fica fora da área que inunda e a mais de '+f0(D.offset_m)+' m dela'+(alto?', ou em terreno alto: 2 m ou mais acima da água da maior cheia, pelo modelo do terreno (LiDAR)':'')+'.',
     'Fica a mais de 100 m das marcas de deslizamento de 2024.',
     alto?'As ruas dali levam para fora da cidade sem passar pela água. Se o ponto fica ilhado, só vale em terreno alto, e a página avisa.':'As ruas dali levam para fora da cidade sem passar pela água (não fica ilhado).',
-    'Entre os lugares que servem, o PREVINE escolhe o menor número de pontos que leva as casas a um ponto em até '+T+' min a pé. Praça, escola ou campo por perto só desempata.',
+    'Entre os lugares que servem, o PREVINE escolhe uma seleção de pontos que leva as casas a um ponto em até '+T+' min a pé. Praça, escola ou campo por perto só desempata.',
     'Caminhada de uma pessoa idosa: 0,9 m/s no plano, mais lenta nas subidas'+(CID==='santa_tereza'?' (relevo do LiDAR)':'')+'.'].map(t=>'<li>'+t+'</li>').join('');}
 function textoOficiais(){const o=D.plano.oficiais;if(!o.length)return 'Não há pontos do Plano de Contingência cadastrados para '+C.nome+'.';
   return 'Pontos oficiais em '+C.nome+': '+o.map(x=>esc(x.nome)+(x.seguro?' (serve: fora da área que inunda)':x.ilhado?' (<b>não serve: fica ilhado</b>)':' (<b>não serve: na área que inunda ou a menos de 100 m dela</b>)')).join('; ')+'.';}

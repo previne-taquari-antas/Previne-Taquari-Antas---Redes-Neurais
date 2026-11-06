@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Planejamento municipal de evacuação · PREVINE</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+    />
+    <style>
+      :root {
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        color: #193b35;
+        background: #f2f5f3;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      header {
+        padding: 16px 24px;
+        background: #123e36;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+      }
+      header p {
+        margin: 0;
+        color: #d2e4dd;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 18px;
+      }
+      a {
+        color: #106e55;
+      }
+      header a {
+        color: white;
+      }
+      main {
+        display: grid;
+        grid-template-columns: 410px 1fr;
+        height: calc(100dvh - 87px);
+      }
+      aside {
+        overflow: auto;
+        padding: 16px;
+        background: #fff;
+      }
+      #map {
+        min-height: 380px;
+        height: 100%;
+        background: #dbe6e2;
+      }
+      fieldset {
+        border: 1px solid #c7d9d0;
+        border-radius: 10px;
+        margin: 0 0 16px;
+        padding: 12px;
+      }
+      legend {
+        font-weight: 700;
+        padding: 0 5px;
+      }
+      label {
+        display: block;
+        margin: 7px 0;
+      }
+      input:not([type="checkbox"]),
+      select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #9db6ab;
+        border-radius: 6px;
+        font: inherit;
+      }
+      input[type="file"] {
+        font-size: 12px;
+      }
+      button,
+      .button {
+        display: inline-block;
+        border: 1px solid #7ca393;
+        border-radius: 7px;
+        padding: 9px 12px;
+        background: #edf6f0;
+        color: #164a38;
+        font: 600 14px system-ui;
+        cursor: pointer;
+        margin: 3px 0;
+      }
+      button.primary {
+        background: #14684f;
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row > * {
+        flex: 1;
+        min-width: 0;
+      }
+      .muted,
+      small {
+        font-size: 12px;
+        color: #526c62;
+      }
+      .notice {
+        background: #fff4db;
+        border-left: 4px solid #bc7c12;
+        padding: 10px;
+        font-size: 13px;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 7px;
+        background: #eaf4ee;
+        margin: 10px 0;
+        overflow-wrap: anywhere;
+      }
+      .error {
+        background: #ffe9e4;
+        color: #7a2419;
+      }
+      #layers li {
+        font-size: 12px;
+        margin: 5px 0;
+        overflow-wrap: anywhere;
+      }
+      details {
+        margin: 8px 0;
+      }
+      summary {
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #results {
+        border-top: 3px solid #14684f;
+        padding-top: 10px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+      }
+      td,
+      th {
+        padding: 6px;
+        text-align: left;
+        border-bottom: 1px solid #d9e6df;
+      }
+      #destinationList input {
+        font-size: 12px;
+        padding: 4px;
+      }
+      .map-shell {
+        position: relative;
+      }
+      .map-note {
+        position: absolute;
+        z-index: 500;
+        left: 50px;
+        right: 10px;
+        bottom: 20px;
+        background: #fffef1ed;
+        padding: 7px;
+        font-size: 12px;
+        pointer-events: none;
+      }
+      .busy {
+        opacity: 0.65;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid #d39113;
+        outline-offset: 2px;
+      }
+      @media (max-width: 800px) {
+        main {
+          display: flex;
+          flex-direction: column;
+          height: auto;
+        }
+        .map-shell {
+          order: -1;
+          height: 46dvh;
+          position: sticky;
+          top: 0;
+          z-index: 600;
+        }
+        aside {
+          overflow: visible;
+        }
+        header {
+          padding: 12px;
+        }
+        h1 {
+          font-size: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p>PREVINE · APOIO À DECISÃO</p>
+        <h1>Planejamento municipal de evacuação</h1>
+      </div>
+      <a href="pontos_encontro.html">Estudo de referência</a>
+    </header>
+    <main>
+      <aside>
+        <p class="notice">
+          Estudo técnico para configurar e comparar cenários. Os resultados
+          dependem das bases e hipóteses informadas e precisam de validação
+          municipal. Não são instruções de evacuação à população.
+        </p>
+        <div class="row">
+          <button id="example">Carregar exemplo: Santa Tereza</button
+          ><button id="reset">Novo município</button>
+        </div>
+        <div id="status" class="status" role="status" aria-live="polite">
+          Comece pela área de interesse e importe as bases do município.
+        </div>
+        <fieldset>
+          <legend>1 · Município, área e bases</legend>
+          <label
+            >Município / identificação do cenário<input
+              id="municipality"
+              placeholder="Ex.: Município · cenário de planejamento"
+              maxlength="140"
+          /></label>
+          <label
+            >Camada a importar<select id="layerKind">
+              <option value="aoi">Área de interesse</option>
+              <option value="roads">Vias</option>
+              <option value="buildings">Edificações</option>
+              <option value="flood">Mancha de inundação</option>
+              <option value="eligible">Áreas elegíveis para destinos</option>
+              <option value="destinations">Pontos de encontro e abrigos</option>
+              <option value="blocks">Bloqueios</option>
+            </select></label
+          >
+          <label
+            >Arquivo GeoJSON ou Shapefile ZIP<input
+              id="upload"
+              type="file"
+              accept=".json,.geojson,.zip"
+          /></label>
+          <p class="muted">
+            O ZIP deve incluir .shp, .shx, .dbf e .prj. Cada importação
+            substitui apenas a camada selecionada. Coordenadas internas em
+            WGS84. Limite de arquivo: 25 MB.
+          </p>
+          <label
+            >Fonte / identificação da base<input
+              id="source"
+              placeholder="Órgão, levantamento e data"
+          /></label>
+          <div class="row">
+            <button id="drawArea">Desenhar área</button
+            ><button id="downloadArea">Baixar poligonal</button>
+          </div>
+          <ul id="layers"></ul>
+          <details>
+            <summary>Tipos de vias utilizados</summary>
+            <label
+              >Classes highway separadas por vírgula<input
+                id="roadTypes"
+                value="residential,unclassified,tertiary,secondary,primary,living_street,service,pedestrian,footway,path,steps,track,sem_classificacao"
+            /></label>
+            <p class="muted">
+              Usa acesso a pé; exclui foot=no e access=no. Pontes e túneis em
+              níveis distintos não são conectados nos cruzamentos. A rede é
+              refeita ao calcular.
+            </p>
+          </details>
+        </fieldset>
+        <fieldset>
+          <legend>2 · Tempo e população</legend>
+          <div class="row">
+            <label
+              >Tempo máximo (min)<input
+                id="minutes"
+                type="number"
+                min="1"
+                max="240"
+                value="20" /></label
+            ><label
+              >Velocidade (m/s)<input
+                id="speed"
+                type="number"
+                min="0.1"
+                max="3"
+                step="0.1"
+                value="0.9"
+            /></label>
+          </div>
+          <label
+            >Pessoas por edificação sem cadastro populacional<input
+              id="peoplePerBuilding"
+              type="number"
+              min="1"
+              max="10000"
+              step="1"
+              value="3"
+          /></label>
+          <p class="muted">
+            Tempo de deslocamento na rede, com velocidade constante. Não estima
+            quando a água chega nem ajusta a velocidade à declividade. O
+            cadastro pode informar pessoas/population/ocupantes por edificação.
+          </p>
+          <label
+            ><input id="allBuildings" type="checkbox" /> Considerar todas as
+            edificações da área de interesse</label
+          >
+        </fieldset>
+        <fieldset>
+          <legend>3 · Obstruções antes das rotas</legend>
+          <label
+            >Desenhar no mapa<select id="drawKind">
+              <option value="blockLine">Bloqueio por linha</option>
+              <option value="blockPolygon">Área obstruída</option>
+              <option value="blockPoint">
+                Bloqueio pontual (raio de 15 m)
+              </option>
+              <option value="destination">Destino</option>
+              <option value="eligible">Área elegível</option>
+              <option value="flood">Mancha de inundação</option>
+            </select></label
+          >
+          <button id="draw">Iniciar desenho</button
+          ><button id="clearBlocks">Remover todos os bloqueios</button>
+          <p class="muted">
+            Edite ou exclua os desenhos pelas ferramentas no mapa. Alterações
+            invalidam os resultados anteriores.
+          </p>
+        </fieldset>
+        <fieldset>
+          <legend>4 · Inundação e terreno</legend>
+          <label
+            >Natureza da mancha<select id="floodType">
+              <option value="observada">Histórica observada</option>
+              <option value="modelada">Modelada / simulada</option>
+              <option value="hand">HAND experimental</option>
+            </select></label
+          >
+          <label
+            >Evento / referência<input
+              id="floodEvent"
+              placeholder="Data, nível de referência e fonte"
+          /></label>
+          <label
+            >Afastamento mínimo dos destinos (m)<input
+              id="margin"
+              type="number"
+              min="0"
+              max="5000"
+              value="100"
+          /></label>
+          <label
+            ><input id="excludeFlood" type="checkbox" /> Excluir também as vias
+            já inundadas</label
+          >
+          <p class="notice">
+            Sem essa opção, o cenário representa deslocamento antes da
+            inundação: as vias na mancha permanecem disponíveis. Bloqueios
+            manuais sempre são excluídos. Uma mancha histórica não é o limite de
+            uma cheia futura.
+          </p>
+          <details>
+            <summary>Modelo de elevação e geração HAND</summary>
+            <p class="muted">
+              Importe um GeoTIFF geográfico WGS84 com alturas em metros ou
+              obtenha um recorte Copernicus GLO-30 pela área de interesse (até
+              quatro tiles). Copernicus é um modelo de superfície de cerca de 30
+              m; não substitui automaticamente um MDT local.
+            </p>
+            <label
+              >MDT / modelo de elevação GeoTIFF<input
+                id="terrainFile"
+                type="file"
+                accept=".tif,.tiff"
+            /></label>
+            <button id="copernicus">Obter Copernicus pela área</button
+            ><button id="downloadTerrain">Baixar recorte do terreno</button>
+            <p id="terrainInfo" class="muted">Nenhum terreno carregado.</p>
+            <label
+              >Área contribuinte mínima de drenagem (km²)<input
+                id="drainArea"
+                type="number"
+                min="0.001"
+                step="0.01"
+                value="1"
+            /></label>
+            <label
+              >Nível acima da drenagem (m)<input
+                id="handLevel"
+                type="number"
+                min="0"
+                max="200"
+                step="0.1"
+                value="2"
+            /></label>
+            <button id="generateHand">Gerar cenário HAND</button>
+            <p class="notice">
+              Modelo experimental com fluxo D8 e preenchimento de depressões,
+              limitado ao recorte (até 320 × 320 células). Use área hidrológica
+              ampla. Não representa propagação, velocidade ou horário de chegada
+              da cheia e não usa cotas de régua sem calibração.
+            </p>
+          </details>
+        </fieldset>
+        <fieldset>
+          <legend>5 · Destinos e capacidade</legend>
+          <label
+            >Seleção dos destinos<select id="mode">
+              <option value="misto">Destinos cadastrados + sugestões</option>
+              <option value="manual">Somente destinos cadastrados</option>
+              <option value="automatico">Somente sugestões</option>
+            </select></label
+          >
+          <p class="muted">
+            Clique em “Destino” na etapa 3 para cadastrar no mapa. Polígonos de
+            abrigos importados recebem um ponto representativo para ligação à
+            rede; revise o acesso real.
+          </p>
+          <div id="destinationList"></div>
+          <label
+            ><input id="enforceCapacity" type="checkbox" /> Exigir capacidade
+            informada em todos os destinos</label
+          >
+          <p class="muted">
+            Capacidades conhecidas sempre são respeitadas. Sem a exigência
+            acima, destinos com capacidade desconhecida podem receber pessoas e
+            ficam destacados como pendentes de validação. Sugestões automáticas
+            não têm capacidade cadastrada. Grupos de uma edificação permanecem
+            juntos.
+          </p>
+        </fieldset>
+        <button id="calculate" class="primary">Calcular cenário e rotas</button>
+        <section id="results" hidden aria-live="polite"></section>
+        <fieldset style="margin-top: 16px">
+          <legend>6 · Predefinições e relatórios</legend>
+          <button id="save">Baixar predefinições</button
+          ><label
+            >Reabrir cenário JSON<input
+              id="load"
+              type="file"
+              accept=".json" /></label
+          ><button id="csv">Baixar relatório CSV</button
+          ><button id="routes">Baixar rotas GeoJSON</button>
+          <p class="muted">
+            Os arquivos ficam no seu dispositivo. O cenário inclui bases,
+            fontes, parâmetros e bloqueios; o terreno é salvo separadamente.
+            Nenhum cadastro é enviado ao servidor.
+          </p>
+        </fieldset>
+      </aside>
+      <div class="map-shell">
+        <div
+          id="map"
+          aria-label="Mapa para configuração do cenário municipal"
+        ></div>
+        <div class="map-note">
+          Azul: inundação · Vermelho: bloqueio · Verde: destino · Roxo: rota
+          selecionada. Clique em uma edificação após calcular para examinar a
+          rota.
+        </div>
+      </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shpjs@6.1.0/dist/shp.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="assets/js/cenario_engine.js"></script>
+    <script src="assets/js/cenario_terreno.js"></script>
+    <script src="assets/js/cenario_municipal.js"></script>
+  </body>
+</html>
