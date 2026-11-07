@@ -61,3 +61,9 @@ de toda a plataforma ou validação hidrológica/cartográfica. HAND continua
 experimental, capacidades e populações dependem dos cadastros e a revisão dos
 contornos de Santa Tereza depende de base validada. A distribuição de destinos
 é heurística; os testes não transformam suas sugestões em orientação oficial.
+
+## Atualização do motor no navegador
+
+O worker e seus módulos recebem a versão dos scripts da página na URL. Isso
+evita reutilizar um motor anterior do cache depois da publicação de correções.
+A suíte de interface verifica que essas requisições têm versão explícita.

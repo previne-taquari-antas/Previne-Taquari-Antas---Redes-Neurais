@@ -407,7 +407,10 @@
   const jobs = new Map();
   function compute(type, data, opts) {
     if (!worker) {
-      worker = new Worker("assets/js/cenario_worker.js");
+      const version = [...document.scripts].filter(script => /\/cenario_(engine|terreno|municipal)\.js(?:\?|$)/.test(script.src)).map(script => new URL(script.src).searchParams.get("v") || "audit-v2").join("-");
+      const workerUrl = new URL("assets/js/cenario_worker.js", document.baseURI);
+      workerUrl.searchParams.set("v", version || "audit-v2");
+      worker = new Worker(workerUrl);
       worker.onmessage = (e) => {
         const job = jobs.get(e.data.id);
         if (!job) return;

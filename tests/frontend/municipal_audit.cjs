@@ -43,6 +43,8 @@ const server = http.createServer((req, res) => {
     }),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  const workerRequests=[];
+  page.on("request", request=>{if(/cenario_(worker|engine|terreno)\.js\?v=/.test(request.url()))workerRequests.push(request.url());});
   await page.route("https://cdn.jsdelivr.net/npm/**", async (route) => {
     const path = route
       .request()
@@ -209,6 +211,9 @@ const server = http.createServer((req, res) => {
   assert.equal(deleted.layers.blocks.features.length, 0);
   await load(deleted);
   assert.deepEqual(errors, []);
+  assert(workerRequests.some(url=>url.includes("cenario_worker.js?v=")));
+  assert(workerRequests.some(url=>url.includes("cenario_engine.js?v=")));
+  assert(workerRequests.some(url=>url.includes("cenario_terreno.js?v=")));
   console.log(
     "PASS municipal audit: invalid input, save guard, empty layers, malformed GeoJSON, edit/delete toolbar, roundtrip",
   );

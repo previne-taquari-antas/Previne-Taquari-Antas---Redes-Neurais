@@ -1,4 +1,5 @@
-importScripts("cenario_engine.js", "cenario_terreno.js");
+// Keep imported computation modules aligned with the page's asset versions.
+importScripts("cenario_engine.js" + self.location.search, "cenario_terreno.js" + self.location.search);
 self.onmessage = (e) => {
   try {
     const { type, id, data, options } = e.data;
