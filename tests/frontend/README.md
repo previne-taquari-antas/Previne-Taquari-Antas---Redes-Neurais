@@ -10,3 +10,8 @@ Esse teste cobre exemplo de Santa Tereza, importação de cenário municipal, ca
 persistência, invalidação, layout móvel, importação GeoTIFF, HAND em worker e
 exportação de alturas Float32. As bibliotecas externas são interceptadas e servidas
 pelas dependências locais; não depende dos CDNs nem da rede de mapas.
+
+`npm run test:municipal:audit` executa os casos adversos encontrados na auditoria:
+recorte da área de interesse, GeoJSON malformado, entrada inválida de capacidade,
+edição e exclusão pelo mapa e reabertura de camadas opcionais vazias. Inclui também
+os testes do motor. `npm test` executa as três suítes de navegador em sequência.

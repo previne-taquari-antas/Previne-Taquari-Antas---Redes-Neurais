@@ -104,14 +104,16 @@
       );
     });
   }
-  function validate(input, kind) {
+  function validate(input, kind, { allowEmpty = false } = {}) {
+    if (!input || typeof input !== "object") throw Error("GeoJSON inválido.");
     const fs =
       input.type === "FeatureCollection"
         ? input.features
         : input.type === "Feature"
           ? [input]
           : [{ type: "Feature", properties: {}, geometry: input }];
-    if (!Array.isArray(fs) || !fs.length) throw Error("Camada vazia.");
+    if (!Array.isArray(fs) || (!fs.length && !allowEmpty))
+      throw Error("Camada vazia.");
     const allowed = {
       roads: ["LineString", "MultiLineString"],
       buildings: ["Point", "Polygon", "MultiPolygon"],
@@ -127,41 +129,127 @@
         "MultiPolygon",
       ],
     }[kind];
-    let count = 0;
-    for (const f of fs) {
-      if (!f.geometry || !allowed?.includes(f.geometry.type))
-        throw Error("Geometria incompatível com " + kind + ".");
-      const g = f.geometry;
-      function walk(c) {
-        if (!Array.isArray(c) || !c.length) throw Error("Coordenadas vazias.");
-        if (typeof c[0] === "number") {
+    let count = 0,
+      work = 0;
+    function position(c) {
+      if (
+        !Array.isArray(c) ||
+        c.length < 2 ||
+        !c.every(Number.isFinite) ||
+        Math.abs(c[0]) > 180 ||
+        Math.abs(c[1]) > 90
+      )
+        throw Error(
+          "Use coordenadas WGS84 (longitude, latitude) com a estrutura GeoJSON correta.",
+        );
+      if (++count > 500000)
+        throw Error("Limite: 500 mil coordenadas por camada.");
+      return c.slice(0, 2);
+    }
+    function line(c, min = 2) {
+      if (!Array.isArray(c) || c.length < min)
+        throw Error("Linha ou anel incompleto.");
+      return c.map(position);
+    }
+    function simpleRing(r) {
+      if (r[0][0] !== r.at(-1)[0] || r[0][1] !== r.at(-1)[1])
+        throw Error("Polígono deve ter anéis fechados.");
+      const seen = new Set(),
+        segs = [],
+        grid = new Map();
+      let area = 0;
+      const xs = r.map((p) => p[0]),
+        ys = r.map((p) => p[1]),
+        west = xs.reduce((a, b) => Math.min(a, b), Infinity),
+        south = ys.reduce((a, b) => Math.min(a, b), Infinity),
+        span = Math.max(
+          xs.reduce((a, b) => Math.max(a, b), -Infinity) - west,
+          ys.reduce((a, b) => Math.max(a, b), -Infinity) - south,
+        ),
+        cell = span / Math.max(1, Math.ceil(Math.sqrt(r.length)));
+      if (!cell) throw Error("Anel sem área.");
+      for (let i = 0; i < r.length - 1; i++) {
+        const a = r[i],
+          b = r[i + 1],
+          key = a.join(",");
+        if (seen.has(key) || distance(a, b) < 0.001)
+          throw Error("Anel com vértices repetidos ou segmentos nulos.");
+        seen.add(key);
+        area +=
+          (a[0] - r[0][0]) * (b[1] - r[0][1]) -
+          (b[0] - r[0][0]) * (a[1] - r[0][1]);
+        const candidates = new Set(),
+          cells = [];
+        for (
+          let x = Math.floor((Math.min(a[0], b[0]) - west) / cell);
+          x <= Math.floor((Math.max(a[0], b[0]) - west) / cell);
+          x++
+        )
+          for (
+            let y = Math.floor((Math.min(a[1], b[1]) - south) / cell);
+            y <= Math.floor((Math.max(a[1], b[1]) - south) / cell);
+            y++
+          ) {
+            if (++work > 3000000)
+              throw Error(
+                "Polígono muito complexo. Simplifique e valide a camada antes de importar.",
+              );
+            const k = x + "," + y;
+            cells.push(k);
+            for (const j of grid.get(k) || []) candidates.add(j);
+          }
+        for (const j of candidates) {
+          if (j === i - 1 || (j === 0 && i === r.length - 2)) continue;
+          const [c, d] = segs[j];
           if (
-            c.length < 2 ||
-            !Number.isFinite(c[0]) ||
-            !Number.isFinite(c[1]) ||
-            Math.abs(c[0]) > 180 ||
-            Math.abs(c[1]) > 90
-          )
-            throw Error("Use coordenadas WGS84 (longitude, latitude).");
-          if (++count > 500000)
-            throw Error("Limite: 500 mil coordenadas por camada.");
-        } else c.forEach(walk);
-      }
-      walk(g.coordinates);
-      for (const l of lines(g)) {
-        if (l.length < 2) throw Error("Linha incompleta.");
-      }
-      for (const p of polygons(g))
-        for (const r of p) {
-          if (
-            r.length < 4 ||
-            r[0][0] !== r[r.length - 1][0] ||
-            r[0][1] !== r[r.length - 1][1]
+            intersects(a, b, c, d) ||
+            project(a, c, d).d < 0.001 ||
+            project(b, c, d).d < 0.001 ||
+            project(c, a, b).d < 0.001 ||
+            project(d, a, b).d < 0.001
           )
             throw Error(
-              "Polígono deve ter anéis fechados e ao menos quatro coordenadas.",
+              "Polígono com auto-interseção. Corrija a geometria antes de importar.",
             );
         }
+        segs.push([a, b]);
+        for (const k of cells) {
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push(i);
+        }
+      }
+      if (Math.abs(area) < 1e-16)
+        throw Error("Anel sem área ou com auto-interseção.");
+      return r;
+    }
+    function polygon(c) {
+      if (!Array.isArray(c) || !c.length) throw Error("Polígono vazio.");
+      return c.map((r) => simpleRing(line(r, 4)));
+    }
+    for (const f of fs) {
+      if (
+        !f ||
+        f.type !== "Feature" ||
+        !f.geometry ||
+        !allowed?.includes(f.geometry.type)
+      )
+        throw Error("Geometria incompatível com " + kind + ".");
+      if (
+        f.properties != null &&
+        (typeof f.properties !== "object" || Array.isArray(f.properties))
+      )
+        throw Error("Atributos GeoJSON inválidos.");
+      const g = f.geometry,
+        c = g.coordinates;
+      if (g.type === "Point") g.coordinates = position(c);
+      else if (g.type === "LineString") g.coordinates = line(c);
+      else if (g.type === "Polygon") g.coordinates = polygon(c);
+      else {
+        if (!Array.isArray(c) || !c.length) throw Error("Geometria vazia.");
+        g.coordinates = c.map(
+          g.type === "MultiLineString" ? (x) => line(x) : polygon,
+        );
+      }
       f.properties = f.properties || {};
     }
     return { type: "FeatureCollection", features: fs };
@@ -214,6 +302,18 @@
         }
       }
     }
+    for (const segment of segments)
+      for (const area of options.clipAreas || [])
+        for (const boundary of lines(area.geometry))
+          for (let i = 1; i < boundary.length; i++) {
+            const cross = intersects(
+              segment.a,
+              segment.b,
+              boundary[i - 1],
+              boundary[i],
+            );
+            if (cross) segment.ts.push(cross.t);
+          }
     if (segments.length > 15000)
       throw Error("Recorte as vias para até 15 mil segmentos.");
     // Grade espacial para dividir cruzamentos no mesmo nível; pontes não viram cruzamentos em nível.
@@ -349,6 +449,10 @@
     return { t, next };
   }
   function plan(data, o) {
+    for (const [kind, layer] of Object.entries(data))
+      validate(layer, kind, {
+        allowEmpty: !["roads", "buildings"].includes(kind),
+      });
     const flood = data.flood?.features || [],
       blocks = data.blocks?.features || [],
       aoi = data.aoi?.features || [],
@@ -360,7 +464,10 @@
     const speed = Number(o.speed),
       limit = Number(o.minutes) * 60,
       margin = Number(o.margin);
-    if (!(speed > 0 && limit > 0 && margin >= 0))
+    if (
+      ![speed, limit, margin].every(Number.isFinite) ||
+      !(speed > 0 && limit > 0 && margin >= 0)
+    )
       throw Error("Tempo, velocidade e afastamento inválidos.");
     const inArea = (p) => !aoi.length || aoi.some((f) => inside(p, f.geometry));
     function withinArea(p, q) {
@@ -378,6 +485,7 @@
     }
     const g = graph(data.roads.features, {
         ...o,
+        clipAreas: aoi,
         roadTypes:
           typeof o.roadTypes === "string"
             ? o.roadTypes

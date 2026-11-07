@@ -1,8 +1,9 @@
 {
   "private": true,
   "scripts": {
-    "test": "node browser.cjs",
-    "test:municipal": "node municipal.cjs"
+    "test": "node browser.cjs && npm run test:municipal && npm run test:municipal:audit",
+    "test:municipal": "node municipal.cjs",
+    "test:municipal:audit": "node municipal_audit.cjs && node --test ../test_cenario_engine.cjs ../test_cenario_auditoria.cjs"
   },
   "dependencies": {
     "leaflet": "1.9.4",

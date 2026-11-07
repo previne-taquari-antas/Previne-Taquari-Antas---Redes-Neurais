@@ -105,7 +105,8 @@
   map = L.map("map").setView([-14, -53], 4);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     referrerPolicy: "strict-origin-when-cross-origin",
   }).addTo(map);
   editable = L.featureGroup().addTo(map);
@@ -234,12 +235,21 @@
           }
         }
         input.value = p[key] ?? (key === "tipo" ? "ponto_de_encontro" : "");
+        input.addEventListener("input", () => {
+          input.setCustomValidity("");
+          invalidate();
+        });
         input.onchange = () => {
+          invalidate();
+          input.setCustomValidity("");
           if (
             type === "number" &&
             input.value !== "" &&
             (!Number.isInteger(Number(input.value)) || Number(input.value) < 0)
           ) {
+            input.setCustomValidity(
+              "Use capacidade e ocupação inteiras e não negativas.",
+            );
             status("Use capacidade e ocupação inteiras e não negativas.", true);
             return;
           }
@@ -333,7 +343,7 @@
       l._scenarioFeature.geometry = l.toGeoJSON().geometry;
     });
     invalidate();
-    render();
+    queueMicrotask(render);
   });
   map.on("draw:deleted", (e) => {
     e.layers.eachLayer((l) => {
@@ -342,7 +352,7 @@
       if (i >= 0) a.splice(i, 1);
     });
     invalidate();
-    render();
+    queueMicrotask(render);
   });
   $("clearBlocks").onclick = () => {
     delete state.layers.blocks;
@@ -424,6 +434,24 @@
       worker.postMessage({ id, type, data, options: opts });
     });
   }
+  function validFields() {
+    const invalid = [...document.querySelectorAll("input, select")].find(
+      (input) => !input.disabled && !input.checkValidity(),
+    );
+    if (!invalid) return true;
+    for (
+      let parent = invalid.parentElement;
+      parent;
+      parent = parent.parentElement
+    )
+      if (parent.tagName === "DETAILS") parent.open = true;
+    invalid.reportValidity();
+    status(
+      "Revise o campo inválido antes de calcular ou salvar o cenário.",
+      true,
+    );
+    return false;
+  }
   async function busy(button, fn) {
     button.disabled = true;
     try {
@@ -437,6 +465,7 @@
   $("calculate").onclick = () =>
     busy($("calculate"), async () => {
       invalidate();
+      if (!validFields()) return;
       const rev = state.revision,
         o = options();
       status("Construindo a rede, aplicando bloqueios e calculando destinos…");
@@ -560,7 +589,8 @@
     });
     $("csv").disabled = $("routes").disabled = false;
   }
-  $("save").onclick = () =>
+  $("save").onclick = () => {
+    if (!validFields()) return;
     download(
       JSON.stringify(
         {
@@ -582,6 +612,7 @@
       ),
       "predefinicoes_municipais.json",
     );
+  };
   $("load").onchange = (e) =>
     busy($("calculate"), async () => {
       try {
@@ -597,7 +628,9 @@
         for (const [k, v] of Object.entries(data.layers)) {
           if (!Object.hasOwn(labels, k))
             throw Error("Camada desconhecida: " + k);
-          layers[k] = E.validate(v, k);
+          layers[k] = E.validate(v, k, {
+            allowEmpty: !["roads", "buildings"].includes(k),
+          });
         }
         for (const id of optionIds)
           if (data.options[id] != null) {
