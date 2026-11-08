@@ -109,6 +109,47 @@ class LiveFeedContractTests(unittest.TestCase):
         self.assertIn('atual["ultima_tentativa_em"] = agora', block)
         self.assertIn('audit = auditoria_inputs_8h(cfg, cand, x)', source)
 
+    def test_ana_failure_does_not_publish_expired_forecast(self) -> None:
+        from previne.robo import gerar_previsao_ao_vivo as live
+
+        now = live.dt.datetime(2026, 11, 8, 12, 0)
+        expired = {
+            "hora_alvo": "2026-11-08T11:00:00",
+            "nivel_previsto_cm": 397,
+            "disponivel": True,
+            "passos": [["2026-11-08T09:00:00", 447, 429, 397]],
+            "auditoria_inputs": {"status": "NORMAL"},
+            "qualidade_ao_vivo": {"status": "NORMAL"},
+        }
+        valid = {
+            **expired,
+            "hora_alvo": "2026-11-08T13:00:00",
+            "nivel_previsto_cm": 333,
+            "passos": [["2026-11-08T09:00:00", 447, 429, 333]],
+        }
+        data = {
+            **expired,
+            "horizontes": {"2h": copy.deepcopy(expired), "4h": copy.deepcopy(valid)},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            saida = Path(tmp) / "previsao.json"
+            with patch.object(live, "carregar_saida_atual", return_value=data), \\
+                 patch.object(live, "saida_respeita_contrato_horario_atual", return_value=True), \\
+                 patch.object(live, "agora_brt", return_value=now), \\
+                 patch.object(live, "SAIDA", saida), \\
+                 patch.object(live, "MODELOS", []):
+                live.preservar_saida_valida_em_falha("sem dado recente", "experimental")
+            output = json.loads(saida.read_text(encoding="utf-8"))
+
+        self.assertIsNone(output["horizontes"]["2h"]["nivel_previsto_cm"])
+        self.assertFalse(output["horizontes"]["2h"]["disponivel"])
+        self.assertEqual(output["horizontes"]["2h"]["previsao_stale_candidata_cm"], 397)
+        self.assertEqual(output["horizontes"]["2h"]["qualidade_ao_vivo"]["status"], "BASE_DESATUALIZADA")
+        self.assertEqual(output["horizontes"]["4h"]["nivel_previsto_cm"], 333)
+        self.assertIsNone(output["nivel_previsto_cm"])
+        self.assertFalse(output["disponivel"])
+        self.assertEqual(output["ultima_tentativa_status"], "falha")
+
     def test_history_is_not_rewritten_when_only_stamps_change(self) -> None:
         import tempfile
         from previne.robo import gerar_previsao_ao_vivo as live
