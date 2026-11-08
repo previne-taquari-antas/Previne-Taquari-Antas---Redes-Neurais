@@ -133,11 +133,13 @@ class LiveFeedContractTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as tmp:
             saida = Path(tmp) / "previsao.json"
-            with patch.object(live, "carregar_saida_atual", return_value=data), \\
-                 patch.object(live, "saida_respeita_contrato_horario_atual", return_value=True), \\
-                 patch.object(live, "agora_brt", return_value=now), \\
-                 patch.object(live, "SAIDA", saida), \\
-                 patch.object(live, "MODELOS", []):
+            with (
+                patch.object(live, "carregar_saida_atual", return_value=data),
+                patch.object(live, "saida_respeita_contrato_horario_atual", return_value=True),
+                patch.object(live, "agora_brt", return_value=now),
+                patch.object(live, "SAIDA", saida),
+                patch.object(live, "MODELOS", []),
+            ):
                 live.preservar_saida_valida_em_falha("sem dado recente", "experimental")
             output = json.loads(saida.read_text(encoding="utf-8"))
 
