@@ -1,5 +1,9 @@
 name: Auditoria isolada das entradas STZ 8h
 on:
+  # Audita a cobertura real das entradas mesmo com a RNA 8h suspensa.
+  # Mantem o bloqueio de publicacao ate avaliacao cientifica explicita.
+  schedule:
+    - cron: '29 */4 * * *'
   workflow_dispatch:
   push:
     branches: [main]
