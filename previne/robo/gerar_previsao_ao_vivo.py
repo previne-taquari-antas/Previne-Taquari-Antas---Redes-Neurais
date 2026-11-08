@@ -2855,7 +2855,8 @@ def preservar_saida_valida_em_falha(motivo, aviso):
     """
     atual = carregar_saida_atual()
     if saida_respeita_contrato_horario_atual(atual):
-        agora = agora_brt().isoformat(timespec="seconds")
+        agora_dt = agora_brt()
+        agora = agora_dt.isoformat(timespec="seconds")
         # consultado_em é a hora da última consulta BEM-SUCEDIDA que gerou
         # estes dados. Não avançá-la numa falha: isso mascararia um feed velho
         # como se o robô tivesse acabado de publicar dados novos.
@@ -2872,6 +2873,24 @@ def preservar_saida_valida_em_falha(motivo, aviso):
                 item["status"] = "aguardando nova telemetria"
                 item["status_dados"] = "consulta ANA instavel; exibindo ultima previsao valida"
                 item["erro_robo_ultima_consulta"] = motivo
+                # Se o alvo ja passou, guardar somente o valor para auditoria.
+                # Uma falha ANA nunca deve manter previsao vencida como disponivel.
+                alvo = _parse_hora(item.get("hora_alvo") or "")
+                if alvo is None or alvo <= agora_dt:
+                    item["previsao_stale_candidata_cm"] = item["nivel_previsto_cm"]
+                    if item.get("passos"):
+                        item["passos_stale_candidatos"] = item["passos"]
+                    item["nivel_previsto_cm"] = None
+                    item["passos"] = []
+                    item["disponivel"] = False
+                    item["status"] = "indisponivel: horario-alvo vencido; aguardando nova telemetria"
+                    auditoria = dict(item.get("auditoria_inputs") or {})
+                    auditoria["status"] = "ATENCAO"
+                    auditoria["motivo_publicacao"] = "ultima previsao vencida durante falha de consulta ANA"
+                    item["auditoria_inputs"] = auditoria
+                    qualidade = dict(item.get("qualidade_ao_vivo") or {})
+                    qualidade["status"] = "BASE_DESATUALIZADA"
+                    item["qualidade_ao_vivo"] = qualidade
         # O horizonte 8 h nunca herda uma previsao antiga durante a suspensao.
         for cfg in MODELOS:
             if horizonte_stz_8h_suspenso(cfg):
@@ -2883,6 +2902,16 @@ def preservar_saida_valida_em_falha(motivo, aviso):
                 suspenso["ultima_tentativa_status"] = "falha"
                 suspenso["erro_robo_ultima_consulta"] = motivo
                 atual["horizontes"][cfg["horizonte"]] = suspenso
+        # Os campos da raiz alimentam paineis legados: sincronizar com 2h.
+        principal = (atual.get("horizontes") or {}).get("2h") or {}
+        if principal.get("nivel_previsto_cm") is None:
+            atual["nivel_previsto_cm"] = None
+            atual["passos"] = []
+            atual["disponivel"] = False
+            atual["status"] = principal.get("status") or "indisponivel: sem nova telemetria"
+            atual["qualidade_ao_vivo"] = principal.get("qualidade_ao_vivo") or {}
+            if "previsao_stale_candidata_cm" in principal:
+                atual["previsao_stale_candidata_cm"] = principal["previsao_stale_candidata_cm"]
         with open(SAIDA, "w", encoding="utf-8") as f:
             json.dump(atual, f, ensure_ascii=False, indent=1)
         print("mantida ultima previsao valida:", motivo)
