@@ -176,22 +176,40 @@ function mostra(lat,lon,casa){limpa();box.className='';ultimo=[lat,lon,casa];
   const c=caminho(s,arv?arv.prox:null),p=D.pontos[k],dm=hc&&hc[F.dist_m]!=null?hc[F.dist_m]:c.d+bd;
   const tds=casa&&PL&&PL.casas?PL.casas[casa.i][1]:PL&&PL.tempo_no_ds&&PL.tempo_no_ds[s]!=null?PL.tempo_no_ds[s]+Math.round(bd/VEL*10):null;
   const t=tds!=null?tds/10:hc&&hc[F.tempo_s]!=null?hc[F.tempo_s]:D.tempo_no_s[s]+bd/VEL,acima=PL&&t*10>PL.tempo_max_min*600;
-  // Rota nas ruas: linha contínua. Acesso casa–rua: tracejado (geometria aproximada).
-  // Desenhar ambos no MESMO grupo, na ordem correta, evita ocultar o acesso à casa.
+  // O nó de partida nem sempre é o ponto da rua mais próximo da casa.
+  // Para a visualização, projetar a casa no PRIMEIRO segmento da rota selecionada.
+  // Não escolher ruas arbitrárias: o segmento precisa pertencer ao caminho calculado.
+  let tracado=c.pts.slice(),entrada=D.nos[s],distAcesso=bd,ajustouEntrada=false;
+  if(tracado.length>1){
+    const a=tracado[0],b=tracado[1],ref=(a[0]+b[0])/2*Math.PI/180;
+    const escalaX=111320*Math.cos(ref),escalaY=111195;
+    const vx=(b[1]-a[1])*escalaX,vy=(b[0]-a[0])*escalaY;
+    const wx=(lon-a[1])*escalaX,wy=(lat-a[0])*escalaY;
+    const den=vx*vx+vy*vy;
+    if(den>0){
+      const u=Math.max(0,Math.min(1,(wx*vx+wy*vy)/den));
+      const pe=[a[0]+u*(b[0]-a[0]),a[1]+u*(b[1]-a[1])];
+      const d=metros([lat,lon],pe);
+      // Só substituir o nó por uma projeção quando a aproximação for menor e plausível.
+      if(d<bd-2 && d<=LONGE_DA_RUA_M){
+        entrada=pe;distAcesso=d;tracado=[pe,...tracado.slice(1)];ajustouEntrada=true;
+      }
+    }
+  }
   const trechos=[
-    L.polyline(c.pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),
-    L.polyline(c.pts,{color:'#5b2a86',weight:5,opacity:1,interactive:false})
+    L.polyline(tracado,{color:'#fff',weight:9,opacity:.95,interactive:false}),
+    L.polyline(tracado,{color:'#5b2a86',weight:5,opacity:1,interactive:false})
   ];
-  if(bd>3){
-    const ligacao=[[lat,lon],D.nos[s]];
+  // Tracejado apenas do domicílio até a via, não sobre um longo trecho de rua.
+  if(distAcesso>3){
+    const ligacao=[[lat,lon],entrada];
     trechos.push(L.polyline(ligacao,{color:'#fff',weight:9,opacity:1,interactive:false}));
     trechos.push(L.polyline(ligacao,{color:'#5b2a86',weight:5,opacity:1,dashArray:'8 5',interactive:false}));
   }
-  // Realçar a casa selecionada, inclusive quando coincide com o nó da rua.
   trechos.push(L.circleMarker([lat,lon],{radius:7,color:'#fff',weight:2,fillColor:'#5b2a86',fillOpacity:1,interactive:false}));
   cam=L.featureGroup(trechos).addTo(map);
   box.innerHTML=(naMancha?'<b>Esta casa fica na área que inunda</b> ('+(D.mancha_observada?'área atingida em ':'cheia de ')+esc(D.evento_curto)+').':'<b>Esta casa fica a menos de '+f0(D.offset_m)+' m da área que inunda.</b>')+
-    '<br>Vá para o <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+': '+fmtDist(dm)+', '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso. A rota nas ruas está em roxo contínuo; o acesso aproximado entre a casa e a rua está em roxo tracejado.'+
+    '<br>Vá para o <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+': '+fmtDist(dm)+', '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso. A rota nas ruas está em roxo contínuo; o acesso aproximado entre a casa e a rua está em roxo tracejado. O traçado exibido pode começar no meio de um segmento de rua; distância e tempo informados continuam sendo os do grafo original.'+
     (p.ilhado?'<br>Esse ponto fica <b>ilhado</b> na cheia: vá antes de a água subir e leve água, comida e remédios.':'')+
     (acima?'<br><b>Passa do tempo máximo de '+f0(PL.tempo_max_min)+' min</b>'+(PL.modo==='algoritmo'?': nenhum lugar seguro fica mais perto que isso daqui.':' com os pontos deste plano.')+' Saia mais cedo ou combine transporte com a Defesa Civil.':'')+
     '<br>Saia antes de a água chegar às ruas (a área azul é onde ela chega na cheia de '+esc(D.evento_curto)+').'+pe;
