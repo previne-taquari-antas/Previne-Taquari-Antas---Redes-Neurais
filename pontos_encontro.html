@@ -184,7 +184,7 @@ function mostra(lat,lon,casa){limpa();box.className='';ultimo=[lat,lon,casa];
   ]).addTo(map);
   cam=L.featureGroup([L.polyline(c.pts,{color:'#fff',weight:9,opacity:.95,interactive:false}),L.polyline(c.pts,{color:'#5b2a86',weight:5,opacity:.95,interactive:false})]).addTo(map);
   // Mantém a ligação casa–rua visível sobre a linha principal no ponto de conexão.
-  if(snap)snap.bringToFront();
+  if(snap)snap.eachLayer(layer=>layer.bringToFront());
   box.innerHTML=(naMancha?'<b>Esta casa fica na área que inunda</b> ('+(D.mancha_observada?'área atingida em ':'cheia de ')+esc(D.evento_curto)+').':'<b>Esta casa fica a menos de '+f0(D.offset_m)+' m da área que inunda.</b>')+
     '<br>Vá para o <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+': '+fmtDist(dm)+', '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso. O caminho está em roxo no mapa.'+
     (p.ilhado?'<br>Esse ponto fica <b>ilhado</b> na cheia: vá antes de a água subir e leve água, comida e remédios.':'')+
