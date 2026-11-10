@@ -1,6 +1,6 @@
 {
   "schema_version": "plataforma_hec_twin_mucum_v3",
-  "generated_at_utc": "2026-11-10T00:59:03Z",
+  "generated_at_utc": "2026-11-10T03:06:52Z",
   "status": "hec_hms_spatial_blocked",
   "label_pt": "Plataforma HEC/REC · bacia Taquari–Antas (G040)",
   "purpose_pt": "Mapa e inventário da bacia oficial Taquari–Antas (G040, ~26,4 mil km², 7 UGs). Dentro dela, o produto gêmeo HEC/REC estima ΔN em Muçum no corredor aninhado (~16 mil km²). Guaporé/Forqueta/Baixo aparecem na bacia; não entram no balanço do gêmeo até Muçum. STZ sem curva N↔Q inventada. Pesquisa.",
@@ -116,22 +116,22 @@
   "headline": {
     "source": "hec_hms_4_13_spatial_blocked",
     "question_pt": "Qual é a previsão HEC-HMS válida para Muçum agora?",
-    "plain_pt": "A rodada HEC-HMS está em recalibração automática e ainda não há pico liberado neste ciclo.  Motivo: estado aquecido difere -40.9 cm do nível observado atual (>30 cm); vazão do estado aquecido difere -18.5% da vazão derivada do observado (>10%); NSE recente de 12 h = 0.339 (<0,75); RMSE recente de 6 h = 39.3 cm (>25 cm); NSE recente de 6 h = -1.025 (<0,50); NSE do hidrograma observado desde 26/09 = 0.569 (<0,75); cobertura mínima de chuva no aquecimento = 4 postos/h (<8)",
+    "plain_pt": "A rodada HEC-HMS está em recalibração automática e ainda não há pico liberado neste ciclo.  Motivo: RMSE recente de 12 h = 68.4 cm (>35 cm); NSE recente de 12 h = -3.340 (<0,75); RMSE recente de 6 h = 59.7 cm (>25 cm); NSE recente de 6 h = -2.120 (<0,50); NSE do hidrograma observado desde 26/09 = 0.194 (<0,75); estado observado de Muçum está defasado 51 min (>45 min); cobertura mínima de chuva no aquecimento = 4 postos/h (<8)",
     "primary": null,
-    "rain_mm_area_weighted": 14.885882,
+    "rain_mm_area_weighted": 17.988078,
     "validation_ref": "hec_hms_spatial_forecast_mucum_latest.json"
   },
   "products": {
     "forward_5d": {
       "status": "research_forward_5d_ready",
-      "generated_at_utc": "2026-11-10T00:45:52Z",
-      "plain_pt": "Com ~14.8 mm de chuva prevista em 120 h e nível atual 408 cm em Muçum, o gêmeo HEC indica subida de ~0 cm (banda 0–0 cm), pico ancorado ~408 cm em 2026-11-10T00:00:00Z.",
+      "generated_at_utc": "2026-11-10T03:05:22Z",
+      "plain_pt": "Com ~18.0 mm de chuva prevista em 120 h e nível atual 413 cm em Muçum, o gêmeo HEC indica subida de ~0 cm (banda 0–0 cm), pico ancorado ~413 cm em 2026-11-10T02:00:00Z.",
       "primary": {
         "event_id": "BLEND",
         "rise_cm": 0.0,
-        "peak_anchored_cm": 408.0,
-        "peak_time_utc": "2026-11-10T00:00:00Z",
-        "peak_time_argmax_utc": "2026-11-10T00:00:00Z",
+        "peak_anchored_cm": 413.0,
+        "peak_time_utc": "2026-11-10T02:00:00Z",
+        "peak_time_argmax_utc": "2026-11-10T02:00:00Z",
         "peak_time_method": "no_rise"
       },
       "ensemble_rise_cm": {
@@ -142,53 +142,54 @@
           {
             "event_id": "BLEND",
             "rise_cm": 0.0,
-            "peak_anchored_cm": 408.0
+            "peak_anchored_cm": 413.0
           },
           {
             "event_id": "E23",
-            "rise_cm": null,
-            "peak_anchored_cm": null
+            "rise_cm": 0.0,
+            "peak_anchored_cm": 413.0
           },
           {
             "event_id": "E20",
             "rise_cm": 0.0,
-            "peak_anchored_cm": 408.0
+            "peak_anchored_cm": 413.0
           },
           {
             "event_id": "E25",
             "rise_cm": 0.0,
-            "peak_anchored_cm": 408.0
+            "peak_anchored_cm": 413.0
           },
           {
             "event_id": "E24",
             "rise_cm": 0.0,
-            "peak_anchored_cm": 408.0
+            "peak_anchored_cm": 413.0
           },
           {
             "event_id": "E21",
             "rise_cm": 0.0,
-            "peak_anchored_cm": 408.0
+            "peak_anchored_cm": 413.0
           }
         ]
       },
-      "rain_forecast_mm": 14.83,
+      "rain_forecast_mm": 17.977,
       "level_now": {
         "ok": true,
-        "stage_cm": 408.0,
-        "observed_at_utc": "2026-11-10T00:15:00Z",
-        "source": "ANA_telemetria",
-        "station": "86510000"
+        "stage_cm": 413.0,
+        "observed_at_utc": "2026-11-10T02:15:00Z",
+        "source": "previsao_ao_vivo_mucum.json",
+        "station": "86510000",
+        "fallback_reason": "The read operation timed out"
       },
       "note_pt": "Produto operacional de pesquisa (~5d). Se a forçante estiver seca ou a telemetria cair, o ΔN pode ir a zero — conferir live eval.",
       "available": true,
       "artifact": "hec_twin_mucum_forward_5d.html",
-      "age_hours": 0.22,
+      "age_hours": 0.03,
       "stale": false,
-      "anchor_age_hours": 0.73,
+      "anchor_age_hours": 0.86,
       "note": "Previsão HEC/REC corrente (~5d); chuva seca também é resultado válido.",
       "peak_delta_n_cm": 0.0,
-      "peak_n_cm": 408.0,
-      "peak_when_utc": "2026-11-10T00:00:00Z",
+      "peak_n_cm": 413.0,
+      "peak_when_utc": "2026-11-10T02:00:00Z",
       "valid_for_current_spatial_forecast": false,
       "input_policy": "legacy_point_proxy",
       "blocking_reason_pt": "O gêmeo HEC atual ainda usa proxies pontuais de chuva. O resultado de ΔN é mantido somente para auditoria e não é apresentado como previsão espacial da bacia."
@@ -280,7 +281,7 @@
       },
       "available": true,
       "artifact": "hec_twin_mucum_live_eval.html",
-      "age_hours": 1394.67,
+      "age_hours": 1396.8,
       "timing_error_h": null,
       "note": "Replay do evento com âncora + verificação ANA.",
       "peak_delta_n_cm": 253.81,
@@ -17235,130 +17236,130 @@
   },
   "hydrograph_sample_6h": [
     {
-      "time_utc": "2026-11-10T00:00:00Z",
-      "n_anchored_cm": 408.0,
+      "time_utc": "2026-11-10T02:00:00Z",
+      "n_anchored_cm": 413.0,
       "delta_n_cm": 0.0,
-      "q_mucum_m3s": 715.297
+      "q_mucum_m3s": 732.163
     },
     {
-      "time_utc": "2026-11-10T06:00:00Z",
-      "n_anchored_cm": 350.85,
-      "delta_n_cm": -57.15,
-      "q_mucum_m3s": 545.852
+      "time_utc": "2026-11-10T08:00:00Z",
+      "n_anchored_cm": 356.08,
+      "delta_n_cm": -56.92,
+      "q_mucum_m3s": 561.617
     },
     {
-      "time_utc": "2026-11-10T12:00:00Z",
-      "n_anchored_cm": 284.74,
-      "delta_n_cm": -123.26,
-      "q_mucum_m3s": 392.852
+      "time_utc": "2026-11-10T14:00:00Z",
+      "n_anchored_cm": 289.81,
+      "delta_n_cm": -123.19,
+      "q_mucum_m3s": 405.932
     },
     {
-      "time_utc": "2026-11-10T18:00:00Z",
-      "n_anchored_cm": 240.78,
-      "delta_n_cm": -167.22,
-      "q_mucum_m3s": 306.487
+      "time_utc": "2026-11-10T20:00:00Z",
+      "n_anchored_cm": 245.35,
+      "delta_n_cm": -167.65,
+      "q_mucum_m3s": 317.234
     },
     {
-      "time_utc": "2026-11-11T00:00:00Z",
-      "n_anchored_cm": 211.61,
-      "delta_n_cm": -196.39,
-      "q_mucum_m3s": 253.04
+      "time_utc": "2026-11-11T02:00:00Z",
+      "n_anchored_cm": 215.79,
+      "delta_n_cm": -197.21,
+      "q_mucum_m3s": 262.063
     },
     {
-      "time_utc": "2026-11-11T06:00:00Z",
-      "n_anchored_cm": 190.83,
-      "delta_n_cm": -217.17,
-      "q_mucum_m3s": 215.581
+      "time_utc": "2026-11-11T08:00:00Z",
+      "n_anchored_cm": 194.62,
+      "delta_n_cm": -218.38,
+      "q_mucum_m3s": 223.291
     },
     {
-      "time_utc": "2026-11-11T12:00:00Z",
-      "n_anchored_cm": 174.82,
-      "delta_n_cm": -233.18,
-      "q_mucum_m3s": 186.672
+      "time_utc": "2026-11-11T14:00:00Z",
+      "n_anchored_cm": 178.47,
+      "delta_n_cm": -234.53,
+      "q_mucum_m3s": 193.345
     },
     {
-      "time_utc": "2026-11-11T18:00:00Z",
-      "n_anchored_cm": 161.52,
-      "delta_n_cm": -246.48,
-      "q_mucum_m3s": 163.491
+      "time_utc": "2026-11-11T20:00:00Z",
+      "n_anchored_cm": 164.86,
+      "delta_n_cm": -248.14,
+      "q_mucum_m3s": 169.338
     },
     {
-      "time_utc": "2026-11-12T00:00:00Z",
-      "n_anchored_cm": 151.71,
-      "delta_n_cm": -256.29,
-      "q_mucum_m3s": 146.806
+      "time_utc": "2026-11-12T02:00:00Z",
+      "n_anchored_cm": 154.09,
+      "delta_n_cm": -258.91,
+      "q_mucum_m3s": 150.542
     },
     {
-      "time_utc": "2026-11-12T06:00:00Z",
-      "n_anchored_cm": 144.35,
-      "delta_n_cm": -263.65,
-      "q_mucum_m3s": 134.652
+      "time_utc": "2026-11-12T08:00:00Z",
+      "n_anchored_cm": 145.2,
+      "delta_n_cm": -267.8,
+      "q_mucum_m3s": 135.216
     },
     {
-      "time_utc": "2026-11-12T12:00:00Z",
-      "n_anchored_cm": 151.31,
-      "delta_n_cm": -256.69,
-      "q_mucum_m3s": 133.312
+      "time_utc": "2026-11-12T14:00:00Z",
+      "n_anchored_cm": 143.29,
+      "delta_n_cm": -269.71,
+      "q_mucum_m3s": 124.953
     },
     {
-      "time_utc": "2026-11-12T18:00:00Z",
-      "n_anchored_cm": 183.19,
-      "delta_n_cm": -224.81,
-      "q_mucum_m3s": 172.865
+      "time_utc": "2026-11-12T20:00:00Z",
+      "n_anchored_cm": 148.48,
+      "delta_n_cm": -264.52,
+      "q_mucum_m3s": 127.332
     },
     {
-      "time_utc": "2026-11-13T00:00:00Z",
-      "n_anchored_cm": 213.28,
-      "delta_n_cm": -194.72,
-      "q_mucum_m3s": 225.493
+      "time_utc": "2026-11-13T02:00:00Z",
+      "n_anchored_cm": 154.94,
+      "delta_n_cm": -258.06,
+      "q_mucum_m3s": 136.912
     },
     {
-      "time_utc": "2026-11-13T06:00:00Z",
-      "n_anchored_cm": 236.07,
-      "delta_n_cm": -171.93,
-      "q_mucum_m3s": 273.476
+      "time_utc": "2026-11-13T08:00:00Z",
+      "n_anchored_cm": 161.28,
+      "delta_n_cm": -251.72,
+      "q_mucum_m3s": 148.296
     },
     {
-      "time_utc": "2026-11-13T12:00:00Z",
-      "n_anchored_cm": 250.08,
-      "delta_n_cm": -157.92,
-      "q_mucum_m3s": 307.56
+      "time_utc": "2026-11-13T14:00:00Z",
+      "n_anchored_cm": 166.3,
+      "delta_n_cm": -246.7,
+      "q_mucum_m3s": 158.185
     },
     {
-      "time_utc": "2026-11-13T18:00:00Z",
-      "n_anchored_cm": 248.0,
-      "delta_n_cm": -160.0,
-      "q_mucum_m3s": 307.941
+      "time_utc": "2026-11-13T20:00:00Z",
+      "n_anchored_cm": 164.75,
+      "delta_n_cm": -248.25,
+      "q_mucum_m3s": 156.75
     },
     {
-      "time_utc": "2026-11-14T00:00:00Z",
-      "n_anchored_cm": 234.73,
-      "delta_n_cm": -173.27,
-      "q_mucum_m3s": 280.053
+      "time_utc": "2026-11-14T02:00:00Z",
+      "n_anchored_cm": 158.08,
+      "delta_n_cm": -254.92,
+      "q_mucum_m3s": 145.312
     },
     {
-      "time_utc": "2026-11-14T06:00:00Z",
-      "n_anchored_cm": 218.82,
-      "delta_n_cm": -189.18,
-      "q_mucum_m3s": 245.026
+      "time_utc": "2026-11-14T08:00:00Z",
+      "n_anchored_cm": 149.96,
+      "delta_n_cm": -263.04,
+      "q_mucum_m3s": 131.07
     },
     {
-      "time_utc": "2026-11-14T12:00:00Z",
-      "n_anchored_cm": 203.35,
-      "delta_n_cm": -204.65,
-      "q_mucum_m3s": 211.72
+      "time_utc": "2026-11-14T14:00:00Z",
+      "n_anchored_cm": 141.91,
+      "delta_n_cm": -271.09,
+      "q_mucum_m3s": 117.285
     },
     {
-      "time_utc": "2026-11-14T18:00:00Z",
-      "n_anchored_cm": 188.15,
-      "delta_n_cm": -219.85,
-      "q_mucum_m3s": 182.562
+      "time_utc": "2026-11-14T20:00:00Z",
+      "n_anchored_cm": 141.69,
+      "delta_n_cm": -271.31,
+      "q_mucum_m3s": 111.579
     },
     {
-      "time_utc": "2026-11-14T23:00:00Z",
-      "n_anchored_cm": 176.74,
-      "delta_n_cm": -231.26,
-      "q_mucum_m3s": 161.671
+      "time_utc": "2026-11-15T01:00:00Z",
+      "n_anchored_cm": 153.91,
+      "delta_n_cm": -259.09,
+      "q_mucum_m3s": 125.568
     }
   ],
   "param_selection": {
@@ -17370,11 +17371,11 @@
           "event_id": "E23",
           "historical_aw_full_mm": 81.117,
           "historical_core_mean_mm": 33.983,
-          "forecast_aw_total_mm": 14.83,
-          "abs_mm_gap": 66.287,
-          "distance": 0.5953,
+          "forecast_aw_total_mm": 17.977,
+          "abs_mm_gap": 63.14,
+          "distance": 0.5565,
           "distance_detail": {
-            "rain_gap": 0.8172,
+            "rain_gap": 0.7784,
             "eff_gap": 0.0,
             "loss_penalty": -0.35,
             "donor_penalty": 0.1,
@@ -17393,12 +17394,12 @@
           "research_score": 0.6573785691229445,
           "wetness": {
             "is_wet": true,
-            "past_aw_mm": 31.202,
-            "stage_cm": 408.0,
+            "past_aw_mm": 30.941,
+            "stage_cm": 413.0,
             "stage_rising": true,
             "wet_by_rain": true,
             "wet_by_stage": true,
-            "forecast_aw_mm": 14.83,
+            "forecast_aw_mm": 17.977,
             "antecedent_quality": "representative",
             "antecedent_representative_hours": 72,
             "antecedent_expected_hours": 72,
@@ -17409,11 +17410,11 @@
           "event_id": "E20",
           "historical_aw_full_mm": 76.711,
           "historical_core_mean_mm": 31.133,
-          "forecast_aw_total_mm": 14.83,
-          "abs_mm_gap": 61.881,
-          "distance": 0.8171,
+          "forecast_aw_total_mm": 17.977,
+          "abs_mm_gap": 58.734,
+          "distance": 0.776,
           "distance_detail": {
-            "rain_gap": 0.8067,
+            "rain_gap": 0.7657,
             "eff_gap": 0.0,
             "loss_penalty": 0.0,
             "donor_penalty": 0.0,
@@ -17432,12 +17433,12 @@
           "research_score": 0.8165935139475657,
           "wetness": {
             "is_wet": true,
-            "past_aw_mm": 31.202,
-            "stage_cm": 408.0,
+            "past_aw_mm": 30.941,
+            "stage_cm": 413.0,
             "stage_rising": true,
             "wet_by_rain": true,
             "wet_by_stage": true,
-            "forecast_aw_mm": 14.83,
+            "forecast_aw_mm": 17.977,
             "antecedent_quality": "representative",
             "antecedent_representative_hours": 72,
             "antecedent_expected_hours": 72,
@@ -17448,11 +17449,11 @@
           "event_id": "E25",
           "historical_aw_full_mm": 48.765,
           "historical_core_mean_mm": 6.175,
-          "forecast_aw_total_mm": 14.83,
-          "abs_mm_gap": 33.935,
-          "distance": 0.9569,
+          "forecast_aw_total_mm": 17.977,
+          "abs_mm_gap": 30.788,
+          "distance": 0.8924,
           "distance_detail": {
-            "rain_gap": 0.6959,
+            "rain_gap": 0.6314,
             "eff_gap": 0.0,
             "loss_penalty": 0.25,
             "donor_penalty": 0.0,
@@ -17471,12 +17472,12 @@
           "research_score": 0.9064522037728319,
           "wetness": {
             "is_wet": true,
-            "past_aw_mm": 31.202,
-            "stage_cm": 408.0,
+            "past_aw_mm": 30.941,
+            "stage_cm": 413.0,
             "stage_rising": true,
             "wet_by_rain": true,
             "wet_by_stage": true,
-            "forecast_aw_mm": 14.83,
+            "forecast_aw_mm": 17.977,
             "antecedent_quality": "representative",
             "antecedent_representative_hours": 72,
             "antecedent_expected_hours": 72,
@@ -17487,11 +17488,11 @@
           "event_id": "E24",
           "historical_aw_full_mm": 207.8,
           "historical_core_mean_mm": 202.4,
-          "forecast_aw_total_mm": 14.83,
-          "abs_mm_gap": 192.97,
-          "distance": 1.0658,
+          "forecast_aw_total_mm": 17.977,
+          "abs_mm_gap": 189.823,
+          "distance": 1.0507,
           "distance_detail": {
-            "rain_gap": 0.9286,
+            "rain_gap": 0.9135,
             "eff_gap": 0.0,
             "loss_penalty": 0.0,
             "donor_penalty": 0.1,
@@ -17510,12 +17511,12 @@
           "research_score": 0.6637275476017248,
           "wetness": {
             "is_wet": true,
-            "past_aw_mm": 31.202,
-            "stage_cm": 408.0,
+            "past_aw_mm": 30.941,
+            "stage_cm": 413.0,
             "stage_rising": true,
             "wet_by_rain": true,
             "wet_by_stage": true,
-            "forecast_aw_mm": 14.83,
+            "forecast_aw_mm": 17.977,
             "antecedent_quality": "representative",
             "antecedent_representative_hours": 72,
             "antecedent_expected_hours": 72,
@@ -17526,11 +17527,11 @@
           "event_id": "E21",
           "historical_aw_full_mm": 101.183,
           "historical_core_mean_mm": 92.433,
-          "forecast_aw_total_mm": 14.83,
-          "abs_mm_gap": 86.353,
-          "distance": 1.2263,
+          "forecast_aw_total_mm": 17.977,
+          "abs_mm_gap": 83.206,
+          "distance": 1.1952,
           "distance_detail": {
-            "rain_gap": 0.8534,
+            "rain_gap": 0.8223,
             "eff_gap": 0.0,
             "loss_penalty": 0.25,
             "donor_penalty": 0.1,
@@ -17549,12 +17550,12 @@
           "research_score": 0.8291599739161672,
           "wetness": {
             "is_wet": true,
-            "past_aw_mm": 31.202,
-            "stage_cm": 408.0,
+            "past_aw_mm": 30.941,
+            "stage_cm": 413.0,
             "stage_rising": true,
             "wet_by_rain": true,
             "wet_by_stage": true,
-            "forecast_aw_mm": 14.83,
+            "forecast_aw_mm": 17.977,
             "antecedent_quality": "representative",
             "antecedent_representative_hours": 72,
             "antecedent_expected_hours": 72,
@@ -17565,12 +17566,12 @@
       "common_search": "blocked_not_used",
       "wetness": {
         "is_wet": true,
-        "past_aw_mm": 31.202,
-        "stage_cm": 408.0,
+        "past_aw_mm": 30.941,
+        "stage_cm": 413.0,
         "stage_rising": true,
         "wet_by_rain": true,
         "wet_by_stage": true,
-        "forecast_aw_mm": 14.83,
+        "forecast_aw_mm": 17.977,
         "antecedent_quality": "representative",
         "antecedent_representative_hours": 72,
         "antecedent_expected_hours": 72,
@@ -17593,28 +17594,28 @@
           "weights": [
             {
               "event_id": "E23",
-              "weight": 0.383819,
-              "distance": 0.5953
+              "weight": 0.39256,
+              "distance": 0.5565
             },
             {
               "event_id": "E20",
-              "weight": 0.217489,
-              "distance": 0.8171
+              "weight": 0.217048,
+              "distance": 0.776
             },
             {
               "event_id": "E25",
-              "weight": 0.162797,
-              "distance": 0.9569
+              "weight": 0.168195,
+              "distance": 0.8924
             },
             {
               "event_id": "E24",
-              "weight": 0.133322,
-              "distance": 1.0658
+              "weight": 0.124396,
+              "distance": 1.0507
             },
             {
               "event_id": "E21",
-              "weight": 0.102573,
-              "distance": 1.2263
+              "weight": 0.097802,
+              "distance": 1.1952
             }
           ],
           "member_rises_cm": [
@@ -17915,30 +17916,30 @@
     "peak_delta_n_cm": null,
     "peak_when_utc": null,
     "timing_error_h": null,
-    "n_anchor_cm": 408.0,
+    "n_anchor_cm": 413.0,
     "source": "forward",
     "n_plus_24h_cm": null,
     "delta_plus_24h_cm": null,
     "when_plus_24h_utc": null,
     "hydrology_status": "hec_hms_4_13_blocked_inconsistent_state",
-    "observed_stage_cm": 408.0,
-    "observed_at_utc": "2026-11-10T00:15:00Z",
-    "observed_source": "ANA_telemetria",
+    "observed_stage_cm": 413.0,
+    "observed_at_utc": "2026-11-10T02:15:00Z",
+    "observed_source": "previsao_ao_vivo_mucum.json",
     "blocking_reasons_pt": [
-      "estado aquecido difere -40.9 cm do nível observado atual (>30 cm)",
-      "vazão do estado aquecido difere -18.5% da vazão derivada do observado (>10%)",
-      "NSE recente de 12 h = 0.339 (<0,75)",
-      "RMSE recente de 6 h = 39.3 cm (>25 cm)",
-      "NSE recente de 6 h = -1.025 (<0,50)",
-      "NSE do hidrograma observado desde 26/09 = 0.569 (<0,75)",
+      "RMSE recente de 12 h = 68.4 cm (>35 cm)",
+      "NSE recente de 12 h = -3.340 (<0,75)",
+      "RMSE recente de 6 h = 59.7 cm (>25 cm)",
+      "NSE recente de 6 h = -2.120 (<0,50)",
+      "NSE do hidrograma observado desde 26/09 = 0.194 (<0,75)",
+      "estado observado de Muçum está defasado 51 min (>45 min)",
       "cobertura mínima de chuva no aquecimento = 4 postos/h (<8)"
     ]
   },
   "freshness": {
     "preferred_source": "spatial_ifs_full_field",
-    "live_age_hours": 1394.67,
-    "forward_age_hours": 0.22,
-    "forward_anchor_age_hours": 0.73,
+    "live_age_hours": 1396.8,
+    "forward_age_hours": 0.03,
+    "forward_anchor_age_hours": 0.86,
     "stale_forward": false,
     "forward_max_delta_n_cm": 0.0,
     "note_pt": "Chuva espacial atualizada. O ΔN do forward legado não é promovido como previsão atual porque a entrada hidrológica ainda usa proxies pontuais."
@@ -17948,168 +17949,168 @@
     "note": "Traço legado do gêmeo HEC com chuva proxy. Exibido somente como diagnóstico/auditoria; não é a previsão espacial atual.",
     "series": [
       {
-        "t": "2026-11-10T00:00:00Z",
-        "n_cm": 408.0
+        "t": "2026-11-10T02:00:00Z",
+        "n_cm": 413.0
       },
       {
-        "t": "2026-11-10T03:00:00Z",
-        "n_cm": 389.76
+        "t": "2026-11-10T05:00:00Z",
+        "n_cm": 394.83
       },
       {
-        "t": "2026-11-10T06:00:00Z",
-        "n_cm": 350.85
+        "t": "2026-11-10T08:00:00Z",
+        "n_cm": 356.08
       },
       {
-        "t": "2026-11-10T09:00:00Z",
-        "n_cm": 314.51
+        "t": "2026-11-10T11:00:00Z",
+        "n_cm": 319.7
       },
       {
-        "t": "2026-11-10T12:00:00Z",
-        "n_cm": 284.74
+        "t": "2026-11-10T14:00:00Z",
+        "n_cm": 289.81
       },
       {
-        "t": "2026-11-10T15:00:00Z",
-        "n_cm": 260.36
+        "t": "2026-11-10T17:00:00Z",
+        "n_cm": 265.18
       },
       {
-        "t": "2026-11-10T18:00:00Z",
-        "n_cm": 240.78
+        "t": "2026-11-10T20:00:00Z",
+        "n_cm": 245.35
       },
       {
-        "t": "2026-11-10T21:00:00Z",
-        "n_cm": 224.85
+        "t": "2026-11-10T23:00:00Z",
+        "n_cm": 229.19
       },
       {
-        "t": "2026-11-11T00:00:00Z",
-        "n_cm": 211.61
+        "t": "2026-11-11T02:00:00Z",
+        "n_cm": 215.79
       },
       {
-        "t": "2026-11-11T03:00:00Z",
-        "n_cm": 200.42
+        "t": "2026-11-11T05:00:00Z",
+        "n_cm": 204.4
       },
       {
-        "t": "2026-11-11T06:00:00Z",
-        "n_cm": 190.83
+        "t": "2026-11-11T08:00:00Z",
+        "n_cm": 194.62
       },
       {
-        "t": "2026-11-11T09:00:00Z",
-        "n_cm": 182.47
+        "t": "2026-11-11T11:00:00Z",
+        "n_cm": 186.1
       },
       {
-        "t": "2026-11-11T12:00:00Z",
-        "n_cm": 174.82
+        "t": "2026-11-11T14:00:00Z",
+        "n_cm": 178.47
       },
       {
-        "t": "2026-11-11T15:00:00Z",
-        "n_cm": 167.75
+        "t": "2026-11-11T17:00:00Z",
+        "n_cm": 171.27
       },
       {
-        "t": "2026-11-11T18:00:00Z",
-        "n_cm": 161.52
+        "t": "2026-11-11T20:00:00Z",
+        "n_cm": 164.86
       },
       {
-        "t": "2026-11-11T21:00:00Z",
-        "n_cm": 156.22
+        "t": "2026-11-11T23:00:00Z",
+        "n_cm": 159.18
       },
       {
-        "t": "2026-11-12T00:00:00Z",
-        "n_cm": 151.71
+        "t": "2026-11-12T02:00:00Z",
+        "n_cm": 154.09
       },
       {
-        "t": "2026-11-12T03:00:00Z",
-        "n_cm": 147.8
+        "t": "2026-11-12T05:00:00Z",
+        "n_cm": 149.45
       },
       {
-        "t": "2026-11-12T06:00:00Z",
-        "n_cm": 144.35
+        "t": "2026-11-12T08:00:00Z",
+        "n_cm": 145.2
       },
       {
-        "t": "2026-11-12T09:00:00Z",
-        "n_cm": 144.35
+        "t": "2026-11-12T11:00:00Z",
+        "n_cm": 142.23
       },
       {
-        "t": "2026-11-12T12:00:00Z",
-        "n_cm": 151.31
+        "t": "2026-11-12T14:00:00Z",
+        "n_cm": 143.29
       },
       {
-        "t": "2026-11-12T15:00:00Z",
-        "n_cm": 166.67
+        "t": "2026-11-12T17:00:00Z",
+        "n_cm": 145.63
       },
       {
-        "t": "2026-11-12T18:00:00Z",
-        "n_cm": 183.19
+        "t": "2026-11-12T20:00:00Z",
+        "n_cm": 148.48
       },
       {
-        "t": "2026-11-12T21:00:00Z",
-        "n_cm": 199.03
+        "t": "2026-11-12T23:00:00Z",
+        "n_cm": 151.63
       },
       {
-        "t": "2026-11-13T00:00:00Z",
-        "n_cm": 213.28
+        "t": "2026-11-13T02:00:00Z",
+        "n_cm": 154.94
       },
       {
-        "t": "2026-11-13T03:00:00Z",
-        "n_cm": 225.57
+        "t": "2026-11-13T05:00:00Z",
+        "n_cm": 158.2
       },
       {
-        "t": "2026-11-13T06:00:00Z",
-        "n_cm": 236.07
+        "t": "2026-11-13T08:00:00Z",
+        "n_cm": 161.28
       },
       {
-        "t": "2026-11-13T09:00:00Z",
-        "n_cm": 244.68
+        "t": "2026-11-13T11:00:00Z",
+        "n_cm": 164.03
       },
       {
-        "t": "2026-11-13T12:00:00Z",
-        "n_cm": 250.08
+        "t": "2026-11-13T14:00:00Z",
+        "n_cm": 166.3
       },
       {
-        "t": "2026-11-13T15:00:00Z",
-        "n_cm": 251.44
+        "t": "2026-11-13T17:00:00Z",
+        "n_cm": 166.58
       },
       {
-        "t": "2026-11-13T18:00:00Z",
-        "n_cm": 248.0
+        "t": "2026-11-13T20:00:00Z",
+        "n_cm": 164.75
       },
       {
-        "t": "2026-11-13T21:00:00Z",
-        "n_cm": 242.01
+        "t": "2026-11-13T23:00:00Z",
+        "n_cm": 161.74
       },
       {
-        "t": "2026-11-14T00:00:00Z",
-        "n_cm": 234.73
+        "t": "2026-11-14T02:00:00Z",
+        "n_cm": 158.08
       },
       {
-        "t": "2026-11-14T03:00:00Z",
-        "n_cm": 226.84
+        "t": "2026-11-14T05:00:00Z",
+        "n_cm": 154.08
       },
       {
-        "t": "2026-11-14T06:00:00Z",
-        "n_cm": 218.82
+        "t": "2026-11-14T08:00:00Z",
+        "n_cm": 149.96
       },
       {
-        "t": "2026-11-14T09:00:00Z",
-        "n_cm": 210.95
+        "t": "2026-11-14T11:00:00Z",
+        "n_cm": 145.88
       },
       {
-        "t": "2026-11-14T12:00:00Z",
-        "n_cm": 203.35
+        "t": "2026-11-14T14:00:00Z",
+        "n_cm": 141.91
       },
       {
-        "t": "2026-11-14T15:00:00Z",
-        "n_cm": 195.55
+        "t": "2026-11-14T17:00:00Z",
+        "n_cm": 138.72
       },
       {
-        "t": "2026-11-14T18:00:00Z",
-        "n_cm": 188.15
-      },
-      {
-        "t": "2026-11-14T21:00:00Z",
-        "n_cm": 181.17
+        "t": "2026-11-14T20:00:00Z",
+        "n_cm": 141.69
       },
       {
         "t": "2026-11-14T23:00:00Z",
-        "n_cm": 176.74
+        "n_cm": 148.55
+      },
+      {
+        "t": "2026-11-15T01:00:00Z",
+        "n_cm": 153.91
       }
     ],
     "rain_mm": [
@@ -18160,10 +18161,10 @@
   },
   "spatial_rain": {
     "available": true,
-    "generated_at_utc": "2026-11-10T00:45:49.728044Z",
+    "generated_at_utc": "2026-11-10T03:03:39.610979Z",
     "window": {
-      "start_utc": "2026-11-10T00:00:00Z",
-      "end_utc": "2026-11-14T23:00:00Z",
+      "start_utc": "2026-11-10T02:00:00Z",
+      "end_utc": "2026-11-15T01:00:00Z",
       "hours": 120
     },
     "model": "ECMWF IFS 0.25° via Open-Meteo",
@@ -18172,97 +18173,97 @@
     "basin_area_km2": 15690.722,
     "coverage_ratio": 1.0,
     "spatial_field_preserved": true,
-    "cell_total_min_mm": 5.1,
-    "cell_total_p25_mm": 9.525,
-    "cell_total_median_mm": 13.55,
-    "cell_total_p75_mm": 18.825,
-    "cell_total_max_mm": 33.0,
-    "total_rain_volume_hm3": 233.574,
-    "equivalent_basin_depth_mm_for_audit_only": 14.886,
+    "cell_total_min_mm": 11.3,
+    "cell_total_p25_mm": 13.8,
+    "cell_total_median_mm": 15.45,
+    "cell_total_p75_mm": 19.225,
+    "cell_total_max_mm": 39.2,
+    "total_rain_volume_hm3": 282.249,
+    "equivalent_basin_depth_mm_for_audit_only": 17.988,
     "geojson": "spatial_ifs_mucum/spatial_ifs_mucum_cells_120h.geojson",
     "png": "spatial_ifs_mucum/spatial_ifs_mucum_120h.png",
     "cells_csv": "spatial_ifs_mucum/spatial_ifs_mucum_cells_120h.csv",
     "hourly_csv": "spatial_ifs_mucum/spatial_ifs_mucum_hourly.csv",
     "wettest_cells": [
       {
-        "cell_id": "IFS_-029.25_-051.50",
-        "latitude": -29.25,
-        "longitude": -51.5,
-        "overlap_km2": 385.086,
-        "total_120h_mm": 33.0,
-        "rain_volume_hm3": 12.707837
-      },
-      {
-        "cell_id": "IFS_-029.50_-050.25",
-        "latitude": -29.5,
-        "longitude": -50.25,
-        "overlap_km2": 29.9015,
-        "total_120h_mm": 30.0,
-        "rain_volume_hm3": 0.897046
-      },
-      {
-        "cell_id": "IFS_-029.25_-051.75",
-        "latitude": -29.25,
-        "longitude": -51.75,
-        "overlap_km2": 289.8052,
-        "total_120h_mm": 28.8,
-        "rain_volume_hm3": 8.346389
-      },
-      {
-        "cell_id": "IFS_-028.50_-051.25",
-        "latitude": -28.5,
-        "longitude": -51.25,
-        "overlap_km2": 677.6218,
-        "total_120h_mm": 27.6,
-        "rain_volume_hm3": 18.702362
-      },
-      {
-        "cell_id": "IFS_-029.25_-052.00",
-        "latitude": -29.25,
-        "longitude": -52.0,
-        "overlap_km2": 0.9956,
-        "total_120h_mm": 25.8,
-        "rain_volume_hm3": 0.025687
+        "cell_id": "IFS_-029.00_-050.00",
+        "latitude": -29.0,
+        "longitude": -50.0,
+        "overlap_km2": 313.838,
+        "total_120h_mm": 39.2,
+        "rain_volume_hm3": 12.30245
       },
       {
         "cell_id": "IFS_-028.75_-050.75",
         "latitude": -28.75,
         "longitude": -50.75,
         "overlap_km2": 658.3063,
-        "total_120h_mm": 24.0,
-        "rain_volume_hm3": 15.799351
-      },
-      {
-        "cell_id": "IFS_-029.25_-051.25",
-        "latitude": -29.25,
-        "longitude": -51.25,
-        "overlap_km2": 189.2639,
-        "total_120h_mm": 22.8,
-        "rain_volume_hm3": 4.315217
+        "total_120h_mm": 32.8,
+        "rain_volume_hm3": 21.592446
       },
       {
         "cell_id": "IFS_-028.75_-051.00",
         "latitude": -28.75,
         "longitude": -51.0,
         "overlap_km2": 676.0333,
-        "total_120h_mm": 22.5,
-        "rain_volume_hm3": 15.210749
+        "total_120h_mm": 27.7,
+        "rain_volume_hm3": 18.726122
       },
       {
-        "cell_id": "IFS_-028.50_-051.50",
-        "latitude": -28.5,
+        "cell_id": "IFS_-029.25_-051.25",
+        "latitude": -29.25,
+        "longitude": -51.25,
+        "overlap_km2": 189.2639,
+        "total_120h_mm": 26.3,
+        "rain_volume_hm3": 4.977641
+      },
+      {
+        "cell_id": "IFS_-028.75_-050.50",
+        "latitude": -28.75,
+        "longitude": -50.5,
+        "overlap_km2": 625.3706,
+        "total_120h_mm": 25.2,
+        "rain_volume_hm3": 15.759339
+      },
+      {
+        "cell_id": "IFS_-029.25_-050.00",
+        "latitude": -29.25,
+        "longitude": -50.0,
+        "overlap_km2": 6.1573,
+        "total_120h_mm": 24.5,
+        "rain_volume_hm3": 0.150853
+      },
+      {
+        "cell_id": "IFS_-029.25_-051.50",
+        "latitude": -29.25,
         "longitude": -51.5,
-        "overlap_km2": 677.6519,
-        "total_120h_mm": 19.8,
-        "rain_volume_hm3": 13.417507
+        "overlap_km2": 385.086,
+        "total_120h_mm": 23.3,
+        "rain_volume_hm3": 8.972503
       },
       {
-        "cell_id": "IFS_-028.50_-050.75",
-        "latitude": -28.5,
-        "longitude": -50.75,
-        "overlap_km2": 124.3942,
-        "total_120h_mm": 19.5,
-        "rain_volume_hm3": 2.425687
+        "cell_id": "IFS_-028.75_-050.25",
+        "latitude": -28.75,
+        "longitude": -50.25,
+        "overlap_km2": 469.0617,
+        "total_120h_mm": 22.5,
+        "rain_volume_hm3": 10.553889
+      },
+      {
+        "cell_id": "IFS_-028.25_-052.00",
+        "latitude": -28.25,
+        "longitude": -52.0,
+        "overlap_km2": 65.657,
+        "total_120h_mm": 20.4,
+        "rain_volume_hm3": 1.339403
+      },
+      {
+        "cell_id": "IFS_-028.75_-051.25",
+        "latitude": -28.75,
+        "longitude": -51.25,
+        "overlap_km2": 676.0432,
+        "total_120h_mm": 20.2,
+        "rain_volume_hm3": 13.656073
       }
     ],
     "note_pt": "Campo IFS 0,25° preservado célula a célula em toda a bacia contribuinte até Muçum. A profundidade equivalente da bacia aparece apenas para auditoria volumétrica; ela não substitui o campo espacial na modelagem."
@@ -18282,9 +18283,9 @@
         "lon": -51.8686,
         "ug": "Médio Taquari-Antas",
         "role": "alvo Muçum",
-        "level_cm": 408,
-        "level_at_local": "2026-11-09T21:15:00",
-        "age_min": 28,
+        "level_cm": 413,
+        "level_at_local": "2026-11-09T23:15:00",
+        "age_min": 35,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 16000.0,
@@ -18299,9 +18300,9 @@
         "lon": -51.7322,
         "ug": "Médio Taquari-Antas",
         "role": "Estacao alvo",
-        "level_cm": 420,
-        "level_at_local": "2026-11-09T20:45",
-        "age_min": 57,
+        "level_cm": 415,
+        "level_at_local": "2026-11-09T22:45",
+        "age_min": 64,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": null,
@@ -18316,9 +18317,9 @@
         "lon": -51.6997,
         "ug": "Médio Taquari-Antas",
         "role": "Montante",
-        "level_cm": 556,
-        "level_at_local": "2026-11-09T21:30",
-        "age_min": 12,
+        "level_cm": 541,
+        "level_at_local": "2026-11-09T23:30",
+        "age_min": 19,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 13000.0,
@@ -18335,7 +18336,7 @@
         "role": "nível / controle",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 4904.0,
+        "age_min": 5036.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 2340.0,
@@ -18352,7 +18353,7 @@
         "role": "Montante",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 1160.0,
@@ -18369,7 +18370,7 @@
         "role": "Montante - input 8h V001-V002",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 3658.7,
@@ -18386,7 +18387,7 @@
         "role": "Montante - input 8h V001-V002",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 1124.0,
+        "age_min": 1256.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 7370.0,
@@ -18420,7 +18421,7 @@
         "role": "Montante",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 6104.0,
+        "age_min": 6236.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 12113.7,
@@ -18437,7 +18438,7 @@
         "role": "Montante - input 8h V001",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 3630.0,
@@ -18454,7 +18455,7 @@
         "role": "Montante - input 8h V002",
         "level_cm": null,
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "NORMAL",
         "source": "SGB/ANA - Hidrotelemetria",
         "drainage_area_km2": 3750.0,
@@ -18489,7 +18490,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1724.0,
+        "age_min": 1856.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1787.0,
@@ -18507,7 +18508,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1724.0,
+        "age_min": 1856.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": null,
@@ -18525,7 +18526,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 2144.0,
+        "age_min": 2276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 2070.0,
@@ -18543,7 +18544,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 2144.0,
+        "age_min": 2276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1400.0,
@@ -18561,7 +18562,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 2144.0,
+        "age_min": 2276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 3540.0,
@@ -18579,7 +18580,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 2144.0,
+        "age_min": 2276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 120.15,
@@ -18597,7 +18598,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 2144.0,
+        "age_min": 2276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 3764.9,
@@ -18615,7 +18616,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 103.2,
@@ -18633,7 +18634,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 600.0,
@@ -18651,7 +18652,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 678.0,
@@ -18669,7 +18670,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": null,
@@ -18687,7 +18688,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1784.0,
+        "age_min": 1916.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1335.0,
@@ -18705,7 +18706,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1120.0,
@@ -18723,7 +18724,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": null,
@@ -18741,7 +18742,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 394.9,
@@ -18759,7 +18760,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 429.0,
@@ -18777,7 +18778,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 435.6,
@@ -18795,7 +18796,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 429.0,
@@ -18813,7 +18814,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 243.2,
@@ -18831,7 +18832,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1184.0,
+        "age_min": 1316.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 829.3,
@@ -18849,7 +18850,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 6044.0,
+        "age_min": 6176.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 7742.6,
@@ -18867,7 +18868,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1844.0,
+        "age_min": 1976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 285.6,
@@ -18885,7 +18886,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 499.0,
@@ -18903,7 +18904,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 584.0,
+        "age_min": 716.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1010.0,
@@ -18921,7 +18922,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1070.0,
@@ -18939,7 +18940,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 584.0,
+        "age_min": 716.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1121.0,
@@ -18957,7 +18958,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1142.0,
@@ -18975,7 +18976,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12.59,
@@ -18993,7 +18994,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 506.0,
@@ -19011,7 +19012,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12400.0,
@@ -19029,7 +19030,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": null,
@@ -19047,7 +19048,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 58844.0,
+        "age_min": 58976.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12400.0,
@@ -19065,7 +19066,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 8144.0,
+        "age_min": 8276.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12757.8,
@@ -19083,7 +19084,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12929.7,
@@ -19101,7 +19102,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 524.0,
+        "age_min": 656.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 12900.0,
@@ -19119,7 +19120,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 674.0,
@@ -19137,7 +19138,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 1604.0,
+        "age_min": 1736.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 2090.0,
@@ -19155,7 +19156,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1571.0,
@@ -19173,7 +19174,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1611.0,
@@ -19191,7 +19192,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1721.0,
@@ -19209,7 +19210,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1785.0,
@@ -19227,7 +19228,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 44.0,
+        "age_min": 176.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1820.0,
@@ -19245,7 +19246,7 @@
         "level_cm": null,
         "measurement_classification": "flow_only_network",
         "level_at_local": null,
-        "age_min": 104.0,
+        "age_min": 236.0,
         "qc_status": "OBSERVED_FLOW",
         "source": "ANA",
         "drainage_area_km2": 1787.0,
@@ -19258,7 +19259,7 @@
   },
   "hydraulic_geometry": {
     "available": true,
-    "generated_at_utc": "2026-11-10T00:45:53.592919Z",
+    "generated_at_utc": "2026-11-10T03:05:23.409645Z",
     "status": "TERRAIN_SECTIONS_PREPARED_HYDRAULIC_COMPUTE_BLOCKED",
     "domain": "Santa Tereza -> Muçum",
     "network": {
@@ -19408,7 +19409,7 @@
   },
   "rainfall_runoff_result": {
     "available": false,
-    "generated_at_utc": "2026-11-10T00:58:21.345862Z",
+    "generated_at_utc": "2026-11-10T03:06:05.396594Z",
     "status": "hec_hms_4_13_blocked_inconsistent_state",
     "label_pt": "HEC-HMS 4.13 · recalibração automática em andamento",
     "warning_pt": "HEC-HMS 4.13 com chuva observada multirrede desde 26/09 para aquecimento e ECMWF/IFS espacial no futuro. O último nível de Muçum é usado no timestamp real para validar o estado aquecido; nenhuma correção visual de nível é aplicada. A rodada só é publicável quando o próprio aquecimento observado fecha com o estado atual dentro das guardas de nível, vazão e tendência. Continua sendo o piloto de duas zonas, não alerta oficial.",
@@ -19419,96 +19420,94 @@
     "q_mucum_m3s": [],
     "n_mucum_anchored_cm": [],
     "delta_n_from_now_cm": [],
-    "current_observed_stage_cm": 408.0,
-    "current_observed_q_rating_m3s": 715.297,
+    "current_observed_stage_cm": 413.0,
+    "current_observed_q_rating_m3s": 732.163,
     "primary": null,
-    "forcing_rain_mm": 14.885882,
+    "forcing_rain_mm": 17.988078,
     "validation": {
       "publishable": false,
       "blocking_reasons_pt": [
-        "estado aquecido difere -40.9 cm do nível observado atual (>30 cm)",
-        "vazão do estado aquecido difere -18.5% da vazão derivada do observado (>10%)",
-        "NSE recente de 12 h = 0.339 (<0,75)",
-        "RMSE recente de 6 h = 39.3 cm (>25 cm)",
-        "NSE recente de 6 h = -1.025 (<0,50)",
-        "NSE do hidrograma observado desde 26/09 = 0.569 (<0,75)",
+        "RMSE recente de 12 h = 68.4 cm (>35 cm)",
+        "NSE recente de 12 h = -3.340 (<0,75)",
+        "RMSE recente de 6 h = 59.7 cm (>25 cm)",
+        "NSE recente de 6 h = -2.120 (<0,50)",
+        "NSE do hidrograma observado desde 26/09 = 0.194 (<0,75)",
+        "estado observado de Muçum está defasado 51 min (>45 min)",
         "cobertura mínima de chuva no aquecimento = 4 postos/h (<8)"
       ],
       "diagnostic_warnings_pt": [
-        "RMSE do evento completo desde 26/09 = 136.8 cm (>60 cm)",
-        "viés do evento completo desde 26/09 = +94.1 cm (>30 cm)"
+        "RMSE do evento completo desde 26/09 = 184.7 cm (>60 cm)",
+        "viés do evento completo desde 26/09 = +148.7 cm (>30 cm)"
       ],
       "release_policy": "t0 + recent_6h_12h + direction/slope; whole-event RMSE/bias diagnostic",
-      "raw_warmed_stage_at_current_cm": 367.1,
-      "stage_error_at_t0_cm": -40.9,
-      "raw_warmed_q_at_current_m3s": 583.061,
-      "observed_rating_q_at_current_m3s": 715.297,
-      "q_error_pct": -18.49,
-      "observed_trend_last_1h_cm": 12.0,
-      "model_trend_next_1h_cm": -3.79,
+      "raw_warmed_stage_at_current_cm": 402.66,
+      "stage_error_at_t0_cm": -10.34,
+      "raw_warmed_q_at_current_m3s": 697.452,
+      "observed_rating_q_at_current_m3s": 732.163,
+      "q_error_pct": -4.74,
+      "observed_trend_last_1h_cm": 1.0,
+      "model_trend_next_1h_cm": -5.24,
       "state_assimilation_applied": false,
       "visual_stage_anchor_applied": false,
       "warmup_state_matches_observation": false,
       "forecast_validation_timestamp_is_exact_observation_time": true,
-      "observation_age_at_postprocess_minutes": 43.4,
+      "observation_age_at_postprocess_minutes": 51.1,
       "event_hydrograph_since_20260926": {
-        "n_points": 662,
-        "start_utc": "2026-11-03T01:15:00Z",
-        "end_utc": "2026-11-10T00:15:00Z",
-        "rmse_cm": 136.841,
-        "mae_cm": 109.064,
-        "bias_cm": 94.083,
-        "nse": 0.56867,
+        "n_points": 664,
+        "start_utc": "2026-11-03T03:00:00Z",
+        "end_utc": "2026-11-10T02:15:00Z",
+        "rmse_cm": 184.719,
+        "mae_cm": 156.875,
+        "bias_cm": 148.707,
+        "nse": 0.1938,
         "observed_peak_cm": 953.0,
         "observed_peak_time_utc": "2026-11-05T10:45:00Z",
-        "model_peak_cm_on_obs_times": 1168.64,
-        "model_peak_time_utc": "2026-11-05T13:00:00Z",
-        "peak_time_error_h": 2.25
+        "model_peak_cm_on_obs_times": 1233.16,
+        "model_peak_time_utc": "2026-11-05T15:00:00Z",
+        "peak_time_error_h": 4.25
       },
       "recent_hydrograph_12h": {
         "n_points": 49,
-        "start_utc": "2026-11-09T12:15:00Z",
-        "end_utc": "2026-11-10T00:15:00Z",
-        "rmse_cm": 28.99,
-        "mae_cm": 22.865,
-        "bias_cm": 9.101,
-        "nse": 0.3387,
-        "observed_peak_cm": 432.0,
-        "observed_peak_time_utc": "2026-11-09T12:15:00Z",
-        "model_peak_cm_on_obs_times": 425.93,
-        "model_peak_time_utc": "2026-11-09T12:15:00Z",
+        "start_utc": "2026-11-09T14:15:00Z",
+        "end_utc": "2026-11-10T02:15:00Z",
+        "rmse_cm": 68.379,
+        "mae_cm": 58.199,
+        "bias_cm": 56.633,
+        "nse": -3.34027,
+        "observed_peak_cm": 423.0,
+        "observed_peak_time_utc": "2026-11-09T14:15:00Z",
+        "model_peak_cm_on_obs_times": 477.07,
+        "model_peak_time_utc": "2026-11-09T14:15:00Z",
         "peak_time_error_h": 0.0
       },
       "recent_hydrograph_6h": {
         "n_points": 25,
-        "start_utc": "2026-11-09T18:15:00Z",
-        "end_utc": "2026-11-10T00:15:00Z",
-        "rmse_cm": 39.328,
-        "mae_cm": 36.085,
-        "bias_cm": 20.96,
-        "nse": -1.02494,
-        "observed_peak_cm": 408.0,
-        "observed_peak_time_utc": "2026-11-10T00:15:00Z",
-        "model_peak_cm_on_obs_times": 391.73,
-        "model_peak_time_utc": "2026-11-09T18:15:00Z",
-        "peak_time_error_h": -6.0
+        "start_utc": "2026-11-09T20:15:00Z",
+        "end_utc": "2026-11-10T02:15:00Z",
+        "rmse_cm": 59.705,
+        "mae_cm": 43.449,
+        "bias_cm": 40.38,
+        "nse": -2.11963,
+        "observed_peak_cm": 413.0,
+        "observed_peak_time_utc": "2026-11-10T01:45:00Z",
+        "model_peak_cm_on_obs_times": 437.74,
+        "model_peak_time_utc": "2026-11-09T20:15:00Z",
+        "peak_time_error_h": -5.5
       }
     },
     "blocking_reasons_pt": [
-      "estado aquecido difere -40.9 cm do nível observado atual (>30 cm)",
-      "vazão do estado aquecido difere -18.5% da vazão derivada do observado (>10%)",
-      "NSE recente de 12 h = 0.339 (<0,75)",
-      "RMSE recente de 6 h = 39.3 cm (>25 cm)",
-      "NSE recente de 6 h = -1.025 (<0,50)",
-      "NSE do hidrograma observado desde 26/09 = 0.569 (<0,75)",
+      "RMSE recente de 12 h = 68.4 cm (>35 cm)",
+      "NSE recente de 12 h = -3.340 (<0,75)",
+      "RMSE recente de 6 h = 59.7 cm (>25 cm)",
+      "NSE recente de 6 h = -2.120 (<0,50)",
+      "NSE do hidrograma observado desde 26/09 = 0.194 (<0,75)",
+      "estado observado de Muçum está defasado 51 min (>45 min)",
       "cobertura mínima de chuva no aquecimento = 4 postos/h (<8)"
     ],
     "diagnostic_candidate": {
       "available": true,
       "time_utc": [
-        "2026-11-10T00:15:00Z",
-        "2026-11-10T01:00:00Z",
-        "2026-11-10T02:00:00Z",
+        "2026-11-10T02:15:00Z",
         "2026-11-10T03:00:00Z",
         "2026-11-10T04:00:00Z",
         "2026-11-10T05:00:00Z",
@@ -19625,38 +19624,66 @@
         "2026-11-14T20:00:00Z",
         "2026-11-14T21:00:00Z",
         "2026-11-14T22:00:00Z",
-        "2026-11-14T23:00:00Z"
+        "2026-11-14T23:00:00Z",
+        "2026-11-15T00:00:00Z",
+        "2026-11-15T01:00:00Z"
       ],
       "q_mucum_m3s": [
-        583.061,
-        574.202,
-        562.726,
-        551.576,
-        540.742,
-        530.214,
-        519.984,
-        510.042,
-        500.379,
-        490.987,
-        481.858,
-        472.983,
-        464.356,
-        455.968,
-        447.812,
-        439.882,
-        432.17,
-        424.669,
-        417.374,
-        410.279,
-        403.376,
-        396.661,
-        390.127,
-        384.669,
-        381.792,
-        379.844,
-        378.117,
-        376.446,
-        374.794,
+        697.452,
+        684.105,
+        668.142,
+        654.249,
+        641.415,
+        629.153,
+        617.287,
+        605.757,
+        594.538,
+        583.618,
+        572.988,
+        562.638,
+        552.561,
+        542.748,
+        533.193,
+        523.888,
+        514.825,
+        505.999,
+        497.401,
+        489.026,
+        480.868,
+        472.919,
+        465.175,
+        457.629,
+        450.276,
+        443.11,
+        436.126,
+        429.319,
+        423.168,
+        418.974,
+        416.599,
+        414.65,
+        412.805,
+        410.99,
+        409.188,
+        407.395,
+        405.611,
+        403.834,
+        402.065,
+        400.304,
+        398.55,
+        396.804,
+        395.066,
+        393.336,
+        391.613,
+        389.897,
+        388.189,
+        386.489,
+        384.796,
+        383.11,
+        381.432,
+        379.761,
+        378.098,
+        376.442,
+        374.793,
         373.151,
         371.516,
         369.889,
@@ -19671,7 +19698,7 @@
         355.56,
         354.002,
         352.451,
-        350.907,
+        350.908,
         349.37,
         347.84,
         346.316,
@@ -19688,10 +19715,10 @@
         329.99,
         328.545,
         327.105,
-        325.672,
+        325.673,
         324.246,
         322.826,
-        321.411,
+        321.412,
         320.004,
         318.602,
         317.206,
@@ -19721,62 +19748,62 @@
         285.486,
         284.235,
         282.99,
-        281.75,
-        280.516,
-        279.287,
-        278.064,
-        276.846,
-        275.633,
-        274.426,
-        273.224,
-        272.027,
-        270.835,
-        269.649,
-        268.468,
-        267.292,
-        266.121,
-        264.955,
-        263.795,
-        262.639,
-        261.489,
-        260.343,
-        259.203,
-        258.067,
-        256.937,
-        255.812,
-        254.691,
-        253.575,
-        252.465,
-        251.359
+        281.75
       ],
       "n_mucum_rating_cm": [
-        367.1,
-        364.24,
-        360.51,
-        356.86,
-        353.29,
-        349.79,
-        346.36,
-        343.0,
-        339.72,
-        336.5,
-        333.35,
-        330.27,
-        327.25,
-        324.3,
-        321.41,
-        318.57,
-        315.8,
-        313.09,
-        310.43,
-        307.83,
-        305.28,
-        303.04,
-        300.26,
-        297.92,
-        296.68,
-        295.84,
-        295.1,
+        402.66,
+        398.63,
+        393.78,
+        389.51,
+        385.54,
+        381.72,
+        378.0,
+        374.36,
+        370.78,
+        367.28,
+        363.85,
+        360.49,
+        357.19,
+        353.95,
+        350.78,
+        347.67,
+        344.62,
+        341.63,
+        338.7,
+        335.83,
+        333.01,
+        330.25,
+        327.54,
+        324.89,
+        322.28,
+        319.73,
+        317.23,
+        314.77,
+        312.54,
+        311.01,
+        310.15,
+        309.43,
+        308.75,
+        308.09,
+        307.42,
+        306.76,
+        306.1,
+        305.45,
+        304.79,
+        304.14,
+        303.84,
+        303.1,
+        302.36,
+        301.62,
+        300.89,
+        300.16,
+        299.43,
+        298.7,
+        297.97,
+        297.25,
+        296.53,
+        295.81,
+        295.09,
         294.38,
         293.66,
         292.95,
@@ -19843,37 +19870,11 @@
         253.02,
         252.42,
         251.82,
-        251.22,
-        250.63,
-        250.03,
-        249.44,
-        248.85,
-        248.26,
-        247.67,
-        247.09,
-        246.5,
-        245.92,
-        245.34,
-        244.76,
-        244.18,
-        243.61,
-        243.03,
-        242.46,
-        241.89,
-        241.32,
-        240.75,
-        240.18,
-        239.62,
-        239.05,
-        238.49,
-        237.93,
-        237.37,
-        236.81,
-        236.26
+        251.22
       ],
-      "peak_q_m3s": 583.061,
-      "peak_time_utc": "2026-11-10T00:15:00Z",
-      "peak_level_cm": 367.1,
+      "peak_q_m3s": 697.452,
+      "peak_time_utc": "2026-11-10T02:15:00Z",
+      "peak_level_cm": 402.66,
       "rise_from_model_t0_cm": 0.0,
       "label_pt": "melhor candidato interno em ajuste; ainda não liberado como previsão"
     },
@@ -19884,13 +19885,13 @@
   "legacy_headline": {
     "source": "forward",
     "question_pt": "Com a chuva do corredor calibrado (Prata–Carreiro–Antas→STZ→Muçum), quanto sobe o nível em Muçum?",
-    "plain_pt": "Com ~14.8 mm de chuva prevista em 120 h e nível atual 408 cm em Muçum, o gêmeo HEC indica subida de ~0 cm (banda 0–0 cm), pico ancorado ~408 cm em 2026-11-10T00:00:00Z.",
+    "plain_pt": "Com ~18.0 mm de chuva prevista em 120 h e nível atual 413 cm em Muçum, o gêmeo HEC indica subida de ~0 cm (banda 0–0 cm), pico ancorado ~413 cm em 2026-11-10T02:00:00Z.",
     "primary": {
       "event_id": "BLEND",
       "rise_cm": 0.0,
-      "peak_anchored_cm": 408.0,
-      "peak_time_utc": "2026-11-10T00:00:00Z",
-      "peak_time_argmax_utc": "2026-11-10T00:00:00Z",
+      "peak_anchored_cm": 413.0,
+      "peak_time_utc": "2026-11-10T02:00:00Z",
+      "peak_time_argmax_utc": "2026-11-10T02:00:00Z",
       "peak_time_method": "no_rise"
     },
     "ensemble_rise_cm": {
@@ -19901,36 +19902,36 @@
         {
           "event_id": "BLEND",
           "rise_cm": 0.0,
-          "peak_anchored_cm": 408.0
+          "peak_anchored_cm": 413.0
         },
         {
           "event_id": "E23",
-          "rise_cm": null,
-          "peak_anchored_cm": null
+          "rise_cm": 0.0,
+          "peak_anchored_cm": 413.0
         },
         {
           "event_id": "E20",
           "rise_cm": 0.0,
-          "peak_anchored_cm": 408.0
+          "peak_anchored_cm": 413.0
         },
         {
           "event_id": "E25",
           "rise_cm": 0.0,
-          "peak_anchored_cm": 408.0
+          "peak_anchored_cm": 413.0
         },
         {
           "event_id": "E24",
           "rise_cm": 0.0,
-          "peak_anchored_cm": 408.0
+          "peak_anchored_cm": 413.0
         },
         {
           "event_id": "E21",
           "rise_cm": 0.0,
-          "peak_anchored_cm": 408.0
+          "peak_anchored_cm": 413.0
         }
       ]
     },
-    "rain_mm_area_weighted": 14.83,
+    "rain_mm_area_weighted": 17.977,
     "verification_plain_pt": null,
     "scorecard": {},
     "validation_ref": "products.live_eval"
