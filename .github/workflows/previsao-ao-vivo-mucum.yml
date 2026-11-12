@@ -15,6 +15,7 @@ on:
       - 'assets/previsao_panorama.js'
       - 'scripts/validar_previsao_ao_vivo_mucum.py'
       - 'scripts/test_previsao_ao_vivo_mucum_schema.py'
+      - 'scripts/test_live_input_training_contracts.py'
       - '.github/workflows/previsao-ao-vivo-mucum.yml'
   schedule:
     # Recuperacao/bootstrap horario. O ciclo nominal de 5 minutos e mantido
@@ -58,7 +59,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Instalar dependencias
-        run: pip install numpy==2.4.6 scipy==1.17.1 h5py==3.16.0
+        run: pip install numpy==2.4.6 scipy==1.17.1 h5py==3.16.0 openpyxl==3.1.5
       - name: Gerar e publicar previsao ao vivo - Mucum
         run: |
           git config user.name  "previne-robo"
@@ -66,7 +67,7 @@ jobs:
 
           git pull --rebase --autostash origin main
           python -B -m py_compile codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py scripts/validar_previsao_ao_vivo_mucum.py scripts/test_previsao_ao_vivo_mucum_schema.py
-          python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema
+          python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema scripts.test_live_input_training_contracts
           PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 540s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
           python -B scripts/validar_previsao_ao_vivo_mucum.py
           git add previsao_ao_vivo_mucum.json historico_previsoes_ao_vivo_mucum.json

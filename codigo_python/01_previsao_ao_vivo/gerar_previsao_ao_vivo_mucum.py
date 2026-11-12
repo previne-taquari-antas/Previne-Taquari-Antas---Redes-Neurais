@@ -81,6 +81,21 @@ LIVE_WARN_MAE_24H_CM = 30.0
 LIVE_WARN_MAX_24H_CM = 100.0
 
 
+# Contrato demonstrado nas planilhas operacionais e no Ptot dos respectivos
+# MAT. O V001 de 2h usa a mudanca da variacao de UMA hora: nao altera-lo.
+MODELOS_SEGUNDA_DIFERENCA = {
+    "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31",
+    "032_alt_MUC_H08_V24_RAIN24_UPSTREAM_R00_T31-33-34-35-37_V18-20-21",
+    "034_alt_MUC_H08_V24_RAIN18_24_48_R00_T31-33-34-35-37_V18-20-21",
+}
+FORMULA_SEGUNDA_DIFERENCA = "mucum_excel_second_difference_step_v2"
+
+
+def formula_contrato(modelo):
+    return (FORMULA_SEGUNDA_DIFERENCA if modelo in MODELOS_SEGUNDA_DIFERENCA
+            else "hourly_change_v1")
+
+
 # ---------- configuração dos modelos (a partir do JSON) ----------
 def _sha256(path):
     h = hashlib.sha256()
@@ -116,6 +131,7 @@ def _cfg(m, hh):
         "contrato_chuva": m.get("contrato_chuva"),
         "input_contract_version": m.get("input_contract_version", "hourly_exact_v1"),
         "input_grade": m.get("input_grade", "hourly_exact"),
+        "formula_contract_version": formula_contrato(mid),
         "mat": os.path.join(RAIZ, mat) if mat.startswith("assets") else os.path.join(MAT_DIR, os.path.basename(mat)),
         "inputs": ins,
         "estacoes": sorted({str(i["estacao"]) for i in ins if not str(i.get("tipo", "")).startswith("chuva")}),
@@ -393,7 +409,8 @@ def montar_inputs(cfg, series, t):
     """Monta os inputs de um modelo na hora t, na ordem exata (campo `ordem`).
        nivel -> n(t - defasagem_h);
        vel_nivel -> n(t) - n(t - defasagem_h);
-       acel_nivel -> [n(t)-n(t-1h)] - [n(t-h)-n(t-(h+1)h)]."""
+       acel_nivel -> contrato do modelo: N(t)-2*N(t-h)+N(t-2h) para
+       as receitas operacionais 4h/8h; mudanca da variacao horaria no V001 2h."""
     def n(cod, h=0):
         s = series.get(str(cod))
         return None if s is None else nivel_exato(s, t - dt.timedelta(hours=h), cod)
@@ -406,9 +423,13 @@ def montar_inputs(cfg, series, t):
             a, b = n(cod, 0), n(cod, h)
             x.append(None if None in (a, b) else a - b)
         elif tipo in ("acel_nivel", "aceleracao"):
-            a, b = n(cod, 0), n(cod, 1)
-            c, d = n(cod, h), n(cod, h + 1)
-            x.append(None if None in (a, b, c, d) else (a - b) - (c - d))
+            if formula_contrato(cfg["modelo"]) == FORMULA_SEGUNDA_DIFERENCA:
+                a, b, c = n(cod, 0), n(cod, h), n(cod, 2 * h)
+                x.append(None if None in (a, b, c) else a - 2 * b + c)
+            else:
+                a, b = n(cod, 0), n(cod, 1)
+                c, d = n(cod, h), n(cod, h + 1)
+                x.append(None if None in (a, b, c, d) else (a - b) - (c - d))
         elif tipo == "chuva_acum":
             x.append(_chuva_acumulada(inp, series, t))
         elif tipo == "chuva_diferenca":
@@ -535,6 +556,7 @@ def base_saida(cfg, nivel_agora, nivel_prev, t, status, faltantes=None, nivel_ba
         "inputs_total": cfg["n_inputs"], "inputs_faltantes_n": len(faltantes or []),
         "inputs_faltantes": faltantes or [], "estacoes_status": [],
         "input_contract_version": cfg.get("input_contract_version", "hourly_exact_v1"),
+        "formula_contract_version": formula_contrato(cfg["modelo"]),
         "input_grade": cfg.get("input_grade", "hourly_exact"),
         "disponivel": nivel_prev is not None,
         "auditoria_inputs": {
@@ -614,13 +636,15 @@ def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
         out["auditoria"] = audit
         mae24 = audit.get("mae_24h_cm")
         max24 = audit.get("maior_erro_abs_24h_cm")
+        revalidando = (out.get("modelo") in MODELOS_SEGUNDA_DIFERENCA
+                       and audit.get("n_conferidas", 0) < 6)
         if str(out.get("status") or "").startswith("ok") and (
-            (mae24 is not None and mae24 > LIVE_WARN_MAE_24H_CM)
+            revalidando or (mae24 is not None and mae24 > LIVE_WARN_MAE_24H_CM)
             or (max24 is not None and max24 > LIVE_WARN_MAX_24H_CM)
         ):
             out["qualidade_ao_vivo"] = {
-                "status": "ATENCAO",
-                "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
+                "status": "REVALIDANDO_FORMULA" if revalidando else "ATENCAO",
+                "regra": "6 pares prospectivos da formula atual; MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
                 "mae_24h_cm": mae24,
                 "maior_erro_abs_24h_cm": max24,
                 "modelo": out.get("modelo"),
@@ -634,8 +658,11 @@ def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
             out["nivel_previsto_cm"] = None
             out["passos"] = []
             out["disponivel"] = False
-            out["bloqueio_publicacao"] = "erro_recente_acima_guardrail"
+            out["bloqueio_publicacao"] = ("revalidacao_formula_corrigida" if revalidando
+                                           else "erro_recente_acima_guardrail")
             out["status"] = (
+                "indisponivel: aguardando 6 pares prospectivos da formula corrigida "
+                "(candidato preservado apenas para auditoria)" if revalidando else
                 "indisponivel: erro recente do modelo ativo acima do guardrail "
                 "(candidato preservado apenas para auditoria)"
             )
@@ -815,6 +842,7 @@ def upsert_previsao_historico(registros, saida):
         "horizonte_h": saida["horizonte_h"],
         "tipo": saida.get("tipo"),
         "modelo": saida["modelo"],
+        "formula_contract_version": saida.get("formula_contract_version"),
         "hora_modelo": saida["hora_modelo"],
         "hora_modelo_utc": saida.get("hora_modelo_utc"),
         "hora_alvo": saida["hora_alvo"],
@@ -833,7 +861,8 @@ def upsert_previsao_historico(registros, saida):
                 for k in ("observado_cm", "observado_em", "erro_cm", "erro_abs_cm", "status_auditoria", "auditado_em")
                 if k in reg
             }
-            novo.update(preservados)
+            if reg.get("formula_contract_version") == saida.get("formula_contract_version"):
+                novo.update(preservados)
             registros[i] = novo
             return registros
     registros.append(novo)
@@ -890,6 +919,9 @@ def media(vals):
 
 def resumo_auditoria(registros, horizonte):
     regs = [r for r in registros if r.get("horizonte") == horizonte]
+    # Mantem o historico antigo auditavel, sem mistura-lo com a formula corrigida.
+    regs = [r for r in regs if r.get("modelo") not in MODELOS_SEGUNDA_DIFERENCA
+            or r.get("formula_contract_version") == FORMULA_SEGUNDA_DIFERENCA]
     conferidos = sorted(
         [r for r in regs if r.get("status_auditoria") == "conferido"],
         key=lambda r: r.get("hora_alvo") or ""
@@ -966,6 +998,12 @@ def escrever(top, horizontes, max_stale_h=6):
             # O teste da hora-base precisa considerar os horizontes aninhados:
             # 2h pode estar sem inputs enquanto 4h/8h ainda têm previsoes boas.
             contrato_atual = isinstance(ant_horizontes, dict) and set(ant_horizontes) == HORIZONTES_AO_VIVO
+            if contrato_atual:
+                contrato_atual = all(
+                    item.get("modelo") not in MODELOS_SEGUNDA_DIFERENCA
+                    or item.get("formula_contract_version") == FORMULA_SEGUNDA_DIFERENCA
+                    for item in ant_horizontes.values() if isinstance(item, dict)
+                )
             if contrato_atual and _tem_previsao(ant) and hm:
                 idade_h = (agora_brt() - hm).total_seconds() / 3600
                 if idade_h <= max_stale_h:
