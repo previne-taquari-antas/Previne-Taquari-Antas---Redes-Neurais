@@ -224,7 +224,42 @@
     }
     function polygon(c) {
       if (!Array.isArray(c) || !c.length) throw Error("Polígono vazio.");
-      return c.map((r) => simpleRing(line(r, 4)));
+      const rings = c.map((r) => simpleRing(line(r, 4)));
+      function boundariesMeet(a, b) {
+        for (let i = 1; i < a.length; i++)
+          for (let j = 1; j < b.length; j++) {
+            if (++work > 3000000)
+              throw Error("Polígono muito complexo. Simplifique a camada.");
+            if (
+              Math.max(a[i - 1][0], a[i][0]) < Math.min(b[j - 1][0], b[j][0]) ||
+              Math.max(b[j - 1][0], b[j][0]) < Math.min(a[i - 1][0], a[i][0]) ||
+              Math.max(a[i - 1][1], a[i][1]) < Math.min(b[j - 1][1], b[j][1]) ||
+              Math.max(b[j - 1][1], b[j][1]) < Math.min(a[i - 1][1], a[i][1])
+            )
+              continue;
+            if (
+              intersects(a[i - 1], a[i], b[j - 1], b[j]) ||
+              project(a[i - 1], b[j - 1], b[j]).d < 0.001 ||
+              project(a[i], b[j - 1], b[j]).d < 0.001 ||
+              project(b[j - 1], a[i - 1], a[i]).d < 0.001 ||
+              project(b[j], a[i - 1], a[i]).d < 0.001
+            )
+              return true;
+          }
+        return false;
+      }
+      for (let i = 1; i < rings.length; i++) {
+        if (!ring(rings[i][0], rings[0]) || boundariesMeet(rings[i], rings[0]))
+          throw Error("Furo fora do anel exterior ou cruzando seu limite.");
+        for (let j = 1; j < i; j++)
+          if (
+            ring(rings[i][0], rings[j]) ||
+            ring(rings[j][0], rings[i]) ||
+            boundariesMeet(rings[i], rings[j])
+          )
+            throw Error("Furos sobrepostos ou aninhados no polígono.");
+      }
+      return rings;
     }
     for (const f of fs) {
       if (
@@ -274,14 +309,53 @@
   }
   function graph(features, options) {
     let segments = [];
-    const terminals = new Set();
+    const terminals = new Set(),
+      sourceJunctions = new Map(),
+      gradeGroups = new Map();
+    const coordKey = (p) => p.map((v) => v.toFixed(7)).join(",");
     for (const f of features) {
       const p = f.properties || {},
         type = p.highway || "sem_classificacao";
       if (options.roadTypes?.length && !options.roadTypes.includes(type))
         continue;
       if (p.foot === "no" || p.access === "no") continue;
-      for (const l of lines(f.geometry)) {
+      const geometryLines = lines(f.geometry),
+        rawIds = p.node_ids ?? p.osm_node_ids;
+      const nodeLists =
+        rawIds == null
+          ? null
+          : f.geometry.type === "MultiLineString"
+            ? rawIds
+            : [rawIds];
+      if (
+        nodeLists &&
+        (!Array.isArray(nodeLists) || nodeLists.length !== geometryLines.length)
+      )
+        throw Error("node_ids deve acompanhar as coordenadas das vias.");
+      const layer = Number.isFinite(Number(p.layer ?? 0))
+        ? String(Number(p.layer ?? 0))
+        : String(p.layer);
+      for (const [lineIndex, l] of geometryLines.entries()) {
+        const nodeIds = nodeLists?.[lineIndex];
+        if (nodeIds && (!Array.isArray(nodeIds) || nodeIds.length !== l.length))
+          throw Error("node_ids deve ter um identificador por coordenada.");
+        if (nodeIds)
+          l.forEach((position, i) => {
+            const id = nodeIds[i];
+            if (id == null) return;
+            if (
+              (typeof id !== "string" && typeof id !== "number") ||
+              String(id).trim() === "" ||
+              (typeof id === "number" && !Number.isSafeInteger(id))
+            )
+              throw Error("Identificador de nó inválido.");
+            const key = coordKey(position);
+            if (!sourceJunctions.has(key)) sourceJunctions.set(key, new Map());
+            const byId = sourceJunctions.get(key),
+              nodeId = String(id);
+            if (!byId.has(nodeId)) byId.set(nodeId, new Set());
+            byId.get(nodeId).add(layer);
+          });
         terminals.add(l[0].map((v) => v.toFixed(7)).join(","));
         terminals.add(l[l.length - 1].map((v) => v.toFixed(7)).join(","));
         for (let i = 1; i < l.length; i++) {
@@ -292,14 +366,38 @@
             a,
             b,
             ts: [0, 1],
+            layer,
             level:
-              String(p.layer || 0) +
+              layer +
               "|" +
               String(p.bridge || "no") +
               "|" +
               String(p.tunnel || "no"),
           });
         }
+      }
+    }
+    // Only source node IDs can establish a junction between explicit levels.
+    for (const [coord, byId] of sourceJunctions) {
+      const groups = new Map();
+      const find = (x) => {
+        if (!groups.has(x)) groups.set(x, x);
+        const p = groups.get(x);
+        if (p !== x) groups.set(x, find(p));
+        return groups.get(x);
+      };
+      let shared = false;
+      for (const layers of byId.values())
+        if (layers.size > 1) {
+          shared = true;
+          const list = [...layers];
+          for (const layer of list.slice(1))
+            groups.set(find(layer), find(list[0]));
+        }
+      if (shared) {
+        for (const layer of groups.keys()) find(layer);
+        gradeGroups.set(coord, groups);
+        terminals.add(coord);
       }
     }
     for (const segment of segments)
@@ -367,9 +465,10 @@
     const nodes = [],
       edges = [],
       ids = new Map();
-    const node = (p, level) => {
-      const coord = p.map((v) => v.toFixed(7)).join(","),
-        k = coord + "|" + (terminals.has(coord) ? "endpoint" : level);
+    const node = (p, level, layer) => {
+      const coord = coordKey(p),
+        grade = gradeGroups.get(coord)?.get(layer) ?? layer,
+        k = coord + "|" + (terminals.has(coord) ? "endpoint:" + grade : level);
       if (!ids.has(k)) {
         ids.set(k, nodes.length);
         nodes.push(p);
@@ -382,17 +481,28 @@
         const a = lerp(s.a, s.b, ts[i - 1]),
           b = lerp(s.a, s.b, ts[i]),
           n = Math.max(1, Math.ceil(distance(a, b) / 80));
+        if (
+          options.clipAreas?.length &&
+          !options.clipAreas.some((area) =>
+            inside(lerp(a, b, 0.5), area.geometry),
+          )
+        )
+          continue;
         if (n > 30000 || nodes.length + n > 30000)
           throw Error("Recorte a rede para até 30 mil nós.");
         for (let j = 0; j < n; j++) {
           const p = lerp(a, b, j / n),
             q = lerp(a, b, (j + 1) / n);
           if (distance(p, q) > 0.05)
-            edges.push([node(p, s.level), node(q, s.level), distance(p, q)]);
+            edges.push([
+              node(p, s.level, s.layer),
+              node(q, s.level, s.layer),
+              distance(p, q),
+            ]);
         }
       }
     }
-    if (!edges.length)
+    if (!edges.length && (!options.clipAreas?.length || !segments.length))
       throw Error("Nenhuma via utilizável com os filtros escolhidos.");
     if (nodes.length > 30000)
       throw Error("Rede muito grande. Reduza a área de interesse.");
@@ -552,7 +662,9 @@
       (!elig.length || elig.some((f) => inside(p, f.geometry)));
     const destinations = [],
       rejected = [];
-    for (const f of data.destinations?.features || []) {
+    for (const f of o.mode === "automatico"
+      ? []
+      : data.destinations?.features || []) {
       const p = representative(f.geometry),
         props = f.properties || {},
         s = snap(p),
@@ -608,13 +720,6 @@
         });
       }
     }
-    if (o.mode === "automatico")
-      destinations.splice(
-        0,
-        destinations.findIndex((d) => d.origin === "algoritmo") < 0
-          ? destinations.length
-          : destinations.findIndex((d) => d.origin === "algoritmo"),
-      );
     if (destinations.length > 300)
       throw Error("Use até 300 destinos por cenário.");
     for (const d of destinations) {

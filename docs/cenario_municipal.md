@@ -31,12 +31,12 @@ GeoJSON WGS84 (longitude, latitude) ou ZIP com um Shapefile completo (.shp, .shx
 | Camada | Geometria | Atributos |
 | --- | --- | --- |
 | Área / elegibilidade / inundação | Polygon, MultiPolygon | Fonte e referência registradas na interface |
-| Vias | LineString, MultiLineString | highway, access, foot, layer, bridge, tunnel (opcionais) |
+| Vias | LineString, MultiLineString | highway, access, foot, layer, bridge, tunnel; node_ids/osm_node_ids (opcionais) |
 | Edificações | Point, Polygon, MultiPolygon | id; pessoas ou population ou ocupantes |
 | Destinos | Point, Polygon, MultiPolygon | nome/name, tipo, capacidade/capacity, ocupacao/occupancy |
 | Bloqueios | Point, linhas, polígonos | Geometria define a obstrução |
 
-Edificações e destinos poligonais recebem um ponto representativo. Valide acessos reais; a ligação à rede é uma aproximação de até 150 m. Cruzamentos de vias no mesmo nível são divididos para construir a rede. Pontes/túneis não conectam em cruzamentos de níveis distintos; extremos compartilhados conectam acessos. `foot=no` e `access=no` são excluídos; as demais vias são filtradas pelas classes informadas. Edificações fora da área não entram na demanda. Trechos e ligações de acesso não atravessam bloqueios ou saem da área de interesse.
+Edificações e destinos poligonais recebem um ponto representativo. Valide acessos reais; a ligação à rede é uma aproximação de até 150 m. Cruzamentos de vias no mesmo nível são divididos para construir a rede. Pontes/túneis não conectam em cruzamentos de níveis distintos. Extremos no mesmo nível são conectados por coordenada; níveis numéricos diferentes só são unidos quando a fonte fornece o mesmo identificador em `node_ids` ou `osm_node_ids` na mesma coordenada. Para LineString, use um array de IDs acompanhando os vértices; para MultiLineString, um array por linha. Na ausência desses dados, acessos entre níveis podem ficar sem ligação e exigem revisão da rede municipal. `foot=no` e `access=no` são excluídos; as demais vias são filtradas pelas classes informadas. Edificações fora da área não entram na demanda. Trechos e ligações de acesso não atravessam bloqueios ou saem da área de interesse.
 
 Capacidades conhecidas sempre são respeitadas, descontando ocupação atual. A opção de exigir capacidade informada exclui destinos sem capacidade — incluindo sugestões automáticas ainda não cadastradas. Sem essa exigência, esses destinos recebem pessoas, mas o resultado explicita que não há confirmação de espaço. Grupos de uma edificação não são divididos. A seleção e distribuição são heurísticas: podem deixar demanda sem atendimento mesmo quando outra distribuição seria possível; não há garantia de ótimo global. Não se calcula uma segunda etapa de transporte entre pontos de encontro e abrigos: o destino cadastrado é o destino direto da rota.
 
