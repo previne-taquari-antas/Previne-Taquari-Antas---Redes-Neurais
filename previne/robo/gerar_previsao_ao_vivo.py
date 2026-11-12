@@ -400,6 +400,12 @@ FALLBACKS_HORIZONTE = {
     },
 }
 
+FORMULA_2H_4H_VERSION = "stz_excel_a20_ljj_19_20_v2"
+for _cfg_formula in MODELOS:
+    if _cfg_formula["horizonte"] in {"2h", "2h_versao_b", "4h"}:
+        _cfg_formula["formula_contract_version"] = FORMULA_2H_4H_VERSION
+
+
 def _local(tag):                          # remove {namespace} do nome da tag
     return tag.rsplit("}", 1)[-1]
 
@@ -1057,7 +1063,7 @@ def _D_exato(series, cod, t, h):
 
 
 def _A_exato(series, cod, t, h):
-    vals = [_n_exato(series, cod, t, k) for k in (0, 1, h, h + 1)]
+    vals = [_n_exato(series, cod, t, k) for k in _acel_offsets_excel(cod, h)]
     return None if any(v is None for v in vals) else (vals[0] - vals[1]) - (vals[2] - vals[3])
 
 
@@ -1074,8 +1080,10 @@ def _D(series, cod, t, h):
 
 def _acel_offsets_excel(cod, h):
     """Retorna os quatro offsets usados pela planilha-base para uma aceleração."""
-    # A-20h da planilha-base usa a janela t-20h/t-21h, assim como a regra
-    # geral: [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)].
+    # DADOS_FORM!U100=(P100-P99)-(P81-P80), confirmado no Ptot
+    # dos dois MAT 2h: o rotulo A-20h usa t-19h/t-20h.
+    if str(cod) == "86472000" and h == 20:
+        return (0, 1, 19, 20)
     return (0, 1, h, h + 1)
 
 def _A_curv(series, cod, t, h):
@@ -1590,7 +1598,7 @@ def auditoria_inputs_2h(series, t, valores=None, grade=None):
     out["definicao_diferenca"] = "D_h(t) = N(t) - N(t-h)"
     out["definicao_aceleracao"] = {
         "padrao": "A_h(t) = [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)]",
-        "input_15_excel": "A-20h LJ = [N(t)-N(t-1h)] - [N(t-20h)-N(t-21h)]",
+        "input_15_excel": "A-20h LJ = [N(t)-N(t-1h)] - [N(t-19h)-N(t-20h)]",
         "fonte": "modelo_2h_novo.xlsx / DADOS_FORM",
     }
     out["input_grade"] = grade or "hourly_exact"
@@ -1832,7 +1840,7 @@ def diagnosticar_inputs_faltantes(series, t, inputs):
         ("inp12", "Linha Jose Julio / Rio das Antas - nivel D-2h", "86472000", [0, 2]),
         ("inp13", "Linha Jose Julio / Rio das Antas - nivel D-5h", "86472000", [0, 5]),
         ("inp14", "Linha Jose Julio / Rio das Antas - aceleracao A-12h", "86472000", [0, 1, 12, 13]),
-        ("inp15", "Linha Jose Julio / Rio das Antas - aceleracao A-20h (regra Excel: t-20h/t-21h)", "86472000", list(_acel_offsets_excel("86472000", 20))),
+        ("inp15", "Linha Jose Julio / Rio das Antas - aceleracao A-20h (regra Excel: t-19h/t-20h)", "86472000", list(_acel_offsets_excel("86472000", 20))),
     ]
     faltantes = []
     for valor, (codigo_input, descricao, cod_estacao, atrasos) in zip(inputs, especificacoes):
@@ -2299,6 +2307,7 @@ def upsert_previsao_historico(registros, saida):
         "status_auditoria": "aguardando",
         "auditoria_versao": AUDITORIA_VERSAO,
         "input_contract_version": saida.get("input_contract_version"),
+        "formula_contract_version": saida.get("formula_contract_version"),
         "criado_em": saida.get("consultado_em"),
     }
     for i, reg in enumerate(registros):
@@ -2307,7 +2316,8 @@ def upsert_previsao_historico(registros, saida):
             # voltar para aguardando; os erros antigos podem ter usado uma
             # leitura vizinha e não são comparáveis aos novos.
             preservados = {}
-            if reg.get("auditoria_versao") == AUDITORIA_VERSAO:
+            if (reg.get("auditoria_versao") == AUDITORIA_VERSAO
+                    and reg.get("formula_contract_version") == saida.get("formula_contract_version")):
                 preservados = {k: reg.get(k) for k in ("observado_cm", "observado_em", "erro_cm", "erro_abs_cm", "status_auditoria", "auditado_em") if k in reg}
             novo.update(preservados)
             registros[i] = novo
@@ -2360,6 +2370,10 @@ def media(vals):
 def resumo_auditoria(registros, horizonte, modelo=None):
     regs = [r for r in registros if r.get("horizonte") == horizonte]
     excluidas_grade = 0
+    formula = next((c.get("formula_contract_version") for c in MODELOS
+                    if c["horizonte"] == horizonte and c["modelo"] == modelo), None)
+    if formula:
+        regs = [r for r in regs if r.get("formula_contract_version") == formula]
     if modelo:
         # Ao trocar a RNA ativa, o histÃ³rico antigo continua Ãºtil para
         # auditoria, mas nÃ£o pode contaminar o erro recente do modelo novo.
@@ -2761,6 +2775,7 @@ def escrever_janela_inputs_ai_lab(series, hora_modelo):
     pacote = {
         "schema_version": 1,
         "artifact_id": "previne_ai_lab_live_inputs_stz_2h",
+        "formula_contract_version": FORMULA_2H_4H_VERSION,
         "gerado_em": agora_brt().isoformat(timespec="seconds"),
         "estacao": "86472600",
         "horizonte_h": 2,
@@ -2805,6 +2820,8 @@ def saida_respeita_contrato_horario_atual(atual):
         item = horizontes.get(cfg["horizonte"]) or {}
         fallback = FALLBACKS_HORIZONTE.get(cfg["horizonte"]) or {}
         if item.get("modelo") not in {cfg["modelo"], fallback.get("modelo")}:
+            return False
+        if cfg.get("formula_contract_version") and item.get("formula_contract_version") != cfg["formula_contract_version"]:
             return False
         if item.get("input_grade") != "hourly_exact":
             return False
