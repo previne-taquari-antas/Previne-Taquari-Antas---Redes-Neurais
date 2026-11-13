@@ -60,12 +60,32 @@ def sha256(path: Path) -> str:
     return digest.hexdigest().upper()
 
 
-def validate_data(data: dict, *, b_mat: Path = B_MAT) -> None:
-    """Validate the public-feed contract without writing a feed."""
-    if not isinstance(data, dict):
-        raise SystemExit("feed precisa ser objeto JSON")
+def validar_serie_observada(data: dict) -> None:
     serie_observada = data.get("serie_observada_ana")
-    if not isinstance(serie_observada, list) or len(serie_observada) < 2:
+    if not isinstance(serie_observada, list):
+        raise SystemExit("feed sem serie observada ANA explicita")
+    if not serie_observada:
+        # A falha total da ANA deve poder publicar indisponibilidade, inclusive
+        # quando uma troca de formula impede reutilizar o snapshot anterior.
+        # Nenhuma previsao ou leitura pode ser publicada sob essa excecao.
+        horizons = data.get("horizontes")
+        unavailable = (
+            data.get("serie_observada_ana_status") == "INDISPONIVEL"
+            and data.get("serie_observada_ana_n") == 0
+            and data.get("disponivel") is False
+            and isinstance(horizons, dict) and bool(horizons)
+            and all(isinstance(item, dict) and item.get("disponivel") is False
+                    and item.get("nivel_previsto_cm") is None and not item.get("passos")
+                    for item in horizons.values())
+            and all(data.get(field) is None for field in (
+                "nivel_previsto_cm", "nivel_rio_agora_cm", "nivel_atual_cm",
+                "telemetria_ultima_nivel_cm", "telemetria_ultima_em"))
+            and not data.get("passos")
+        )
+        if not unavailable:
+            raise SystemExit("serie ANA vazia exige indisponibilidade total explicita")
+        return
+    if len(serie_observada) < 2:
         raise SystemExit("feed sem serie observada ANA suficiente para o panorama")
     horas_observadas = [str(p.get("hora") or "") for p in serie_observada if isinstance(p, dict)]
     niveis_observados = [p.get("nivel_cm") for p in serie_observada if isinstance(p, dict)]
@@ -84,6 +104,14 @@ def validate_data(data: dict, *, b_mat: Path = B_MAT) -> None:
         raise SystemExit("ultimo ponto da serie observada nao coincide com a ultima telemetria publicada")
     if data.get("serie_observada_ana_n") != len(serie_observada):
         raise SystemExit("contador da serie observada ANA inconsistente")
+
+
+
+def validate_data(data: dict, *, b_mat: Path = B_MAT) -> None:
+    """Validate the public-feed contract without writing a feed."""
+    if not isinstance(data, dict):
+        raise SystemExit("feed precisa ser objeto JSON")
+    validar_serie_observada(data)
 
     horizons = data.get("horizontes")
     if not isinstance(horizons, dict):
