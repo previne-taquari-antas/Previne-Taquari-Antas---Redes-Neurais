@@ -73,6 +73,11 @@ const server = http.createServer((req, res) => {
     await page.locator("#status").innerText(),
     await page.locator("#results").innerText(),
   );
+  assert.match(
+    await page.locator("#status").innerText(),
+    /Cenário calculado/,
+    "reference example must calculate successfully",
+  );
   const f = (type, coordinates, properties = {}) => ({
       type: "Feature",
       geometry: { type, coordinates },
@@ -113,13 +118,11 @@ const server = http.createServer((req, res) => {
       ]),
     },
   };
-  await page
-    .locator("#load")
-    .setInputFiles({
-      name: "municipio.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(scene)),
-    });
+  await page.locator("#load").setInputFiles({
+    name: "municipio.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(scene)),
+  });
   await page.waitForFunction(() =>
     document
       .getElementById("status")
@@ -150,20 +153,49 @@ const server = http.createServer((req, res) => {
     ),
     false,
   );
-  await page.setViewportSize({width:1440,height:1000});
-await page.getByText('Modelo de elevação e geração HAND',{exact:true}).click();
-const T=require('../../assets/js/cenario_terreno.js');
-const terrain=T.writeGeoTIFF({width:9,height:9,bbox:[0,0,.01,.01],values:Array.from({length:81},(_,i)=>Math.abs(i%9-4)*3+(8-Math.floor(i/9))+.25)});
-await page.locator('#terrainFile').setInputFiles({name:'terreno.tif',mimeType:'image/tiff',buffer:Buffer.from(terrain)});
-await page.waitForFunction(()=>document.getElementById('terrainInfo').textContent.includes('9 × 9'));
-await page.locator('#drainArea').fill('0.01');await page.locator('#generateHand').click();
-await page.waitForFunction(()=>!document.getElementById('generateHand').disabled);
-assert.match(await page.locator('#status').innerText(),/HAND gerado/);
-const terrainDownload=page.waitForEvent('download');await page.locator('#downloadTerrain').click();
-const terrainFile=await terrainDownload;const {fromArrayBuffer}=await import('geotiff');
-const bytes=fs.readFileSync(await terrainFile.path());const tif=await fromArrayBuffer(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
-const image=await tif.getImage();const raster=await image.readRasters();assert.equal(raster[0][0],20.25);assert.equal(image.getGeoKeys().GeographicTypeGeoKey,4326);
-assert.deepEqual(errors, []);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page
+    .getByText("Modelo de elevação e geração HAND", { exact: true })
+    .click();
+  const T = require("../../assets/js/cenario_terreno.js");
+  const terrain = T.writeGeoTIFF({
+    width: 9,
+    height: 9,
+    bbox: [0, 0, 0.01, 0.01],
+    values: Array.from(
+      { length: 81 },
+      (_, i) => Math.abs((i % 9) - 4) * 3 + (8 - Math.floor(i / 9)) + 0.25,
+    ),
+  });
+  await page
+    .locator("#terrainFile")
+    .setInputFiles({
+      name: "terreno.tif",
+      mimeType: "image/tiff",
+      buffer: Buffer.from(terrain),
+    });
+  await page.waitForFunction(() =>
+    document.getElementById("terrainInfo").textContent.includes("9 × 9"),
+  );
+  await page.locator("#drainArea").fill("0.01");
+  await page.locator("#generateHand").click();
+  await page.waitForFunction(
+    () => !document.getElementById("generateHand").disabled,
+  );
+  assert.match(await page.locator("#status").innerText(), /HAND gerado/);
+  const terrainDownload = page.waitForEvent("download");
+  await page.locator("#downloadTerrain").click();
+  const terrainFile = await terrainDownload;
+  const { fromArrayBuffer } = await import("geotiff");
+  const bytes = fs.readFileSync(await terrainFile.path());
+  const tif = await fromArrayBuffer(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  );
+  const image = await tif.getImage();
+  const raster = await image.readRasters();
+  assert.equal(raster[0][0], 20.25);
+  assert.equal(image.getGeoKeys().GeographicTypeGeoKey, 4326);
+  assert.deepEqual(errors, []);
   console.log(
     "UI: example, custom municipality, capacity, save, invalidation, mobile passed",
   );

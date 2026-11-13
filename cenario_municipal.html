@@ -243,16 +243,65 @@
           ><button id="reset">Novo município</button>
         </div>
         <div id="status" class="status" role="status" aria-live="polite">
-          Comece pela área de interesse e importe as bases do município.
+          Comece pela área de interesse e escolha importar seu MDT ou baixar um
+          modelo de elevação.
         </div>
         <fieldset>
-          <legend>1 · Município, área e bases</legend>
+          <legend>1 · Município, área e MDT</legend>
           <label
             >Município / identificação do cenário<input
               id="municipality"
               placeholder="Ex.: Município · cenário de planejamento"
               maxlength="140"
           /></label>
+          <label
+            >Importar área de interesse (GeoJSON ou Shapefile ZIP)<input
+              id="areaUpload"
+              type="file"
+              accept=".geojson,.json,.zip"
+          /></label>
+          <p class="muted">
+            A poligonal define o recorte do terreno e a área do planejamento.
+            Arquivos vetoriais de área: até 25 MB; este limite não se aplica ao
+            MDT.
+          </p>
+          <div class="row">
+            <button id="drawArea">Desenhar área</button
+            ><button id="downloadArea">Baixar poligonal</button>
+          </div>
+          <h2>Importar ou baixar o MDT</h2>
+          <p class="muted">
+            Escolha uma das opções abaixo. Para baixar um modelo ou ler somente
+            o recorte de um arquivo grande, desenhe ou importe a área de
+            interesse primeiro.
+          </p>
+          <label
+            >Importar meu MDT / modelo de elevação (GeoTIFF)<input
+              id="terrainFile"
+              type="file"
+              accept=".tif,.tiff"
+          /></label>
+          <p id="terrainLimits" class="muted">
+            GeoTIFF sem limite fixo de 25 MB ou 100 MB. Leitura por partes, com
+            recorte pela área selecionada e uso de versões reduzidas quando
+            disponíveis. O tamanho suportado depende da memória do navegador e
+            da organização do arquivo. Use EPSG:4326 e alturas em metros.
+          </p>
+          <button id="copernicus">
+            Baixar modelo de elevação (Copernicus)
+          </button>
+          <button id="downloadTerrain">Baixar recorte do terreno</button>
+          <p class="muted">
+            Copernicus GLO-30 é um modelo de superfície de cerca de 30 m; não
+            substitui automaticamente um MDT local. O download usa a área de
+            interesse, em até quatro tiles.
+          </p>
+          <p id="terrainInfo" class="muted" role="status" aria-live="polite">
+            Nenhum terreno carregado.
+          </p>
+        </fieldset>
+        <fieldset>
+          <legend>2 · Bases vetoriais</legend>
           <label
             >Camada a importar<select id="layerKind">
               <option value="aoi">Área de interesse</option>
@@ -273,17 +322,14 @@
           <p class="muted">
             O ZIP deve incluir .shp, .shx, .dbf e .prj. Cada importação
             substitui apenas a camada selecionada. Coordenadas internas em
-            WGS84. Limite de arquivo: 25 MB.
+            WGS84. Limite para estas camadas vetoriais: 25 MB. Esse limite não
+            se aplica ao GeoTIFF do MDT, importado na etapa 1.
           </p>
           <label
             >Fonte / identificação da base<input
               id="source"
               placeholder="Órgão, levantamento e data"
           /></label>
-          <div class="row">
-            <button id="drawArea">Desenhar área</button
-            ><button id="downloadArea">Baixar poligonal</button>
-          </div>
           <ul id="layers"></ul>
           <details>
             <summary>Tipos de vias utilizados</summary>
@@ -303,7 +349,7 @@
           </details>
         </fieldset>
         <fieldset>
-          <legend>2 · Tempo e população</legend>
+          <legend>3 · Tempo e população</legend>
           <div class="row">
             <label
               >Tempo máximo (min)<input
@@ -342,7 +388,7 @@
           >
         </fieldset>
         <fieldset>
-          <legend>3 · Obstruções antes das rotas</legend>
+          <legend>4 · Obstruções antes das rotas</legend>
           <label
             >Desenhar no mapa<select id="drawKind">
               <option value="blockLine">Bloqueio por linha</option>
@@ -363,7 +409,7 @@
           </p>
         </fieldset>
         <fieldset>
-          <legend>4 · Inundação e terreno</legend>
+          <legend>5 · Inundação e HAND</legend>
           <label
             >Natureza da mancha<select id="floodType">
               <option value="observada">Histórica observada</option>
@@ -397,20 +443,9 @@
           <details>
             <summary>Modelo de elevação e geração HAND</summary>
             <p class="muted">
-              Importe um GeoTIFF geográfico WGS84 com alturas em metros ou
-              obtenha um recorte Copernicus GLO-30 pela área de interesse (até
-              quatro tiles). Copernicus é um modelo de superfície de cerca de 30
-              m; não substitui automaticamente um MDT local.
+              Use o terreno importado ou baixado na etapa 1 para gerar o cenário
+              HAND.
             </p>
-            <label
-              >MDT / modelo de elevação GeoTIFF<input
-                id="terrainFile"
-                type="file"
-                accept=".tif,.tiff"
-            /></label>
-            <button id="copernicus">Obter Copernicus pela área</button
-            ><button id="downloadTerrain">Baixar recorte do terreno</button>
-            <p id="terrainInfo" class="muted">Nenhum terreno carregado.</p>
             <label
               >Área contribuinte mínima de drenagem (km²)<input
                 id="drainArea"
@@ -438,7 +473,7 @@
           </details>
         </fieldset>
         <fieldset>
-          <legend>5 · Destinos e capacidade</legend>
+          <legend>6 · Destinos e capacidade</legend>
           <label
             >Seleção dos destinos<select id="mode">
               <option value="misto">Destinos cadastrados + sugestões</option>
@@ -447,7 +482,7 @@
             </select></label
           >
           <p class="muted">
-            Clique em “Destino” na etapa 3 para cadastrar no mapa. Polígonos de
+            Clique em “Destino” na etapa 4 para cadastrar no mapa. Polígonos de
             abrigos importados recebem um ponto representativo para ligação à
             rede; revise o acesso real.
           </p>
@@ -467,7 +502,7 @@
         <button id="calculate" class="primary">Calcular cenário e rotas</button>
         <section id="results" hidden aria-live="polite"></section>
         <fieldset style="margin-top: 16px">
-          <legend>6 · Predefinições e relatórios</legend>
+          <legend>7 · Predefinições e relatórios</legend>
           <button id="save">Baixar predefinições</button
           ><label
             >Reabrir cenário JSON<input

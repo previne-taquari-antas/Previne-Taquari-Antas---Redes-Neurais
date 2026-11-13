@@ -225,37 +225,94 @@
     function polygon(c) {
       if (!Array.isArray(c) || !c.length) throw Error("Polígono vazio.");
       const rings = c.map((r) => simpleRing(line(r, 4)));
-      function boundariesMeet(a, b) {
+      // A hole may touch its shell at one isolated point (valid OGC geometry).
+      function relation(a, b) {
+        let invalid = false;
+        const contacts = new Set();
         for (let i = 1; i < a.length; i++)
           for (let j = 1; j < b.length; j++) {
             if (++work > 3000000)
               throw Error("Polígono muito complexo. Simplifique a camada.");
+            const p = a[i - 1],
+              q = a[i],
+              r = b[j - 1],
+              t = b[j];
             if (
-              Math.max(a[i - 1][0], a[i][0]) < Math.min(b[j - 1][0], b[j][0]) ||
-              Math.max(b[j - 1][0], b[j][0]) < Math.min(a[i - 1][0], a[i][0]) ||
-              Math.max(a[i - 1][1], a[i][1]) < Math.min(b[j - 1][1], b[j][1]) ||
-              Math.max(b[j - 1][1], b[j][1]) < Math.min(a[i - 1][1], a[i][1])
+              Math.max(p[0], q[0]) < Math.min(r[0], t[0]) ||
+              Math.max(r[0], t[0]) < Math.min(p[0], q[0]) ||
+              Math.max(p[1], q[1]) < Math.min(r[1], t[1]) ||
+              Math.max(r[1], t[1]) < Math.min(p[1], q[1])
             )
               continue;
-            if (
-              intersects(a[i - 1], a[i], b[j - 1], b[j]) ||
-              project(a[i - 1], b[j - 1], b[j]).d < 0.001 ||
-              project(a[i], b[j - 1], b[j]).d < 0.001 ||
-              project(b[j - 1], a[i - 1], a[i]).d < 0.001 ||
-              project(b[j], a[i - 1], a[i]).d < 0.001
-            )
-              return true;
+            const cross = intersects(p, q, r, t);
+            if (cross) {
+              if (
+                cross.t > 1e-9 &&
+                cross.t < 1 - 1e-9 &&
+                cross.u > 1e-9 &&
+                cross.u < 1 - 1e-9
+              )
+                invalid = true;
+              contacts.add(
+                lerp(p, q, cross.t)
+                  .map((x) => x.toFixed(9))
+                  .join(","),
+              );
+            } else if (
+              project(r, p, q).d < 0.001 &&
+              project(t, p, q).d < 0.001
+            ) {
+              const dx = q[0] - p[0],
+                dy = q[1] - p[1],
+                den = dx * dx + dy * dy;
+              const u = ((r[0] - p[0]) * dx + (r[1] - p[1]) * dy) / den,
+                v = ((t[0] - p[0]) * dx + (t[1] - p[1]) * dy) / den;
+              const lo = Math.max(0, Math.min(u, v)),
+                hi = Math.min(1, Math.max(u, v));
+              if (hi > lo && distance(lerp(p, q, lo), lerp(p, q, hi)) > 0.001)
+                invalid = true;
+              if (hi >= lo)
+                contacts.add(
+                  lerp(p, q, lo)
+                    .map((x) => x.toFixed(9))
+                    .join(","),
+                );
+            }
           }
-        return false;
+        return invalid || contacts.size > 1;
       }
+      function samples(a, b) {
+        const out = a.slice(0, -1);
+        for (let i = 1; i < a.length; i++) {
+          const ts = [0, 1];
+          for (let j = 1; j < b.length; j++) {
+            if (++work > 3000000)
+              throw Error("Polígono muito complexo. Simplifique a camada.");
+            const cross = intersects(a[i - 1], a[i], b[j - 1], b[j]);
+            if (cross) ts.push(cross.t);
+          }
+          ts.sort((x, y) => x - y);
+          for (let j = 1; j < ts.length; j++)
+            if (ts[j] > ts[j - 1])
+              out.push(lerp(a[i - 1], a[i], (ts[j] + ts[j - 1]) / 2));
+        }
+        return out;
+      }
+      const strictlyInside = (p, r) =>
+        ring(p, r) && !r.some((q, i) => i && project(p, r[i - 1], q).d < 0.001);
       for (let i = 1; i < rings.length; i++) {
-        if (!ring(rings[i][0], rings[0]) || boundariesMeet(rings[i], rings[0]))
+        if (
+          relation(rings[i], rings[0]) ||
+          samples(rings[i], rings[0]).some((p) => !ring(p, rings[0]))
+        )
           throw Error("Furo fora do anel exterior ou cruzando seu limite.");
         for (let j = 1; j < i; j++)
           if (
-            ring(rings[i][0], rings[j]) ||
-            ring(rings[j][0], rings[i]) ||
-            boundariesMeet(rings[i], rings[j])
+            relation(rings[i], rings[j]) ||
+            samples(rings[i], rings[j]).some((p) =>
+              strictlyInside(p, rings[j]),
+            ) ||
+            samples(rings[j], rings[i]).some((p) => strictlyInside(p, rings[i]))
           )
             throw Error("Furos sobrepostos ou aninhados no polígono.");
       }

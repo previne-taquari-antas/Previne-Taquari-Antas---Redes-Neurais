@@ -1,10 +1,11 @@
 {
   "private": true,
   "scripts": {
-    "test": "node browser.cjs && npm run test:municipal && npm run test:municipal:audit && npm run test:municipal:brasil",
+    "test": "node browser.cjs && npm run test:municipal && npm run test:municipal:audit && npm run test:municipal:brasil && npm run test:municipal:mdt",
     "test:municipal": "node municipal.cjs",
     "test:municipal:audit": "node municipal_audit.cjs && node --test ../test_cenario_engine.cjs ../test_cenario_auditoria.cjs",
-    "test:municipal:brasil": "node --test ../test_cenario_brasil.cjs && node ../test_cenario_osm_brasil.cjs && node brasil_audit.cjs"
+    "test:municipal:brasil": "node --test ../test_cenario_brasil.cjs && node ../test_cenario_osm_brasil.cjs && node brasil_audit.cjs",
+    "test:municipal:mdt": "node mdt_audit.cjs"
   },
   "dependencies": {
     "leaflet": "1.9.4",

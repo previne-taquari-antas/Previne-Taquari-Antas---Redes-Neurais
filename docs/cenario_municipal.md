@@ -15,12 +15,13 @@ Também funciona em hospedagem estática (incluindo GitHub Pages). Caso a fonte 
 
 ## Fluxo municipal
 
-1. Identifique o município e importe/desenhe a área de interesse. Importe vias e edificações.
-2. Defina tempo máximo de deslocamento, velocidade e estimativa populacional para edificações sem cadastro.
-3. Desenhe ou importe bloqueios por ponto (15 m), linha ou polígono. É possível editar e excluir desenhos pelo mapa.
-4. Importe uma mancha, desenhe-a ou gere HAND a partir do terreno. Informe natureza, fonte e referência do cenário. Selecione se as vias inundadas já estão indisponíveis.
-5. Importe/desenhe destinos e áreas elegíveis. Cadastre nome, tipo (ponto de encontro/abrigo), capacidade e ocupação atual.
-6. Calcule, examine as rotas clicando nas edificações e exporte CSV ou GeoJSON. Salve as predefinições em JSON para reabrir depois.
+1. Identifique o município e importe/desenhe a área de interesse. Na primeira etapa, importe seu MDT GeoTIFF ou obtenha o modelo de elevação Copernicus pela área. Esses controles ficam visíveis desde o início, sem abrir a seção de HAND.
+2. Importe as bases vetoriais de vias e edificações.
+3. Defina tempo máximo de deslocamento, velocidade e estimativa populacional para edificações sem cadastro.
+4. Desenhe ou importe bloqueios por ponto (15 m), linha ou polígono. É possível editar e excluir desenhos pelo mapa.
+5. Importe uma mancha, desenhe-a ou gere HAND a partir do terreno. Informe natureza, fonte e referência do cenário. Selecione se as vias inundadas já estão indisponíveis.
+6. Importe/desenhe destinos e áreas elegíveis. Cadastre nome, tipo (ponto de encontro/abrigo), capacidade e ocupação atual.
+7. Calcule, examine as rotas clicando nas edificações e exporte CSV ou GeoJSON. Salve as predefinições em JSON para reabrir depois.
 
 Alterações invalidam o resultado e as exportações até novo cálculo. Resultados de cálculos iniciados antes de uma alteração são descartados. O serviço não armazena os cadastros; arquivos e relatórios permanecem no dispositivo. Tiles Copernicus são solicitados ao provedor público; o mapa-base usa OpenStreetMap e os leitores são obtidos por CDN.
 
@@ -42,7 +43,7 @@ Capacidades conhecidas sempre são respeitadas, descontando ocupação atual. A 
 
 ## Terreno e HAND
 
-GeoTIFF EPSG:4326, alturas em metros, uma banda, até 100 MB. Projeções distintas devem ser convertidas antes da importação. O recorte é retangular; a área de interesse limita posteriormente o planejamento. O download pode compor até quatro tiles Copernicus GLO-30 e exporta GeoTIFF Float32 georreferenciado, preservando alturas fracionárias e negativas.
+GeoTIFF EPSG:4326, alturas em metros e uma banda, sem os antigos bloqueios fixos de 25/100 MB. O arquivo local é aberto por Blob, com leitura de intervalos em vez de carregamento integral. O recorte é lido pela área de interesse e usa overviews quando disponíveis. O tamanho efetivamente suportado depende da memória do navegador, da compressão e da organização em blocos do raster; não é uma promessa de leitura de qualquer tamanho. Para arquivos grandes, defina a área antes de importar. Projeções distintas devem ser convertidas antes da importação. O recorte é retangular; a área de interesse limita posteriormente o planejamento. O download pode compor até quatro tiles Copernicus GLO-30 e exporta GeoTIFF Float32 georreferenciado, preservando alturas fracionárias e negativas.
 
 O modelo experimental usa preenchimento de depressões por priority-flood, encaminhamento D8, acumulação por área contribuinte e altura sobre a drenagem derivada. O nível informado é relativo à drenagem, não uma cota de régua. O raster é reduzido para até 320 × 320 células. Amplie o domínio para incluir a bacia contribuinte; bordas do recorte afetam o resultado. Nodata interrompe a geração. Copernicus é DSM (~30 m), não automaticamente um MDT adequado ao planejamento urbano. Não representa hidrodinâmica, remanso, propagação ou chegada da água. Exige validação e calibração locais.
 
@@ -66,3 +67,17 @@ npm run test:municipal
 ```
 
 Testes cobrem capacidade/ocupação, conectividade, bloqueios, pontes, política de inundação, áreas elegíveis, rotas, validação de dados e HAND sintético; o navegador cobre exemplo, município próprio, persistência, atualização obrigatória e layout móvel. Não constituem validação hidrológica ou cartográfica. A obtenção real de um recorte Copernicus foi verificada com o serviço incluído.
+
+## MDT no início do fluxo (13/11/2026)
+
+A primeira etapa expõe a importação da área, o desenho da poligonal, a importação
+do GeoTIFF e a obtenção do Copernicus. Os 25 MB se aplicam apenas aos arquivos
+vetoriais/JSON; o campo de terreno não usa esse limite nem o antigo teto de 100 MB.
+
+`npm run test:municipal:mdt` testa um raster Float32 de 4096 × 8192 células
+(128 MiB de pixels, cerca de 128 MB de arquivo) em tiras. Para uma pequena área,
+foram lidos 362.496 bytes, com recorte de 10 × 18 células, valores fracionários
+preservados, exportação GeoTIFF e geração HAND. O teste impede leitura integral
+do arquivo. Também verifica a opção antes de escolher município/área e o layout
+móvel. Isso verifica leitura por partes nesse formato; não garante desempenho
+para qualquer compressão, distribuição de blocos ou tamanho de raster.

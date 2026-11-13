@@ -325,3 +325,39 @@ test("GeoJSON altitude is ignored consistently for network matching", () => {
     x.roads.features[0].geometry.coordinates.map((p) => [...p, 200]);
   A.equal(E.plan(x, o).summary.assigned, 2);
 });
+
+test("valid polygon hole may touch shell at an isolated point", () => {
+  const shell = rect(0, 0, 1, 1).geometry.coordinates[0];
+  const hole = [
+    [0, 0.5],
+    [0.25, 0.25],
+    [0.5, 0.5],
+    [0.25, 0.75],
+    [0, 0.5],
+  ];
+  A.doesNotThrow(() => E.validate(f("Polygon", [shell, hole]), "flood"));
+});
+test("hole touching shell at two distinct points is rejected", () => {
+  const shell = rect(0, 0, 1, 1).geometry.coordinates[0];
+  const hole = [
+    [0, 0.5],
+    [0.5, 0.2],
+    [1, 0.5],
+    [0.5, 0.8],
+    [0, 0.5],
+  ];
+  A.throws(() => E.validate(f("Polygon", [shell, hole]), "flood"));
+});
+test("published Santa Tereza flood geometry remains valid for the planner", () => {
+  const fs = require("fs"),
+    path = require("path"),
+    d = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          "../assets/data/rota_fuga/santa_tereza_pontos_encontro_hand.json",
+        ),
+      ),
+    );
+  A.doesNotThrow(() => E.validate(d.mancha, "flood"));
+});

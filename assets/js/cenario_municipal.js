@@ -360,14 +360,21 @@
     render();
   };
   async function fileJSON(file) {
-    if (file.size > 25 * 1024 * 1024) throw Error("Arquivo excede 25 MB.");
+    if (/\.tiff?$/i.test(file.name))
+      throw Error(
+        "Para GeoTIFF, use Importar meu MDT na etapa 1. O limite vetorial de 25 MB não se aplica ao MDT.",
+      );
+    if (file.size > 25 * 1024 * 1024)
+      throw Error(
+        "Arquivo vetorial ou de predefinições excede 25 MB. GeoTIFF deve ser importado na etapa 1, sem esse limite.",
+      );
     return JSON.parse(await file.text());
   }
-  $("upload").onchange = async (e) => {
+  async function importLayer(e, fixedKind) {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      const kind = $("layerKind").value;
+      const kind = fixedKind || $("layerKind").value;
       let data;
       if (file.name.toLowerCase().endsWith(".zip")) {
         if (!window.shp) throw Error("Leitor Shapefile não carregou.");
@@ -397,7 +404,9 @@
     } finally {
       e.target.value = "";
     }
-  };
+  }
+  $("upload").onchange = (e) => importLayer(e);
+  $("areaUpload").onchange = (e) => importLayer(e, "aoi");
   for (const id of optionIds) {
     $(id).addEventListener("change", invalidate);
     $(id).addEventListener("input", invalidate);
@@ -407,8 +416,18 @@
   const jobs = new Map();
   function compute(type, data, opts) {
     if (!worker) {
-      const version = [...document.scripts].filter(script => /\/cenario_(engine|terreno|municipal)\.js(?:\?|$)/.test(script.src)).map(script => new URL(script.src).searchParams.get("v") || "audit-v2").join("-");
-      const workerUrl = new URL("assets/js/cenario_worker.js", document.baseURI);
+      const version = [...document.scripts]
+        .filter((script) =>
+          /\/cenario_(engine|terreno|municipal)\.js(?:\?|$)/.test(script.src),
+        )
+        .map(
+          (script) => new URL(script.src).searchParams.get("v") || "audit-v2",
+        )
+        .join("-");
+      const workerUrl = new URL(
+        "assets/js/cenario_worker.js",
+        document.baseURI,
+      );
       workerUrl.searchParams.set("v", version || "audit-v2");
       worker = new Worker(workerUrl);
       worker.onmessage = (e) => {
@@ -855,7 +874,7 @@
   }
   function updateTerrain() {
     $("terrainInfo").textContent = state.terrain
-      ? `${state.terrain.source} · ${state.terrain.width} × ${state.terrain.height} células. Recorte retangular; HAND limitado à bacia contida nele.`
+      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} células no recorte. Recorte retangular; HAND limitado à bacia contida nele.`
       : "Nenhum terreno carregado.";
   }
   async function readTerrain(tiff, bbox) {
@@ -889,7 +908,6 @@
       ),
       width = Math.max(3, Math.round((window[2] - window[0]) * scale)),
       height = Math.max(3, Math.round((window[3] - window[1]) * scale)),
-      rasters = await im.readRasters({ window, width, height, samples: [0] }),
       nodata = im.getGDALNoData();
     const actual = [
       ib[0] + (window[0] / iw) * (ib[2] - ib[0]),
@@ -897,7 +915,16 @@
       ib[0] + (window[2] / iw) * (ib[2] - ib[0]),
       ib[3] - (window[1] / ih) * (ib[3] - ib[1]),
     ];
+    // GeoTIFF chooses an overview when available; the source reads only needed file slices.
+    const rasters = await tiff.readRasters({
+      bbox: actual,
+      width,
+      height,
+      samples: [0],
+    });
     return {
+      originalWidth: iw,
+      originalHeight: ih,
       values: Array.from(rasters[0], (v) => (v === nodata ? NaN : v)),
       width,
       height,
@@ -909,18 +936,30 @@
       try {
         const file = e.target.files[0];
         if (!file) return;
-        if (file.size > 100 * 1024 * 1024)
-          throw Error("GeoTIFF limitado a 100 MB.");
         if (!window.GeoTIFF) throw Error("Leitor GeoTIFF indisponível.");
-        const t = await readTerrain(
-          await GeoTIFF.fromArrayBuffer(await file.arrayBuffer()),
-          state.layers.aoi ? areaBox() : null,
-        );
-        state.terrain = { ...t, source: file.name };
+        $("terrainFile").disabled = true;
+        const revision = state.revision;
+        status("Lendo o GeoTIFF por partes e preparando o recorte…");
+        const tiff = await GeoTIFF.fromBlob(file);
+        let t;
+        try {
+          t = await readTerrain(
+            tiff,
+            state.layers.aoi?.features.length ? areaBox() : null,
+          );
+        } finally {
+          await tiff.close();
+        }
+        if (revision !== state.revision)
+          throw Error(
+            "Cenário alterado durante a leitura do terreno. Importe novamente para usar o recorte atual.",
+          );
+        state.terrain = { ...t, source: file.name, fileBytes: file.size };
         updateTerrain();
         invalidate();
         status("Terreno carregado. Revise a área e os parâmetros HAND.");
       } finally {
+        $("terrainFile").disabled = false;
         e.target.value = "";
       }
     });
