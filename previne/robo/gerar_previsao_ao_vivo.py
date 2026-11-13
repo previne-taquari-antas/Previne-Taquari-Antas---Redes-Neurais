@@ -2704,9 +2704,10 @@ def escrever_pacote(horizontes, historico, aviso, series=None):
     pacote = dict(principal)
     pacote["horizontes"] = horizontes
     observada = serie_observada_ana_publica(series)
+    pacote["serie_observada_ana"] = observada
+    pacote["serie_observada_ana_n"] = len(observada)
+    pacote["serie_observada_ana_status"] = "DISPONIVEL" if observada else "INDISPONIVEL"
     if observada:
-        pacote["serie_observada_ana"] = observada
-        pacote["serie_observada_ana_n"] = len(observada)
         pacote["serie_observada_ana_fonte"] = (
             "ANA/SGB Hidrotelemetria · estação 86472600 · série observada recente; "
             "independente dos pares usados na auditoria da RNA"
