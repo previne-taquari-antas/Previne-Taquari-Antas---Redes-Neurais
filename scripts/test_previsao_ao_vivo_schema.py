@@ -30,6 +30,41 @@ class LiveFeedContractTests(unittest.TestCase):
     def test_current_feed_schema_and_forward_metadata(self) -> None:
         validate_data(self.data, b_mat=B_MAT)
 
+    def make_total_outage_feed(self):
+        from previne.robo import gerar_previsao_ao_vivo as robo
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "outage.json"
+            with patch.object(robo, "SAIDA", str(output)), \
+                 patch.object(robo, "carregar_historico", return_value=[]), \
+                 patch.dict(robo.ULTIMA_RAW, {}, clear=True):
+                robo.escrever_pacote_indisponivel("sem dado recente em Santa Tereza", "consulta indisponivel")
+            return json.loads(output.read_text(encoding="utf-8"))
+
+    def test_total_ana_outage_publishes_explicit_unavailability(self):
+        data = self.make_total_outage_feed()
+        self.assertEqual(data["serie_observada_ana"], [])
+        self.assertEqual(data["serie_observada_ana_n"], 0)
+        self.assertEqual(data["serie_observada_ana_status"], "INDISPONIVEL")
+        validate_data(data, b_mat=B_MAT)
+
+    def test_empty_observations_never_authorize_a_forecast(self):
+        data = self.make_total_outage_feed()
+        data["horizontes"]["4h"]["nivel_previsto_cm"] = 500
+        with self.assertRaises(SystemExit):
+            validate_data(data, b_mat=B_MAT)
+
+    def test_empty_observations_do_not_skip_model_hash_checks(self):
+        data = self.make_total_outage_feed()
+        data["horizontes"]["2h"]["modelo_sha256"] = "INVALIDO"
+        with self.assertRaisesRegex(SystemExit, "hash"):
+            validate_data(data, b_mat=B_MAT)
+
+    def test_empty_observations_cannot_claim_current_telemetry(self):
+        data = self.make_total_outage_feed()
+        data["telemetria_ultima_nivel_cm"] = 200
+        with self.assertRaises(SystemExit):
+            validate_data(data, b_mat=B_MAT)
+
     def test_hand_zero_is_separate_from_official_flood_level(self) -> None:
         self.assertEqual(self.data["bankfull_cm"], 1500)
         self.assertEqual(self.data["hand_zero_cm"], 160)
