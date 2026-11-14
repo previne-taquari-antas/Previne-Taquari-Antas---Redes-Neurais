@@ -8,7 +8,7 @@
  "telemetria_ultima_nivel_cm": 328,
  "telemetria_raw_rejeitada": null,
  "idade_telemetria_min": 69,
- "status_dados": "telemetria atrasada (69 min)",
+ "status_dados": "consulta ANA instavel; exibindo ultima previsao valida",
  "estacao": "86472600",
  "local": "Santa Tereza",
  "horizonte": "2h",
@@ -55,7 +55,7 @@
  "nivel_rio_agora_cm": 328,
  "nivel_rio_agora_em": "2026-11-14T06:45:00",
  "nivel_atual_cm": 326,
- "nivel_previsto_cm": 333,
+ "nivel_previsto_cm": null,
  "inputs_total": 15,
  "inputs_faltantes_n": 0,
  "inputs_faltantes": [],
@@ -314,9 +314,9 @@
    ]
   }
  ],
- "status": "ok",
+ "status": "indisponivel: horario-alvo vencido; aguardando nova telemetria",
  "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
- "disponivel": true,
+ "disponivel": false,
  "delta_previsto_cm": 7.4,
  "input_values_cm": [
   326.0,
@@ -907,13 +907,7 @@
   "input_grade": "hourly_exact",
   "input_grade_principal": "MINUTO = 0"
  },
- "passos": [
-  [
-   "2026-11-14T06:00:00",
-   328,
-   333
-  ]
- ],
+ "passos": [],
  "proxima_base_diagnostico": {
   "hora": "2026-11-14T07:00",
   "pronta": false,
@@ -1264,7 +1258,7 @@
   ]
  },
  "qualidade_ao_vivo": {
-  "status": "NORMAL",
+  "status": "BASE_DESATUALIZADA",
   "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
   "mae_24h_cm": 6.1,
   "maior_erro_abs_24h_cm": 53.0,
@@ -1281,7 +1275,7 @@
    "telemetria_ultima_nivel_cm": 328,
    "telemetria_raw_rejeitada": null,
    "idade_telemetria_min": 69,
-   "status_dados": "telemetria atrasada (69 min)",
+   "status_dados": "consulta ANA instavel; exibindo ultima previsao valida",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "2h",
@@ -1328,7 +1322,7 @@
    "nivel_rio_agora_cm": 328,
    "nivel_rio_agora_em": "2026-11-14T06:45:00",
    "nivel_atual_cm": 326,
-   "nivel_previsto_cm": 333,
+   "nivel_previsto_cm": null,
    "inputs_total": 15,
    "inputs_faltantes_n": 0,
    "inputs_faltantes": [],
@@ -1587,9 +1581,9 @@
      ]
     }
    ],
-   "status": "ok",
+   "status": "indisponivel: horario-alvo vencido; aguardando nova telemetria",
    "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
-   "disponivel": true,
+   "disponivel": false,
    "delta_previsto_cm": 7.4,
    "input_values_cm": [
     326.0,
@@ -1609,7 +1603,7 @@
     19.0
    ],
    "auditoria_inputs": {
-    "status": "NORMAL",
+    "status": "ATENCAO",
     "formula_conferida_com_montador": true,
     "n_inputs": 15,
     "n_exatos": 15,
@@ -2178,15 +2172,10 @@
     ],
     "definicao_diferenca": "D_h(t) = N(t) - N(t-h)",
     "input_grade": "hourly_exact",
-    "input_grade_principal": "MINUTO = 0"
+    "input_grade_principal": "MINUTO = 0",
+    "motivo_publicacao": "ultima previsao vencida durante falha de consulta ANA"
    },
-   "passos": [
-    [
-     "2026-11-14T06:00:00",
-     328,
-     333
-    ]
-   ],
+   "passos": [],
    "proxima_base_diagnostico": {
     "hora": "2026-11-14T07:00",
     "pronta": false,
@@ -2537,12 +2526,23 @@
     ]
    },
    "qualidade_ao_vivo": {
-    "status": "NORMAL",
+    "status": "BASE_DESATUALIZADA",
     "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
     "mae_24h_cm": 6.1,
     "maior_erro_abs_24h_cm": 53.0,
     "modelo": "009_alt_STZ_2H_R09_T10-15-16_V1-5-12-17-21"
-   }
+   },
+   "ultima_tentativa_em": "2026-11-14T08:00:46",
+   "ultima_tentativa_status": "falha",
+   "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza",
+   "previsao_stale_candidata_cm": 333,
+   "passos_stale_candidatos": [
+    [
+     "2026-11-14T06:00:00",
+     328,
+     333
+    ]
+   ]
   },
   "2h_versao_b": {
    "modo": "ao_vivo",
@@ -2554,7 +2554,7 @@
    "telemetria_ultima_nivel_cm": 328,
    "telemetria_raw_rejeitada": null,
    "idade_telemetria_min": 69,
-   "status_dados": "telemetria atrasada (69 min)",
+   "status_dados": "consulta ANA instavel; exibindo ultima previsao valida",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "2h_versao_b",
@@ -2601,7 +2601,7 @@
    "nivel_rio_agora_cm": 328,
    "nivel_rio_agora_em": "2026-11-14T06:45:00",
    "nivel_atual_cm": 326,
-   "nivel_previsto_cm": 334,
+   "nivel_previsto_cm": null,
    "inputs_total": 15,
    "inputs_faltantes_n": 0,
    "inputs_faltantes": [],
@@ -2860,9 +2860,9 @@
      ]
     }
    ],
-   "status": "ok",
+   "status": "indisponivel: horario-alvo vencido; aguardando nova telemetria",
    "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
-   "disponivel": true,
+   "disponivel": false,
    "delta_previsto_cm": 7.5,
    "input_values_cm": [
     326.0,
@@ -2882,7 +2882,7 @@
     19.0
    ],
    "auditoria_inputs": {
-    "status": "NORMAL",
+    "status": "ATENCAO",
     "formula_conferida_com_montador": true,
     "n_inputs": 15,
     "n_exatos": 15,
@@ -3451,15 +3451,10 @@
     ],
     "definicao_diferenca": "D_h(t) = N(t) - N(t-h)",
     "input_grade": "hourly_exact",
-    "input_grade_principal": "MINUTO = 0"
+    "input_grade_principal": "MINUTO = 0",
+    "motivo_publicacao": "ultima previsao vencida durante falha de consulta ANA"
    },
-   "passos": [
-    [
-     "2026-11-14T06:00:00",
-     328,
-     334
-    ]
-   ],
+   "passos": [],
    "proxima_base_diagnostico": {
     "hora": "2026-11-14T07:00",
     "pronta": false,
@@ -3810,12 +3805,23 @@
     ]
    },
    "qualidade_ao_vivo": {
-    "status": "NORMAL",
+    "status": "BASE_DESATUALIZADA",
     "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
     "mae_24h_cm": 5.5,
     "maior_erro_abs_24h_cm": 35.0,
     "modelo": "STZ_2H_ALT_VFINAL_B_20260731"
-   }
+   },
+   "ultima_tentativa_em": "2026-11-14T08:00:46",
+   "ultima_tentativa_status": "falha",
+   "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza",
+   "previsao_stale_candidata_cm": 334,
+   "passos_stale_candidatos": [
+    [
+     "2026-11-14T06:00:00",
+     328,
+     334
+    ]
+   ]
   },
   "4h": {
    "modo": "ao_vivo",
@@ -3827,7 +3833,7 @@
    "telemetria_ultima_nivel_cm": 328,
    "telemetria_raw_rejeitada": null,
    "idade_telemetria_min": 69,
-   "status_dados": "telemetria atrasada (69 min)",
+   "status_dados": "consulta ANA instavel; exibindo ultima previsao valida",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "4h",
@@ -4136,7 +4142,7 @@
      ]
     }
    ],
-   "status": "ok",
+   "status": "aguardando nova telemetria",
    "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
    "disponivel": true,
    "delta_previsto_cm": 10.7,
@@ -5305,18 +5311,21 @@
     "mae_24h_cm": 24.0,
     "maior_erro_abs_24h_cm": 89.0,
     "modelo": "STZ_4H_V11_CASCATA"
-   }
+   },
+   "ultima_tentativa_em": "2026-11-14T08:00:46",
+   "ultima_tentativa_status": "falha",
+   "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza"
   },
   "8h": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-14T07:54:04.678599",
+   "gerado_em": "2026-11-14T08:00:46.509713",
    "hora_modelo": null,
    "hora_alvo": null,
-   "consultado_em": "2026-11-14T07:54:04",
-   "telemetria_ultima_em": "2026-11-14T06:45:00",
-   "telemetria_ultima_nivel_cm": 328,
+   "consultado_em": "2026-11-14T08:00:46",
+   "telemetria_ultima_em": null,
+   "telemetria_ultima_nivel_cm": null,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 69,
+   "idade_telemetria_min": null,
    "status_dados": "telemetria de Santa Tereza sinalizada como invalida; RNA 8h bloqueada para publicacao",
    "estacao": "86472600",
    "local": "Santa Tereza",
@@ -5345,8 +5354,8 @@
    "bankfull_cm": 1500,
    "hand_zero_cm": 160,
    "nivel_modelo_cm": null,
-   "nivel_rio_agora_cm": 328,
-   "nivel_rio_agora_em": "2026-11-14T06:45:00",
+   "nivel_rio_agora_cm": null,
+   "nivel_rio_agora_em": null,
    "nivel_atual_cm": null,
    "nivel_previsto_cm": null,
    "inputs_total": 31,
@@ -5657,34 +5666,20 @@
     ],
     "estacoes": {}
    },
-   "auditoria": {
-    "n_total": 0,
-    "modelo": "STZ_H8_ALT_V001_31IN_63NH",
-    "auditoria_versao": "target_exact_v2",
-    "grade_modelo": "horaria_exata",
-    "n_excluidas_fora_grade": 0,
-    "n_conferidas": 0,
-    "n_aguardando": 0,
-    "ultima_conferida": null,
-    "mae_ultimas_6_cm": null,
-    "mae_24h_cm": null,
-    "baseline": "persistencia_nivel_modelo_cm",
-    "mae_persistencia_24h_cm": null,
-    "melhoria_vs_persistencia_24h_pct": null,
-    "maior_erro_abs_24h_cm": null,
-    "ultimas_conferidas": []
-   }
+   "ultima_tentativa_em": "2026-11-14T08:00:46",
+   "ultima_tentativa_status": "falha",
+   "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza"
   },
   "8h_v002": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-14T07:54:04.681223",
+   "gerado_em": "2026-11-14T08:00:46.512359",
    "hora_modelo": null,
    "hora_alvo": null,
-   "consultado_em": "2026-11-14T07:54:04",
-   "telemetria_ultima_em": "2026-11-14T06:45:00",
-   "telemetria_ultima_nivel_cm": 328,
+   "consultado_em": "2026-11-14T08:00:46",
+   "telemetria_ultima_em": null,
+   "telemetria_ultima_nivel_cm": null,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 69,
+   "idade_telemetria_min": null,
    "status_dados": "telemetria de Santa Tereza sinalizada como invalida; RNA 8h bloqueada para publicacao",
    "estacao": "86472600",
    "local": "Santa Tereza",
@@ -5713,8 +5708,8 @@
    "bankfull_cm": 1500,
    "hand_zero_cm": 160,
    "nivel_modelo_cm": null,
-   "nivel_rio_agora_cm": 328,
-   "nivel_rio_agora_em": "2026-11-14T06:45:00",
+   "nivel_rio_agora_cm": null,
+   "nivel_rio_agora_em": null,
    "nivel_atual_cm": null,
    "nivel_previsto_cm": null,
    "inputs_total": 28,
@@ -6025,23 +6020,9 @@
     ],
     "estacoes": {}
    },
-   "auditoria": {
-    "n_total": 0,
-    "modelo": "STZ_H8_ALT_V002_28IN_57NH",
-    "auditoria_versao": "target_exact_v2",
-    "grade_modelo": "horaria_exata",
-    "n_excluidas_fora_grade": 0,
-    "n_conferidas": 0,
-    "n_aguardando": 0,
-    "ultima_conferida": null,
-    "mae_ultimas_6_cm": null,
-    "mae_24h_cm": null,
-    "baseline": "persistencia_nivel_modelo_cm",
-    "mae_persistencia_24h_cm": null,
-    "melhoria_vs_persistencia_24h_pct": null,
-    "maior_erro_abs_24h_cm": null,
-    "ultimas_conferidas": []
-   }
+   "ultima_tentativa_em": "2026-11-14T08:00:46",
+   "ultima_tentativa_status": "falha",
+   "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza"
   }
  },
  "serie_observada_ana": [
@@ -9763,5 +9744,9 @@
    "maior_erro_abs_24h_cm": null,
    "ultimas_conferidas": []
   }
- }
+ },
+ "ultima_tentativa_em": "2026-11-14T08:00:46",
+ "ultima_tentativa_status": "falha",
+ "erro_robo_ultima_consulta": "sem dado recente em Santa Tereza",
+ "previsao_stale_candidata_cm": 333
 }
