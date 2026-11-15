@@ -515,30 +515,101 @@
       "Resultado · " +
       ($("municipality").value || "Município não identificado");
     box.append(h);
-    const p = document.createElement("p");
-    p.textContent = `${s.assigned} de ${s.required} edificações atendidas no tempo escolhido · ${s.served} de ${s.people} pessoas · ${s.unassigned} edificações sem atendimento. ${r.removed} trechos excluídos.`;
-    box.append(p);
+    const n0 = (v) => Number(v).toLocaleString("pt-BR"),
+      el = (tag, cls, text) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text != null) e.textContent = text;
+        return e;
+      },
+      big = (num, text) => {
+        const d = el("div", "big");
+        d.append(el("b", "", n0(num)), el("span", "", text));
+        return d;
+      };
+    // o número interno do ponto sugerido confunde ao lado do nº da lista
+    const nomeCurto = (t) =>
+      String(t).replace(/^(Ponto sugerido) \d+$/, "Sugerido pelo cálculo");
+    const minutos = $("minutes").value,
+      pct = s.people ? Math.round((100 * s.served) / s.people) : 0;
+    box.append(
+      big(
+        r.destinations.length,
+        r.destinations.length === 1
+          ? "ponto de encontro"
+          : "pontos de encontro",
+      ),
+      big(
+        s.served,
+        `de ${n0(s.people)} pessoas chegam a um ponto em até ${minutos} min a pé`,
+      ),
+    );
+    const barra = el("div", "barra");
+    barra.setAttribute("role", "img");
+    barra.setAttribute("aria-label", pct + "% das pessoas chegam no tempo");
+    const fill = el("i");
+    fill.style.width = pct + "%";
+    barra.append(fill);
+    box.append(
+      barra,
+      el(
+        "p",
+        "",
+        `${n0(s.assigned)} de ${n0(s.required)} edificações atendidas.`,
+      ),
+    );
+    if (s.unassigned)
+      box.append(
+        el(
+          "p",
+          "alerta",
+          `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
+        ),
+      );
+    if (r.removed)
+      box.append(
+        el(
+          "p",
+          "muted",
+          `${n0(r.removed)} trechos de rua ficaram fora da rede (bloqueios ou inundação).`,
+        ),
+      );
     const note = document.createElement("p");
     note.className = "notice";
     note.textContent =
-      `${s.estimated} edificações com população estimada. Seleção e distribuição heurísticas, sem garantia de solução ótima. ` +
+      (s.estimated
+        ? `População estimada em ${n0(s.estimated)} edificações (sem cadastro). `
+        : "") +
       (r.destinations.some((d) => d.capacity === null)
-        ? "Há destinos com capacidade desconhecida; o atendimento não confirma disponibilidade de espaço."
-        : "As capacidades cadastradas foram respeitadas.");
+        ? "Há pontos sem capacidade informada: o resultado não garante que há espaço para todos. "
+        : "As capacidades cadastradas foram respeitadas. ") +
+      "A escolha dos pontos é aproximada; pode existir uma solução melhor.";
     box.append(note);
+    box.append(
+      el(
+        "p",
+        "muted",
+        "Toque numa linha para ver o ponto no mapa; toque numa edificação para ver o caminho dela.",
+      ),
+    );
     const table = document.createElement("table");
     const head = document.createElement("tr");
-    for (const t of ["Destino", "Pessoas", "Capacidade"]) {
+    for (const t of ["Nº", "Ponto de encontro", "Pessoas", "Capacidade"]) {
       const th = document.createElement("th");
       th.textContent = t;
       head.append(th);
     }
     table.append(head);
-    for (const d of r.destinations) {
+    r.destinations.forEach((d, i) => {
       const tr = document.createElement("tr");
+      tr.dataset.i = i;
+      tr.tabIndex = 0;
+      const tdn = document.createElement("td");
+      tdn.append(el("span", "dest-ic sm", String(i + 1)));
+      tr.append(tdn);
       for (const t of [
-        d.name,
-        d.used,
+        nomeCurto(d.name),
+        n0(d.used),
         d.capacity === null
           ? "Não informada"
           : `${d.used + d.occupancy}/${d.capacity}`,
@@ -548,22 +619,45 @@
         tr.append(td);
       }
       table.append(tr);
-      L.marker([d.p[1], d.p[0]])
+      const mk = L.marker([d.p[1], d.p[0]], {
+        title: "Ponto de encontro " + (i + 1),
+        alt: "Ponto de encontro " + (i + 1),
+        zIndexOffset: 500,
+        icon: L.divIcon({
+          className: "dest-ic",
+          html: String(i + 1),
+          iconSize: [26, 26],
+        }),
+      })
         .bindPopup(
           popupText(
-            d.name +
+            "Ponto " +
+              (i + 1) +
               " · " +
-              d.used +
+              nomeCurto(d.name) +
+              " · " +
+              n0(d.used) +
               " pessoas · capacidade " +
               (d.capacity ?? "não informada"),
           ),
         )
         .addTo(resultLayer);
-    }
+      const ir = () => {
+        map.setView(mk.getLatLng(), Math.max(map.getZoom(), 16));
+        mk.openPopup();
+      };
+      tr.onclick = ir;
+      tr.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          ir();
+        }
+      };
+    });
     box.append(table);
     for (const d of r.rejected) {
       const n = document.createElement("p");
-      n.textContent = "Destino excluído: " + d.name + " — " + d.reason;
+      n.textContent = "Ponto não usado: " + d.name + " — " + d.reason;
       box.append(n);
     }
     const reasons = {};
@@ -572,7 +666,9 @@
         reasons[b.reason] = (reasons[b.reason] || 0) + 1;
     for (const [reason, n] of Object.entries(reasons)) {
       const p = document.createElement("p");
-      p.textContent = n + " edificações: " + reason;
+      p.className = "muted";
+      p.textContent =
+        n + (n === 1 ? " edificação: " : " edificações: ") + reason;
       box.append(p);
     }
     r.buildings.forEach((b, i) => {
@@ -601,8 +697,11 @@
               " · " +
               (b.destination == null
                 ? b.reason
-                : r.destinations[b.destination].name +
-                  " · " +
+                : "Ponto " +
+                  (b.destination + 1) +
+                  " (" +
+                  nomeCurto(r.destinations[b.destination].name) +
+                  ") · " +
                   (b.seconds / 60).toFixed(1) +
                   " min"),
           ),
@@ -610,6 +709,7 @@
       });
     });
     $("csv").disabled = $("routes").disabled = false;
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   $("save").onclick = () => {
     if (!validFields()) return;
