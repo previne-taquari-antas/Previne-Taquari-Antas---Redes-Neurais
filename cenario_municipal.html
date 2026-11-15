@@ -184,9 +184,107 @@
         right: 10px;
         bottom: 20px;
         background: #fffef1ed;
-        padding: 7px;
+        padding: 6px 8px;
+        border-radius: 6px;
         font-size: 12px;
+        line-height: 1.6;
         pointer-events: none;
+      }
+      .como {
+        margin: 12px 0;
+        padding: 10px 12px 10px 30px;
+        background: #f1f7f4;
+        border-radius: 10px;
+        font-size: 14px;
+      }
+      .como li {
+        margin: 4px 0;
+      }
+      details.etapa {
+        border: 1px solid #c7d9d0;
+        border-radius: 10px;
+        margin: 0 0 16px;
+        padding: 10px 12px;
+      }
+      details.etapa > summary small {
+        font-weight: 400;
+      }
+      details.etapa fieldset {
+        border: 0;
+        padding: 0;
+        margin: 8px 0 0;
+      }
+      .big {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: 4px 0;
+      }
+      .big b {
+        flex: none;
+        white-space: nowrap;
+        font-size: 26px;
+        line-height: 1;
+        color: #14684f;
+        font-variant-numeric: tabular-nums;
+      }
+      .barra {
+        height: 8px;
+        border-radius: 5px;
+        background: #e3ebe6;
+        overflow: hidden;
+        margin: 4px 0 10px;
+      }
+      .barra i {
+        display: block;
+        height: 100%;
+        background: #1f8a4c;
+      }
+      .alerta {
+        background: #ffe9e4;
+        border-left: 4px solid #b91c1c;
+        padding: 8px 10px;
+        font-size: 13px;
+        margin: 8px 0;
+      }
+      .dest-ic {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #14532d;
+        color: #fff;
+        font: 700 12px/1 sans-serif;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+      }
+      .dest-ic.sm {
+        display: inline-flex;
+        width: 20px;
+        height: 20px;
+        font-size: 11px;
+        box-shadow: none;
+        vertical-align: -4px;
+      }
+      #results tr[data-i] {
+        cursor: pointer;
+      }
+      #results tr[data-i]:hover,
+      #results tr[data-i]:focus {
+        background: #eef7f2;
+        outline: none;
+      }
+      .map-note span {
+        display: inline-block;
+        margin-right: 10px;
+        white-space: nowrap;
+      }
+      .map-note i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
       }
       .busy {
         opacity: 0.65;
@@ -203,6 +301,13 @@
           display: flex;
           flex-direction: column;
           height: auto;
+        }
+        .map-note {
+          left: 6px;
+          right: 6px;
+          bottom: 18px;
+          font-size: 11px;
+          padding: 4px 6px;
         }
         .map-shell {
           order: -1;
@@ -229,7 +334,7 @@
         <p>PREVINE · APOIO À DECISÃO</p>
         <h1>Planejamento municipal de evacuação</h1>
       </div>
-      <a href="pontos_encontro.html">Estudo de referência</a>
+      <a href="pontos_encontro.html">Ver o estudo pronto de Santa Tereza</a>
     </header>
     <main>
       <aside>
@@ -238,16 +343,35 @@
           dependem das bases e hipóteses informadas e precisam de validação
           municipal. Não são instruções de evacuação à população.
         </p>
+        <ol class="como">
+          <li>
+            <b>Monte o cenário:</b> a área do município, as ruas, as edificações
+            e a mancha de inundação.
+          </li>
+          <li>
+            <b>Escolha o tempo máximo a pé</b> e, se quiser, os pontos de
+            encontro que o município já tem.
+          </li>
+          <li>
+            <b>Calcule</b> e veja quantas pessoas chegam a um ponto no tempo, e
+            por qual caminho.
+          </li>
+        </ol>
+        <p class="muted">
+          Primeira vez aqui? Carregue o exemplo e aperte “Calcular cenário e
+          rotas” no fim do painel.
+        </p>
         <div class="row">
-          <button id="example">Carregar exemplo: Santa Tereza</button
-          ><button id="reset">Novo município</button>
+          <button id="example" class="primary">
+            Ver um exemplo: Santa Tereza</button
+          ><button id="reset">Começar um município novo</button>
         </div>
         <div id="status" class="status" role="status" aria-live="polite">
-          Comece pela área de interesse e escolha importar seu MDT ou baixar um
-          modelo de elevação.
+          Comece pelo exemplo ou, para um município novo, pela área de interesse
+          na etapa 1.
         </div>
         <fieldset>
-          <legend>1 · Município, área e MDT</legend>
+          <legend>1 · Município, área e terreno</legend>
           <label
             >Município / identificação do cenário<input
               id="municipality"
@@ -269,8 +393,9 @@
             <button id="drawArea">Desenhar área</button
             ><button id="downloadArea">Baixar poligonal</button>
           </div>
-          <h2>Importar ou baixar o MDT</h2>
+          <h2>Terreno (modelo de elevação, MDT)</h2>
           <p class="muted">
+            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5).
             Escolha uma das opções abaixo. Para baixar um modelo ou ler somente
             o recorte de um arquivo grande, desenhe ou importe a área de
             interesse primeiro.
@@ -301,7 +426,7 @@
           </p>
         </fieldset>
         <fieldset>
-          <legend>2 · Bases vetoriais</legend>
+          <legend>2 · Mapas do município (ruas, edificações, mancha)</legend>
           <label
             >Camada a importar<select id="layerKind">
               <option value="aoi">Área de interesse</option>
@@ -387,29 +512,36 @@
             edificações da área de interesse</label
           >
         </fieldset>
+        <details class="etapa">
+          <summary>
+            4 · Bloqueios e desenhos no mapa <small>(opcional)</small>
+          </summary>
+          <fieldset>
+            <legend class="muted">
+              Ruas fechadas, pontos e áreas desenhados à mão
+            </legend>
+            <label
+              >Desenhar no mapa<select id="drawKind">
+                <option value="blockLine">Bloqueio por linha</option>
+                <option value="blockPolygon">Área obstruída</option>
+                <option value="blockPoint">
+                  Bloqueio pontual (raio de 15 m)
+                </option>
+                <option value="destination">Destino</option>
+                <option value="eligible">Área elegível</option>
+                <option value="flood">Mancha de inundação</option>
+              </select></label
+            >
+            <button id="draw">Iniciar desenho</button
+            ><button id="clearBlocks">Remover todos os bloqueios</button>
+            <p class="muted">
+              Edite ou exclua os desenhos pelas ferramentas no mapa. Alterações
+              invalidam os resultados anteriores.
+            </p>
+          </fieldset>
+        </details>
         <fieldset>
-          <legend>4 · Obstruções antes das rotas</legend>
-          <label
-            >Desenhar no mapa<select id="drawKind">
-              <option value="blockLine">Bloqueio por linha</option>
-              <option value="blockPolygon">Área obstruída</option>
-              <option value="blockPoint">
-                Bloqueio pontual (raio de 15 m)
-              </option>
-              <option value="destination">Destino</option>
-              <option value="eligible">Área elegível</option>
-              <option value="flood">Mancha de inundação</option>
-            </select></label
-          >
-          <button id="draw">Iniciar desenho</button
-          ><button id="clearBlocks">Remover todos os bloqueios</button>
-          <p class="muted">
-            Edite ou exclua os desenhos pelas ferramentas no mapa. Alterações
-            invalidam os resultados anteriores.
-          </p>
-        </fieldset>
-        <fieldset>
-          <legend>5 · Inundação e HAND</legend>
+          <legend>5 · Mancha de inundação</legend>
           <label
             >Natureza da mancha<select id="floodType">
               <option value="observada">Histórica observada</option>
@@ -441,7 +573,9 @@
             uma cheia futura.
           </p>
           <details>
-            <summary>Modelo de elevação e geração HAND</summary>
+            <summary>
+              Não tenho a mancha: gerar pelo terreno (HAND, experimental)
+            </summary>
             <p class="muted">
               Use o terreno importado ou baixado na etapa 1 para gerar o cenário
               HAND.
@@ -473,7 +607,7 @@
           </details>
         </fieldset>
         <fieldset>
-          <legend>6 · Destinos e capacidade</legend>
+          <legend>6 · Pontos de encontro e capacidade</legend>
           <label
             >Seleção dos destinos<select id="mode">
               <option value="misto">Destinos cadastrados + sugestões</option>
@@ -502,8 +636,8 @@
         <button id="calculate" class="primary">Calcular cenário e rotas</button>
         <section id="results" hidden aria-live="polite"></section>
         <fieldset style="margin-top: 16px">
-          <legend>7 · Predefinições e relatórios</legend>
-          <button id="save">Baixar predefinições</button
+          <legend>7 · Salvar o cenário e baixar relatórios</legend>
+          <button id="save">Salvar este cenário (arquivo)</button
           ><label
             >Reabrir cenário JSON<input
               id="load"
@@ -524,9 +658,30 @@
           aria-label="Mapa para configuração do cenário municipal"
         ></div>
         <div class="map-note">
-          Azul: inundação · Vermelho: bloqueio · Verde: destino · Roxo: rota
-          selecionada. Clique em uma edificação após calcular para examinar a
-          rota.
+          <span><i style="background: #2479c7"></i>inundação</span>
+          <span><i style="background: #be731a"></i>edificação</span>
+          <span
+            ><i style="background: #126b47"></i>chega a um ponto no tempo</span
+          >
+          <span><i style="background: #b91c1c"></i>não chega no tempo</span>
+          <span
+            ><i
+              style="
+                background: #14532d;
+                border: 2px solid #fff;
+                outline: 1px solid #14532d;
+              "
+            ></i
+            >ponto de encontro</span
+          >
+          <span
+            ><i style="background: #c3382c; border-radius: 2px"></i
+            >bloqueio</span
+          >
+          <span
+            ><i style="background: #6c2a98; border-radius: 2px; height: 4px"></i
+            >caminho</span
+          >
         </div>
       </div>
     </main>
