@@ -209,7 +209,7 @@ function mostra(lat,lon,casa){limpa();box.className='';ultimo=[lat,lon,casa];
   trechos.push(L.circleMarker([lat,lon],{radius:7,color:'#fff',weight:2,fillColor:'#5b2a86',fillOpacity:1,interactive:false}));
   cam=L.featureGroup(trechos).addTo(map);
   box.innerHTML=(naMancha?'<b>Esta casa fica na área que inunda</b> ('+(D.mancha_observada?'área atingida em ':'cheia de ')+esc(D.evento_curto)+').':'<b>Esta casa fica a menos de '+f0(D.offset_m)+' m da área que inunda.</b>')+
-    '<br>Vá para o <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+': '+fmtDist(dm)+', '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso. A rota nas ruas está em roxo contínuo; o acesso aproximado entre a casa e a rua está em roxo tracejado. O traçado exibido pode começar no meio de um segmento de rua; distância e tempo informados continuam sendo os do grafo original.'+
+    '<br>Vá para o <b>ponto '+(k+1)+'</b>'+(nomePonto(p)?' ('+nomePonto(p)+')':'')+': '+fmtDist(dm)+', '+(acima?'pouco mais de '+fmtMin(t):'cerca de '+fmtMin(t))+' a pé no passo de um idoso. O caminho está em roxo no mapa; o trecho tracejado liga a casa à rua.'+
     (p.ilhado?'<br>Esse ponto fica <b>ilhado</b> na cheia: vá antes de a água subir e leve água, comida e remédios.':'')+
     (acima?'<br><b>Passa do tempo máximo de '+f0(PL.tempo_max_min)+' min</b>'+(PL.modo==='algoritmo'?': nenhum lugar seguro fica mais perto que isso daqui.':' com os pontos deste plano.')+' Saia mais cedo ou combine transporte com a Defesa Civil.':'')+
     '<br>Saia antes de a água chegar às ruas (a área azul é onde ela chega na cheia de '+esc(D.evento_curto)+').'+pe;
@@ -240,7 +240,7 @@ function resumoPlano(){const r=PL.resumo,T=f0(PL.tempo_max_min),el=document.getE
   if(fora>0)h+='<p class="nota alerta"><b>'+plural(fora,'casa','casas')+'</b> '+(fora===1?'chegaria':'chegariam')+' a um lugar seguro em '+T+' min, mas não a um ponto deste plano'+(PL.modo==='algoritmo'?'':'. Escolha "Plano de Contingência + sugestões" para cobri-'+(fora===1?'la':'las'))+'.</p>';
   if(PL.modo!=='algoritmo'&&!D.plano.oficiais.some(o=>o.seguro))h+='<p class="nota alerta">Nenhum ponto do Plano de Contingência fica fora da área que inunda.</p>';
   const sug=D.plano.tempo_sugerido_min;
-  if(PL.tempo_max_min!==sug){const ref=plano(sug,PL.modo);
+  if(PL.tempo_max_min!==sug&&n){const ref=plano(sug,PL.modo);
     h+='<p class="nota">'+(PL.tempo_max_min<sug?'Com menos tempo de caminhada, são precisos mais pontos, cada um mais perto das casas':'Com mais tempo, menos pontos dão conta, mas as pessoas andam mais')+
       '. Com '+sug+' min (sugerido): '+plural(ref.pontos.length,'ponto','pontos')+' e '+f0(ref.resumo.no_limite)+' casas no tempo.</p>';}
   h+='<p class="small">Precisam sair: '+plural(s.mancha,'casa','casas')+' na área que inunda e '+f0(s.faixa)+' a menos de '+f0(D.offset_m)+' m dela. '+plural(s.fora,'casa fica','casas ficam')+' longe da água e não '+(s.fora===1?'precisa':'precisam')+' sair.</p>';
