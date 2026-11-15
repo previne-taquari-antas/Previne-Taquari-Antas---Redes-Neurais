@@ -316,8 +316,19 @@
           top: 0;
           z-index: 600;
         }
+        main {
+          background: #fff;
+        }
         aside {
-          overflow: visible;
+          display: contents;
+        }
+        aside > * {
+          margin-left: 12px;
+          margin-right: 12px;
+        }
+        .inicio {
+          order: -2;
+          padding-top: 12px;
         }
         header {
           padding: 12px;
@@ -338,37 +349,39 @@
     </header>
     <main>
       <aside>
-        <p class="notice">
-          Estudo técnico para configurar e comparar cenários. Os resultados
-          dependem das bases e hipóteses informadas e precisam de validação
-          municipal. Não são instruções de evacuação à população.
-        </p>
-        <ol class="como">
-          <li>
-            <b>Monte o cenário:</b> a área do município, as ruas, as edificações
-            e a mancha de inundação.
-          </li>
-          <li>
-            <b>Escolha o tempo máximo a pé</b> e, se quiser, os pontos de
-            encontro que o município já tem.
-          </li>
-          <li>
-            <b>Calcule</b> e veja quantas pessoas chegam a um ponto no tempo, e
-            por qual caminho.
-          </li>
-        </ol>
-        <p class="muted">
-          Primeira vez aqui? Carregue o exemplo e aperte “Calcular cenário e
-          rotas” no fim do painel.
-        </p>
-        <div class="row">
-          <button id="example" class="primary">
-            Ver um exemplo: Santa Tereza</button
-          ><button id="reset">Começar um município novo</button>
-        </div>
-        <div id="status" class="status" role="status" aria-live="polite">
-          Comece pelo exemplo ou, para um município novo, pela área de interesse
-          na etapa 1.
+        <div class="inicio">
+          <p class="notice">
+            Estudo técnico para configurar e comparar cenários. Os resultados
+            dependem das bases e hipóteses informadas e precisam de validação
+            municipal. Não são instruções de evacuação à população.
+          </p>
+          <ol class="como">
+            <li>
+              <b>Monte o cenário:</b> a área do município, as ruas, as
+              edificações e a mancha de inundação.
+            </li>
+            <li>
+              <b>Escolha o tempo máximo a pé</b> e, se quiser, os pontos de
+              encontro que o município já tem.
+            </li>
+            <li>
+              <b>Calcule</b> e veja quantas pessoas chegam a um ponto no tempo,
+              e por qual caminho.
+            </li>
+          </ol>
+          <p class="muted">
+            Primeira vez aqui? Carregue o exemplo e aperte “Calcular cenário e
+            rotas” no fim do painel.
+          </p>
+          <div class="row">
+            <button id="example" class="primary">
+              Ver um exemplo: Santa Tereza</button
+            ><button id="reset">Começar um município novo</button>
+          </div>
+          <div id="status" class="status" role="status" aria-live="polite">
+            Comece pelo exemplo ou, para um município novo, pela área de
+            interesse na etapa 1.
+          </div>
         </div>
         <fieldset>
           <legend>1 · Município, área e terreno</legend>
