@@ -102,7 +102,7 @@
     );
     return;
   }
-  map = L.map("map").setView([-14, -53], 4);
+  map = L.map("map", { worldCopyJump: true }).setView([10, -20], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution:
@@ -407,6 +407,154 @@
   }
   $("upload").onchange = (e) => importLayer(e);
   $("areaUpload").onchange = (e) => importLayer(e, "aoi");
+  // bases abertas para qualquer lugar do mundo (assets/js/cenario_osm.js)
+  const O = window.CenarioOSM;
+  async function pega(url, opts, segundos = 150) {
+    const c = new AbortController(),
+      t = setTimeout(() => c.abort(), segundos * 1000);
+    try {
+      const r = await fetch(url, { ...opts, signal: c.signal });
+      if (!r.ok) throw Error("HTTP " + r.status);
+      return await r.json();
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  const vaiPara = ([w, s, e, n]) =>
+    map.fitBounds(
+      [
+        [s, w],
+        [n, e],
+      ],
+      { maxZoom: 16 },
+    );
+  function usaLimite(l) {
+    try {
+      state.layers.aoi = E.validate(
+        { type: "Feature", properties: { nome: l.nome }, geometry: l.limite },
+        "aoi",
+      );
+      state.sources.aoi = "OpenStreetMap (Nominatim): " + l.nome;
+      if (!$("municipality").value.trim())
+        $("municipality").value = l.nome.split(",")[0].slice(0, 140);
+      invalidate();
+      render();
+      fit();
+      const km2 = O.areaKm2(areaBox()),
+        grande = km2 > O.AREA_MAX_KM2;
+      status(
+        grande
+          ? `Área definida (cerca de ${Math.round(km2).toLocaleString("pt-BR")} km²). É grande para baixar as ruas e edificações: desenhe uma área menor, de até ${O.AREA_MAX_KM2} km², em volta da parte que inunda.`
+          : "Área de interesse definida. Agora baixe as ruas e edificações na etapa 2.",
+        grande,
+      );
+    } catch (err) {
+      status(err.message, true);
+    }
+  }
+  function mostraLugares(lista) {
+    const ul = $("placeResults");
+    ul.replaceChildren();
+    for (const l of lista) {
+      const li = document.createElement("li"),
+        nome = document.createElement("div"),
+        ir = document.createElement("button");
+      nome.textContent = l.nome;
+      ir.textContent = "Ver no mapa";
+      ir.onclick = () => vaiPara(l.caixa);
+      li.append(nome, ir);
+      if (l.limite) {
+        const usar = document.createElement("button");
+        usar.textContent = "Usar o limite como área";
+        usar.onclick = () => usaLimite(l);
+        li.append(usar);
+      }
+      ul.append(li);
+    }
+    if (lista.length) vaiPara(lista[0].caixa);
+  }
+  $("placeSearch").onclick = () =>
+    busy($("placeSearch"), async () => {
+      const q = $("placeQuery").value.trim();
+      if (q.length < 3) throw Error("Escreva o nome do lugar.");
+      status("Procurando “" + q + "”…");
+      let lista;
+      try {
+        lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+      } catch (err) {
+        throw Error(
+          "A busca de lugares não respondeu. Tente de novo em instantes ou aproxime o mapa e desenhe a área.",
+        );
+      }
+      mostraLugares(lista);
+      status(
+        lista.length
+          ? "Lugar encontrado. Use o limite como área de interesse ou desenhe a área no mapa."
+          : "Nenhum lugar encontrado com esse nome. Tente incluir o estado ou o país.",
+        !lista.length,
+      );
+    });
+  $("placeQuery").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      $("placeSearch").click();
+    }
+  });
+  $("osmDownload").onclick = () =>
+    busy($("osmDownload"), async () => {
+      const bbox = areaBox(),
+        km2 = O.areaKm2(bbox);
+      if (km2 > O.AREA_MAX_KM2)
+        throw Error(
+          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
+        );
+      status(
+        "Baixando ruas e edificações do OpenStreetMap… pode levar um minuto.",
+      );
+      const corpo = "data=" + encodeURIComponent(O.consulta(bbox));
+      let osm = null;
+      for (const url of O.SERVIDORES) {
+        try {
+          osm = await pega(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: corpo,
+          });
+          break;
+        } catch (err) {
+          console.warn(url, err);
+        }
+      }
+      if (!osm)
+        throw Error(
+          "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
+        );
+      const r = O.converte(osm);
+      if (!r.roads.features.length)
+        throw Error(
+          "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
+        );
+      const fonte =
+        "OpenStreetMap (ODbL)" +
+        (r.data ? ", dados de " + r.data.slice(0, 10) : "");
+      state.layers.roads = E.validate(r.roads, "roads");
+      state.sources.roads = fonte;
+      if (r.buildings.features.length) {
+        state.layers.buildings = E.validate(r.buildings, "buildings");
+        state.sources.buildings = fonte;
+      }
+      invalidate();
+      render();
+      fit();
+      const n0 = (v) => v.toLocaleString("pt-BR");
+      status(
+        `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
+          (r.buildings.features.length
+            ? " Falta a mancha de inundação (etapa 5)."
+            : " Nenhuma edificação mapeada nessa área: importe as edificações do município."),
+        !r.buildings.features.length,
+      );
+    });
   for (const id of optionIds) {
     $(id).addEventListener("change", invalidate);
     $(id).addEventListener("input", invalidate);
