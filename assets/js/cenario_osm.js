@@ -105,7 +105,8 @@
             g && (g.type === "Polygon" || g.type === "MultiPolygon") ? g : null,
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((l, i, t) => t.findIndex((x) => x.nome === l.nome) === i);
   }
 
   const api = {

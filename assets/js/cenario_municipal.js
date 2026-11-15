@@ -444,7 +444,7 @@
         grande = km2 > O.AREA_MAX_KM2;
       status(
         grande
-          ? `Área definida (cerca de ${Math.round(km2).toLocaleString("pt-BR")} km²). É grande para baixar as ruas e edificações: desenhe uma área menor, de até ${O.AREA_MAX_KM2} km², em volta da parte que inunda.`
+          ? `O limite tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa” (até ${O.AREA_MAX_KM2} km²).`
           : "Área de interesse definida. Agora baixe as ruas e edificações na etapa 2.",
         grande,
       );
@@ -473,6 +473,45 @@
     }
     if (lista.length) vaiPara(lista[0].caixa);
   }
+  // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
+  $("viewArea").onclick = () => {
+    try {
+      const b = map.getBounds().pad(-0.04),
+        [w, s, e, n] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        km2 = O.areaKm2([w, s, e, n]);
+      if (km2 > O.AREA_MAX_KM2)
+        throw Error(
+          `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
+        );
+      state.layers.aoi = E.validate(
+        {
+          type: "Feature",
+          properties: { nome: "Área visível no mapa" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [w, s],
+                [e, s],
+                [e, n],
+                [w, n],
+                [w, s],
+              ],
+            ],
+          },
+        },
+        "aoi",
+      );
+      state.sources.aoi = "Área escolhida no mapa";
+      invalidate();
+      render();
+      status(
+        `Área de interesse definida (cerca de ${km2.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km²). Agora baixe as ruas e edificações na etapa 2.`,
+      );
+    } catch (err) {
+      status(err.message, true);
+    }
+  };
   $("placeSearch").onclick = () =>
     busy($("placeSearch"), async () => {
       const q = $("placeQuery").value.trim();
@@ -489,7 +528,7 @@
       mostraLugares(lista);
       status(
         lista.length
-          ? "Lugar encontrado. Use o limite como área de interesse ou desenhe a área no mapa."
+          ? "Lugar encontrado. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa”."
           : "Nenhum lugar encontrado com esse nome. Tente incluir o estado ou o país.",
         !lista.length,
       );
