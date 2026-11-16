@@ -1,5 +1,5 @@
 // Fluxo completo do cenário municipal em lugares de países diferentes, com os serviços reais:
-// busca do lugar (Nominatim), ruas e edificações (Overpass), relevo (Copernicus), mancha pelo
+// busca do lugar (Nominatim), ruas e edificações (Overpass), relevo (Terrain Tiles), mancha pelo
 // terreno e cálculo. Não entra no teste de cada PR porque depende de serviços de fora:
 // roda em .github/workflows/cenario-mundo-real.yml. MOCK_OVERPASS=1 simula só o Overpass.
 const { chromium } = require("playwright"),
@@ -97,10 +97,31 @@ const simulado = (caixa) => {
       });
     if (process.env.MOCK_OVERPASS)
       await ctx.route(/\/api\/interpreter/, (r) => {
-        const m = decodeURIComponent(r.request().postData()).match(
-          /\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/,
-        );
-        r.fulfill({ json: simulado(m.slice(1, 5).map(Number)) });
+        const q = decodeURIComponent(r.request().postData()),
+          c = q
+            .match(/\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/)
+            .slice(1, 5)
+            .map(Number);
+        if (/waterway/.test(q)) {
+          const [s0, w0, n0, e0] = c;
+          return r.fulfill({
+            json: {
+              elements: [
+                {
+                  type: "way",
+                  id: 1,
+                  tags: { waterway: "river" },
+                  geometry: [
+                    { lat: s0, lon: w0 },
+                    { lat: (s0 + n0) / 2, lon: (w0 + e0) / 2 },
+                    { lat: n0, lon: e0 },
+                  ],
+                },
+              ],
+            },
+          });
+        }
+        r.fulfill({ json: simulado(c) });
       });
     const p = await ctx.newPage();
     p.on("pageerror", (e) => reg.erros.push(e.message));
@@ -166,30 +187,24 @@ const simulado = (caixa) => {
         /\s*Remover\s*/g,
         " | ",
       );
+      // a mancha pelo terreno busca sozinha o relevo e os rios
+      await p.evaluate(
+        () =>
+          (document.querySelector("#generateHand").closest("details").open =
+            true),
+      );
+      await p.fill("#handLevel", "4");
       r = await passo(
-        "relevo Copernicus",
-        () => p.click("#copernicus"),
+        "mancha pelo terreno",
+        () => p.click("#generateHand"),
         300000,
       );
-      reg.relevo = !r.erro;
-      let mancha = false;
-      if (reg.relevo) {
-        await p.evaluate(
-          () =>
-            (document.querySelector("#generateHand").closest("details").open =
-              true),
-        );
-        await p.fill("#drainArea", "0.5");
-        await p.fill("#handLevel", "3");
-        r = await passo(
-          "mancha pelo terreno",
-          () => p.click("#generateHand"),
-          300000,
-        );
-        mancha = !r.erro && /Inundação/.test(await p.innerText("#layers"));
-      }
+      reg.terreno = (await p.textContent("#terrainInfo")).trim().slice(0, 160);
+      const mancha = !r.erro && /Inundação/.test(await p.innerText("#layers"));
+      if (!mancha) throw Error("mancha pelo terreno: " + r.texto);
+      if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto))
+        throw Error("a mancha saiu sem os rios do mapa: " + r.texto);
       reg.mancha = mancha;
-      if (!mancha) await p.check("#allBuildings");
       await p.selectOption("#mode", "automatico");
       r = await passo("calcular", () => p.click("#calculate"), 300000);
       reg.resultado = (await p.innerText("#results"))

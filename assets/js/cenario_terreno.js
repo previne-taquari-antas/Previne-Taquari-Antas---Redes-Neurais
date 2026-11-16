@@ -1,9 +1,22 @@
 /* HAND experimental: condicionamento por priority-flood, fluxo D8 e drenagem por área contribuinte. */
 (function (root) {
   "use strict";
-  function hand(values, width, height, cellArea, threshold, level, bbox) {
+  // rivers (opcional): 1 nas células onde há rio mapeado; elas contam como drenagem mesmo sem
+  // área contribuinte dentro do recorte (o rio que vem de fora da área)
+  function hand(
+    values,
+    width,
+    height,
+    cellArea,
+    threshold,
+    level,
+    bbox,
+    rivers,
+  ) {
     if (values.length !== width * height || width < 3 || height < 3)
       throw Error("Raster inválido.");
+    if (rivers && rivers.length !== values.length)
+      throw Error("Máscara de rios com tamanho diferente do terreno.");
     if (
       !Number.isFinite(level) ||
       level < 0 ||
@@ -84,7 +97,7 @@
     const wet = new Uint8Array(n);
     let streams = 0;
     for (const i of order) {
-      const stream = acc[i] >= threshold;
+      const stream = acc[i] >= threshold || !!(rivers && rivers[i]);
       if (stream) streams++;
       drain[i] = stream ? z[i] : parent[i] >= 0 ? drain[parent[i]] : NaN;
       const h = z[i] - drain[i];

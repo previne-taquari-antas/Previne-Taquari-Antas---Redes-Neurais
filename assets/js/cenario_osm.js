@@ -109,7 +109,128 @@
       .filter((l, i, t) => t.findIndex((x) => x.nome === l.nome) === i);
   }
 
+  // rios mapeados: a drenagem do HAND sem precisar da bacia inteira
+  function consultaRios([w, s, e, n]) {
+    const bb = `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
+    return `[out:json][timeout:90];(way["waterway"~"^(river|stream|canal)$"]${bb};way["natural"="water"]["water"~"^(river|canal)$"]${bb};way["waterway"="riverbank"]${bb};relation["natural"="water"]["water"~"^(river|canal)$"]${bb};);out body geom;`;
+  }
+  // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
+  function mascaraRios(osm, [w, s, e, n], largura, altura) {
+    const m = new Uint8Array(largura * altura),
+      cx = (lon) => ((lon - w) / (e - w)) * largura,
+      cy = (lat) => ((n - lat) / (n - s)) * altura,
+      marca = (x, y) => {
+        x = Math.floor(x);
+        y = Math.floor(y);
+        if (x >= 0 && y >= 0 && x < largura && y < altura)
+          m[y * largura + x] = 1;
+      };
+    function linha(g) {
+      const pts = g.filter(Boolean);
+      for (let i = 1; i < pts.length; i++) {
+        const x0 = cx(pts[i - 1].lon),
+          y0 = cy(pts[i - 1].lat),
+          x1 = cx(pts[i].lon),
+          y1 = cy(pts[i].lat),
+          passos = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2));
+        if (passos > 20000) continue;
+        for (let k = 0; k <= passos; k++)
+          marca(x0 + ((x1 - x0) * k) / passos, y0 + ((y1 - y0) * k) / passos);
+      }
+    }
+    function miolo(g) {
+      // interior do polígono de água, por varredura das linhas da grade
+      const pts = g.filter(Boolean).map((p) => [cx(p.lon), cy(p.lat)]);
+      if (pts.length < 3) return;
+      const ys = pts.map((p) => p[1]),
+        ya = Math.max(0, Math.floor(Math.min(...ys))),
+        yb = Math.min(altura - 1, Math.ceil(Math.max(...ys)));
+      for (let y = ya; y <= yb; y++) {
+        const yc = y + 0.5,
+          xs = [];
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const [xi, yi] = pts[i],
+            [xj, yj] = pts[j];
+          if (yi > yc !== yj > yc)
+            xs.push(xi + ((yc - yi) * (xj - xi)) / (yj - yi));
+        }
+        xs.sort((a, b) => a - b);
+        for (let k = 0; k + 1 < xs.length; k += 2)
+          for (
+            let x = Math.max(0, Math.ceil(xs[k] - 0.5));
+            x <= Math.min(largura - 1, Math.floor(xs[k + 1] - 0.5));
+            x++
+          )
+            m[y * largura + x] = 1;
+      }
+    }
+    for (const el of osm.elements || []) {
+      const t = el.tags || {};
+      if (el.type === "way" && Array.isArray(el.geometry)) {
+        linha(el.geometry);
+        if (t.natural === "water" || t.waterway === "riverbank")
+          miolo(el.geometry);
+      } else if (el.type === "relation")
+        for (const mb of el.members || [])
+          if (Array.isArray(mb.geometry)) {
+            linha(mb.geometry);
+            if (mb.role === "outer") miolo(mb.geometry);
+          }
+    }
+    let celulas = 0;
+    for (const v of m) celulas += v;
+    return { mascara: m, celulas };
+  }
+
+  // relevo do mundo todo que o navegador consegue ler direto (Terrain Tiles, formato terrarium)
+  const RELEVO_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/",
+    RELEVO_FONTE =
+      "Terrain Tiles (AWS/Mapzen: SRTM e outras bases abertas, cerca de 30 m)";
+  const tx = (lon, z) => ((lon + 180) / 360) * 2 ** z,
+    ty = (lat, z) => {
+      const r = (lat * Math.PI) / 180;
+      return (
+        ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z
+      );
+    };
+  // maior zoom (até 13) em que a caixa cabe em poucos quadros
+  function quadrosRelevo([w, s, e, n], maximo = 30) {
+    for (let z = 13; z >= 5; z--) {
+      const x0 = Math.floor(tx(w, z)),
+        x1 = Math.floor(tx(e, z)),
+        y0 = Math.floor(ty(n, z)),
+        y1 = Math.floor(ty(s, z));
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) <= maximo) return { z, x0, x1, y0, y1 };
+    }
+    throw Error(
+      "Área grande demais para buscar o relevo. Reduza a área de interesse.",
+    );
+  }
+  // metros a partir das cores de um ponto do quadro
+  const alturaTerrarium = (r, g, b) => r * 256 + g + b / 256 - 32768;
+  // caixa aumentada em volta da área (o rio e as margens costumam passar da borda)
+  function folga([w, s, e, n], f = 0.25) {
+    const dx = (e - w) * f,
+      dy = (n - s) * f;
+    return [w - dx, Math.max(-84, s - dy), e + dx, Math.min(84, n + dy)];
+  }
+  const trechos = (roads) =>
+    roads.features.reduce(
+      (t, f) => t + Math.max(0, f.geometry.coordinates.length - 1),
+      0,
+    );
+
   const api = {
+    consultaRios,
+    mascaraRios,
+    RELEVO_URL,
+    RELEVO_FONTE,
+    tx,
+    ty,
+    quadrosRelevo,
+    alturaTerrarium,
+    folga,
+    trechos,
     SERVIDORES,
     AREA_MAX_KM2,
     areaKm2,

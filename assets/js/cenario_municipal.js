@@ -573,6 +573,11 @@
         throw Error(
           "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
         );
+      const nt = O.trechos(r.roads);
+      if (nt > 15000)
+        throw Error(
+          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString("pt-BR")} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+        );
       const fonte =
         "OpenStreetMap (ODbL)" +
         (r.data ? ", dados de " + r.data.slice(0, 10) : "");
@@ -1161,7 +1166,7 @@
   }
   function updateTerrain() {
     $("terrainInfo").textContent = state.terrain
-      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} células no recorte. Recorte retangular; HAND limitado à bacia contida nele.`
+      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
       : "Nenhum terreno carregado.";
   }
   async function readTerrain(tiff, bbox) {
@@ -1250,105 +1255,203 @@
         e.target.value = "";
       }
     });
-  $("copernicus").onclick = () =>
-    busy($("copernicus"), async () => {
-      const bbox = areaBox(),
-        [w, s, e, n] = bbox;
-      if (e - w > 2 || n - s > 2)
-        throw Error("Selecione uma área de até 2° por 2°.");
-      const tiles = [];
-      for (let lat = Math.floor(s); lat < Math.ceil(n); lat++)
-        for (let lon = Math.floor(w); lon < Math.ceil(e); lon++) {
-          const name = `Copernicus_DSM_COG_10_${lat < 0 ? "S" : "N"}${String(Math.abs(lat)).padStart(2, "0")}_00_${lon < 0 ? "W" : "E"}${String(Math.abs(lon)).padStart(3, "0")}_00_DEM`;
-          tiles.push(
-            `https://copernicus-dem-30m.s3.amazonaws.com/${name}/${name}.tif`,
-          );
-        }
-      if (tiles.length > 4)
-        throw Error("A área cruza mais de quatro tiles. Reduza o recorte.");
-      status("Obtendo recorte público Copernicus GLO-30…");
-      const parts = [];
-      for (const url of tiles) {
-        const name = url.split("/").at(-1).replace(".tif", "");
+  // Copernicus só responde pelo servidor local (scripts/servir_cenario.py): o site não consegue ler direto
+  const copernicusLocal = async () => {
+    const bbox = areaBox(),
+      [w, s, e, n] = bbox;
+    if (e - w > 2 || n - s > 2)
+      throw Error("Selecione uma área de até 2° por 2°.");
+    const tiles = [];
+    for (let lat = Math.floor(s); lat < Math.ceil(n); lat++)
+      for (let lon = Math.floor(w); lon < Math.ceil(e); lon++) {
+        const name = `Copernicus_DSM_COG_10_${lat < 0 ? "S" : "N"}${String(Math.abs(lat)).padStart(2, "0")}_00_${lon < 0 ? "W" : "E"}${String(Math.abs(lon)).padStart(3, "0")}_00_DEM`;
+        tiles.push(
+          `https://copernicus-dem-30m.s3.amazonaws.com/${name}/${name}.tif`,
+        );
+      }
+    if (tiles.length > 4)
+      throw Error("A área cruza mais de quatro tiles. Reduza o recorte.");
+    status("Obtendo recorte público Copernicus GLO-30…");
+    const parts = [];
+    for (const url of tiles) {
+      const name = url.split("/").at(-1).replace(".tif", "");
+      try {
+        parts.push(
+          await readTerrain(
+            await GeoTIFF.fromUrl(
+              "/api/copernicus?tile=" + encodeURIComponent(name),
+            ),
+            bbox,
+          ),
+        );
+      } catch (proxyError) {
         try {
-          parts.push(
-            await readTerrain(
-              await GeoTIFF.fromUrl(
-                "/api/copernicus?tile=" + encodeURIComponent(name),
-              ),
-              bbox,
+          parts.push(await readTerrain(await GeoTIFF.fromUrl(url), bbox));
+        } catch (directError) {
+          const box = $("terrainInfo");
+          box.replaceChildren(
+            document.createTextNode(
+              "Leitura online indisponível nesta hospedagem. Baixe os tiles abaixo e importe o GeoTIFF; o recorte pela área será aplicado automaticamente. ",
             ),
           );
-        } catch (proxyError) {
-          try {
-            parts.push(await readTerrain(await GeoTIFF.fromUrl(url), bbox));
-          } catch (directError) {
-            const box = $("terrainInfo");
-            box.replaceChildren(
-              document.createTextNode(
-                "Leitura online indisponível nesta hospedagem. Baixe os tiles abaixo e importe o GeoTIFF; o recorte pela área será aplicado automaticamente. ",
-              ),
-            );
-            for (const tile of tiles) {
-              const a = document.createElement("a");
-              a.href = tile;
-              a.textContent = "Baixar " + tile.split("/").at(-1);
-              a.target = "_blank";
-              a.rel = "noopener";
-              box.append(document.createElement("br"), a);
-            }
-            throw Error(
-              "Não foi possível acessar o terreno online. Use os links na seção de terreno para baixar e importar, ou o servidor municipal incluído.",
-            );
+          for (const tile of tiles) {
+            const a = document.createElement("a");
+            a.href = tile;
+            a.textContent = "Baixar " + tile.split("/").at(-1);
+            a.target = "_blank";
+            a.rel = "noopener";
+            box.append(document.createElement("br"), a);
           }
+          throw Error(
+            "Não foi possível acessar o terreno online. Use os links na seção de terreno para baixar e importar, ou o servidor municipal incluído.",
+          );
         }
       }
-      const width = 320,
-        height = Math.max(
-          3,
-          Math.min(320, Math.round((320 * (n - s)) / (e - w))),
-        ),
-        values = [];
-      for (let y = 0; y < height; y++)
-        for (let x = 0; x < width; x++) {
-          const lon = w + ((x + 0.5) / width) * (e - w),
-            lat = n - ((y + 0.5) / height) * (n - s),
-            p = parts.find(
-              (p) =>
-                lon >= p.bbox[0] &&
-                lon <= p.bbox[2] &&
-                lat >= p.bbox[1] &&
-                lat <= p.bbox[3],
-            );
-          if (!p) {
-            values.push(NaN);
-            continue;
-          }
-          const xx = Math.min(
-              p.width - 1,
-              Math.floor(
-                ((lon - p.bbox[0]) / (p.bbox[2] - p.bbox[0])) * p.width,
-              ),
-            ),
-            yy = Math.min(
-              p.height - 1,
-              Math.floor(
-                ((p.bbox[3] - lat) / (p.bbox[3] - p.bbox[1])) * p.height,
-              ),
-            );
-          values.push(p.values[yy * p.width + xx]);
+    }
+    const width = 320,
+      height = Math.max(
+        3,
+        Math.min(320, Math.round((320 * (n - s)) / (e - w))),
+      ),
+      values = [];
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const lon = w + ((x + 0.5) / width) * (e - w),
+          lat = n - ((y + 0.5) / height) * (n - s),
+          p = parts.find(
+            (p) =>
+              lon >= p.bbox[0] &&
+              lon <= p.bbox[2] &&
+              lat >= p.bbox[1] &&
+              lat <= p.bbox[3],
+          );
+        if (!p) {
+          values.push(NaN);
+          continue;
         }
-      state.terrain = {
-        values,
-        width,
-        height,
-        bbox,
-        source: "Copernicus GLO-30 (DSM) · " + tiles.join(" "),
+        const xx = Math.min(
+            p.width - 1,
+            Math.floor(((lon - p.bbox[0]) / (p.bbox[2] - p.bbox[0])) * p.width),
+          ),
+          yy = Math.min(
+            p.height - 1,
+            Math.floor(
+              ((p.bbox[3] - lat) / (p.bbox[3] - p.bbox[1])) * p.height,
+            ),
+          );
+        values.push(p.values[yy * p.width + xx]);
+      }
+    state.terrain = {
+      values,
+      width,
+      height,
+      bbox,
+      source: "Copernicus GLO-30 (DSM) · " + tiles.join(" "),
+    };
+    updateTerrain();
+    invalidate();
+    status(
+      "Recorte Copernicus obtido. Valide a resolução e a drenagem antes de gerar HAND.",
+    );
+  };
+  // relevo carregado direto na página (sem baixar nem importar arquivo), para qualquer lugar
+  function quadro(z, x, y) {
+    return new Promise((ok, falha) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 256;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        ok(g.getImageData(0, 0, 256, 256).data);
       };
-      updateTerrain();
-      invalidate();
+      img.onerror = () =>
+        falha(Error("quadro de relevo " + z + "/" + x + "/" + y));
+      img.src = `${O.RELEVO_URL}${z}/${x}/${y}.png`;
+    });
+  }
+  async function relevoAutomatico(area) {
+    const bbox = O.folga(area),
+      [w, s, e, n] = bbox,
+      q = O.quadrosRelevo(bbox),
+      quadros = new Map(),
+      pedidos = [];
+    status("Buscando o relevo da área…");
+    for (let y = q.y0; y <= q.y1; y++)
+      for (let x = q.x0; x <= q.x1; x++)
+        pedidos.push(
+          quadro(q.z, x, y).then((d) => quadros.set(x + "/" + y, d)),
+        );
+    try {
+      await Promise.all(pedidos);
+    } catch (err) {
+      throw Error(
+        "Não foi possível buscar o relevo agora. Verifique a internet e tente de novo, ou importe um GeoTIFF na etapa 1.",
+      );
+    }
+    const width = 320,
+      height = Math.max(
+        3,
+        Math.min(320, Math.round((320 * (n - s)) / (e - w))),
+      ),
+      values = new Array(width * height);
+    for (let y = 0; y < height; y++) {
+      const fy = O.ty(n - ((y + 0.5) / height) * (n - s), q.z),
+        qy = Math.min(q.y1, Math.floor(fy)),
+        py = Math.min(255, Math.floor((fy - qy) * 256));
+      for (let x = 0; x < width; x++) {
+        const fx = O.tx(w + ((x + 0.5) / width) * (e - w), q.z),
+          qx = Math.min(q.x1, Math.floor(fx)),
+          px = Math.min(255, Math.floor((fx - qx) * 256)),
+          d = quadros.get(qx + "/" + qy),
+          k = (py * 256 + px) * 4;
+        values[y * width + x] = O.alturaTerrarium(d[k], d[k + 1], d[k + 2]);
+      }
+    }
+    state.terrain = { values, width, height, bbox, source: O.RELEVO_FONTE };
+    updateTerrain();
+    invalidate();
+  }
+  // rios mapeados na caixa do relevo; null se o OpenStreetMap não responder (o HAND segue só com o relevo)
+  async function riosDoMapa(t) {
+    status("Buscando os rios mapeados da área…");
+    const corpo = "data=" + encodeURIComponent(O.consultaRios(t.bbox));
+    for (const url of O.SERVIDORES) {
+      try {
+        const osm = await pega(
+            url,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: corpo,
+            },
+            100,
+          ),
+          r = O.mascaraRios(osm, t.bbox, t.width, t.height);
+        return r.celulas ? r : null;
+      } catch (err) {
+        console.warn(url, err);
+      }
+    }
+    return null;
+  }
+  $("copernicus").onclick = () =>
+    busy($("copernicus"), async () => {
+      const area = areaBox();
+      try {
+        await relevoAutomatico(area);
+      } catch (err) {
+        // sem a fonte direta: tenta o servidor local do Copernicus, se houver
+        try {
+          await copernicusLocal();
+          return;
+        } catch (e2) {
+          throw err;
+        }
+      }
       status(
-        "Recorte Copernicus obtido. Valide a resolução e a drenagem antes de gerar HAND.",
+        "Relevo carregado. Na etapa 5 dá para gerar a mancha de inundação pelo terreno.",
       );
     });
   $("downloadTerrain").onclick = () => {
@@ -1367,20 +1470,24 @@
   };
   $("generateHand").onclick = () =>
     busy($("generateHand"), async () => {
-      const t = state.terrain;
-      if (!t) throw Error("Importe ou obtenha um terreno antes.");
-      if (state.layers.aoi) {
+      // sem relevo (ou relevo de outra área): busca sozinho, sem baixar nem importar arquivo
+      const cobre = (t) => {
+        if (!t || !state.layers.aoi) return !!t;
         const a = areaBox();
-        if (
-          a[0] < t.bbox[0] ||
-          a[1] < t.bbox[1] ||
-          a[2] > t.bbox[2] ||
-          a[3] > t.bbox[3]
-        )
-          throw Error(
-            "O terreno não cobre a área de interesse atual. Obtenha outro recorte.",
-          );
-      }
+        return (
+          a[0] >= t.bbox[0] &&
+          a[1] >= t.bbox[1] &&
+          a[2] <= t.bbox[2] &&
+          a[3] <= t.bbox[3]
+        );
+      };
+      if (!cobre(state.terrain)) await relevoAutomatico(areaBox());
+      const t = state.terrain;
+      if (!cobre(t))
+        throw Error(
+          "O terreno não cobre a área de interesse atual. Obtenha outro recorte.",
+        );
+      const rios = await riosDoMapa(t);
       const rev = state.revision,
         [w, s, e, n] = t.bbox,
         cellArea =
@@ -1396,6 +1503,7 @@
         Number($("drainArea").value) * 1e6,
         Number($("handLevel").value),
         t.bbox,
+        rios ? rios.mascara : null,
       ]);
       if (rev !== state.revision)
         throw Error("Configuração alterada durante a geração. Gere novamente.");
@@ -1404,6 +1512,7 @@
       state.layers.flood = layer;
       state.sources.flood =
         t.source +
+        (rios ? " · rios do OpenStreetMap" : "") +
         " · HAND D8 experimental · área contribuinte " +
         $("drainArea").value +
         " km² · nível " +
@@ -1414,7 +1523,13 @@
         "HAND experimental; não calibrado com régua ou evento histórico";
       invalidate();
       render();
-      status("Cenário HAND gerado. Revise-o antes de calcular as rotas.");
+      status(
+        "Mancha gerada pelo terreno" +
+          (rios
+            ? ", a partir dos rios mapeados."
+            : ". Não foi possível ler os rios do OpenStreetMap: a drenagem saiu só do relevo dentro da área e pode falhar para rio que vem de fora.") +
+          " Confira no mapa e ajuste o nível acima do rio antes de calcular.",
+      );
     });
   $("csv").disabled = $("routes").disabled = true;
   render();

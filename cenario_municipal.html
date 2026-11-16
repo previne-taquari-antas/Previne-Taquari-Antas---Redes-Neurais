@@ -445,9 +445,9 @@
           </div>
           <h2>Terreno (modelo de elevação, MDT)</h2>
           <p class="muted">
-            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5).
-            Escolha uma das opções abaixo. Para baixar um modelo ou ler somente
-            o recorte de um arquivo grande, desenhe ou importe a área de
+            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5), e
+            a página busca sozinha quando precisa. Para baixar um modelo ou ler
+            somente o recorte de um arquivo grande, desenhe ou importe a área de
             interesse primeiro.
           </p>
           <label
@@ -462,14 +462,15 @@
             disponíveis. O tamanho suportado depende da memória do navegador e
             da organização do arquivo. Use EPSG:4326 e alturas em metros.
           </p>
-          <button id="copernicus">
-            Baixar modelo de elevação (Copernicus)
+          <button id="copernicus" class="primary">
+            Buscar o relevo da área (automático)
           </button>
-          <button id="downloadTerrain">Baixar recorte do terreno</button>
+          <button id="downloadTerrain">Salvar o relevo em arquivo</button>
           <p class="muted">
-            Copernicus GLO-30 é um modelo de superfície de cerca de 30 m; não
-            substitui automaticamente um MDT local. O download usa a área de
-            interesse, em até quatro tiles.
+            O relevo é carregado direto na página, sem baixar nem importar
+            arquivo. Vem de bases abertas que cobrem o mundo (cerca de 30 m por
+            ponto); se o município tem um MDT melhor, importe acima. Ao gerar a
+            mancha na etapa 5, o relevo também é buscado sozinho.
           </p>
           <p id="terrainInfo" class="muted" role="status" aria-live="polite">
             Nenhum terreno carregado.
@@ -642,11 +643,16 @@
               Não tenho a mancha: gerar pelo terreno (HAND, experimental)
             </summary>
             <p class="muted">
-              Use o terreno importado ou baixado na etapa 1 para gerar o cenário
-              HAND.
+              A página busca o relevo e os rios mapeados (OpenStreetMap) da área
+              e marca como inundado tudo o que fica até o nível escolhido acima
+              do rio mais próximo. Como os rios vêm do mapa, não é preciso ter a
+              bacia inteira para achar o rio. O que o terreno não diz é quanto o
+              rio sobe: informe o nível com base na régua ou numa cheia
+              conhecida.
             </p>
             <label
-              >Área contribuinte mínima de drenagem (km²)<input
+              >Córregos sem nome no mapa: área mínima que drena para eles
+              (km²)<input
                 id="drainArea"
                 type="number"
                 min="0.001"
@@ -654,7 +660,7 @@
                 value="1"
             /></label>
             <label
-              >Nível acima da drenagem (m)<input
+              >Quanto o rio sobe acima do nível normal (m)<input
                 id="handLevel"
                 type="number"
                 min="0"
@@ -662,12 +668,15 @@
                 step="0.1"
                 value="2"
             /></label>
-            <button id="generateHand">Gerar cenário HAND</button>
+            <button id="generateHand" class="primary">
+              Gerar a mancha pelo terreno
+            </button>
             <p class="notice">
-              Modelo experimental com fluxo D8 e preenchimento de depressões,
-              limitado ao recorte (até 320 × 320 células). Use área hidrológica
-              ampla. Não representa propagação, velocidade ou horário de chegada
-              da cheia e não usa cotas de régua sem calibração.
+              Modelo experimental (HAND, fluxo D8), numa grade de até 320 × 320
+              pontos sobre a área. Rio que não está no OpenStreetMap só aparece
+              se a área que drena para ele estiver dentro do recorte. Não
+              representa propagação, velocidade ou horário de chegada da cheia e
+              não usa cotas de régua sem calibração.
             </p>
           </details>
         </fieldset>
