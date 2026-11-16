@@ -181,6 +181,18 @@ const simulado = (caixa) => {
         () => p.click("#osmDownload"),
         300000,
       );
+      // cidade densa: a página pede uma área menor; aproxima e tenta de novo, como ela orienta
+      for (let i = 0; i < 4 && r.erro && /ruas demais/.test(r.texto); i++) {
+        await p.click(".leaflet-control-zoom-in");
+        await p.waitForTimeout(700);
+        r = await passo("área visível (menor)", () => p.click("#viewArea"));
+        if (r.erro) continue;
+        r = await passo(
+          "ruas e edificações",
+          () => p.click("#osmDownload"),
+          300000,
+        );
+      }
       if (r.erro && !/Nenhuma edificação/.test(r.texto))
         throw Error("OpenStreetMap: " + r.texto);
       reg.camadas = (await p.innerText("#layers")).replace(
