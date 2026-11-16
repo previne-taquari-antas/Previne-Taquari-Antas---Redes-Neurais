@@ -1,17 +1,17 @@
 {
  "modo": "ao_vivo",
- "gerado_em": "2026-11-16T09:00:00",
- "gerado_em_utc": "2026-11-16T12:00:00Z",
- "hora_modelo": "2026-11-16T09:00:00",
- "hora_modelo_utc": "2026-11-16T12:00:00Z",
- "hora_alvo": "2026-11-16T11:00:00",
- "hora_alvo_utc": "2026-11-16T14:00:00Z",
- "consultado_em": "2026-11-16T10:58:43",
- "consultado_em_utc": "2026-11-16T13:58:43Z",
- "telemetria_ultima_em": "2026-11-16T10:30:00",
- "telemetria_ultima_em_utc": "2026-11-16T13:30:00Z",
+ "gerado_em": "2026-11-16T10:00:00",
+ "gerado_em_utc": "2026-11-16T13:00:00Z",
+ "hora_modelo": "2026-11-16T10:00:00",
+ "hora_modelo_utc": "2026-11-16T13:00:00Z",
+ "hora_alvo": "2026-11-16T12:00:00",
+ "hora_alvo_utc": "2026-11-16T15:00:00Z",
+ "consultado_em": "2026-11-16T11:03:25",
+ "consultado_em_utc": "2026-11-16T14:03:25Z",
+ "telemetria_ultima_em": "2026-11-16T10:45:00",
+ "telemetria_ultima_em_utc": "2026-11-16T13:45:00Z",
  "telemetria_ultima_nivel_cm": 306,
- "idade_telemetria_min": 29,
+ "idade_telemetria_min": 18,
  "status_dados": "telemetria recente",
  "estacao": "86510000",
  "local": "Muçum",
@@ -50,13 +50,13 @@
   "acel_nivel_86472600_A8h",
   "acel_nivel_86472600_A16h"
  ],
- "nivel_modelo_cm": 308,
- "nivel_base_cm": 308,
+ "nivel_modelo_cm": 307,
+ "nivel_base_cm": 307,
  "nivel_rio_agora_cm": 306,
- "nivel_rio_agora_em": "2026-11-16T10:30:00",
- "nivel_rio_agora_em_utc": "2026-11-16T13:30:00Z",
+ "nivel_rio_agora_em": "2026-11-16T10:45:00",
+ "nivel_rio_agora_em_utc": "2026-11-16T13:45:00Z",
  "nivel_atual_cm": 306,
- "nivel_previsto_cm": 304,
+ "nivel_previsto_cm": 305,
  "inputs_total": 14,
  "inputs_faltantes_n": 0,
  "inputs_faltantes": [],
@@ -84,41 +84,83 @@
   "usa_vizinho_nivel": false,
   "contrato_temporal": "14 inputs em hora cheia exata; níveis e chuva sem interpolação, vizinho ou preenchimento"
  },
- "status": "ok - atencao: base da RNA 2.0h anterior a telemetria recente; aguardando conjunto completo de entradas na mesma hora cheia",
+ "status": "ok - atencao: base da RNA 1.1h anterior a telemetria recente; aguardando conjunto completo de entradas na mesma hora cheia",
  "aviso": "EXPERIMENTAL — não é alerta oficial. Camada espacial da previsão de RNA para Muçum.",
  "telemetria_raw_rejeitada": null,
  "input_values_cm": [
-  308.0,
-  -2.0,
-  -4.0,
-  0.0,
+  307.0,
   -1.0,
-  7.0,
+  -3.0,
+  1.0,
+  1.0,
+  2.0,
   327.0,
   0.0,
-  -1.0,
-  -4.0,
+  0.0,
+  -2.0,
+  0.0,
   1.0,
-  1.0,
-  -1.0,
-  5.0
+  0.0,
+  1.0
  ],
  "modelo_integridade": "sha256_conferido_no_robo",
- "delta_previsto_cm": -3.6,
+ "delta_previsto_cm": -2.0,
  "passos": [
   [
-   "2026-11-16T09:00:00",
-   308,
+   "2026-11-16T10:00:00",
+   307,
    306,
-   304
+   305
   ]
  ],
  "proxima_base_diagnostico": {
-  "hora": "2026-11-16T10:00",
-  "hora_alvo": "2026-11-16T12:00",
+  "hora": "2026-11-16T11:00",
+  "hora_alvo": "2026-11-16T13:00",
   "pronta": false,
-  "inputs_faltantes_n": 8,
+  "inputs_faltantes_n": 14,
   "inputs_faltantes": [
+   {
+    "ordem": 1,
+    "input": "nivel_86510000_t",
+    "estacao": "86510000",
+    "tipo": "nivel",
+    "defasagem_h": 0
+   },
+   {
+    "ordem": 2,
+    "input": "vel_nivel_86510000_D1h",
+    "estacao": "86510000",
+    "tipo": "vel_nivel",
+    "defasagem_h": 1
+   },
+   {
+    "ordem": 3,
+    "input": "vel_nivel_86510000_D2h",
+    "estacao": "86510000",
+    "tipo": "vel_nivel",
+    "defasagem_h": 2
+   },
+   {
+    "ordem": 4,
+    "input": "acel_nivel_86510000_A1h",
+    "estacao": "86510000",
+    "tipo": "acel_nivel",
+    "defasagem_h": 1
+   },
+   {
+    "ordem": 5,
+    "input": "acel_nivel_86510000_A2h",
+    "estacao": "86510000",
+    "tipo": "acel_nivel",
+    "defasagem_h": 2
+   },
+   {
+    "ordem": 6,
+    "input": "acel_nivel_86510000_A12h",
+    "estacao": "86510000",
+    "tipo": "acel_nivel",
+    "defasagem_h": 12
+   },
    {
     "ordem": 7,
     "input": "nivel_86472600_t",
@@ -160,20 +202,6 @@
     "estacao": "86472600",
     "tipo": "acel_nivel",
     "defasagem_h": 2
-   },
-   {
-    "ordem": 13,
-    "input": "acel_nivel_86472600_A8h",
-    "estacao": "86472600",
-    "tipo": "acel_nivel",
-    "defasagem_h": 8
-   },
-   {
-    "ordem": 14,
-    "input": "acel_nivel_86472600_A16h",
-    "estacao": "86472600",
-    "tipo": "acel_nivel",
-    "defasagem_h": 16
    }
   ],
   "alvo_ja_observado": false,
@@ -181,9 +209,9 @@
   "n_inputs_nao_exatos": 0
  },
  "auditoria": {
-  "n_total": 346,
+  "n_total": 347,
   "n_conferidas": 340,
-  "n_aguardando": 1,
+  "n_aguardando": 2,
   "ultima_conferida": {
    "id": "Muçum|2h|MUC_H2_ALT_V001_14IN_29NH_20260827|2026-11-16T08:00:00",
    "local": "Muçum",
@@ -210,7 +238,7 @@
    "auditado_em": "2026-11-16T10:22:26"
   },
   "mae_ultimas_6_cm": 2.2,
-  "mae_24h_cm": 15.2,
+  "mae_24h_cm": 15.7,
   "maior_erro_abs_24h_cm": 83.0,
   "ultimas_conferidas": [
    {
@@ -518,27 +546,27 @@
  "qualidade_ao_vivo": {
   "status": "NORMAL",
   "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
-  "mae_24h_cm": 15.2,
+  "mae_24h_cm": 15.7,
   "maior_erro_abs_24h_cm": 83.0,
   "modelo": "MUC_H2_ALT_V001_14IN_29NH_20260827"
  },
- "atraso_base_telemetria_h": 1.5,
- "idade_base_relogio_h": 1.979,
+ "atraso_base_telemetria_h": 0.75,
+ "idade_base_relogio_h": 1.057,
  "horizontes": {
   "2h": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-16T09:00:00",
-   "gerado_em_utc": "2026-11-16T12:00:00Z",
-   "hora_modelo": "2026-11-16T09:00:00",
-   "hora_modelo_utc": "2026-11-16T12:00:00Z",
-   "hora_alvo": "2026-11-16T11:00:00",
-   "hora_alvo_utc": "2026-11-16T14:00:00Z",
-   "consultado_em": "2026-11-16T10:58:43",
-   "consultado_em_utc": "2026-11-16T13:58:43Z",
-   "telemetria_ultima_em": "2026-11-16T10:30:00",
-   "telemetria_ultima_em_utc": "2026-11-16T13:30:00Z",
+   "gerado_em": "2026-11-16T10:00:00",
+   "gerado_em_utc": "2026-11-16T13:00:00Z",
+   "hora_modelo": "2026-11-16T10:00:00",
+   "hora_modelo_utc": "2026-11-16T13:00:00Z",
+   "hora_alvo": "2026-11-16T12:00:00",
+   "hora_alvo_utc": "2026-11-16T15:00:00Z",
+   "consultado_em": "2026-11-16T11:03:25",
+   "consultado_em_utc": "2026-11-16T14:03:25Z",
+   "telemetria_ultima_em": "2026-11-16T10:45:00",
+   "telemetria_ultima_em_utc": "2026-11-16T13:45:00Z",
    "telemetria_ultima_nivel_cm": 306,
-   "idade_telemetria_min": 29,
+   "idade_telemetria_min": 18,
    "status_dados": "telemetria recente",
    "estacao": "86510000",
    "local": "Muçum",
@@ -577,13 +605,13 @@
     "acel_nivel_86472600_A8h",
     "acel_nivel_86472600_A16h"
    ],
-   "nivel_modelo_cm": 308,
-   "nivel_base_cm": 308,
+   "nivel_modelo_cm": 307,
+   "nivel_base_cm": 307,
    "nivel_rio_agora_cm": 306,
-   "nivel_rio_agora_em": "2026-11-16T10:30:00",
-   "nivel_rio_agora_em_utc": "2026-11-16T13:30:00Z",
+   "nivel_rio_agora_em": "2026-11-16T10:45:00",
+   "nivel_rio_agora_em_utc": "2026-11-16T13:45:00Z",
    "nivel_atual_cm": 306,
-   "nivel_previsto_cm": 304,
+   "nivel_previsto_cm": 305,
    "inputs_total": 14,
    "inputs_faltantes_n": 0,
    "inputs_faltantes": [],
@@ -611,41 +639,83 @@
     "usa_vizinho_nivel": false,
     "contrato_temporal": "14 inputs em hora cheia exata; níveis e chuva sem interpolação, vizinho ou preenchimento"
    },
-   "status": "ok - atencao: base da RNA 2.0h anterior a telemetria recente; aguardando conjunto completo de entradas na mesma hora cheia",
+   "status": "ok - atencao: base da RNA 1.1h anterior a telemetria recente; aguardando conjunto completo de entradas na mesma hora cheia",
    "aviso": "EXPERIMENTAL — não é alerta oficial. Camada espacial da previsão de RNA para Muçum.",
    "telemetria_raw_rejeitada": null,
    "input_values_cm": [
-    308.0,
-    -2.0,
-    -4.0,
-    0.0,
+    307.0,
     -1.0,
-    7.0,
+    -3.0,
+    1.0,
+    1.0,
+    2.0,
     327.0,
     0.0,
-    -1.0,
-    -4.0,
+    0.0,
+    -2.0,
+    0.0,
     1.0,
-    1.0,
-    -1.0,
-    5.0
+    0.0,
+    1.0
    ],
    "modelo_integridade": "sha256_conferido_no_robo",
-   "delta_previsto_cm": -3.6,
+   "delta_previsto_cm": -2.0,
    "passos": [
     [
-     "2026-11-16T09:00:00",
-     308,
+     "2026-11-16T10:00:00",
+     307,
      306,
-     304
+     305
     ]
    ],
    "proxima_base_diagnostico": {
-    "hora": "2026-11-16T10:00",
-    "hora_alvo": "2026-11-16T12:00",
+    "hora": "2026-11-16T11:00",
+    "hora_alvo": "2026-11-16T13:00",
     "pronta": false,
-    "inputs_faltantes_n": 8,
+    "inputs_faltantes_n": 14,
     "inputs_faltantes": [
+     {
+      "ordem": 1,
+      "input": "nivel_86510000_t",
+      "estacao": "86510000",
+      "tipo": "nivel",
+      "defasagem_h": 0
+     },
+     {
+      "ordem": 2,
+      "input": "vel_nivel_86510000_D1h",
+      "estacao": "86510000",
+      "tipo": "vel_nivel",
+      "defasagem_h": 1
+     },
+     {
+      "ordem": 3,
+      "input": "vel_nivel_86510000_D2h",
+      "estacao": "86510000",
+      "tipo": "vel_nivel",
+      "defasagem_h": 2
+     },
+     {
+      "ordem": 4,
+      "input": "acel_nivel_86510000_A1h",
+      "estacao": "86510000",
+      "tipo": "acel_nivel",
+      "defasagem_h": 1
+     },
+     {
+      "ordem": 5,
+      "input": "acel_nivel_86510000_A2h",
+      "estacao": "86510000",
+      "tipo": "acel_nivel",
+      "defasagem_h": 2
+     },
+     {
+      "ordem": 6,
+      "input": "acel_nivel_86510000_A12h",
+      "estacao": "86510000",
+      "tipo": "acel_nivel",
+      "defasagem_h": 12
+     },
      {
       "ordem": 7,
       "input": "nivel_86472600_t",
@@ -687,20 +757,6 @@
       "estacao": "86472600",
       "tipo": "acel_nivel",
       "defasagem_h": 2
-     },
-     {
-      "ordem": 13,
-      "input": "acel_nivel_86472600_A8h",
-      "estacao": "86472600",
-      "tipo": "acel_nivel",
-      "defasagem_h": 8
-     },
-     {
-      "ordem": 14,
-      "input": "acel_nivel_86472600_A16h",
-      "estacao": "86472600",
-      "tipo": "acel_nivel",
-      "defasagem_h": 16
      }
     ],
     "alvo_ja_observado": false,
@@ -708,9 +764,9 @@
     "n_inputs_nao_exatos": 0
    },
    "auditoria": {
-    "n_total": 346,
+    "n_total": 347,
     "n_conferidas": 340,
-    "n_aguardando": 1,
+    "n_aguardando": 2,
     "ultima_conferida": {
      "id": "Muçum|2h|MUC_H2_ALT_V001_14IN_29NH_20260827|2026-11-16T08:00:00",
      "local": "Muçum",
@@ -737,7 +793,7 @@
      "auditado_em": "2026-11-16T10:22:26"
     },
     "mae_ultimas_6_cm": 2.2,
-    "mae_24h_cm": 15.2,
+    "mae_24h_cm": 15.7,
     "maior_erro_abs_24h_cm": 83.0,
     "ultimas_conferidas": [
      {
@@ -1045,12 +1101,12 @@
    "qualidade_ao_vivo": {
     "status": "NORMAL",
     "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
-    "mae_24h_cm": 15.2,
+    "mae_24h_cm": 15.7,
     "maior_erro_abs_24h_cm": 83.0,
     "modelo": "MUC_H2_ALT_V001_14IN_29NH_20260827"
    },
-   "atraso_base_telemetria_h": 1.5,
-   "idade_base_relogio_h": 1.979
+   "atraso_base_telemetria_h": 0.75,
+   "idade_base_relogio_h": 1.057
   },
   "4h": {
    "modo": "ao_vivo",
@@ -1060,12 +1116,12 @@
    "hora_modelo_utc": "2026-11-16T13:00:00Z",
    "hora_alvo": "2026-11-16T14:00:00",
    "hora_alvo_utc": "2026-11-16T17:00:00Z",
-   "consultado_em": "2026-11-16T10:58:43",
-   "consultado_em_utc": "2026-11-16T13:58:43Z",
-   "telemetria_ultima_em": "2026-11-16T10:30:00",
-   "telemetria_ultima_em_utc": "2026-11-16T13:30:00Z",
+   "consultado_em": "2026-11-16T11:03:25",
+   "consultado_em_utc": "2026-11-16T14:03:25Z",
+   "telemetria_ultima_em": "2026-11-16T10:45:00",
+   "telemetria_ultima_em_utc": "2026-11-16T13:45:00Z",
    "telemetria_ultima_nivel_cm": 306,
-   "idade_telemetria_min": 29,
+   "idade_telemetria_min": 18,
    "status_dados": "telemetria recente",
    "estacao": "86510000",
    "local": "Muçum",
@@ -1124,8 +1180,8 @@
    "nivel_modelo_cm": 307,
    "nivel_base_cm": 307,
    "nivel_rio_agora_cm": 306,
-   "nivel_rio_agora_em": "2026-11-16T10:30:00",
-   "nivel_rio_agora_em_utc": "2026-11-16T13:30:00Z",
+   "nivel_rio_agora_em": "2026-11-16T10:45:00",
+   "nivel_rio_agora_em_utc": "2026-11-16T13:45:00Z",
    "nivel_atual_cm": 306,
    "nivel_previsto_cm": null,
    "inputs_total": 15,
@@ -1303,7 +1359,7 @@
      "auditado_em": "2026-11-16T10:22:26"
     },
     "mae_ultimas_6_cm": 11.2,
-    "mae_24h_cm": 56.2,
+    "mae_24h_cm": 58.4,
     "maior_erro_abs_24h_cm": 205.0,
     "ultimas_conferidas": [
      {
@@ -1611,7 +1667,7 @@
    "qualidade_ao_vivo": {
     "status": "ATENCAO",
     "regra": "6 pares prospectivos da formula atual; MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
-    "mae_24h_cm": 56.2,
+    "mae_24h_cm": 58.4,
     "maior_erro_abs_24h_cm": 205.0,
     "modelo": "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31"
    },
@@ -1634,12 +1690,12 @@
    "hora_modelo_utc": "2026-11-16T13:00:00Z",
    "hora_alvo": "2026-11-16T18:00:00",
    "hora_alvo_utc": "2026-11-16T21:00:00Z",
-   "consultado_em": "2026-11-16T10:58:43",
-   "consultado_em_utc": "2026-11-16T13:58:43Z",
-   "telemetria_ultima_em": "2026-11-16T10:30:00",
-   "telemetria_ultima_em_utc": "2026-11-16T13:30:00Z",
+   "consultado_em": "2026-11-16T11:03:25",
+   "consultado_em_utc": "2026-11-16T14:03:25Z",
+   "telemetria_ultima_em": "2026-11-16T10:45:00",
+   "telemetria_ultima_em_utc": "2026-11-16T13:45:00Z",
    "telemetria_ultima_nivel_cm": 306,
-   "idade_telemetria_min": 29,
+   "idade_telemetria_min": 18,
    "status_dados": "telemetria recente",
    "estacao": "86510000",
    "local": "Muçum",
@@ -1714,8 +1770,8 @@
    "nivel_modelo_cm": 307,
    "nivel_base_cm": 307,
    "nivel_rio_agora_cm": 306,
-   "nivel_rio_agora_em": "2026-11-16T10:30:00",
-   "nivel_rio_agora_em_utc": "2026-11-16T13:30:00Z",
+   "nivel_rio_agora_em": "2026-11-16T10:45:00",
+   "nivel_rio_agora_em_utc": "2026-11-16T13:45:00Z",
    "nivel_atual_cm": 306,
    "nivel_previsto_cm": null,
    "inputs_total": 26,
@@ -1909,7 +1965,7 @@
      "auditado_em": "2026-11-16T09:21:38"
     },
     "mae_ultimas_6_cm": 102.8,
-    "mae_24h_cm": 81.7,
+    "mae_24h_cm": 85.5,
     "maior_erro_abs_24h_cm": 178.0,
     "ultimas_conferidas": [
      {
@@ -2217,7 +2273,7 @@
    "qualidade_ao_vivo": {
     "status": "ATENCAO",
     "regra": "6 pares prospectivos da formula atual; MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
-    "mae_24h_cm": 81.7,
+    "mae_24h_cm": 85.5,
     "maior_erro_abs_24h_cm": 178.0,
     "modelo": "032_alt_MUC_H08_V24_RAIN24_UPSTREAM_R00_T31-33-34-35-37_V18-20-21"
    },
@@ -2240,12 +2296,12 @@
    "hora_modelo_utc": "2026-11-16T13:00:00Z",
    "hora_alvo": "2026-11-16T18:00:00",
    "hora_alvo_utc": "2026-11-16T21:00:00Z",
-   "consultado_em": "2026-11-16T10:58:43",
-   "consultado_em_utc": "2026-11-16T13:58:43Z",
-   "telemetria_ultima_em": "2026-11-16T10:30:00",
-   "telemetria_ultima_em_utc": "2026-11-16T13:30:00Z",
+   "consultado_em": "2026-11-16T11:03:25",
+   "consultado_em_utc": "2026-11-16T14:03:25Z",
+   "telemetria_ultima_em": "2026-11-16T10:45:00",
+   "telemetria_ultima_em_utc": "2026-11-16T13:45:00Z",
    "telemetria_ultima_nivel_cm": 306,
-   "idade_telemetria_min": 29,
+   "idade_telemetria_min": 18,
    "status_dados": "telemetria recente",
    "estacao": "86510000",
    "local": "Muçum",
@@ -2322,8 +2378,8 @@
    "nivel_modelo_cm": 307,
    "nivel_base_cm": 307,
    "nivel_rio_agora_cm": 306,
-   "nivel_rio_agora_em": "2026-11-16T10:30:00",
-   "nivel_rio_agora_em_utc": "2026-11-16T13:30:00Z",
+   "nivel_rio_agora_em": "2026-11-16T10:45:00",
+   "nivel_rio_agora_em_utc": "2026-11-16T13:45:00Z",
    "nivel_atual_cm": 306,
    "nivel_previsto_cm": null,
    "inputs_total": 28,
@@ -2519,7 +2575,7 @@
      "auditado_em": "2026-11-16T09:21:38"
     },
     "mae_ultimas_6_cm": 99.8,
-    "mae_24h_cm": 64.6,
+    "mae_24h_cm": 65.3,
     "maior_erro_abs_24h_cm": 165.0,
     "ultimas_conferidas": [
      {
@@ -2827,7 +2883,7 @@
    "qualidade_ao_vivo": {
     "status": "ATENCAO",
     "regra": "6 pares prospectivos da formula atual; MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
-    "mae_24h_cm": 64.6,
+    "mae_24h_cm": 65.3,
     "maior_erro_abs_24h_cm": 165.0,
     "modelo": "034_alt_MUC_H08_V24_RAIN18_24_48_R00_T31-33-34-35-37_V18-20-21"
    },
@@ -2845,9 +2901,9 @@
  },
  "auditoria_historico": {
   "2h": {
-   "n_total": 346,
+   "n_total": 347,
    "n_conferidas": 340,
-   "n_aguardando": 1,
+   "n_aguardando": 2,
    "ultima_conferida": {
     "id": "Muçum|2h|MUC_H2_ALT_V001_14IN_29NH_20260827|2026-11-16T08:00:00",
     "local": "Muçum",
@@ -2874,7 +2930,7 @@
     "auditado_em": "2026-11-16T10:22:26"
    },
    "mae_ultimas_6_cm": 2.2,
-   "mae_24h_cm": 15.2,
+   "mae_24h_cm": 15.7,
    "maior_erro_abs_24h_cm": 83.0,
    "ultimas_conferidas": [
     {
@@ -3209,7 +3265,7 @@
     "auditado_em": "2026-11-16T10:22:26"
    },
    "mae_ultimas_6_cm": 11.2,
-   "mae_24h_cm": 56.2,
+   "mae_24h_cm": 58.4,
    "maior_erro_abs_24h_cm": 205.0,
    "ultimas_conferidas": [
     {
@@ -3544,7 +3600,7 @@
     "auditado_em": "2026-11-16T09:21:38"
    },
    "mae_ultimas_6_cm": 102.8,
-   "mae_24h_cm": 81.7,
+   "mae_24h_cm": 85.5,
    "maior_erro_abs_24h_cm": 178.0,
    "ultimas_conferidas": [
     {
@@ -3879,7 +3935,7 @@
     "auditado_em": "2026-11-16T09:21:38"
    },
    "mae_ultimas_6_cm": 99.8,
-   "mae_24h_cm": 64.6,
+   "mae_24h_cm": 65.3,
    "maior_erro_abs_24h_cm": 165.0,
    "ultimas_conferidas": [
     {
@@ -4186,10 +4242,6 @@
   }
  },
  "serie_observada_ana": [
-  {
-   "hora": "2026-11-09T11:00",
-   "nivel_cm": 424.0
-  },
   {
    "hora": "2026-11-09T11:15",
    "nivel_cm": 423.0
@@ -6848,6 +6900,10 @@
   },
   {
    "hora": "2026-11-16T10:30",
+   "nivel_cm": 306.0
+  },
+  {
+   "hora": "2026-11-16T10:45",
    "nivel_cm": 306.0
   }
  ],
