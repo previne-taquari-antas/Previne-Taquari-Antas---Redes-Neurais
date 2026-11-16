@@ -16,9 +16,14 @@
     return Math.abs((e - w) * 111.32 * Math.cos(lat) * (n - s) * 110.57);
   }
 
-  function consulta([w, s, e, n]) {
-    const bb = `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
-    return `[out:json][timeout:120];(way["highway"]${bb};way["building"]${bb};relation["building"]["type"="multipolygon"]${bb};);out body geom;`;
+  const caixaTxt = ([w, s, e, n]) =>
+    `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
+  const RIOS = (bb) =>
+    `way["waterway"~"^(river|stream|canal)$"]${bb};way["natural"="water"]["water"~"^(river|canal)$"]${bb};way["waterway"="riverbank"]${bb};relation["natural"="water"]["water"~"^(river|canal)$"]${bb};`;
+  // ruas e edificações da caixa; com caixaRios, os rios vêm no mesmo pedido (menos idas ao servidor)
+  function consulta(caixa, caixaRios) {
+    const bb = caixaTxt(caixa);
+    return `[out:json][timeout:120];(way["highway"]${bb};way["building"]${bb};relation["building"]["type"="multipolygon"]${bb};${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""});out body geom;`;
   }
 
   const anel = (g) => {
@@ -32,8 +37,13 @@
   function converte(osm) {
     const roads = [],
       buildings = [];
+    const rios = [];
     for (const el of osm.elements || []) {
       const t = el.tags || {};
+      if (t.waterway || t.natural === "water") {
+        rios.push(el);
+        continue;
+      }
       if (el.type === "way" && Array.isArray(el.geometry)) {
         if (t.highway && !t.building) {
           const ok = el.geometry.every(Boolean),
@@ -83,6 +93,7 @@
     return {
       roads: { type: "FeatureCollection", features: roads },
       buildings: { type: "FeatureCollection", features: buildings },
+      rios,
       data: osm.osm3s?.timestamp_osm_base || null,
     };
   }
@@ -110,9 +121,8 @@
   }
 
   // rios mapeados: a drenagem do HAND sem precisar da bacia inteira
-  function consultaRios([w, s, e, n]) {
-    const bb = `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
-    return `[out:json][timeout:90];(way["waterway"~"^(river|stream|canal)$"]${bb};way["natural"="water"]["water"~"^(river|canal)$"]${bb};way["waterway"="riverbank"]${bb};relation["natural"="water"]["water"~"^(river|canal)$"]${bb};);out body geom;`;
+  function consultaRios(caixa) {
+    return `[out:json][timeout:90];(${RIOS(caixaTxt(caixa))});out body geom;`;
   }
   // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
   function mascaraRios(osm, [w, s, e, n], largura, altura) {

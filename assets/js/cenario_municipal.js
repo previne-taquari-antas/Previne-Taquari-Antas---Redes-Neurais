@@ -420,6 +420,26 @@
       clearTimeout(t);
     }
   }
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  // tenta cada servidor do Overpass; se estiver ocupado (429/504), espera e tenta mais uma vez
+  async function overpass(consulta, segundos = 120) {
+    const opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(consulta),
+    };
+    for (const url of O.SERVIDORES)
+      for (let vez = 0; vez < 2; vez++) {
+        try {
+          return await pega(url, opts, segundos);
+        } catch (err) {
+          console.warn(url, err);
+          if (!/HTTP (429|504)/.test(err.message)) break;
+          await espera(12000);
+        }
+      }
+    return null;
+  }
   const vaiPara = ([w, s, e, n]) =>
     map.fitBounds(
       [
@@ -550,25 +570,15 @@
       status(
         "Baixando ruas e edificações do OpenStreetMap… pode levar um minuto.",
       );
-      const corpo = "data=" + encodeURIComponent(O.consulta(bbox));
-      let osm = null;
-      for (const url of O.SERVIDORES) {
-        try {
-          osm = await pega(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: corpo,
-          });
-          break;
-        } catch (err) {
-          console.warn(url, err);
-        }
-      }
+      // os rios da área (com folga) vêm junto: servem para gerar a mancha pelo terreno
+      const caixaRios = O.folga(bbox),
+        osm = await overpass(O.consulta(bbox, caixaRios), 150);
       if (!osm)
         throw Error(
           "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
         );
       const r = O.converte(osm);
+      state.rios = { caixa: caixaRios, elements: r.rios };
       if (!r.roads.features.length)
         throw Error(
           "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
@@ -1415,24 +1425,26 @@
   }
   // rios mapeados na caixa do relevo; null se o OpenStreetMap não responder (o HAND segue só com o relevo)
   async function riosDoMapa(t) {
-    status("Buscando os rios mapeados da área…");
-    const corpo = "data=" + encodeURIComponent(O.consultaRios(t.bbox));
-    for (const url of O.SERVIDORES) {
-      try {
-        const osm = await pega(
-            url,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: corpo,
-            },
-            100,
-          ),
-          r = O.mascaraRios(osm, t.bbox, t.width, t.height);
-        return r.celulas ? r : null;
-      } catch (err) {
-        console.warn(url, err);
-      }
+    const g = state.rios,
+      [w, s, e, n] = t.bbox,
+      d = 1e-9;
+    let osm = null;
+    // já vieram com as ruas, para a mesma caixa
+    if (
+      g &&
+      g.caixa[0] <= w + d &&
+      g.caixa[1] <= s + d &&
+      g.caixa[2] >= e - d &&
+      g.caixa[3] >= n - d
+    )
+      osm = g;
+    else {
+      status("Buscando os rios mapeados da área…");
+      osm = await overpass(O.consultaRios(t.bbox), 100);
+    }
+    if (osm) {
+      const r = O.mascaraRios(osm, t.bbox, t.width, t.height);
+      if (r.celulas) return r;
     }
     return null;
   }

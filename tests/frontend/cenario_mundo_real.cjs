@@ -91,6 +91,9 @@ const simulado = (caixa) => {
     relatorio = [];
   let falhas = 0;
   for (const lugar of LUGARES) {
+    // os servidores abertos limitam pedidos seguidos da mesma máquina
+    if (relatorio.length && !process.env.MOCK_OVERPASS)
+      await new Promise((r) => setTimeout(r, 45000));
     const reg = { lugar: lugar.q, passos: [], erros: [] },
       ctx = await browser.newContext({
         viewport: { width: 1280, height: 800 },
@@ -102,7 +105,7 @@ const simulado = (caixa) => {
             .match(/\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/)
             .slice(1, 5)
             .map(Number);
-        if (/waterway/.test(q)) {
+        if (/waterway/.test(q) && !/highway/.test(q)) {
           const [s0, w0, n0, e0] = c;
           return r.fulfill({
             json: {
