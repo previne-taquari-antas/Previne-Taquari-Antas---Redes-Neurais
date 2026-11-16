@@ -105,8 +105,8 @@ class SnapshotRetryTests(unittest.TestCase):
         # These independently published live feeds may advance several times
         # during a weather build. Their current values must never be reverted.
         upstream = self.advance({
-            "previsao_ao_vivo.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":321}\\n',
-            "previsao_ao_vivo_mucum.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":700}\\n',
+            "previsao_ao_vivo.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":321}\n',
+            "previsao_ao_vivo_mucum.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":700}\n',
         })
         prepared = retry.prepare_snapshot(lab.worker)
         for path in ("previsao_ao_vivo.json", "previsao_ao_vivo_mucum.json"):
