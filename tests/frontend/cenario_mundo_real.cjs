@@ -15,6 +15,10 @@ const LUGARES = [
   { q: "Ahrweiler, Bad Neuenahr-Ahrweiler, Deutschland", slug: "ahrweiler" },
   { q: "Muçum, Rio Grande do Sul, Brasil", slug: "mucum", grande: true },
 ];
+// LUGAR=lajeado roda só um lugar (um por máquina no CI: os servidores abertos limitam pedidos seguidos)
+const ESCOLHIDOS = process.env.LUGAR
+  ? LUGARES.filter((l) => l.slug === process.env.LUGAR)
+  : LUGARES;
 const tipos = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -90,7 +94,7 @@ const simulado = (caixa) => {
     browser = await chromium.launch(),
     relatorio = [];
   let falhas = 0;
-  for (const lugar of LUGARES) {
+  for (const lugar of ESCOLHIDOS) {
     // os servidores abertos limitam pedidos seguidos da mesma máquina
     if (relatorio.length && !process.env.MOCK_OVERPASS)
       await new Promise((r) => setTimeout(r, 45000));
@@ -128,6 +132,11 @@ const simulado = (caixa) => {
       });
     const p = await ctx.newPage();
     p.on("pageerror", (e) => reg.erros.push(e.message));
+    reg.avisos = [];
+    p.on("console", (m) => {
+      if (m.type() === "warning" && /interpreter/.test(m.text()))
+        reg.avisos.push(m.text().slice(0, 160));
+    });
     const estado = async (ms = 120000) => {
         // espera o botão em uso terminar
         await p.waitForFunction(

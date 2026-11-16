@@ -21,6 +21,10 @@ jobs:
   mundo:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lugar: [lajeado, alfafar, ahrweiler, mucum]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,11 +44,13 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - name: Fluxo completo em quatro lugares
+      - name: Fluxo completo em ${{ matrix.lugar }}
+        env:
+          LUGAR: ${{ matrix.lugar }}
         run: node tests/frontend/cenario_mundo_real.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cenario-mundo-real
+          name: cenario-mundo-real-${{ matrix.lugar }}
           path: /tmp/previne-cenario-mundo
           retention-days: 14
