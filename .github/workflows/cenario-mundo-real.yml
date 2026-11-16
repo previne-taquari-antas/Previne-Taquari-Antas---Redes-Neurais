@@ -23,8 +23,22 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
-        lugar: [lajeado, alfafar, ahrweiler, mucum, santa_tereza]
+        lugar:
+          - lajeado
+          - alfafar
+          - ahrweiler
+          - mucum
+          - santa_tereza
+          - roca_sales
+          - encantado
+          - petropolis
+          - faenza
+          - ellicott
+          - derna
+          - pepinster
+          - quilmes
     steps:
       - uses: actions/checkout@v4
         with:

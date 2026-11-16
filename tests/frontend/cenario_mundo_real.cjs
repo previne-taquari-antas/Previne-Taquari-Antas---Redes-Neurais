@@ -21,6 +21,19 @@ const LUGARES = [
   { q: "Alfafar, Valencia, España", slug: "alfafar" },
   { q: "Ahrweiler, Bad Neuenahr-Ahrweiler, Deutschland", slug: "ahrweiler" },
   { q: "Muçum, Rio Grande do Sul, Brasil", slug: "mucum", grande: true },
+  // segunda leva: outros municípios do vale, outros países, relevos e tipos de resposta da busca
+  { q: "Centro, Roca Sales, Rio Grande do Sul, Brasil", slug: "roca_sales" },
+  {
+    q: "Centro, Encantado, Rio Grande do Sul, Brasil",
+    slug: "encantado",
+    auto: true,
+  },
+  { q: "Centro, Petrópolis, Rio de Janeiro, Brasil", slug: "petropolis" }, // busca devolve ponto, serra
+  { q: "Borgo Durbecco, Faenza, Italia", slug: "faenza" }, // ponto, planície
+  { q: "Ellicott City Historic District, Maryland, USA", slug: "ellicott" }, // ponto, vale estreito
+  { q: "Derna, Libya", slug: "derna" }, // limite um pouco acima do máximo, litoral
+  { q: "Pepinster, Belgique", slug: "pepinster" },
+  { q: "Quilmes Centro, Buenos Aires, Argentina", slug: "quilmes", auto: true }, // planície, cidade densa
 ];
 // LUGAR=lajeado roda só um lugar (um por máquina no CI: os servidores abertos limitam pedidos seguidos)
 const ESCOLHIDOS = process.env.LUGAR
@@ -282,23 +295,31 @@ async function validaSantaTereza(p, reg, estado) {
       const usar = p.locator("#placeResults li:first-child button", {
         hasText: "Usar o limite",
       });
-      if (lugar.grande) {
-        r = await passo("limite grande", () => usar.click());
-        if (!/Usar a área visível/.test(r.texto))
-          throw Error("devia orientar a usar a área visível: " + r.texto);
+      // nem todo lugar tem limite (a busca pode devolver um ponto) e o limite pode ser grande demais:
+      // nos dois casos o caminho é ver no mapa e usar a área visível
+      const temLimite = (await usar.count()) > 0;
+      r = temLimite
+        ? await passo("usar limite", () => usar.click())
+        : { erro: true, texto: "sem limite" };
+      if (lugar.grande && !/Usar a área visível/.test(r.texto))
+        throw Error("devia orientar a usar a área visível: " + r.texto);
+      if (r.erro) {
+        if (temLimite && !/Usar a área visível/.test(r.texto))
+          throw Error("área: " + r.texto);
         await p
           .locator("#placeResults li:first-child button", {
             hasText: "Ver no mapa",
           })
           .click();
+        await p.waitForTimeout(800);
         // aproxima até a área na tela caber no limite
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 8; i++) {
           r = await passo("área visível", () => p.click("#viewArea"));
           if (!r.erro) break;
           await p.click(".leaflet-control-zoom-in");
           await p.waitForTimeout(600);
         }
-      } else r = await passo("usar limite", () => usar.click());
+      }
       if (r.erro) throw Error("área: " + r.texto);
       if (lugar.auto) {
         await p.fill("#autoLevel", "4");
