@@ -428,14 +428,21 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "data=" + encodeURIComponent(consulta),
     };
-    for (const url of O.SERVIDORES)
+    for (const [k, url] of O.SERVIDORES.entries())
       for (let vez = 0; vez < 2; vez++) {
+        if (k && !vez)
+          status(
+            `O servidor do OpenStreetMap não respondeu. Tentando outro (${k + 1} de ${O.SERVIDORES.length})…`,
+          );
         try {
           return await pega(url, opts, segundos);
         } catch (err) {
           console.warn(url, err);
-          if (!/HTTP (429|502|504)/.test(err.message)) break;
-          await espera(15000 * (vez + 1));
+          if (vez || !/HTTP (429|502|504)/.test(err.message)) break;
+          status(
+            "O servidor do OpenStreetMap está ocupado. Tentando de novo em alguns segundos…",
+          );
+          await espera(8000);
         }
       }
     return null;
@@ -501,7 +508,10 @@
         km2 = O.areaKm2([w, s, e, n]);
       if (km2 > O.AREA_MAX_KM2)
         throw Error(
-          `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
+          (km2 > 20000
+            ? "A área na tela é grande demais."
+            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km².`) +
+            ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
       state.layers.aoi = E.validate(
         {
@@ -1170,8 +1180,17 @@
     });
   function areaBox() {
     if (!state.layers.aoi?.features.length)
-      throw Error("Desenhe ou importe a área de interesse primeiro.");
+      throw Error(
+        "Defina a área de interesse primeiro: procure o lugar na etapa 1 e toque em “Usar a área visível no mapa”.",
+      );
     const b = L.geoJSON(state.layers.aoi).getBounds();
+    return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  }
+  // área de interesse ou, sem ela (bases importadas, exemplo), a extensão das ruas
+  function caixaTrabalho() {
+    if (state.layers.aoi?.features.length) return areaBox();
+    if (!state.layers.roads?.features.length) return areaBox();
+    const b = L.geoJSON(state.layers.roads).getBounds();
     return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
   }
   function updateTerrain() {
@@ -1441,6 +1460,8 @@
     else {
       status("Buscando os rios mapeados da área…");
       osm = await overpass(O.consultaRios(t.bbox), 100);
+      // guarda: gerar de novo com outro nível não pede os rios outra vez
+      if (osm) state.rios = { caixa: t.bbox, elements: osm.elements || [] };
     }
     if (osm) {
       const r = O.mascaraRios(osm, t.bbox, t.width, t.height);
@@ -1484,8 +1505,8 @@
     busy($("generateHand"), async () => {
       // sem relevo (ou relevo de outra área): busca sozinho, sem baixar nem importar arquivo
       const cobre = (t) => {
-        if (!t || !state.layers.aoi) return !!t;
-        const a = areaBox();
+        if (!t) return false;
+        const a = caixaTrabalho();
         return (
           a[0] >= t.bbox[0] &&
           a[1] >= t.bbox[1] &&
@@ -1493,7 +1514,7 @@
           a[3] <= t.bbox[3]
         );
       };
-      if (!cobre(state.terrain)) await relevoAutomatico(areaBox());
+      if (!cobre(state.terrain)) await relevoAutomatico(caixaTrabalho());
       const t = state.terrain;
       if (!cobre(t))
         throw Error(
@@ -1542,6 +1563,31 @@
             : ". Não foi possível ler os rios do OpenStreetMap: a drenagem saiu só do relevo dentro da área e pode falhar para rio que vem de fora.") +
           " Confira no mapa e ajuste o nível acima do rio antes de calcular.",
       );
+    });
+  // tudo de uma vez: ruas e edificações, relevo e rios, mancha e cálculo
+  async function etapaAuto(id) {
+    await $(id).onclick();
+    if ($("status").classList.contains("error"))
+      throw Error($("status").textContent);
+  }
+  $("autoLevel").addEventListener("input", () => {
+    $("handLevel").value = $("autoLevel").value;
+  });
+  $("handLevel").addEventListener("input", () => {
+    $("autoLevel").value = $("handLevel").value;
+  });
+  $("autoAll").onclick = () =>
+    busy($("autoAll"), async () => {
+      areaBox();
+      if (!$("autoLevel").checkValidity() || $("autoLevel").value === "")
+        throw Error("Informe quanto o rio sobe, em metros.");
+      $("handLevel").value = $("autoLevel").value;
+      // bases que a pessoa já importou ficam como estão
+      if (!state.layers.roads || !state.layers.buildings)
+        await etapaAuto("osmDownload");
+      if (!state.layers.flood || $("floodType").value === "hand")
+        await etapaAuto("generateHand");
+      await etapaAuto("calculate");
     });
   $("csv").disabled = $("routes").disabled = true;
   render();
