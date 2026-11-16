@@ -286,6 +286,14 @@
   }
 
   // rios mapeados: a drenagem do HAND sem precisar da bacia inteira
+  // o mesmo pedido em duas partes menores, para quando o servidor não dá conta dele inteiro
+  function consultaPartes(caixa, caixaRios) {
+    const bb = caixaTxt(caixa);
+    return [
+      `[out:json][timeout:120];way["highway"]${bb};out body geom;${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""}`,
+      `[out:json][timeout:120];(way["building"]${bb};relation["building"]${bb};);out tags center;`,
+    ];
+  }
   function consultaRios(caixa) {
     return `[out:json][timeout:90];${RIOS(caixaTxt(caixa))}`;
   }
@@ -399,6 +407,7 @@
 
   const api = {
     consultaRios,
+    consultaPartes,
     mascaraRios,
     RELEVO_URL,
     RELEVO_FONTE,

@@ -437,10 +437,11 @@
           status(
             `O servidor do OpenStreetMap não respondeu. Tentando outro (${k + 1} de ${O.SERVIDORES.length})…`,
           );
+        const t0 = Date.now();
         try {
           return await pega(url, opts, k ? Math.min(segundos, 60) : segundos);
         } catch (err) {
-          console.warn(url, err);
+          console.warn(url, Math.round((Date.now() - t0) / 1000) + " s", err);
           // recusa por excesso de pedidos chega ao navegador como falha de rede, sem o código HTTP
           if (
             vez + 1 >= vezes ||
@@ -606,6 +607,18 @@
       const caixaRios = O.folga(bbox);
       let osm = await overpass(O.consulta(bbox, caixaRios), 150);
       if (!osm) {
+        // pedido grande para o servidor: tenta em duas partes (ruas e rios; depois edificações)
+        status("O pedido não passou inteiro. Tentando em duas partes…");
+        const [qRuas, qCasas] = O.consultaPartes(bbox, caixaRios),
+          a = await overpass(qRuas, 120),
+          b = a && (await overpass(qCasas, 120));
+        if (a && b)
+          osm = {
+            osm3s: a.osm3s,
+            elements: [...(a.elements || []), ...(b.elements || [])],
+          };
+      }
+      if (!osm) {
         // reserva: o próprio servidor do OpenStreetMap, que entrega áreas pequenas
         status(
           "Tentando direto no servidor do OpenStreetMap (funciona para áreas pequenas)…",
@@ -632,6 +645,11 @@
         );
       // curvas com muitos pontos viram menos trechos (os cruzamentos ficam): cabe uma área maior no cálculo
       r.roads = O.simplifica(r.roads);
+      // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
+      if (r.buildings.features.length > 10000)
+        throw Error(
+          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString("pt-BR")}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+        );
       const nt = O.trechos(r.roads);
       if (nt > 15000)
         throw Error(
@@ -759,7 +777,20 @@
       const rev = state.revision,
         o = options();
       status("Construindo a rede, aplicando bloqueios e calculando destinos…");
-      const r = await compute("plan", state.layers, o);
+      // cálculo longo não fica mudo: avisa que segue trabalhando e como encurtar
+      const demora = setTimeout(
+        () =>
+          status(
+            "Ainda calculando… Áreas com muitas ruas e edificações podem levar alguns minutos. Uma área menor calcula mais rápido.",
+          ),
+        45000,
+      );
+      let r;
+      try {
+        r = await compute("plan", state.layers, o);
+      } finally {
+        clearTimeout(demora);
+      }
       if (rev !== state.revision) {
         status(
           "Configuração alterada durante o cálculo. Calcule novamente.",

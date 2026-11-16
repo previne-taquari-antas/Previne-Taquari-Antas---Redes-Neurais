@@ -353,7 +353,11 @@ async function validaSantaTereza(p, reg, estado) {
         600000,
       );
       // cidade densa: a página pede uma área menor; aproxima e tenta de novo, como ela orienta
-      for (let i = 0; i < 4 && r.erro && /ruas demais/.test(r.texto); i++) {
+      for (
+        let i = 0;
+        i < 4 && r.erro && /demais para o cálculo/.test(r.texto);
+        i++
+      ) {
         await p.click(".leaflet-control-zoom-in");
         await p.waitForTimeout(700);
         r = await passo("área visível (menor)", () => p.click("#viewArea"));
