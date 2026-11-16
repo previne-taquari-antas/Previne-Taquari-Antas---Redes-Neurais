@@ -29,15 +29,18 @@ else:
 
 
 OUTPUTS = (CSV, META, FEED, STATUS)
-# The snapshot can only move intact when its inputs are unchanged. A newer
-# river-level/RNA input requires reconstruction, not publishing a dated copy
-# as if it incorporated that reading. This guard favors integrity over uptime.
+# Only immutable/contract inputs and outputs block reuse of a validated snapshot.
+# The two live river/RNA feeds change every ~5 minutes, independently of the
+# weather producer. Requiring a complete weather rebuild for each new telemetry
+# commit creates a persistent push race and prevents weather publication.
+# Their contents are NOT copied by this operation: the target main's newer live
+# feeds remain untouched, while the weather snapshot keeps its original
+# generated_at_utc and observation timestamps (no fabricated freshness).
 PROTECTED = OUTPUTS + (
     ".gitattributes", ".github/workflows/basin-station-forecast.yml",
     ".github/workflows/chuvas-horarias.yml",
     "scripts",
     "codigo_python/10_chuvas", "previne",
-    "previsao_ao_vivo.json", "previsao_ao_vivo_mucum.json",
     "assets/data/estudo_bacia_taquari_antas/postos_g040.geojson",
     "assets/data/estudo_bacia_taquari_antas/pluviometria_g040.geojson",
     "assets/data/estudo_bacia_taquari_antas/ugs_g040.geojson",
