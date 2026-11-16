@@ -235,3 +235,114 @@ test("reserva: resposta do servidor do OpenStreetMap vira ruas, edificações e 
   );
   E.validate(r.roads, "roads");
 });
+
+test("geometria com defeito no mapa não derruba o download", () => {
+  const laco = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 1],
+            [1, 0],
+            [0, 1],
+            [0, 0],
+          ],
+        ],
+      },
+    },
+    boa = O.converte(osm).buildings.features[0];
+  assert.throws(
+    () =>
+      E.validate({ type: "FeatureCollection", features: [laco] }, "buildings"),
+    /auto-interseção/,
+  );
+  const r = O.aproveita(
+    { type: "FeatureCollection", features: [boa, laco] },
+    (c) => E.validate(c, "buildings"),
+  );
+  assert.equal(r.fc.features.length, 2);
+  assert.equal(r.consertadas, 1);
+  assert.equal(r.fora, 0);
+  assert.equal(r.fc.features[1].geometry.type, "Point");
+  E.validate(r.fc, "buildings");
+  const ruim = {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "LineString", coordinates: [[0, 0]] },
+  };
+  assert.equal(
+    O.aproveita({ type: "FeatureCollection", features: [ruim] }, (c) =>
+      E.validate(c, "roads"),
+    ).fora,
+    1,
+  );
+});
+
+test("simplifica as curvas sem mexer nos cruzamentos", () => {
+  // rua quase reta com 9 pontos; o nó 5 é cruzamento com outra rua; o nó 7 faz uma curva de verdade
+  const pts = [],
+    ids = [];
+  for (let i = 0; i < 9; i++) {
+    pts.push([
+      -51.9 + i * 0.0002,
+      -29.4 + (i === 7 ? 0.0004 : i % 2 ? 0.000005 : 0),
+    ]);
+    ids.push(String(i + 1));
+  }
+  const roads = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { highway: "residential", osm_node_ids: ids },
+        geometry: { type: "LineString", coordinates: pts },
+      },
+      {
+        type: "Feature",
+        properties: { highway: "residential", osm_node_ids: ["5", "50"] },
+        geometry: {
+          type: "LineString",
+          coordinates: [pts[4], [-51.8992, -29.401]],
+        },
+      },
+    ],
+  };
+  const r = O.simplifica(roads),
+    f = r.features[0];
+  assert.ok(f.geometry.coordinates.length < 9);
+  assert.equal(f.geometry.coordinates.length, f.properties.osm_node_ids.length);
+  for (const id of ["1", "5", "8", "9"])
+    assert.ok(f.properties.osm_node_ids.includes(id), id);
+  assert.ok(!f.properties.osm_node_ids.includes("2"));
+  assert.ok(O.trechos(r) < O.trechos(roads));
+  E.validate(r, "roads");
+});
+
+test("edificação que vem só com o centro vira ponto", () => {
+  const r = O.converte({
+    elements: [
+      {
+        type: "way",
+        id: 7,
+        tags: { building: "house" },
+        center: { lat: 38.71, lon: -9.14 },
+      },
+      {
+        type: "relation",
+        id: 8,
+        tags: { building: "yes", type: "multipolygon" },
+        center: { lat: 38.72, lon: -9.13 },
+      },
+    ],
+  });
+  assert.equal(r.buildings.features.length, 2);
+  assert.deepEqual(r.buildings.features[0].geometry, {
+    type: "Point",
+    coordinates: [-9.14, 38.71],
+  });
+  E.validate(r.buildings, "buildings");
+  assert.match(O.consulta([0, 0, 1, 1]), /out tags center/);
+});

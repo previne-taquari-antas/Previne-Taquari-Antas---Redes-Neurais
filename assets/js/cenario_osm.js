@@ -26,7 +26,9 @@
   // ruas e edificações da caixa; com caixaRios, os rios vêm no mesmo pedido (menos idas ao servidor)
   function consulta(caixa, caixaRios) {
     const bb = caixaTxt(caixa);
-    return `[out:json][timeout:120];(way["highway"]${bb};way["building"]${bb};relation["building"]["type"="multipolygon"]${bb};);out body geom;${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""}`;
+    // das edificações vem só o centro: é o que o cálculo usa, e o pedido fica várias vezes mais leve
+    // (com o contorno de cada prédio, cidades densas estouravam o tempo do servidor)
+    return `[out:json][timeout:120];way["highway"]${bb};out body geom;(way["building"]${bb};relation["building"]${bb};);out tags center;${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""}`;
   }
 
   const anel = (g) => {
@@ -45,6 +47,18 @@
       const t = el.tags || {};
       if (t.waterway || t.natural === "water") {
         rios.push(el);
+        continue;
+      }
+      if (t.building && el.center) {
+        buildings.push({
+          type: "Feature",
+          id: el.type + "/" + el.id,
+          properties: etiquetas(el),
+          geometry: {
+            type: "Point",
+            coordinates: [el.center.lon, el.center.lat],
+          },
+        });
         continue;
       }
       if (el.type === "way" && Array.isArray(el.geometry)) {
@@ -127,6 +141,126 @@
         });
     }
     return { osm3s: json.osm3s, elements };
+  }
+
+  // O OpenStreetMap tem geometrias com defeito (um prédio cujo contorno se cruza, por exemplo) e uma só
+  // não pode derrubar o download inteiro. valida(fc) é a validação da página, que lança erro.
+  // Prédio com defeito vira um ponto no meio dele (as pessoas continuam lá); o resto sai da lista.
+  function aproveita(fc, valida) {
+    const features = [];
+    let consertadas = 0,
+      fora = 0;
+    const passa = (f) => {
+      try {
+        valida({ type: "FeatureCollection", features: [f] });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+    for (const f of fc.features) {
+      if (passa(f)) {
+        features.push(f);
+        continue;
+      }
+      const g = f.geometry,
+        anel =
+          g.type === "Polygon"
+            ? g.coordinates[0]
+            : g.type === "MultiPolygon"
+              ? g.coordinates[0][0]
+              : null;
+      if (anel && anel.length) {
+        const p = {
+          ...f,
+          geometry: {
+            type: "Point",
+            coordinates: [
+              anel.reduce((t, c) => t + c[0], 0) / anel.length,
+              anel.reduce((t, c) => t + c[1], 0) / anel.length,
+            ],
+          },
+        };
+        if (passa(p)) {
+          features.push(p);
+          consertadas++;
+          continue;
+        }
+      }
+      fora++;
+    }
+    return { fc: { type: "FeatureCollection", features }, consertadas, fora };
+  }
+
+  // Menos trechos por rua: tira os pontos de curva que mudam o traçado em menos de tolM metros.
+  // Ficam as pontas e todo ponto onde duas ruas se encontram (os cruzamentos não mudam).
+  function simplifica(roads, tolM = 4) {
+    const usos = new Map();
+    for (const f of roads.features)
+      for (const id of f.properties.osm_node_ids || [])
+        usos.set(id, (usos.get(id) || 0) + 1);
+    const features = roads.features.map((f) => {
+      const c = f.geometry.coordinates,
+        ids = f.properties.osm_node_ids;
+      if (
+        f.geometry.type !== "LineString" ||
+        c.length < 3 ||
+        !ids ||
+        ids.length !== c.length
+      )
+        return f;
+      const kx = 111320 * Math.cos((c[0][1] * Math.PI) / 180),
+        ky = 110570,
+        fica = new Uint8Array(c.length);
+      fica[0] = fica[c.length - 1] = 1;
+      for (let i = 1; i < c.length - 1; i++)
+        if (usos.get(ids[i]) > 1) fica[i] = 1;
+      // Douglas-Peucker em cada pedaço entre dois pontos que ficam
+      const pilha = [];
+      let a = 0;
+      for (let i = 1; i < c.length; i++)
+        if (fica[i]) {
+          if (i - a > 1) pilha.push([a, i]);
+          a = i;
+        }
+      while (pilha.length) {
+        const [i0, i1] = pilha.pop(),
+          x0 = c[i0][0] * kx,
+          y0 = c[i0][1] * ky,
+          dx = c[i1][0] * kx - x0,
+          dy = c[i1][1] * ky - y0,
+          L2 = dx * dx + dy * dy;
+        let pior = -1,
+          dmax = tolM;
+        for (let i = i0 + 1; i < i1; i++) {
+          const px = c[i][0] * kx - x0,
+            py = c[i][1] * ky - y0,
+            t = L2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / L2)) : 0,
+            d = Math.hypot(px - t * dx, py - t * dy);
+          if (d > dmax) {
+            dmax = d;
+            pior = i;
+          }
+        }
+        if (pior > 0) {
+          fica[pior] = 1;
+          if (pior - i0 > 1) pilha.push([i0, pior]);
+          if (i1 - pior > 1) pilha.push([pior, i1]);
+        }
+      }
+      return {
+        ...f,
+        properties: {
+          ...f.properties,
+          osm_node_ids: ids.filter((_, i) => fica[i]),
+        },
+        geometry: {
+          type: "LineString",
+          coordinates: c.filter((_, i) => fica[i]),
+        },
+      };
+    });
+    return { type: "FeatureCollection", features };
   }
 
   const urlLugar = (texto) =>
@@ -270,6 +404,8 @@
     RELEVO_FONTE,
     tx,
     ty,
+    aproveita,
+    simplifica,
     urlMapa,
     deMapa,
     quadrosRelevo,

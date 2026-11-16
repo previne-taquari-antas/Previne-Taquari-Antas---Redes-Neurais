@@ -472,8 +472,7 @@
         "aoi",
       );
       state.sources.aoi = "OpenStreetMap (Nominatim): " + l.nome;
-      if (!$("municipality").value.trim())
-        $("municipality").value = l.nome.split(",")[0].slice(0, 140);
+      sugereNome(l);
       invalidate();
       render();
       fit();
@@ -489,6 +488,13 @@
       status(err.message, true);
     }
   }
+  // o nome do lugar procurado identifica o cenário, enquanto a pessoa não escrever outro
+  let nomeAuto = "";
+  function sugereNome(l) {
+    const campo = $("municipality");
+    if (campo.value.trim() && campo.value !== nomeAuto) return;
+    nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
+  }
   function mostraLugares(lista) {
     const ul = $("placeResults");
     ul.replaceChildren();
@@ -498,7 +504,10 @@
         ir = document.createElement("button");
       nome.textContent = l.nome;
       ir.textContent = "Ver no mapa";
-      ir.onclick = () => vaiPara(l.caixa);
+      ir.onclick = () => {
+        sugereNome(l);
+        vaiPara(l.caixa);
+      };
       li.append(nome, ir);
       if (l.limite) {
         const usar = document.createElement("button");
@@ -508,7 +517,10 @@
       }
       ul.append(li);
     }
-    if (lista.length) vaiPara(lista[0].caixa);
+    if (lista.length) {
+      sugereNome(lista[0]);
+      vaiPara(lista[0].caixa);
+    }
   }
   // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
   $("viewArea").onclick = () => {
@@ -618,6 +630,8 @@
         throw Error(
           "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
         );
+      // curvas com muitos pontos viram menos trechos (os cruzamentos ficam): cabe uma área maior no cálculo
+      r.roads = O.simplifica(r.roads);
       const nt = O.trechos(r.roads);
       if (nt > 15000)
         throw Error(
@@ -626,12 +640,29 @@
       const fonte =
         "OpenStreetMap (ODbL)" +
         (r.data ? ", dados de " + r.data.slice(0, 10) : "");
+      // uma geometria com defeito no mapa não derruba o download: prédio vira ponto, o resto sai
+      const ruas = O.aproveita(r.roads, (c) => E.validate(c, "roads")),
+        casas = O.aproveita(r.buildings, (c) => E.validate(c, "buildings"));
+      if (!ruas.fc.features.length)
+        throw Error(
+          "As ruas dessa área no OpenStreetMap vieram com defeito. Importe os arquivos do município.",
+        );
+      r.roads = ruas.fc;
+      r.buildings = casas.fc;
       state.layers.roads = E.validate(r.roads, "roads");
       state.sources.roads = fonte;
       if (r.buildings.features.length) {
         state.layers.buildings = E.validate(r.buildings, "buildings");
         state.sources.buildings = fonte;
       }
+      const defeito = ruas.fora + casas.fora,
+        aviso =
+          (casas.consertadas
+            ? ` ${casas.consertadas} edificações com contorno defeituoso entraram como ponto.`
+            : "") +
+          (defeito
+            ? ` ${defeito} itens com defeito no mapa ficaram de fora.`
+            : "");
       invalidate();
       render();
       fit();
@@ -639,7 +670,7 @@
       status(
         `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
           (r.buildings.features.length
-            ? " Falta a mancha de inundação (etapa 5)."
+            ? aviso + " Falta a mancha de inundação (etapa 5)."
             : " Nenhuma edificação mapeada nessa área: importe as edificações do município."),
         !r.buildings.features.length,
       );
