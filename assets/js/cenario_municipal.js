@@ -441,7 +441,12 @@
           return await pega(url, opts, k ? Math.min(segundos, 60) : segundos);
         } catch (err) {
           console.warn(url, err);
-          if (vez + 1 >= vezes || !/HTTP (429|502|503|504)/.test(err.message))
+          // recusa por excesso de pedidos chega ao navegador como falha de rede, sem o código HTTP
+          if (
+            vez + 1 >= vezes ||
+            err.name === "AbortError" ||
+            /HTTP 4(?!29)\d\d/.test(err.message)
+          )
             break;
           status(
             "O servidor do OpenStreetMap está ocupado. Tentando de novo em alguns segundos…",
