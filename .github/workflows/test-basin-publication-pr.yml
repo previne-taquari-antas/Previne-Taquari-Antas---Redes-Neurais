@@ -1,0 +1,37 @@
+name: Testa publicacao meteorologica da bacia (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/reparent_basin_snapshot.py'
+      - 'scripts/test_reparent_basin_snapshot.py'
+      - 'scripts/test_rain_workflow_publication.py'
+      - '.github/workflows/basin-station-forecast.yml'
+      - '.github/workflows/test-basin-publication-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  publication-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/workflows/basin-station-forecast.yml
+            /.github/workflows/chuvas-horarias.yml
+            /.github/workflows/deploy-pages.yml
+            /scripts/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Valida contratos e testes Git de publicação sem acessar fontes externas
+        run: |
+          python -B -m unittest \
+            scripts.test_reparent_basin_snapshot \
+            scripts.test_rain_workflow_publication -v
