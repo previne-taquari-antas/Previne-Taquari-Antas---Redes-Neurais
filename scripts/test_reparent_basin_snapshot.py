@@ -91,13 +91,34 @@ class SnapshotRetryTests(unittest.TestCase):
         self.payload()
         for path in (*retry.OUTPUTS, "scripts/build_basin_station_forecast.py",
                      "previne/robo/source.py", "codigo_python/10_chuvas/source.py",
-                     "previsao_ao_vivo.json", "previsao_ao_vivo_mucum.json",
                      "assets/data/estudo_bacia_taquari_antas/postos_g040.geojson",
                      "assets/data/estudo_bacia_taquari_antas/ugs_g040.geojson"):
             with self.subTest(path=path):
                 self.advance({path: "upstream data or producer changed\n"})
                 with self.assertRaises(retry.RebuildRequired):
                     retry.prepare_snapshot(self.lab.worker)
+
+    def test_newer_live_telemetry_does_not_block_or_overwrite_weather_snapshot(self):
+        lab = self.lab
+        archive = self.payload()
+        candidate = lab.git(lab.worker, "rev-parse", "HEAD").stdout.decode().strip()
+        # These independently published live feeds may advance several times
+        # during a weather build. Their current values must never be reverted.
+        upstream = self.advance({
+            "previsao_ao_vivo.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":321}\\n',
+            "previsao_ao_vivo_mucum.json": '{"gerado_em":"2026-10-07T20:06:00Z","nivel_rio_agora_cm":700}\\n',
+        })
+        prepared = retry.prepare_snapshot(lab.worker)
+        for path in ("previsao_ao_vivo.json", "previsao_ao_vivo_mucum.json"):
+            self.assertEqual(self.tree_bytes(prepared, path), self.tree_bytes(upstream, path))
+        for path in (pub.FEED, pub.STATUS, archive):
+            self.assertEqual(self.tree_bytes(prepared, path), self.tree_bytes(candidate, path))
+        self.assertEqual(
+            lab.git(lab.worker, "show", "-s", "--format=%P", prepared).stdout.decode().strip(),
+            upstream,
+        )
+        feed = json.loads(self.tree_bytes(prepared, pub.FEED))
+        self.assertEqual(feed["generated_at_utc"], "2026-10-07T20:05:00Z")
 
     def test_invalid_pair_status_archive_and_extra_paths_fail_closed(self):
         lab = self.lab
