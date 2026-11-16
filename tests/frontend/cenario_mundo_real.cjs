@@ -179,6 +179,13 @@ async function validaSantaTereza(p, reg, estado) {
     await p.waitForTimeout(400);
     r = await estado(600000);
     if (r.erro) throw Error("mancha no nível " + nivel + ": " + r.texto);
+    if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto)) {
+      // servidor ocupado: espera e gera de novo uma vez
+      await p.waitForTimeout(45000);
+      await p.click("#generateHand");
+      await p.waitForTimeout(400);
+      r = await estado(600000);
+    }
     if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto))
       throw Error("sem os rios do mapa: " + r.texto);
     reg.niveis.push({ nivel_m: nivel, ...compara(ref, await salva()) });

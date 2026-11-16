@@ -428,23 +428,28 @@
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "data=" + encodeURIComponent(consulta),
     };
-    for (const [k, url] of O.SERVIDORES.entries())
-      for (let vez = 0; vez < 2; vez++) {
+    // o primeiro servidor é o principal: quando está ocupado, vale insistir nele antes de ir aos outros,
+    // que costumam demorar mais
+    for (const [k, url] of O.SERVIDORES.entries()) {
+      const vezes = k ? 1 : 4;
+      for (let vez = 0; vez < vezes; vez++) {
         if (k && !vez)
           status(
             `O servidor do OpenStreetMap não respondeu. Tentando outro (${k + 1} de ${O.SERVIDORES.length})…`,
           );
         try {
-          return await pega(url, opts, segundos);
+          return await pega(url, opts, k ? Math.min(segundos, 60) : segundos);
         } catch (err) {
           console.warn(url, err);
-          if (vez || !/HTTP (429|502|504)/.test(err.message)) break;
+          if (vez + 1 >= vezes || !/HTTP (429|502|503|504)/.test(err.message))
+            break;
           status(
             "O servidor do OpenStreetMap está ocupado. Tentando de novo em alguns segundos…",
           );
-          await espera(8000);
+          await espera(6000 + 4000 * vez);
         }
       }
+    }
     return null;
   }
   const vaiPara = ([w, s, e, n]) =>
