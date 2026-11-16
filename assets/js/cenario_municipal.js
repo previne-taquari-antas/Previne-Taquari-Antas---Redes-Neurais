@@ -572,7 +572,13 @@
       status("Procurando “" + q + "”…");
       let lista;
       try {
-        lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+        try {
+          lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+        } catch (primeira) {
+          // o serviço de busca limita pedidos seguidos: uma segunda tentativa costuma passar
+          await espera(2500);
+          lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+        }
       } catch (err) {
         throw Error(
           "A busca de lugares não respondeu. Tente de novo em instantes ou aproxime o mapa e desenhe a área.",
