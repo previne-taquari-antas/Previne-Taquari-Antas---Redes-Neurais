@@ -421,7 +421,7 @@
     }
   }
   const espera = (ms) => new Promise((r) => setTimeout(r, ms));
-  // tenta cada servidor do Overpass; se estiver ocupado (429/504), espera e tenta de novo, até três vezes
+  // tenta cada servidor do Overpass; se estiver ocupado (429/502/504), espera e tenta de novo, mais uma vez
   async function overpass(consulta, segundos = 120) {
     const opts = {
       method: "POST",
@@ -429,12 +429,12 @@
       body: "data=" + encodeURIComponent(consulta),
     };
     for (const url of O.SERVIDORES)
-      for (let vez = 0; vez < 3; vez++) {
+      for (let vez = 0; vez < 2; vez++) {
         try {
           return await pega(url, opts, segundos);
         } catch (err) {
           console.warn(url, err);
-          if (!/HTTP (429|504)/.test(err.message)) break;
+          if (!/HTTP (429|502|504)/.test(err.message)) break;
           await espera(15000 * (vez + 1));
         }
       }

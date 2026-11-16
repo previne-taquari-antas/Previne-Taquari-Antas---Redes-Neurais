@@ -18,12 +18,14 @@
 
   const caixaTxt = ([w, s, e, n]) =>
     `(${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)})`;
+  // só linhas e margens de rio: a relação de um rio grande traria o rio inteiro, de fora da área.
+  // geom(caixa) corta a geometria na caixa, pelo mesmo motivo.
   const RIOS = (bb) =>
-    `way["waterway"~"^(river|stream|canal)$"]${bb};way["natural"="water"]["water"~"^(river|canal)$"]${bb};way["waterway"="riverbank"]${bb};relation["natural"="water"]["water"~"^(river|canal)$"]${bb};`;
+    `(way["waterway"~"^(river|stream|canal)$"]${bb};way["natural"="water"]["water"~"^(river|canal)$"]${bb};way["waterway"="riverbank"]${bb};);out body geom${bb};`;
   // ruas e edificações da caixa; com caixaRios, os rios vêm no mesmo pedido (menos idas ao servidor)
   function consulta(caixa, caixaRios) {
     const bb = caixaTxt(caixa);
-    return `[out:json][timeout:120];(way["highway"]${bb};way["building"]${bb};relation["building"]["type"="multipolygon"]${bb};${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""});out body geom;`;
+    return `[out:json][timeout:120];(way["highway"]${bb};way["building"]${bb};relation["building"]["type"="multipolygon"]${bb};);out body geom;${caixaRios ? RIOS(caixaTxt(caixaRios)) : ""}`;
   }
 
   const anel = (g) => {
@@ -122,7 +124,7 @@
 
   // rios mapeados: a drenagem do HAND sem precisar da bacia inteira
   function consultaRios(caixa) {
-    return `[out:json][timeout:90];(${RIOS(caixaTxt(caixa))});out body geom;`;
+    return `[out:json][timeout:90];${RIOS(caixaTxt(caixa))}`;
   }
   // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
   function mascaraRios(osm, [w, s, e, n], largura, altura) {
@@ -136,8 +138,10 @@
           m[y * largura + x] = 1;
       };
     function linha(g) {
-      const pts = g.filter(Boolean);
+      // pontos fora da caixa vêm vazios: o trecho que sai da área não é ligado em linha reta
+      const pts = g;
       for (let i = 1; i < pts.length; i++) {
+        if (!pts[i - 1] || !pts[i]) continue;
         const x0 = cx(pts[i - 1].lon),
           y0 = cy(pts[i - 1].lat),
           x1 = cx(pts[i].lon),

@@ -191,7 +191,7 @@ const simulado = (caixa) => {
       r = await passo(
         "ruas e edificações",
         () => p.click("#osmDownload"),
-        300000,
+        600000,
       );
       // cidade densa: a página pede uma área menor; aproxima e tenta de novo, como ela orienta
       for (let i = 0; i < 4 && r.erro && /ruas demais/.test(r.texto); i++) {
@@ -202,7 +202,7 @@ const simulado = (caixa) => {
         r = await passo(
           "ruas e edificações",
           () => p.click("#osmDownload"),
-          300000,
+          600000,
         );
       }
       if (r.erro && !/Nenhuma edificação/.test(r.texto))
@@ -221,7 +221,7 @@ const simulado = (caixa) => {
       r = await passo(
         "mancha pelo terreno",
         () => p.click("#generateHand"),
-        300000,
+        600000,
       );
       reg.terreno = (await p.textContent("#terrainInfo")).trim().slice(0, 160);
       const mancha = !r.erro && /Inundação/.test(await p.innerText("#layers"));
@@ -230,7 +230,7 @@ const simulado = (caixa) => {
         throw Error("a mancha saiu sem os rios do mapa: " + r.texto);
       reg.mancha = mancha;
       await p.selectOption("#mode", "automatico");
-      r = await passo("calcular", () => p.click("#calculate"), 300000);
+      r = await passo("calcular", () => p.click("#calculate"), 600000);
       reg.resultado = (await p.innerText("#results"))
         .split("\n")
         .filter(Boolean)
