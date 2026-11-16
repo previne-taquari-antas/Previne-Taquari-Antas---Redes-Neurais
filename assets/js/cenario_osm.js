@@ -5,8 +5,9 @@
   "use strict";
   const SERVIDORES = [
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
   ];
   const AREA_MAX_KM2 = 60;
 
@@ -98,6 +99,34 @@
       rios,
       data: osm.osm3s?.timestamp_osm_base || null,
     };
+  }
+
+  // reserva quando nenhum Overpass responde: o próprio servidor do OpenStreetMap entrega tudo o que
+  // há numa caixa pequena (até 50 mil pontos). Vem sem geometria nas linhas; aqui ela é montada.
+  const urlMapa = ([w, s, e, n]) =>
+    `https://api.openstreetmap.org/api/0.6/map.json?bbox=${w.toFixed(6)},${s.toFixed(6)},${e.toFixed(6)},${n.toFixed(6)}`;
+  function deMapa(json) {
+    const nos = new Map(),
+      linhas = new Map(),
+      elements = [];
+    for (const el of json.elements || [])
+      if (el.type === "node") nos.set(el.id, { lat: el.lat, lon: el.lon });
+      else if (el.type === "way") linhas.set(el.id, el);
+    const geom = (w) => (w.nodes || []).map((id) => nos.get(id) || null);
+    for (const el of json.elements || []) {
+      if (el.type === "way" && el.tags)
+        elements.push({ ...el, geometry: geom(el) });
+      else if (el.type === "relation" && el.tags)
+        elements.push({
+          ...el,
+          members: (el.members || []).map((m) =>
+            m.type === "way" && linhas.has(m.ref)
+              ? { ...m, geometry: geom(linhas.get(m.ref)) }
+              : m,
+          ),
+        });
+    }
+    return { osm3s: json.osm3s, elements };
   }
 
   const urlLugar = (texto) =>
@@ -241,6 +270,8 @@
     RELEVO_FONTE,
     tx,
     ty,
+    urlMapa,
+    deMapa,
     quadrosRelevo,
     alturaTerrarium,
     folga,

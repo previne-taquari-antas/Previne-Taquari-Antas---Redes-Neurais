@@ -131,12 +131,30 @@ test("rios do mapa viram células da grade (linha e polígono de água)", () => 
     r = O.mascaraRios(
       {
         elements: [
-          { type: "way", tags: { waterway: "river" }, geometry: g([[0.05, 0.55], [0.95, 0.55]]) },
-          { type: "way", tags: { natural: "water", water: "river" },
-            geometry: g([[0.2, 0.1], [0.4, 0.1], [0.4, 0.3], [0.2, 0.3], [0.2, 0.1]]) },
+          {
+            type: "way",
+            tags: { waterway: "river" },
+            geometry: g([
+              [0.05, 0.55],
+              [0.95, 0.55],
+            ]),
+          },
+          {
+            type: "way",
+            tags: { natural: "water", water: "river" },
+            geometry: g([
+              [0.2, 0.1],
+              [0.4, 0.1],
+              [0.4, 0.3],
+              [0.2, 0.3],
+              [0.2, 0.1],
+            ]),
+          },
         ],
       },
-      caixa, 10, 10,
+      caixa,
+      10,
+      10,
     );
   // linha do rio: latitude 0,55 fica na linha 4 da grade (o norte é a linha 0)
   for (let x = 1; x < 9; x++) assert.equal(r.mascara[4 * 10 + x], 1);
@@ -160,18 +178,60 @@ test("HAND acha o rio pelo mapa mesmo sem a bacia dentro do recorte", () => {
   // vale em V com o rio no meio; o recorte é pequeno demais para o rio juntar área contribuinte
   const n = 21,
     z = [];
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) z.push(Math.abs(x - 10) * 2 + (n - y) * 0.01);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) z.push(Math.abs(x - 10) * 2 + (n - y) * 0.01);
   const rios = new Uint8Array(n * n);
   for (let y = 0; y < n; y++) rios[y * n + 10] = 1;
-  assert.throws(() => T.hand(z, n, n, 900, 1e9, 3, [0, 0, 1, 1]), /Nenhuma drenagem/);
+  assert.throws(
+    () => T.hand(z, n, n, 900, 1e9, 3, [0, 0, 1, 1]),
+    /Nenhuma drenagem/,
+  );
   const com = T.hand(z, n, n, 900, 1e9, 3, [0, 0, 1, 1], rios);
   assert.ok(com.features.length > 0);
   // molha o rio e uma célula de cada lado (2 m acima), não a segunda (4 m)
-  const xs = com.features.flatMap((f) => f.geometry.coordinates[0].map((p) => p[0]));
-  assert.ok(Math.min(...xs) >= 9 / n - 1e-9 && Math.max(...xs) <= 12 / n + 1e-9);
-  assert.throws(() => T.hand(z, n, n, 900, 1e9, 3, [0, 0, 1, 1], new Uint8Array(3)), /Máscara/);
+  const xs = com.features.flatMap((f) =>
+    f.geometry.coordinates[0].map((p) => p[0]),
+  );
+  assert.ok(
+    Math.min(...xs) >= 9 / n - 1e-9 && Math.max(...xs) <= 12 / n + 1e-9,
+  );
+  assert.throws(
+    () => T.hand(z, n, n, 900, 1e9, 3, [0, 0, 1, 1], new Uint8Array(3)),
+    /Máscara/,
+  );
 });
 
 test("conta os trechos de rua", () => {
   assert.equal(O.trechos(O.converte(osm).roads), 3);
+});
+
+test("reserva: resposta do servidor do OpenStreetMap vira ruas, edificações e rios", () => {
+  const json = {
+    elements: [
+      { type: "node", id: 1, lat: 38.71, lon: -9.14 },
+      { type: "node", id: 2, lat: 38.71, lon: -9.139 },
+      { type: "node", id: 3, lat: 38.7101, lon: -9.139 },
+      { type: "node", id: 4, lat: 38.7101, lon: -9.14 },
+      { type: "way", id: 10, nodes: [1, 2], tags: { highway: "residential" } },
+      {
+        type: "way",
+        id: 11,
+        nodes: [1, 2, 3, 4, 1],
+        tags: { building: "yes" },
+      },
+      { type: "way", id: 12, nodes: [3, 4, 99], tags: { waterway: "river" } },
+      { type: "way", id: 13, nodes: [1, 3] }, // sem etiqueta: não entra
+    ],
+  };
+  const r = O.converte(O.deMapa(json));
+  assert.equal(r.roads.features.length, 1);
+  assert.deepEqual(r.roads.features[0].properties.osm_node_ids, ["1", "2"]);
+  assert.equal(r.buildings.features.length, 1);
+  assert.equal(r.rios.length, 1);
+  assert.equal(r.rios[0].geometry[2], null); // nó fora da caixa
+  assert.match(
+    O.urlMapa([-9.14, 38.7, -9.13, 38.72]),
+    /bbox=-9\.140000,38\.700000,-9\.130000,38\.720000/,
+  );
+  E.validate(r.roads, "roads");
 });

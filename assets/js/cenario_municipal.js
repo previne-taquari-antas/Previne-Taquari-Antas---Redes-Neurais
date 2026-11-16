@@ -431,7 +431,7 @@
     // o primeiro servidor é o principal: quando está ocupado, vale insistir nele antes de ir aos outros,
     // que costumam demorar mais
     for (const [k, url] of O.SERVIDORES.entries()) {
-      const vezes = k ? 1 : 4;
+      const vezes = k ? 1 : 3;
       for (let vez = 0; vez < vezes; vez++) {
         if (k && !vez)
           status(
@@ -591,8 +591,23 @@
         "Baixando ruas e edificações do OpenStreetMap… pode levar um minuto.",
       );
       // os rios da área (com folga) vêm junto: servem para gerar a mancha pelo terreno
-      const caixaRios = O.folga(bbox),
-        osm = await overpass(O.consulta(bbox, caixaRios), 150);
+      const caixaRios = O.folga(bbox);
+      let osm = await overpass(O.consulta(bbox, caixaRios), 150);
+      if (!osm) {
+        // reserva: o próprio servidor do OpenStreetMap, que entrega áreas pequenas
+        status(
+          "Tentando direto no servidor do OpenStreetMap (funciona para áreas pequenas)…",
+        );
+        try {
+          osm = O.deMapa(await pega(O.urlMapa(bbox), {}, 120));
+        } catch (err) {
+          console.warn("api.openstreetmap.org", err);
+          if (/HTTP (400|509)/.test(err.message))
+            throw Error(
+              "Os servidores de consulta do OpenStreetMap não responderam e a área é grande para o servidor de reserva. Use uma área menor ou tente de novo em alguns minutos.",
+            );
+        }
+      }
       if (!osm)
         throw Error(
           "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
