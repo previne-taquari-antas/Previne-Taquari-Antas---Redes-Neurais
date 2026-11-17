@@ -76,7 +76,7 @@ jobs:
             scripts/test_previsao_ao_vivo_schema.py \
             scripts/validar_previsao_ao_vivo.py
           # Teste estático do contrato do modelo antes de consultar a rede.
-          python -B -m unittest scripts.test_stz_8h_excel_mother_contract scripts.test_live_input_training_contracts
+          python -B -m unittest scripts.test_stz_8h_excel_mother_contract scripts.test_live_input_training_contracts scripts.test_stz_4h_prev_emissao
           # Gera primeiro o schema corrente; assim uma futura migração de schema
           # não fica bloqueada por um JSON antigo ainda presente no repositório.
           PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 240s python previne/robo/gerar_previsao_ao_vivo.py
