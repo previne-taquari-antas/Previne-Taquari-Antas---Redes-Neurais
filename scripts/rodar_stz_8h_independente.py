@@ -15,6 +15,7 @@ from pathlib import Path
 from previne.robo import gerar_previsao_ao_vivo as R
 
 OUT = Path("previsao_stz_8h.json")
+CACHE_OBSERVADO = Path("assets/data/stz_8h_niveis_observados_cache.json")
 LEVELS = (
     "86472600", "86472000", "86125500", "86298000",
     "86306000", "86430900", "86448000", "86447000", "86505500",
@@ -22,6 +23,59 @@ LEVELS = (
 HORIZONTES = ("8h", "8h_v002")
 MAX_BASE_AGE = dt.timedelta(hours=2)
 MAX_TELEMETRY_AGE = dt.timedelta(minutes=90)
+
+
+def completar_lags_ana_observados(series: dict) -> dict:
+    """Mescla SOMENTE leituras reais de outros ciclos, preservando a hora ANA.
+
+    Nao altera ULTIMA_RAW, portanto a idade da ultima observacao continua
+    sendo a idade do servico consultado no ciclo atual. Nenhum zero artificial,
+    interpolacao ou previsao entra no cache.
+    """
+    agora = R.agora_brt()
+    corte = agora - dt.timedelta(days=4)
+    anterior = {"schema_version": 1, "estacoes": {}}
+    if CACHE_OBSERVADO.exists():
+        try:
+            anterior = json.loads(CACHE_OBSERVADO.read_text(encoding="utf-8"))
+            if anterior.get("schema_version") != 1 or not isinstance(anterior.get("estacoes"), dict):
+                raise ValueError("schema do cache incorreto")
+        except Exception as exc:
+            print("[8h cache] cache invalido; sem uso:", exc)
+            anterior = {"schema_version": 1, "estacoes": {}}
+    resumo = {}
+    mudou = not CACHE_OBSERVADO.exists()
+    for cod in LEVELS:
+        atuais = dict(series.get(cod) or {})
+        salvos = anterior["estacoes"].get(cod, [])
+        mescla = {}
+        for registro in salvos:
+            if not isinstance(registro, (list, tuple)) or len(registro) != 2:
+                continue
+            try:
+                hora = dt.datetime.fromisoformat(str(registro[0]))
+                valor = float(registro[1])
+            except (ValueError, TypeError):
+                continue
+            if corte <= hora <= agora and hora.tzinfo is None and R._nivel_plausivel(valor, cod):
+                mescla[hora] = valor
+        recuperados = sum(h not in atuais for h in mescla)
+        mescla.update({
+            h: float(v) for h, v in atuais.items()
+            if isinstance(h, dt.datetime) and h.tzinfo is None
+            and corte <= h <= agora and R._nivel_plausivel(v, cod)
+        })
+        # Fonte atual prevalece na duplicidade; nenhuma lacuna e preenchida.
+        series[cod] = dict(sorted(mescla.items()))
+        registros = [[h.isoformat(timespec="seconds"), v] for h, v in sorted(mescla.items())]
+        if registros != salvos:
+            mudou = True
+        anterior["estacoes"][cod] = registros
+        resumo[cod] = {"niveis_reais": len(registros), "lags_recuperados": recuperados}
+    if mudou:
+        CACHE_OBSERVADO.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_OBSERVADO.write_text(json.dumps(anterior, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    return resumo
 
 
 def bloquear(out: dict, motivo: str) -> dict:
@@ -42,8 +96,8 @@ def main() -> None:
     R.CHUVA_ANA_CACHE.clear()
     R.ULTIMA_RAW.clear()
     # Processo separado, sem atrasar a rotina de 2h/4h.
-    R.ANA_TIMEOUT_NIVEL_S = 8
-    R.ANA_TIMEOUT_CHUVA_S = 8
+    R.ANA_TIMEOUT_NIVEL_S = 12
+    R.ANA_TIMEOUT_CHUVA_S = 12
     R.ANA_RETRIES_NIVEL = 1
     R.ANA_RETRIES_CHUVA = 1
     errors = {}
@@ -53,6 +107,11 @@ def main() -> None:
     except Exception as exc:
         series = {cod: {} for cod in LEVELS}
         errors["niveis"] = str(exc)
+
+    try:
+        print("[8h cache]", completar_lags_ana_observados(series))
+    except Exception as exc:
+        errors["cache"] = str(exc)
 
     try:
         # As fontes usam chuva observada ou CSV de observacoes reais, nunca
