@@ -17,7 +17,11 @@
   }
 
   function stampMs(data) {
-    const value = data && (data.ultima_tentativa_em || data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo);
+    // Tentativa malsucedida NAO torna uma previsao anterior mais recente.
+    const failed = data && data.ultima_tentativa_status === 'falha';
+    const value = data && (failed
+      ? (data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo)
+      : (data.ultima_tentativa_em || data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo));
     if (!value) return NaN;
     const raw = String(value);
     return Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + '-03:00');
