@@ -143,6 +143,24 @@
         background: #ffe9e4;
         color: #7a2419;
       }
+      #placeResults {
+        list-style: none;
+        padding: 0;
+        margin: 6px 0;
+      }
+      #placeResults li {
+        border: 1px solid #d9e6df;
+        border-radius: 7px;
+        padding: 6px 8px;
+        margin: 5px 0;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      #placeResults button {
+        font-size: 12px;
+        padding: 5px 8px;
+        margin-right: 6px;
+      }
       #layers li {
         font-size: 12px;
         margin: 5px 0;
@@ -309,6 +327,26 @@
           font-size: 11px;
           padding: 4px 6px;
         }
+        /* o aviso do que a página está fazendo acompanha a tela, onde quer que a pessoa esteja */
+        #status {
+          position: fixed;
+          left: 8px;
+          right: 8px;
+          bottom: 8px;
+          z-index: 900;
+          margin: 0;
+          font-size: 13px;
+          max-height: 34dvh;
+          overflow: auto;
+          box-shadow: 0 2px 12px #0005;
+          border: 1px solid #9cc5ad;
+        }
+        #status.error {
+          border-color: #e0a8a2;
+        }
+        main {
+          padding-bottom: 110px;
+        }
         .map-shell {
           order: -1;
           height: 46dvh;
@@ -357,8 +395,9 @@
           </p>
           <ol class="como">
             <li>
-              <b>Monte o cenário:</b> a área do município, as ruas, as
-              edificações e a mancha de inundação.
+              <b>Monte o cenário:</b> procure o lugar, marque a área e baixe as
+              ruas e edificações (ou importe as suas). Depois informe a mancha
+              de inundação.
             </li>
             <li>
               <b>Escolha o tempo máximo a pé</b> e, se quiser, os pontos de
@@ -370,8 +409,10 @@
             </li>
           </ol>
           <p class="muted">
-            Primeira vez aqui? Carregue o exemplo e aperte “Calcular cenário e
-            rotas” no fim do painel.
+            Serve para qualquer município, de qualquer país: as bases abertas
+            (mapa OpenStreetMap e relevo) cobrem o mundo todo. Primeira vez
+            aqui? Veja o exemplo, ou procure o seu lugar na etapa 1 e toque em
+            “Montar e calcular tudo”.
           </p>
           <div class="row">
             <button id="example" class="primary">
@@ -392,6 +433,23 @@
               maxlength="140"
           /></label>
           <label
+            >Procurar o lugar (cidade, bairro ou endereço, em qualquer
+            país)<input
+              id="placeQuery"
+              type="search"
+              placeholder="Ex.: Lajeado, Brasil · Valencia, España"
+              maxlength="200"
+          /></label>
+          <button id="placeSearch">Procurar no mapa</button>
+          <ul id="placeResults" aria-live="polite"></ul>
+          <p class="muted">
+            Depois de achar o lugar, aproxime o mapa da parte que inunda e toque
+            em “Usar a área visível no mapa”. Também dá para usar o limite do
+            lugar (se for pequeno) ou desenhar a área. Prefira uma área pequena
+            (um bairro, a parte da cidade perto do rio): o cálculo fica mais
+            rápido.
+          </p>
+          <label
             >Importar área de interesse (GeoJSON ou Shapefile ZIP)<input
               id="areaUpload"
               type="file"
@@ -403,14 +461,36 @@
             MDT.
           </p>
           <div class="row">
-            <button id="drawArea">Desenhar área</button
+            <button id="viewArea">Usar a área visível no mapa</button
+            ><button id="drawArea">Desenhar área</button
             ><button id="downloadArea">Baixar poligonal</button>
           </div>
+          <h2>Montar tudo automaticamente</h2>
+          <p class="muted">
+            Com a área definida, a página baixa as ruas e edificações, busca o
+            relevo e os rios, gera a mancha de inundação e calcula os pontos de
+            encontro. Depois dá para ajustar cada etapa abaixo e calcular de
+            novo.
+          </p>
+          <label
+            >Quanto o rio sobe acima do nível normal (m)<input
+              id="autoLevel"
+              type="number"
+              min="0"
+              max="200"
+              step="0.1"
+              value="2"
+          /></label>
+          <p class="muted">
+            Use a régua ou uma cheia conhecida. Esse número decide o tamanho da
+            mancha: a ferramenta não prevê a cheia.
+          </p>
+          <button id="autoAll" class="primary">Montar e calcular tudo</button>
           <h2>Terreno (modelo de elevação, MDT)</h2>
           <p class="muted">
-            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5).
-            Escolha uma das opções abaixo. Para baixar um modelo ou ler somente
-            o recorte de um arquivo grande, desenhe ou importe a área de
+            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5), e
+            a página busca sozinha quando precisa. Para baixar um modelo ou ler
+            somente o recorte de um arquivo grande, desenhe ou importe a área de
             interesse primeiro.
           </p>
           <label
@@ -425,14 +505,15 @@
             disponíveis. O tamanho suportado depende da memória do navegador e
             da organização do arquivo. Use EPSG:4326 e alturas em metros.
           </p>
-          <button id="copernicus">
-            Baixar modelo de elevação (Copernicus)
+          <button id="copernicus" class="primary">
+            Buscar o relevo da área (automático)
           </button>
-          <button id="downloadTerrain">Baixar recorte do terreno</button>
+          <button id="downloadTerrain">Salvar o relevo em arquivo</button>
           <p class="muted">
-            Copernicus GLO-30 é um modelo de superfície de cerca de 30 m; não
-            substitui automaticamente um MDT local. O download usa a área de
-            interesse, em até quatro tiles.
+            O relevo é carregado direto na página, sem baixar nem importar
+            arquivo. Vem de bases abertas que cobrem o mundo (cerca de 30 m por
+            ponto); se o município tem um MDT melhor, importe acima. Ao gerar a
+            mancha na etapa 5, o relevo também é buscado sozinho.
           </p>
           <p id="terrainInfo" class="muted" role="status" aria-live="polite">
             Nenhum terreno carregado.
@@ -440,6 +521,16 @@
         </fieldset>
         <fieldset>
           <legend>2 · Mapas do município (ruas, edificações, mancha)</legend>
+          <button id="osmDownload" class="primary">
+            Baixar ruas e edificações do OpenStreetMap
+          </button>
+          <p class="muted">
+            Funciona em qualquer lugar do mundo, para a área de interesse da
+            etapa 1 (até 60 km²). O OpenStreetMap é feito por voluntários: pode
+            faltar rua ou casa; confira no mapa. Se o município tem bases
+            próprias, importe abaixo; elas substituem as baixadas.
+          </p>
+          <h2>Ou importar os seus arquivos</h2>
           <label
             >Camada a importar<select id="layerKind">
               <option value="aoi">Área de interesse</option>
@@ -555,6 +646,11 @@
         </details>
         <fieldset>
           <legend>5 · Mancha de inundação</legend>
+          <p class="muted">
+            Importe a mancha na etapa 2 ou desenhe na etapa 4. Se não houver
+            nenhuma, baixe o relevo na etapa 1 e gere uma mancha aproximada aqui
+            embaixo.
+          </p>
           <label
             >Natureza da mancha<select id="floodType">
               <option value="observada">Histórica observada</option>
@@ -590,11 +686,16 @@
               Não tenho a mancha: gerar pelo terreno (HAND, experimental)
             </summary>
             <p class="muted">
-              Use o terreno importado ou baixado na etapa 1 para gerar o cenário
-              HAND.
+              A página busca o relevo e os rios mapeados (OpenStreetMap) da área
+              e marca como inundado tudo o que fica até o nível escolhido acima
+              do rio mais próximo. Como os rios vêm do mapa, não é preciso ter a
+              bacia inteira para achar o rio. O que o terreno não diz é quanto o
+              rio sobe: informe o nível com base na régua ou numa cheia
+              conhecida.
             </p>
             <label
-              >Área contribuinte mínima de drenagem (km²)<input
+              >Córregos sem nome no mapa: área mínima que drena para eles
+              (km²)<input
                 id="drainArea"
                 type="number"
                 min="0.001"
@@ -602,7 +703,7 @@
                 value="1"
             /></label>
             <label
-              >Nível acima da drenagem (m)<input
+              >Quanto o rio sobe acima do nível normal (m)<input
                 id="handLevel"
                 type="number"
                 min="0"
@@ -610,12 +711,15 @@
                 step="0.1"
                 value="2"
             /></label>
-            <button id="generateHand">Gerar cenário HAND</button>
+            <button id="generateHand" class="primary">
+              Gerar a mancha pelo terreno
+            </button>
             <p class="notice">
-              Modelo experimental com fluxo D8 e preenchimento de depressões,
-              limitado ao recorte (até 320 × 320 células). Use área hidrológica
-              ampla. Não representa propagação, velocidade ou horário de chegada
-              da cheia e não usa cotas de régua sem calibração.
+              Modelo experimental (HAND, fluxo D8), numa grade de até 320 × 320
+              pontos sobre a área. Rio que não está no OpenStreetMap só aparece
+              se a área que drena para ele estiver dentro do recorte. Não
+              representa propagação, velocidade ou horário de chegada da cheia e
+              não usa cotas de régua sem calibração.
             </p>
           </details>
         </fieldset>
@@ -703,6 +807,7 @@
     <script src="https://cdn.jsdelivr.net/npm/shpjs@6.1.0/dist/shp.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
     <script src="assets/js/cenario_engine.js"></script>
+    <script src="assets/js/cenario_osm.js"></script>
     <script src="assets/js/cenario_terreno.js"></script>
     <script src="assets/js/cenario_municipal.js"></script>
   </body>

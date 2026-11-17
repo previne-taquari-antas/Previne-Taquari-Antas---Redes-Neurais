@@ -1,0 +1,432 @@
+// Fluxo completo do cenário municipal em lugares de países diferentes, com os serviços reais:
+// busca do lugar (Nominatim), ruas e edificações (Overpass), relevo (Terrain Tiles), mancha pelo
+// terreno e cálculo. Não entra no teste de cada PR porque depende de serviços de fora:
+// roda em .github/workflows/cenario-mundo-real.yml. MOCK_OVERPASS=1 simula só o Overpass.
+const { chromium } = require("playwright"),
+  fs = require("fs"),
+  path = require("path"),
+  http = require("http");
+const root = path.resolve(__dirname, "../.."),
+  out = process.env.REPORT_DIR || "/tmp/previne-cenario-mundo";
+fs.mkdirSync(out, { recursive: true });
+const LUGARES = [
+  // auto: um toque em "Montar e calcular tudo" em vez de etapa por etapa
+  {
+    q: "Centro, Lajeado, Rio Grande do Sul, Brasil",
+    slug: "lajeado",
+    auto: true,
+  },
+  // validação: mancha automática contra a mancha de set/2023 que o site já tem
+  { slug: "santa_tereza", validacao: true },
+  { q: "Alfafar, Valencia, España", slug: "alfafar" },
+  { q: "Ahrweiler, Bad Neuenahr-Ahrweiler, Deutschland", slug: "ahrweiler" },
+  { q: "Muçum, Rio Grande do Sul, Brasil", slug: "mucum", grande: true },
+  // segunda leva: outros municípios do vale, outros países, relevos e tipos de resposta da busca
+  { q: "Centro, Roca Sales, Rio Grande do Sul, Brasil", slug: "roca_sales" },
+  {
+    q: "Centro, Encantado, Rio Grande do Sul, Brasil",
+    slug: "encantado",
+    auto: true,
+  },
+  { q: "Centro, Petrópolis, Rio de Janeiro, Brasil", slug: "petropolis" }, // busca devolve ponto, serra
+  { q: "Borgo Durbecco, Faenza, Italia", slug: "faenza" }, // ponto, planície
+  { q: "Ellicott City Historic District, Maryland, USA", slug: "ellicott" }, // ponto, vale estreito
+  { q: "Derna, Libya", slug: "derna" }, // limite um pouco acima do máximo, litoral
+  { q: "Pepinster, Belgique", slug: "pepinster" },
+  { q: "Quilmes Centro, Buenos Aires, Argentina", slug: "quilmes", auto: true }, // planície, cidade densa
+];
+// LUGAR=lajeado roda só um lugar (um por máquina no CI: os servidores abertos limitam pedidos seguidos)
+const ESCOLHIDOS = process.env.LUGAR
+  ? LUGARES.filter((l) => l.slug === process.env.LUGAR)
+  : LUGARES;
+const tipos = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".json": "application/json",
+  ".css": "text/css",
+};
+const server = http.createServer((req, res) => {
+  const file = path.resolve(
+    root,
+    "." + decodeURIComponent(req.url.split("?")[0]),
+  );
+  if (
+    !file.startsWith(root + path.sep) ||
+    !fs.existsSync(file) ||
+    !fs.statSync(file).isFile()
+  ) {
+    res.statusCode = 404;
+    return res.end();
+  }
+  res.setHeader(
+    "Content-Type",
+    tipos[path.extname(file)] || "application/octet-stream",
+  );
+  res.end(fs.readFileSync(file));
+});
+const simulado = (caixa) => {
+  // grade de ruas e casas dentro da caixa pedida
+  const [s, w, n, e] = caixa,
+    els = [];
+  let id = 1;
+  const g = (pts) => pts.map(([lon, lat]) => ({ lat, lon })),
+    dx = (e - w) / 7,
+    dy = (n - s) / 7;
+  for (let i = 1; i < 7; i++) {
+    els.push({
+      type: "way",
+      id: id++,
+      nodes: [1, 2, 3, 4, 5, 6].map((j) => i * 10 + j),
+      tags: { highway: "residential" },
+      geometry: g([1, 2, 3, 4, 5, 6].map((j) => [w + j * dx, s + i * dy])),
+    });
+    els.push({
+      type: "way",
+      id: id++,
+      nodes: [1, 2, 3, 4, 5, 6].map((j) => j * 10 + i),
+      tags: { highway: "residential" },
+      geometry: g([1, 2, 3, 4, 5, 6].map((j) => [w + i * dx, s + j * dy])),
+    });
+  }
+  for (let i = 1; i < 6; i++)
+    for (let j = 1; j < 6; j++) {
+      const x = w + (i + 0.4) * dx,
+        y = s + (j + 0.2) * dy,
+        d = 0.0001;
+      els.push({
+        type: "way",
+        id: id++,
+        tags: { building: "yes" },
+        geometry: g([
+          [x, y],
+          [x + d, y],
+          [x + d, y + d],
+          [x, y + d],
+          [x, y],
+        ]),
+      });
+    }
+  return { osm3s: { timestamp_osm_base: "simulado" }, elements: els };
+};
+// --- validação: quanto a mancha automática coincide com a de referência
+function dentroAnel(x, y, an) {
+  let d = false;
+  for (let i = 0, j = an.length - 1; i < an.length; j = i++) {
+    const [xi, yi] = an[i],
+      [xj, yj] = an[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
+      d = !d;
+  }
+  return d;
+}
+function poligonos(fc) {
+  return fc.features.flatMap((f) =>
+    f.geometry.type === "Polygon"
+      ? [f.geometry.coordinates]
+      : f.geometry.type === "MultiPolygon"
+        ? f.geometry.coordinates
+        : [],
+  );
+}
+function compara(ref, auto, n = 240) {
+  const pr = poligonos(ref),
+    xs = pr.flatMap((p) => p[0].map((c) => c[0])),
+    ys = pr.flatMap((p) => p[0].map((c) => c[1])),
+    w = Math.min(...xs),
+    e = Math.max(...xs),
+    s = Math.min(...ys),
+    nn = Math.max(...ys),
+    caixas = poligonos(auto).map((p) => {
+      const a = p[0].map((c) => c[0]),
+        b = p[0].map((c) => c[1]);
+      return [Math.min(...a), Math.min(...b), Math.max(...a), Math.max(...b)];
+    });
+  let so = 0,
+    sr = 0,
+    sa = 0;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      const x = w + ((i + 0.5) / n) * (e - w),
+        y = s + ((j + 0.5) / n) * (nn - s),
+        r = pr.some(
+          (p) =>
+            dentroAnel(x, y, p[0]) &&
+            !p.slice(1).some((h) => dentroAnel(x, y, h)),
+        ),
+        a = caixas.some(
+          (c) => x >= c[0] && x <= c[2] && y >= c[1] && y <= c[3],
+        );
+      if (r) sr++;
+      if (a) sa++;
+      if (r && a) so++;
+    }
+  const pc = (v) => Math.round(v * 1000) / 10;
+  // cobre: parte da referência que a automática pegou; sobra: parte da automática fora da referência (dentro da caixa)
+  return {
+    cobre_pct: pc(so / sr),
+    sobra_pct: pc((sa - so) / Math.max(1, sa)),
+    coincidencia_pct: pc(so / (sr + sa - so)),
+  };
+}
+async function validaSantaTereza(p, reg, estado) {
+  const salva = async () => {
+    const [d] = await Promise.all([
+      p.waitForEvent("download"),
+      p.click("#save"),
+    ]);
+    return JSON.parse(fs.readFileSync(await d.path(), "utf8")).layers.flood;
+  };
+  await p.click("#example");
+  await p.waitForTimeout(500);
+  let r = await estado(120000);
+  if (r.erro) throw Error("exemplo: " + r.texto);
+  const ref = await salva();
+  await p.evaluate(
+    () =>
+      (document.querySelector("#generateHand").closest("details").open = true),
+  );
+  reg.niveis = [];
+  for (const nivel of [8, 12, 16, 20, 24]) {
+    await p.fill("#handLevel", String(nivel));
+    await p.click("#generateHand");
+    await p.waitForTimeout(400);
+    r = await estado(600000);
+    if (r.erro) throw Error("mancha no nível " + nivel + ": " + r.texto);
+    if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto)) {
+      // servidor ocupado: espera e gera de novo uma vez
+      await p.waitForTimeout(45000);
+      await p.click("#generateHand");
+      await p.waitForTimeout(400);
+      r = await estado(600000);
+    }
+    if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto))
+      throw Error("sem os rios do mapa: " + r.texto);
+    reg.niveis.push({ nivel_m: nivel, ...compara(ref, await salva()) });
+  }
+  reg.melhor = reg.niveis.reduce((a, b) =>
+    b.coincidencia_pct > a.coincidencia_pct ? b : a,
+  );
+}
+(async () => {
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}/cenario_municipal.html`,
+    browser = await chromium.launch(),
+    relatorio = [];
+  let falhas = 0;
+  for (const lugar of ESCOLHIDOS) {
+    // os servidores abertos limitam pedidos seguidos da mesma máquina
+    if (relatorio.length && !process.env.MOCK_OVERPASS)
+      await new Promise((r) => setTimeout(r, 45000));
+    const reg = { lugar: lugar.q || lugar.slug, passos: [], erros: [] },
+      ctx = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+      });
+    if (process.env.MOCK_OVERPASS)
+      await ctx.route(/\/api\/interpreter/, (r) => {
+        const q = decodeURIComponent(r.request().postData()),
+          c = q
+            .match(/\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)/)
+            .slice(1, 5)
+            .map(Number);
+        if (/waterway/.test(q) && !/highway/.test(q)) {
+          const [s0, w0, n0, e0] = c;
+          return r.fulfill({
+            json: {
+              elements: [
+                {
+                  type: "way",
+                  id: 1,
+                  tags: { waterway: "river" },
+                  geometry: [
+                    { lat: s0, lon: w0 },
+                    { lat: (s0 + n0) / 2, lon: (w0 + e0) / 2 },
+                    { lat: n0, lon: e0 },
+                  ],
+                },
+              ],
+            },
+          });
+        }
+        r.fulfill({ json: simulado(c) });
+      });
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => reg.erros.push(e.message));
+    reg.avisos = [];
+    p.on("console", (m) => {
+      if (m.type() === "warning" && /interpreter/.test(m.text()))
+        reg.avisos.push(m.text().slice(0, 160));
+    });
+    const estado = async (ms = 120000) => {
+        // espera o botão em uso terminar
+        await p.waitForFunction(
+          () =>
+            ![...document.querySelectorAll("button")].some(
+              (b) => b.disabled && !["csv", "routes"].includes(b.id),
+            ),
+          null,
+          { timeout: ms },
+        );
+        return {
+          texto: (await p.textContent("#status")).trim(),
+          erro: await p.evaluate(() =>
+            document.getElementById("status").classList.contains("error"),
+          ),
+        };
+      },
+      passo = async (nome, fn, ms) => {
+        await fn();
+        await p.waitForTimeout(400);
+        const r = await estado(ms);
+        reg.passos.push({ nome, ...r });
+        return r;
+      };
+    try {
+      await p.goto(base);
+      await p.waitForTimeout(1500);
+      if (lugar.validacao) {
+        await validaSantaTereza(p, reg, estado);
+        if (reg.erros.length) throw Error("erro de script: " + reg.erros[0]);
+        reg.ok = true;
+        throw { pronto: true };
+      }
+      await p.fill("#placeQuery", lugar.q);
+      let r = await passo("procurar", () => p.click("#placeSearch"), 60000);
+      if (r.erro) throw Error("busca: " + r.texto);
+      const usar = p.locator("#placeResults li:first-child button", {
+        hasText: "Usar o limite",
+      });
+      // nem todo lugar tem limite (a busca pode devolver um ponto) e o limite pode ser grande demais:
+      // nos dois casos o caminho é ver no mapa e usar a área visível
+      const temLimite = (await usar.count()) > 0;
+      r = temLimite
+        ? await passo("usar limite", () => usar.click())
+        : { erro: true, texto: "sem limite" };
+      if (lugar.grande && !/Usar a área visível/.test(r.texto))
+        throw Error("devia orientar a usar a área visível: " + r.texto);
+      if (r.erro) {
+        if (temLimite && !/Usar a área visível/.test(r.texto))
+          throw Error("área: " + r.texto);
+        await p
+          .locator("#placeResults li:first-child button", {
+            hasText: "Ver no mapa",
+          })
+          .click();
+        await p.waitForTimeout(800);
+        // aproxima até a área na tela caber no limite
+        for (let i = 0; i < 8; i++) {
+          r = await passo("área visível", () => p.click("#viewArea"));
+          if (!r.erro) break;
+          await p.click(".leaflet-control-zoom-in");
+          await p.waitForTimeout(600);
+        }
+      }
+      if (r.erro) throw Error("área: " + r.texto);
+      if (lugar.auto) {
+        await p.fill("#autoLevel", "4");
+        r = await passo(
+          "montar e calcular tudo",
+          () => p.click("#autoAll"),
+          900000,
+        );
+        if (r.erro) throw Error("automático: " + r.texto);
+        reg.camadas = (await p.innerText("#layers")).replace(
+          /\s*Remover\s*/g,
+          " | ",
+        );
+        reg.resultado = (await p.innerText("#results"))
+          .split("\n")
+          .filter(Boolean)
+          .slice(0, 8)
+          .join(" / ");
+        if (
+          !/Inundação/.test(reg.camadas) ||
+          !/pessoas chegam/.test(reg.resultado)
+        )
+          throw Error("automático não chegou ao resultado");
+        if (reg.erros.length) throw Error("erro de script: " + reg.erros[0]);
+        reg.ok = true;
+        throw { pronto: true };
+      }
+      r = await passo(
+        "ruas e edificações",
+        () => p.click("#osmDownload"),
+        600000,
+      );
+      // cidade densa: a página pede uma área menor; aproxima e tenta de novo, como ela orienta
+      for (
+        let i = 0;
+        i < 4 && r.erro && /demais para o cálculo/.test(r.texto);
+        i++
+      ) {
+        await p.click(".leaflet-control-zoom-in");
+        await p.waitForTimeout(700);
+        r = await passo("área visível (menor)", () => p.click("#viewArea"));
+        if (r.erro) continue;
+        r = await passo(
+          "ruas e edificações",
+          () => p.click("#osmDownload"),
+          600000,
+        );
+      }
+      if (r.erro && !/Nenhuma edificação/.test(r.texto))
+        throw Error("OpenStreetMap: " + r.texto);
+      reg.camadas = (await p.innerText("#layers")).replace(
+        /\s*Remover\s*/g,
+        " | ",
+      );
+      // a mancha pelo terreno busca sozinha o relevo e os rios
+      await p.evaluate(
+        () =>
+          (document.querySelector("#generateHand").closest("details").open =
+            true),
+      );
+      await p.fill("#handLevel", "4");
+      r = await passo(
+        "mancha pelo terreno",
+        () => p.click("#generateHand"),
+        600000,
+      );
+      reg.terreno = (await p.textContent("#terrainInfo")).trim().slice(0, 160);
+      const mancha = !r.erro && /Inundação/.test(await p.innerText("#layers"));
+      if (!mancha) throw Error("mancha pelo terreno: " + r.texto);
+      if (!process.env.MOCK_OVERPASS && !/rios mapeados/.test(r.texto))
+        throw Error("a mancha saiu sem os rios do mapa: " + r.texto);
+      reg.mancha = mancha;
+      await p.selectOption("#mode", "automatico");
+      r = await passo("calcular", () => p.click("#calculate"), 600000);
+      reg.resultado = (await p.innerText("#results"))
+        .split("\n")
+        .filter(Boolean)
+        .slice(0, 8)
+        .join(" / ");
+      if (r.erro) throw Error("cálculo: " + r.texto);
+      if (reg.erros.length) throw Error("erro de script: " + reg.erros[0]);
+      reg.ok = true;
+    } catch (e) {
+      if (e && e.pronto) {
+        relatorio.push(reg);
+        await p
+          .screenshot({ path: path.join(out, lugar.slug + ".png") })
+          .catch(() => {});
+        await ctx.close();
+        continue;
+      }
+      reg.ok = false;
+      reg.falha = e.message;
+      falhas++;
+    }
+    await p
+      .screenshot({ path: path.join(out, lugar.slug + ".png") })
+      .catch(() => {});
+    relatorio.push(reg);
+    await ctx.close();
+  }
+  await browser.close();
+  server.close();
+  fs.writeFileSync(
+    path.join(out, "relatorio.json"),
+    JSON.stringify(relatorio, null, 1),
+  );
+  console.log(JSON.stringify(relatorio, null, 1));
+  if (falhas) process.exit(1);
+})();

@@ -102,7 +102,7 @@
     );
     return;
   }
-  map = L.map("map").setView([-14, -53], 4);
+  map = L.map("map", { worldCopyJump: true }).setView([10, -20], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution:
@@ -407,6 +407,298 @@
   }
   $("upload").onchange = (e) => importLayer(e);
   $("areaUpload").onchange = (e) => importLayer(e, "aoi");
+  // bases abertas para qualquer lugar do mundo (assets/js/cenario_osm.js)
+  const O = window.CenarioOSM;
+  async function pega(url, opts, segundos = 150) {
+    const c = new AbortController(),
+      t = setTimeout(() => c.abort(), segundos * 1000);
+    try {
+      const r = await fetch(url, { ...opts, signal: c.signal });
+      if (!r.ok) throw Error("HTTP " + r.status);
+      return await r.json();
+    } finally {
+      clearTimeout(t);
+    }
+  }
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  // tenta cada servidor do Overpass; se estiver ocupado (429/502/504), espera e tenta de novo, mais uma vez
+  async function overpass(consulta, segundos = 120) {
+    const opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(consulta),
+    };
+    // o primeiro servidor é o principal: quando está ocupado, vale insistir nele antes de ir aos outros,
+    // que costumam demorar mais
+    for (const [k, url] of O.SERVIDORES.entries()) {
+      const vezes = k ? 1 : 3;
+      for (let vez = 0; vez < vezes; vez++) {
+        if (k && !vez)
+          status(
+            `O servidor do OpenStreetMap não respondeu. Tentando outro (${k + 1} de ${O.SERVIDORES.length})…`,
+          );
+        const t0 = Date.now();
+        try {
+          return await pega(url, opts, k ? Math.min(segundos, 60) : segundos);
+        } catch (err) {
+          console.warn(url, Math.round((Date.now() - t0) / 1000) + " s", err);
+          // recusa por excesso de pedidos chega ao navegador como falha de rede, sem o código HTTP
+          if (
+            vez + 1 >= vezes ||
+            err.name === "AbortError" ||
+            /HTTP 4(?!29)\d\d/.test(err.message)
+          )
+            break;
+          status(
+            "O servidor do OpenStreetMap está ocupado. Tentando de novo em alguns segundos…",
+          );
+          await espera(6000 + 4000 * vez);
+        }
+      }
+    }
+    return null;
+  }
+  const vaiPara = ([w, s, e, n]) =>
+    map.fitBounds(
+      [
+        [s, w],
+        [n, e],
+      ],
+      { maxZoom: 16 },
+    );
+  function usaLimite(l) {
+    try {
+      state.layers.aoi = E.validate(
+        { type: "Feature", properties: { nome: l.nome }, geometry: l.limite },
+        "aoi",
+      );
+      state.sources.aoi = "OpenStreetMap (Nominatim): " + l.nome;
+      sugereNome(l);
+      invalidate();
+      render();
+      fit();
+      const km2 = O.areaKm2(areaBox()),
+        grande = km2 > O.AREA_MAX_KM2;
+      status(
+        grande
+          ? `O limite tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa” (até ${O.AREA_MAX_KM2} km²).`
+          : "Área de interesse definida. Agora baixe as ruas e edificações na etapa 2.",
+        grande,
+      );
+    } catch (err) {
+      status(err.message, true);
+    }
+  }
+  // o nome do lugar procurado identifica o cenário, enquanto a pessoa não escrever outro
+  let nomeAuto = "";
+  function sugereNome(l) {
+    const campo = $("municipality");
+    if (campo.value.trim() && campo.value !== nomeAuto) return;
+    nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
+  }
+  function mostraLugares(lista) {
+    const ul = $("placeResults");
+    ul.replaceChildren();
+    for (const l of lista) {
+      const li = document.createElement("li"),
+        nome = document.createElement("div"),
+        ir = document.createElement("button");
+      nome.textContent = l.nome;
+      ir.textContent = "Ver no mapa";
+      ir.onclick = () => {
+        sugereNome(l);
+        vaiPara(l.caixa);
+      };
+      li.append(nome, ir);
+      if (l.limite) {
+        const usar = document.createElement("button");
+        usar.textContent = "Usar o limite como área";
+        usar.onclick = () => usaLimite(l);
+        li.append(usar);
+      }
+      ul.append(li);
+    }
+    if (lista.length) {
+      sugereNome(lista[0]);
+      vaiPara(lista[0].caixa);
+    }
+  }
+  // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
+  $("viewArea").onclick = () => {
+    try {
+      const b = map.getBounds().pad(-0.04),
+        [w, s, e, n] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        km2 = O.areaKm2([w, s, e, n]);
+      if (km2 > O.AREA_MAX_KM2)
+        throw Error(
+          (km2 > 20000
+            ? "A área na tela é grande demais."
+            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km².`) +
+            ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
+        );
+      state.layers.aoi = E.validate(
+        {
+          type: "Feature",
+          properties: { nome: "Área visível no mapa" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [w, s],
+                [e, s],
+                [e, n],
+                [w, n],
+                [w, s],
+              ],
+            ],
+          },
+        },
+        "aoi",
+      );
+      state.sources.aoi = "Área escolhida no mapa";
+      invalidate();
+      render();
+      status(
+        `Área de interesse definida (cerca de ${km2.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km²). Agora baixe as ruas e edificações na etapa 2.`,
+      );
+    } catch (err) {
+      status(err.message, true);
+    }
+  };
+  $("placeSearch").onclick = () =>
+    busy($("placeSearch"), async () => {
+      const q = $("placeQuery").value.trim();
+      if (q.length < 3) throw Error("Escreva o nome do lugar.");
+      status("Procurando “" + q + "”…");
+      let lista;
+      try {
+        try {
+          lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+        } catch (primeira) {
+          // o serviço de busca limita pedidos seguidos: uma segunda tentativa costuma passar
+          await espera(2500);
+          lista = O.lugares(await pega(O.urlLugar(q), {}, 30));
+        }
+      } catch (err) {
+        throw Error(
+          "A busca de lugares não respondeu. Tente de novo em instantes ou aproxime o mapa e desenhe a área.",
+        );
+      }
+      mostraLugares(lista);
+      status(
+        lista.length
+          ? "Lugar encontrado. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa”."
+          : "Nenhum lugar encontrado com esse nome. Tente incluir o estado ou o país.",
+        !lista.length,
+      );
+    });
+  $("placeQuery").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      $("placeSearch").click();
+    }
+  });
+  $("osmDownload").onclick = () =>
+    busy($("osmDownload"), async () => {
+      const bbox = areaBox(),
+        km2 = O.areaKm2(bbox);
+      if (km2 > O.AREA_MAX_KM2)
+        throw Error(
+          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
+        );
+      status(
+        "Baixando ruas e edificações do OpenStreetMap… pode levar um minuto.",
+      );
+      // os rios da área (com folga) vêm junto: servem para gerar a mancha pelo terreno
+      const caixaRios = O.folga(bbox);
+      let osm = await overpass(O.consulta(bbox, caixaRios), 150);
+      if (!osm) {
+        // pedido grande para o servidor: tenta em duas partes (ruas e rios; depois edificações)
+        status("O pedido não passou inteiro. Tentando em duas partes…");
+        const [qRuas, qCasas] = O.consultaPartes(bbox, caixaRios),
+          a = await overpass(qRuas, 120),
+          b = a && (await overpass(qCasas, 120));
+        if (a && b)
+          osm = {
+            osm3s: a.osm3s,
+            elements: [...(a.elements || []), ...(b.elements || [])],
+          };
+      }
+      if (!osm) {
+        // reserva: o próprio servidor do OpenStreetMap, que entrega áreas pequenas
+        status(
+          "Tentando direto no servidor do OpenStreetMap (funciona para áreas pequenas)…",
+        );
+        try {
+          osm = O.deMapa(await pega(O.urlMapa(bbox), {}, 120));
+        } catch (err) {
+          console.warn("api.openstreetmap.org", err);
+          if (/HTTP (400|509)/.test(err.message))
+            throw Error(
+              "Os servidores de consulta do OpenStreetMap não responderam e a área é grande para o servidor de reserva. Use uma área menor ou tente de novo em alguns minutos.",
+            );
+        }
+      }
+      if (!osm)
+        throw Error(
+          "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
+        );
+      const r = O.converte(osm);
+      state.rios = { caixa: caixaRios, elements: r.rios };
+      if (!r.roads.features.length)
+        throw Error(
+          "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
+        );
+      // curvas com muitos pontos viram menos trechos (os cruzamentos ficam): cabe uma área maior no cálculo
+      r.roads = O.simplifica(r.roads);
+      // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
+      if (r.buildings.features.length > 10000)
+        throw Error(
+          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString("pt-BR")}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+        );
+      const nt = O.trechos(r.roads);
+      if (nt > 15000)
+        throw Error(
+          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString("pt-BR")} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+        );
+      const fonte =
+        "OpenStreetMap (ODbL)" +
+        (r.data ? ", dados de " + r.data.slice(0, 10) : "");
+      // uma geometria com defeito no mapa não derruba o download: prédio vira ponto, o resto sai
+      const ruas = O.aproveita(r.roads, (c) => E.validate(c, "roads")),
+        casas = O.aproveita(r.buildings, (c) => E.validate(c, "buildings"));
+      if (!ruas.fc.features.length)
+        throw Error(
+          "As ruas dessa área no OpenStreetMap vieram com defeito. Importe os arquivos do município.",
+        );
+      r.roads = ruas.fc;
+      r.buildings = casas.fc;
+      state.layers.roads = E.validate(r.roads, "roads");
+      state.sources.roads = fonte;
+      if (r.buildings.features.length) {
+        state.layers.buildings = E.validate(r.buildings, "buildings");
+        state.sources.buildings = fonte;
+      }
+      const defeito = ruas.fora + casas.fora,
+        aviso =
+          (casas.consertadas
+            ? ` ${casas.consertadas} edificações com contorno defeituoso entraram como ponto.`
+            : "") +
+          (defeito
+            ? ` ${defeito} itens com defeito no mapa ficaram de fora.`
+            : "");
+      invalidate();
+      render();
+      fit();
+      const n0 = (v) => v.toLocaleString("pt-BR");
+      status(
+        `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
+          (r.buildings.features.length
+            ? aviso + " Falta a mancha de inundação (etapa 5)."
+            : " Nenhuma edificação mapeada nessa área: importe as edificações do município."),
+        !r.buildings.features.length,
+      );
+    });
   for (const id of optionIds) {
     $(id).addEventListener("change", invalidate);
     $(id).addEventListener("input", invalidate);
@@ -491,7 +783,20 @@
       const rev = state.revision,
         o = options();
       status("Construindo a rede, aplicando bloqueios e calculando destinos…");
-      const r = await compute("plan", state.layers, o);
+      // cálculo longo não fica mudo: avisa que segue trabalhando e como encurtar
+      const demora = setTimeout(
+        () =>
+          status(
+            "Ainda calculando… Áreas com muitas ruas e edificações podem levar alguns minutos. Uma área menor calcula mais rápido.",
+          ),
+        45000,
+      );
+      let r;
+      try {
+        r = await compute("plan", state.layers, o);
+      } finally {
+        clearTimeout(demora);
+      }
       if (rev !== state.revision) {
         status(
           "Configuração alterada durante o cálculo. Calcule novamente.",
@@ -968,13 +1273,22 @@
     });
   function areaBox() {
     if (!state.layers.aoi?.features.length)
-      throw Error("Desenhe ou importe a área de interesse primeiro.");
+      throw Error(
+        "Defina a área de interesse primeiro: procure o lugar na etapa 1 e toque em “Usar a área visível no mapa”.",
+      );
     const b = L.geoJSON(state.layers.aoi).getBounds();
+    return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+  }
+  // área de interesse ou, sem ela (bases importadas, exemplo), a extensão das ruas
+  function caixaTrabalho() {
+    if (state.layers.aoi?.features.length) return areaBox();
+    if (!state.layers.roads?.features.length) return areaBox();
+    const b = L.geoJSON(state.layers.roads).getBounds();
     return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
   }
   function updateTerrain() {
     $("terrainInfo").textContent = state.terrain
-      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} células no recorte. Recorte retangular; HAND limitado à bacia contida nele.`
+      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
       : "Nenhum terreno carregado.";
   }
   async function readTerrain(tiff, bbox) {
@@ -1063,105 +1377,207 @@
         e.target.value = "";
       }
     });
-  $("copernicus").onclick = () =>
-    busy($("copernicus"), async () => {
-      const bbox = areaBox(),
-        [w, s, e, n] = bbox;
-      if (e - w > 2 || n - s > 2)
-        throw Error("Selecione uma área de até 2° por 2°.");
-      const tiles = [];
-      for (let lat = Math.floor(s); lat < Math.ceil(n); lat++)
-        for (let lon = Math.floor(w); lon < Math.ceil(e); lon++) {
-          const name = `Copernicus_DSM_COG_10_${lat < 0 ? "S" : "N"}${String(Math.abs(lat)).padStart(2, "0")}_00_${lon < 0 ? "W" : "E"}${String(Math.abs(lon)).padStart(3, "0")}_00_DEM`;
-          tiles.push(
-            `https://copernicus-dem-30m.s3.amazonaws.com/${name}/${name}.tif`,
-          );
-        }
-      if (tiles.length > 4)
-        throw Error("A área cruza mais de quatro tiles. Reduza o recorte.");
-      status("Obtendo recorte público Copernicus GLO-30…");
-      const parts = [];
-      for (const url of tiles) {
-        const name = url.split("/").at(-1).replace(".tif", "");
+  // Copernicus só responde pelo servidor local (scripts/servir_cenario.py): o site não consegue ler direto
+  const copernicusLocal = async () => {
+    const bbox = areaBox(),
+      [w, s, e, n] = bbox;
+    if (e - w > 2 || n - s > 2)
+      throw Error("Selecione uma área de até 2° por 2°.");
+    const tiles = [];
+    for (let lat = Math.floor(s); lat < Math.ceil(n); lat++)
+      for (let lon = Math.floor(w); lon < Math.ceil(e); lon++) {
+        const name = `Copernicus_DSM_COG_10_${lat < 0 ? "S" : "N"}${String(Math.abs(lat)).padStart(2, "0")}_00_${lon < 0 ? "W" : "E"}${String(Math.abs(lon)).padStart(3, "0")}_00_DEM`;
+        tiles.push(
+          `https://copernicus-dem-30m.s3.amazonaws.com/${name}/${name}.tif`,
+        );
+      }
+    if (tiles.length > 4)
+      throw Error("A área cruza mais de quatro tiles. Reduza o recorte.");
+    status("Obtendo recorte público Copernicus GLO-30…");
+    const parts = [];
+    for (const url of tiles) {
+      const name = url.split("/").at(-1).replace(".tif", "");
+      try {
+        parts.push(
+          await readTerrain(
+            await GeoTIFF.fromUrl(
+              "/api/copernicus?tile=" + encodeURIComponent(name),
+            ),
+            bbox,
+          ),
+        );
+      } catch (proxyError) {
         try {
-          parts.push(
-            await readTerrain(
-              await GeoTIFF.fromUrl(
-                "/api/copernicus?tile=" + encodeURIComponent(name),
-              ),
-              bbox,
+          parts.push(await readTerrain(await GeoTIFF.fromUrl(url), bbox));
+        } catch (directError) {
+          const box = $("terrainInfo");
+          box.replaceChildren(
+            document.createTextNode(
+              "Leitura online indisponível nesta hospedagem. Baixe os tiles abaixo e importe o GeoTIFF; o recorte pela área será aplicado automaticamente. ",
             ),
           );
-        } catch (proxyError) {
-          try {
-            parts.push(await readTerrain(await GeoTIFF.fromUrl(url), bbox));
-          } catch (directError) {
-            const box = $("terrainInfo");
-            box.replaceChildren(
-              document.createTextNode(
-                "Leitura online indisponível nesta hospedagem. Baixe os tiles abaixo e importe o GeoTIFF; o recorte pela área será aplicado automaticamente. ",
-              ),
-            );
-            for (const tile of tiles) {
-              const a = document.createElement("a");
-              a.href = tile;
-              a.textContent = "Baixar " + tile.split("/").at(-1);
-              a.target = "_blank";
-              a.rel = "noopener";
-              box.append(document.createElement("br"), a);
-            }
-            throw Error(
-              "Não foi possível acessar o terreno online. Use os links na seção de terreno para baixar e importar, ou o servidor municipal incluído.",
-            );
+          for (const tile of tiles) {
+            const a = document.createElement("a");
+            a.href = tile;
+            a.textContent = "Baixar " + tile.split("/").at(-1);
+            a.target = "_blank";
+            a.rel = "noopener";
+            box.append(document.createElement("br"), a);
           }
+          throw Error(
+            "Não foi possível acessar o terreno online. Use os links na seção de terreno para baixar e importar, ou o servidor municipal incluído.",
+          );
         }
       }
-      const width = 320,
-        height = Math.max(
-          3,
-          Math.min(320, Math.round((320 * (n - s)) / (e - w))),
-        ),
-        values = [];
-      for (let y = 0; y < height; y++)
-        for (let x = 0; x < width; x++) {
-          const lon = w + ((x + 0.5) / width) * (e - w),
-            lat = n - ((y + 0.5) / height) * (n - s),
-            p = parts.find(
-              (p) =>
-                lon >= p.bbox[0] &&
-                lon <= p.bbox[2] &&
-                lat >= p.bbox[1] &&
-                lat <= p.bbox[3],
-            );
-          if (!p) {
-            values.push(NaN);
-            continue;
-          }
-          const xx = Math.min(
-              p.width - 1,
-              Math.floor(
-                ((lon - p.bbox[0]) / (p.bbox[2] - p.bbox[0])) * p.width,
-              ),
-            ),
-            yy = Math.min(
-              p.height - 1,
-              Math.floor(
-                ((p.bbox[3] - lat) / (p.bbox[3] - p.bbox[1])) * p.height,
-              ),
-            );
-          values.push(p.values[yy * p.width + xx]);
+    }
+    const width = 320,
+      height = Math.max(
+        3,
+        Math.min(320, Math.round((320 * (n - s)) / (e - w))),
+      ),
+      values = [];
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const lon = w + ((x + 0.5) / width) * (e - w),
+          lat = n - ((y + 0.5) / height) * (n - s),
+          p = parts.find(
+            (p) =>
+              lon >= p.bbox[0] &&
+              lon <= p.bbox[2] &&
+              lat >= p.bbox[1] &&
+              lat <= p.bbox[3],
+          );
+        if (!p) {
+          values.push(NaN);
+          continue;
         }
-      state.terrain = {
-        values,
-        width,
-        height,
-        bbox,
-        source: "Copernicus GLO-30 (DSM) · " + tiles.join(" "),
+        const xx = Math.min(
+            p.width - 1,
+            Math.floor(((lon - p.bbox[0]) / (p.bbox[2] - p.bbox[0])) * p.width),
+          ),
+          yy = Math.min(
+            p.height - 1,
+            Math.floor(
+              ((p.bbox[3] - lat) / (p.bbox[3] - p.bbox[1])) * p.height,
+            ),
+          );
+        values.push(p.values[yy * p.width + xx]);
+      }
+    state.terrain = {
+      values,
+      width,
+      height,
+      bbox,
+      source: "Copernicus GLO-30 (DSM) · " + tiles.join(" "),
+    };
+    updateTerrain();
+    invalidate();
+    status(
+      "Recorte Copernicus obtido. Valide a resolução e a drenagem antes de gerar HAND.",
+    );
+  };
+  // relevo carregado direto na página (sem baixar nem importar arquivo), para qualquer lugar
+  function quadro(z, x, y) {
+    return new Promise((ok, falha) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 256;
+        const g = c.getContext("2d", { willReadFrequently: true });
+        g.drawImage(img, 0, 0);
+        ok(g.getImageData(0, 0, 256, 256).data);
       };
-      updateTerrain();
-      invalidate();
+      img.onerror = () =>
+        falha(Error("quadro de relevo " + z + "/" + x + "/" + y));
+      img.src = `${O.RELEVO_URL}${z}/${x}/${y}.png`;
+    });
+  }
+  async function relevoAutomatico(area) {
+    const bbox = O.folga(area),
+      [w, s, e, n] = bbox,
+      q = O.quadrosRelevo(bbox),
+      quadros = new Map(),
+      pedidos = [];
+    status("Buscando o relevo da área…");
+    for (let y = q.y0; y <= q.y1; y++)
+      for (let x = q.x0; x <= q.x1; x++)
+        pedidos.push(
+          quadro(q.z, x, y).then((d) => quadros.set(x + "/" + y, d)),
+        );
+    try {
+      await Promise.all(pedidos);
+    } catch (err) {
+      throw Error(
+        "Não foi possível buscar o relevo agora. Verifique a internet e tente de novo, ou importe um GeoTIFF na etapa 1.",
+      );
+    }
+    const width = 320,
+      height = Math.max(
+        3,
+        Math.min(320, Math.round((320 * (n - s)) / (e - w))),
+      ),
+      values = new Array(width * height);
+    for (let y = 0; y < height; y++) {
+      const fy = O.ty(n - ((y + 0.5) / height) * (n - s), q.z),
+        qy = Math.min(q.y1, Math.floor(fy)),
+        py = Math.min(255, Math.floor((fy - qy) * 256));
+      for (let x = 0; x < width; x++) {
+        const fx = O.tx(w + ((x + 0.5) / width) * (e - w), q.z),
+          qx = Math.min(q.x1, Math.floor(fx)),
+          px = Math.min(255, Math.floor((fx - qx) * 256)),
+          d = quadros.get(qx + "/" + qy),
+          k = (py * 256 + px) * 4;
+        values[y * width + x] = O.alturaTerrarium(d[k], d[k + 1], d[k + 2]);
+      }
+    }
+    state.terrain = { values, width, height, bbox, source: O.RELEVO_FONTE };
+    updateTerrain();
+    invalidate();
+  }
+  // rios mapeados na caixa do relevo; null se o OpenStreetMap não responder (o HAND segue só com o relevo)
+  async function riosDoMapa(t) {
+    const g = state.rios,
+      [w, s, e, n] = t.bbox,
+      d = 1e-9;
+    let osm = null;
+    // já vieram com as ruas, para a mesma caixa
+    if (
+      g &&
+      g.caixa[0] <= w + d &&
+      g.caixa[1] <= s + d &&
+      g.caixa[2] >= e - d &&
+      g.caixa[3] >= n - d
+    )
+      osm = g;
+    else {
+      status("Buscando os rios mapeados da área…");
+      osm = await overpass(O.consultaRios(t.bbox), 100);
+      // guarda: gerar de novo com outro nível não pede os rios outra vez
+      if (osm) state.rios = { caixa: t.bbox, elements: osm.elements || [] };
+    }
+    if (osm) {
+      const r = O.mascaraRios(osm, t.bbox, t.width, t.height);
+      if (r.celulas) return r;
+    }
+    return null;
+  }
+  $("copernicus").onclick = () =>
+    busy($("copernicus"), async () => {
+      const area = areaBox();
+      try {
+        await relevoAutomatico(area);
+      } catch (err) {
+        // sem a fonte direta: tenta o servidor local do Copernicus, se houver
+        try {
+          await copernicusLocal();
+          return;
+        } catch (e2) {
+          throw err;
+        }
+      }
       status(
-        "Recorte Copernicus obtido. Valide a resolução e a drenagem antes de gerar HAND.",
+        "Relevo carregado. Na etapa 5 dá para gerar a mancha de inundação pelo terreno.",
       );
     });
   $("downloadTerrain").onclick = () => {
@@ -1180,20 +1596,24 @@
   };
   $("generateHand").onclick = () =>
     busy($("generateHand"), async () => {
+      // sem relevo (ou relevo de outra área): busca sozinho, sem baixar nem importar arquivo
+      const cobre = (t) => {
+        if (!t) return false;
+        const a = caixaTrabalho();
+        return (
+          a[0] >= t.bbox[0] &&
+          a[1] >= t.bbox[1] &&
+          a[2] <= t.bbox[2] &&
+          a[3] <= t.bbox[3]
+        );
+      };
+      if (!cobre(state.terrain)) await relevoAutomatico(caixaTrabalho());
       const t = state.terrain;
-      if (!t) throw Error("Importe ou obtenha um terreno antes.");
-      if (state.layers.aoi) {
-        const a = areaBox();
-        if (
-          a[0] < t.bbox[0] ||
-          a[1] < t.bbox[1] ||
-          a[2] > t.bbox[2] ||
-          a[3] > t.bbox[3]
-        )
-          throw Error(
-            "O terreno não cobre a área de interesse atual. Obtenha outro recorte.",
-          );
-      }
+      if (!cobre(t))
+        throw Error(
+          "O terreno não cobre a área de interesse atual. Obtenha outro recorte.",
+        );
+      const rios = await riosDoMapa(t);
       const rev = state.revision,
         [w, s, e, n] = t.bbox,
         cellArea =
@@ -1209,6 +1629,7 @@
         Number($("drainArea").value) * 1e6,
         Number($("handLevel").value),
         t.bbox,
+        rios ? rios.mascara : null,
       ]);
       if (rev !== state.revision)
         throw Error("Configuração alterada durante a geração. Gere novamente.");
@@ -1217,6 +1638,7 @@
       state.layers.flood = layer;
       state.sources.flood =
         t.source +
+        (rios ? " · rios do OpenStreetMap" : "") +
         " · HAND D8 experimental · área contribuinte " +
         $("drainArea").value +
         " km² · nível " +
@@ -1227,7 +1649,38 @@
         "HAND experimental; não calibrado com régua ou evento histórico";
       invalidate();
       render();
-      status("Cenário HAND gerado. Revise-o antes de calcular as rotas.");
+      status(
+        "Mancha gerada pelo terreno" +
+          (rios
+            ? ", a partir dos rios mapeados."
+            : ". Não foi possível ler os rios do OpenStreetMap: a drenagem saiu só do relevo dentro da área e pode falhar para rio que vem de fora.") +
+          " Confira no mapa e ajuste o nível acima do rio antes de calcular.",
+      );
+    });
+  // tudo de uma vez: ruas e edificações, relevo e rios, mancha e cálculo
+  async function etapaAuto(id) {
+    await $(id).onclick();
+    if ($("status").classList.contains("error"))
+      throw Error($("status").textContent);
+  }
+  $("autoLevel").addEventListener("input", () => {
+    $("handLevel").value = $("autoLevel").value;
+  });
+  $("handLevel").addEventListener("input", () => {
+    $("autoLevel").value = $("handLevel").value;
+  });
+  $("autoAll").onclick = () =>
+    busy($("autoAll"), async () => {
+      areaBox();
+      if (!$("autoLevel").checkValidity() || $("autoLevel").value === "")
+        throw Error("Informe quanto o rio sobe, em metros.");
+      $("handLevel").value = $("autoLevel").value;
+      // bases que a pessoa já importou ficam como estão
+      if (!state.layers.roads || !state.layers.buildings)
+        await etapaAuto("osmDownload");
+      if (!state.layers.flood || $("floodType").value === "hand")
+        await etapaAuto("generateHand");
+      await etapaAuto("calculate");
     });
   $("csv").disabled = $("routes").disabled = true;
   render();
