@@ -311,6 +311,22 @@
         margin: 0 0 14px;
         background: #f7fbf9;
       }
+      .idiomas {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+        margin: -4px 0 4px;
+      }
+      .idiomas button {
+        font-size: 12px;
+        padding: 3px 8px;
+        margin: 0;
+        background: transparent;
+      }
+      .idiomas button[aria-pressed="true"] {
+        background: #14684f;
+        color: #fff;
+      }
       .guia h2 {
         margin: 0 0 4px;
       }
@@ -459,6 +475,11 @@
     <main>
       <aside>
         <section class="guia" aria-labelledby="guiaTit">
+          <p class="idiomas" role="group" aria-label="Idioma / Language">
+            <button type="button" data-lang="pt" lang="pt">Português</button
+            ><button type="button" data-lang="en" lang="en">English</button
+            ><button type="button" data-lang="es" lang="es">Español</button>
+          </p>
           <h2 id="guiaTit">Calcule em 3 passos</h2>
           <p class="muted">
             Para qualquer cidade do mundo. A página baixa o mapa das ruas e das
@@ -887,6 +908,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shpjs@6.1.0/dist/shp.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="assets/js/cenario_idiomas.js"></script>
     <script src="assets/js/cenario_engine.js"></script>
     <script src="assets/js/cenario_osm.js"></script>
     <script src="assets/js/cenario_terreno.js"></script>

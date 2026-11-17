@@ -1,5 +1,14 @@
 "use strict";
 (() => {
+  // idioma do fluxo principal (assets/js/cenario_idiomas.js); sem o arquivo, fica em português
+  const I = window.CenarioIdioma || {
+    tr: (t) => t,
+    aplica() {},
+    idioma: () => "pt",
+  };
+  let LANG = I.idioma();
+  const LOC = () =>
+    LANG === "en" ? "en-US" : LANG === "es" ? "es-ES" : "pt-BR";
   const $ = (id) => document.getElementById(id),
     E = CenarioEngine,
     fc = (features) => ({ type: "FeatureCollection", features }),
@@ -56,8 +65,10 @@
       else $(id).value = value;
     }
   }
+  let statusPt = null;
   const status = (text, error = false) => {
-    $("status").textContent = text;
+    statusPt = text;
+    $("status").textContent = I.tr(text, LANG);
     $("status").className = "status" + (error ? " error" : "");
   };
   function download(content, name, type = "application/json") {
@@ -535,7 +546,7 @@
         grande = km2 > O.AREA_MAX_KM2;
       status(
         grande
-          ? `O limite tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar esta parte do mapa” (até ${O.AREA_MAX_KM2} km²).`
+          ? `O limite tem cerca de ${Math.round(km2).toLocaleString(LOC())} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar esta parte do mapa” (até ${O.AREA_MAX_KM2} km²).`
           : "Área de interesse definida. Agora baixe as ruas e edificações na etapa 2.",
         grande,
       );
@@ -579,6 +590,7 @@
       }
       ul.append(li);
     }
+    I.aplica([ul], LANG);
     if (lista.length) {
       sugereNome(lista[0]);
       irAoLugar(lista[0]);
@@ -588,13 +600,24 @@
   $("viewArea").onclick = () => {
     try {
       const b = map.getBounds().pad(-0.04),
-        [w, s, e, n] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        // o mapa dá a volta no mundo: traz a longitude de volta para -180..180
+        volta = Math.round((b.getWest() + b.getEast()) / 2 / 360) * 360,
+        [w, s, e, n] = [
+          b.getWest() - volta,
+          b.getSouth(),
+          b.getEast() - volta,
+          b.getNorth(),
+        ],
         km2 = O.areaKm2([w, s, e, n]);
+      if (w < -180 || e > 180)
+        throw Error(
+          "Essa parte do mapa cruza a linha de data (longitude 180°). Arraste o mapa para um lado só dela e toque de novo.",
+        );
       if (km2 > O.AREA_MAX_KM2)
         throw Error(
           (km2 > 20000
             ? "A área na tela é grande demais."
-            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km².`) +
+            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString(LOC())} km².`) +
             ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
       state.layers.aoi = E.validate(
@@ -621,11 +644,13 @@
       render();
       passoFeito(2);
       $("areaOk").hidden = false;
-      $("areaOk").textContent =
-        `Área marcada: cerca de ${km2.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km².`;
+      $("areaOk").textContent = I.tr(
+        `Área marcada: cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km².`,
+        LANG,
+      );
       if (celular()) mostra($("passo3"));
       status(
-        `Área marcada (cerca de ${km2.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km²). Agora informe quanto o rio sobe e toque em Calcular.`,
+        `Área marcada (cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km²). Agora informe quanto o rio sobe e toque em Calcular.`,
       );
     } catch (err) {
       status(err.message, true);
@@ -679,7 +704,7 @@
         km2 = O.areaKm2(bbox);
       if (km2 > O.AREA_MAX_KM2)
         throw Error(
-          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
+          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString(LOC())} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
         );
       status("Baixando ruas e edificações do OpenStreetMap…");
       // os rios da área (com folga) vêm junto: servem para gerar a mancha pelo terreno
@@ -742,12 +767,12 @@
       // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
       if (r.buildings.features.length > 10000)
         throw Error(
-          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString("pt-BR")}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
+          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString(LOC())}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
         );
       const nt = O.trechos(r.roads);
       if (nt > 15000)
         throw Error(
-          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString("pt-BR")} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
+          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString(LOC())} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
         );
       const fonte =
         "OpenStreetMap (ODbL)" +
@@ -778,7 +803,7 @@
       invalidate();
       render();
       fit();
-      const n0 = (v) => v.toLocaleString("pt-BR");
+      const n0 = (v) => v.toLocaleString(LOC());
       status(
         `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
           (r.buildings.features.length
@@ -910,7 +935,7 @@
       "Resultado · " +
       ($("municipality").value || "Município não identificado");
     box.append(h);
-    const n0 = (v) => Number(v).toLocaleString("pt-BR"),
+    const n0 = (v) => Number(v).toLocaleString(LOC()),
       el = (tag, cls, text) => {
         const e = document.createElement(tag);
         if (cls) e.className = cls;
@@ -922,9 +947,40 @@
         d.append(el("b", "", n0(num)), el("span", "", text));
         return d;
       };
-    // o número interno do ponto sugerido confunde ao lado do nº da lista
-    const nomeCurto = (t) =>
-      String(t).replace(/^(Ponto sugerido) \d+$/, "Sugerido pelo cálculo");
+    // ponto sugerido ganha o nome da rua com nome mais perto (até 150 m); o número interno confunde
+    const ruas = (state.layers.roads?.features || []).filter(
+        (f) => f.properties?.name && f.geometry?.type === "LineString",
+      ),
+      ruaPerto = (p) => {
+        let melhor = null,
+          dm = 150;
+        for (const f of ruas)
+          for (const c of f.geometry.coordinates) {
+            const d = E.distance(p, c);
+            if (d < dm) {
+              dm = d;
+              melhor = f.properties.name;
+            }
+          }
+        return melhor;
+      },
+      nomes = new Map(
+        r.destinations.map((d) => [
+          d,
+          /^Ponto sugerido \d+$/.test(String(d.name))
+            ? ruaPerto(d.p)
+              ? "Perto de " + ruaPerto(d.p)
+              : "Sugerido pelo cálculo"
+            : d.name,
+        ]),
+      ),
+      nomeCurto = (t) => {
+        for (const [d, n] of nomes) if (d.name === t) return n;
+        return String(t).replace(
+          /^(Ponto sugerido) \d+$/,
+          "Sugerido pelo cálculo",
+        );
+      };
     const minutos = $("minutes").value,
       pct = s.people ? Math.round((100 * s.served) / s.people) : 0;
     box.append(
@@ -1076,10 +1132,12 @@
     }
     r.buildings.forEach((b, i) => {
       if (!b.required) return;
+      // casas menores e um pouco transparentes, para a mancha azul aparecer por baixo delas
       const l = L.circleMarker([b.p[1], b.p[0]], {
-        radius: 5,
+        radius: 3.5,
+        weight: 1,
         color: b.destination == null ? "#b91c1c" : "#126b47",
-        fillOpacity: 0.9,
+        fillOpacity: 0.6,
       }).addTo(resultLayer);
       l.on("click", () => {
         routeLayer.clearLayers();
@@ -1112,6 +1170,7 @@
       });
     });
     $("csv").disabled = $("routes").disabled = false;
+    I.aplica([box], LANG);
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   $("save").onclick = () => {
@@ -1386,7 +1445,7 @@
   }
   function updateTerrain() {
     $("terrainInfo").textContent = state.terrain
-      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
+      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString(LOC(), { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
       : "Nenhum terreno carregado.";
   }
   async function readTerrain(tiff, bbox) {
@@ -1802,6 +1861,33 @@
         await etapaAuto("generateHand");
       await etapaAuto("calculate");
     });
+  // textos fixos do fluxo principal no idioma escolhido
+  const traduziveis = () => [
+    document.querySelector("header"),
+    document.querySelector(".guia"),
+    document.querySelector("#avancado > summary"),
+    document.querySelector(".map-note"),
+    $("viewAreaMap"),
+    $("results"),
+  ];
+  function trocaIdioma(lang) {
+    LANG = lang;
+    try {
+      localStorage.setItem("previne-idioma", lang);
+    } catch (e) {}
+    I.aplica(traduziveis(), lang);
+    if (statusPt != null) $("status").textContent = I.tr(statusPt, lang);
+    document
+      .querySelectorAll("[data-lang]")
+      .forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.lang === lang)),
+      );
+  }
+  document
+    .querySelectorAll("[data-lang]")
+    .forEach((b) => (b.onclick = () => trocaIdioma(b.dataset.lang)));
+  statusPt = $("status").textContent.replace(/\s+/g, " ").trim();
+  trocaIdioma(LANG);
   $("csv").disabled = $("routes").disabled = true;
   render();
 })();
