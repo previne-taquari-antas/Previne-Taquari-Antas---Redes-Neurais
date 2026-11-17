@@ -2813,6 +2813,29 @@ def carregar_saida_atual():
     return None
 
 
+def bloquear_previsao_com_alvo_vencido(out, agora=None):
+    """Nunca exibe previsao cujo horario-alvo ja passou como se fosse futura."""
+    if out.get("nivel_previsto_cm") is None:
+        return out
+    agora = agora or agora_brt()
+    alvo = _parse_hora(out.get("hora_alvo") or "")
+    if alvo is not None and alvo > agora:
+        return out
+    out["previsao_stale_candidata_cm"] = out.get("nivel_previsto_cm")
+    if out.get("passos"):
+        out["passos_stale_candidatos"] = out["passos"]
+    out["nivel_previsto_cm"] = None
+    out["passos"] = []
+    out["disponivel"] = False
+    out["status"] = "indisponivel: horario-alvo da previsao ja passou; aguardando base horaria nova"
+    out["bloqueio_publicacao"] = "hora_alvo_vencida"
+    audit = dict(out.get("auditoria_inputs") or {})
+    audit["status"] = "ATENCAO"
+    audit["motivo_publicacao"] = "previsao sem alvo futuro"
+    out["auditoria_inputs"] = audit
+    return out
+
+
 def recuperar_ultima_4h_emitida(cfg, indisponivel):
     """Conserva uma previsao 4h JA EMITIDA enquanto seu alvo ainda e futuro.
 
@@ -3102,6 +3125,9 @@ def main():
             out = recuperar_ultima_4h_emitida(cfg, out)
         horizontes[cfg["horizonte"]] = out
 
+    for out in horizontes.values():
+        bloquear_previsao_com_alvo_vencido(out)
+
     # Mesmo sem RNA valida, publicar a telemetria observada deste ciclo.
     # O painel precisa mostrar a medicao recente e os motivos de indisponibilidade,
     # sem trocar a hora da consulta nem reaproveitar uma previsao vencida.
@@ -3141,6 +3167,8 @@ def main():
         else:
             if out.get("fallback_ativo"):
                 qualidade_status = "FALLBACK_OPERACIONAL"
+            elif out.get("bloqueio_publicacao") == "hora_alvo_vencida":
+                qualidade_status = "BASE_DESATUALIZADA"
             elif out.get("nivel_previsto_cm") is None and (out.get("auditoria_inputs") or {}).get("status") == "INVALIDO":
                 qualidade_status = "DADO_INVALIDO_REVISAR"
             else:
