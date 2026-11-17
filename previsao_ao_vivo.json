@@ -3,12 +3,12 @@
  "gerado_em": "2026-11-16T20:00:00",
  "hora_modelo": "2026-11-16T20:00:00",
  "hora_alvo": "2026-11-16T22:00:00",
- "consultado_em": "2026-11-16T22:12:16",
+ "consultado_em": "2026-11-16T22:16:50",
  "telemetria_ultima_em": "2026-11-16T20:45:00",
  "telemetria_ultima_nivel_cm": 157,
  "telemetria_raw_rejeitada": null,
- "idade_telemetria_min": 87,
- "status_dados": "telemetria atrasada (87 min)",
+ "idade_telemetria_min": 92,
+ "status_dados": "telemetria atrasada (92 min)",
  "estacao": "86472600",
  "local": "Santa Tereza",
  "horizonte": "2h",
@@ -55,7 +55,7 @@
  "nivel_rio_agora_cm": 157,
  "nivel_rio_agora_em": "2026-11-16T20:45:00",
  "nivel_atual_cm": 161,
- "nivel_previsto_cm": 198,
+ "nivel_previsto_cm": null,
  "inputs_total": 15,
  "inputs_faltantes_n": 0,
  "inputs_faltantes": [],
@@ -69,12 +69,12 @@
    "fonte": "SGB/ANA - Hidrotelemetria",
    "tipo_dado": "leitura_observada_da_regua",
    "unidade": "cm",
-   "horas_modelo_disponiveis": 763,
+   "horas_modelo_disponiveis": 762,
    "ultima_hora_modelo": "2026-11-16T20:45",
    "ultima_hora_modelo_nivel_cm": 157,
    "ultima_leitura_bruta": "2026-11-16T20:45",
    "ultima_leitura_bruta_nivel_cm": 157,
-   "idade_leitura_min": 87,
+   "idade_leitura_min": 92,
    "qc_status": "NORMAL",
    "qc_fora_faixa_n": 0,
    "qc_ultima_fora_faixa": null,
@@ -92,12 +92,12 @@
    "fonte": "SGB/ANA - Hidrotelemetria",
    "tipo_dado": "leitura_observada_da_regua",
    "unidade": "cm",
-   "horas_modelo_disponiveis": 757,
+   "horas_modelo_disponiveis": 756,
    "ultima_hora_modelo": "2026-11-16T20:30",
    "ultima_hora_modelo_nivel_cm": 396,
    "ultima_leitura_bruta": "2026-11-16T20:30",
    "ultima_leitura_bruta_nivel_cm": 396,
-   "idade_leitura_min": 102,
+   "idade_leitura_min": 107,
    "qc_status": "NORMAL",
    "qc_fora_faixa_n": 0,
    "qc_ultima_fora_faixa": null,
@@ -314,9 +314,9 @@
    ]
   }
  ],
- "status": "ok",
+ "status": "indisponivel: horario-alvo da previsao ja passou; aguardando base horaria nova",
  "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
- "disponivel": true,
+ "disponivel": false,
  "delta_previsto_cm": 37.2,
  "input_values_cm": [
   161.0,
@@ -336,7 +336,7 @@
   60.0
  ],
  "auditoria_inputs": {
-  "status": "NORMAL",
+  "status": "ATENCAO",
   "formula_conferida_com_montador": true,
   "n_inputs": 15,
   "n_exatos": 15,
@@ -905,15 +905,10 @@
   ],
   "definicao_diferenca": "D_h(t) = N(t) - N(t-h)",
   "input_grade": "hourly_exact",
-  "input_grade_principal": "MINUTO = 0"
+  "input_grade_principal": "MINUTO = 0",
+  "motivo_publicacao": "previsao sem alvo futuro"
  },
- "passos": [
-  [
-   "2026-11-16T20:00:00",
-   157,
-   198
-  ]
- ],
+ "passos": [],
  "proxima_base_diagnostico": {
   "hora": "2026-11-16T21:00",
   "pronta": false,
@@ -943,6 +938,15 @@
    }
   ]
  },
+ "previsao_stale_candidata_cm": 198,
+ "passos_stale_candidatos": [
+  [
+   "2026-11-16T20:00:00",
+   157,
+   198
+  ]
+ ],
+ "bloqueio_publicacao": "hora_alvo_vencida",
  "auditoria": {
   "n_total": 94,
   "modelo": "009_alt_STZ_2H_R09_T10-15-16_V1-5-12-17-21",
@@ -1273,7 +1277,7 @@
   ]
  },
  "qualidade_ao_vivo": {
-  "status": "NORMAL",
+  "status": "BASE_DESATUALIZADA",
   "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
   "mae_24h_cm": 4.0,
   "maior_erro_abs_24h_cm": 12.0,
@@ -1285,12 +1289,12 @@
    "gerado_em": "2026-11-16T20:00:00",
    "hora_modelo": "2026-11-16T20:00:00",
    "hora_alvo": "2026-11-16T22:00:00",
-   "consultado_em": "2026-11-16T22:12:16",
+   "consultado_em": "2026-11-16T22:16:50",
    "telemetria_ultima_em": "2026-11-16T20:45:00",
    "telemetria_ultima_nivel_cm": 157,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 87,
-   "status_dados": "telemetria atrasada (87 min)",
+   "idade_telemetria_min": 92,
+   "status_dados": "telemetria atrasada (92 min)",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "2h",
@@ -1337,7 +1341,7 @@
    "nivel_rio_agora_cm": 157,
    "nivel_rio_agora_em": "2026-11-16T20:45:00",
    "nivel_atual_cm": 161,
-   "nivel_previsto_cm": 198,
+   "nivel_previsto_cm": null,
    "inputs_total": 15,
    "inputs_faltantes_n": 0,
    "inputs_faltantes": [],
@@ -1351,12 +1355,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 763,
+     "horas_modelo_disponiveis": 762,
      "ultima_hora_modelo": "2026-11-16T20:45",
      "ultima_hora_modelo_nivel_cm": 157,
      "ultima_leitura_bruta": "2026-11-16T20:45",
      "ultima_leitura_bruta_nivel_cm": 157,
-     "idade_leitura_min": 87,
+     "idade_leitura_min": 92,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -1374,12 +1378,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 757,
+     "horas_modelo_disponiveis": 756,
      "ultima_hora_modelo": "2026-11-16T20:30",
      "ultima_hora_modelo_nivel_cm": 396,
      "ultima_leitura_bruta": "2026-11-16T20:30",
      "ultima_leitura_bruta_nivel_cm": 396,
-     "idade_leitura_min": 102,
+     "idade_leitura_min": 107,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -1596,9 +1600,9 @@
      ]
     }
    ],
-   "status": "ok",
+   "status": "indisponivel: horario-alvo da previsao ja passou; aguardando base horaria nova",
    "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
-   "disponivel": true,
+   "disponivel": false,
    "delta_previsto_cm": 37.2,
    "input_values_cm": [
     161.0,
@@ -1618,7 +1622,7 @@
     60.0
    ],
    "auditoria_inputs": {
-    "status": "NORMAL",
+    "status": "ATENCAO",
     "formula_conferida_com_montador": true,
     "n_inputs": 15,
     "n_exatos": 15,
@@ -2187,15 +2191,10 @@
     ],
     "definicao_diferenca": "D_h(t) = N(t) - N(t-h)",
     "input_grade": "hourly_exact",
-    "input_grade_principal": "MINUTO = 0"
+    "input_grade_principal": "MINUTO = 0",
+    "motivo_publicacao": "previsao sem alvo futuro"
    },
-   "passos": [
-    [
-     "2026-11-16T20:00:00",
-     157,
-     198
-    ]
-   ],
+   "passos": [],
    "proxima_base_diagnostico": {
     "hora": "2026-11-16T21:00",
     "pronta": false,
@@ -2225,6 +2224,15 @@
      }
     ]
    },
+   "previsao_stale_candidata_cm": 198,
+   "passos_stale_candidatos": [
+    [
+     "2026-11-16T20:00:00",
+     157,
+     198
+    ]
+   ],
+   "bloqueio_publicacao": "hora_alvo_vencida",
    "auditoria": {
     "n_total": 94,
     "modelo": "009_alt_STZ_2H_R09_T10-15-16_V1-5-12-17-21",
@@ -2555,7 +2563,7 @@
     ]
    },
    "qualidade_ao_vivo": {
-    "status": "NORMAL",
+    "status": "BASE_DESATUALIZADA",
     "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
     "mae_24h_cm": 4.0,
     "maior_erro_abs_24h_cm": 12.0,
@@ -2567,12 +2575,12 @@
    "gerado_em": "2026-11-16T20:00:00",
    "hora_modelo": "2026-11-16T20:00:00",
    "hora_alvo": "2026-11-16T22:00:00",
-   "consultado_em": "2026-11-16T22:12:16",
+   "consultado_em": "2026-11-16T22:16:50",
    "telemetria_ultima_em": "2026-11-16T20:45:00",
    "telemetria_ultima_nivel_cm": 157,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 87,
-   "status_dados": "telemetria atrasada (87 min)",
+   "idade_telemetria_min": 92,
+   "status_dados": "telemetria atrasada (92 min)",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "2h_versao_b",
@@ -2619,7 +2627,7 @@
    "nivel_rio_agora_cm": 157,
    "nivel_rio_agora_em": "2026-11-16T20:45:00",
    "nivel_atual_cm": 161,
-   "nivel_previsto_cm": 201,
+   "nivel_previsto_cm": null,
    "inputs_total": 15,
    "inputs_faltantes_n": 0,
    "inputs_faltantes": [],
@@ -2633,12 +2641,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 763,
+     "horas_modelo_disponiveis": 762,
      "ultima_hora_modelo": "2026-11-16T20:45",
      "ultima_hora_modelo_nivel_cm": 157,
      "ultima_leitura_bruta": "2026-11-16T20:45",
      "ultima_leitura_bruta_nivel_cm": 157,
-     "idade_leitura_min": 87,
+     "idade_leitura_min": 92,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -2656,12 +2664,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 757,
+     "horas_modelo_disponiveis": 756,
      "ultima_hora_modelo": "2026-11-16T20:30",
      "ultima_hora_modelo_nivel_cm": 396,
      "ultima_leitura_bruta": "2026-11-16T20:30",
      "ultima_leitura_bruta_nivel_cm": 396,
-     "idade_leitura_min": 102,
+     "idade_leitura_min": 107,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -2878,9 +2886,9 @@
      ]
     }
    ],
-   "status": "ok",
+   "status": "indisponivel: horario-alvo da previsao ja passou; aguardando base horaria nova",
    "aviso": "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE.",
-   "disponivel": true,
+   "disponivel": false,
    "delta_previsto_cm": 39.9,
    "input_values_cm": [
     161.0,
@@ -2900,7 +2908,7 @@
     60.0
    ],
    "auditoria_inputs": {
-    "status": "NORMAL",
+    "status": "ATENCAO",
     "formula_conferida_com_montador": true,
     "n_inputs": 15,
     "n_exatos": 15,
@@ -3469,15 +3477,10 @@
     ],
     "definicao_diferenca": "D_h(t) = N(t) - N(t-h)",
     "input_grade": "hourly_exact",
-    "input_grade_principal": "MINUTO = 0"
+    "input_grade_principal": "MINUTO = 0",
+    "motivo_publicacao": "previsao sem alvo futuro"
    },
-   "passos": [
-    [
-     "2026-11-16T20:00:00",
-     157,
-     201
-    ]
-   ],
+   "passos": [],
    "proxima_base_diagnostico": {
     "hora": "2026-11-16T21:00",
     "pronta": false,
@@ -3507,6 +3510,15 @@
      }
     ]
    },
+   "previsao_stale_candidata_cm": 201,
+   "passos_stale_candidatos": [
+    [
+     "2026-11-16T20:00:00",
+     157,
+     201
+    ]
+   ],
+   "bloqueio_publicacao": "hora_alvo_vencida",
    "auditoria": {
     "n_total": 94,
     "modelo": "STZ_2H_ALT_VFINAL_B_20260731",
@@ -3837,7 +3849,7 @@
     ]
    },
    "qualidade_ao_vivo": {
-    "status": "NORMAL",
+    "status": "BASE_DESATUALIZADA",
     "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
     "mae_24h_cm": 4.1,
     "maior_erro_abs_24h_cm": 12.0,
@@ -3846,15 +3858,15 @@
   },
   "4h": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-16T22:12:16.857949",
+   "gerado_em": "2026-11-16T22:16:50.961364",
    "hora_modelo": null,
    "hora_alvo": null,
-   "consultado_em": "2026-11-16T22:12:16",
+   "consultado_em": "2026-11-16T22:16:50",
    "telemetria_ultima_em": "2026-11-16T20:45:00",
    "telemetria_ultima_nivel_cm": 157,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 87,
-   "status_dados": "telemetria atrasada (87 min)",
+   "idade_telemetria_min": 92,
+   "status_dados": "telemetria atrasada (92 min)",
    "estacao": "86472600",
    "local": "Santa Tereza",
    "horizonte": "4h",
@@ -3918,12 +3930,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 763,
+     "horas_modelo_disponiveis": 762,
      "ultima_hora_modelo": "2026-11-16T20:45",
      "ultima_hora_modelo_nivel_cm": 157,
      "ultima_leitura_bruta": "2026-11-16T20:45",
      "ultima_leitura_bruta_nivel_cm": 157,
-     "idade_leitura_min": 87,
+     "idade_leitura_min": 92,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -3941,12 +3953,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 757,
+     "horas_modelo_disponiveis": 756,
      "ultima_hora_modelo": "2026-11-16T20:30",
      "ultima_hora_modelo_nivel_cm": 396,
      "ultima_leitura_bruta": "2026-11-16T20:30",
      "ultima_leitura_bruta_nivel_cm": 396,
-     "idade_leitura_min": 102,
+     "idade_leitura_min": 107,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -4512,14 +4524,14 @@
   },
   "8h": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-16T22:12:16.859315",
+   "gerado_em": "2026-11-16T22:16:50.963822",
    "hora_modelo": null,
    "hora_alvo": null,
-   "consultado_em": "2026-11-16T22:12:16",
+   "consultado_em": "2026-11-16T22:16:50",
    "telemetria_ultima_em": "2026-11-16T20:45:00",
    "telemetria_ultima_nivel_cm": 157,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 87,
+   "idade_telemetria_min": 92,
    "status_dados": "telemetria de Santa Tereza sinalizada como invalida; RNA 8h bloqueada para publicacao",
    "estacao": "86472600",
    "local": "Santa Tereza",
@@ -4565,12 +4577,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 763,
+     "horas_modelo_disponiveis": 762,
      "ultima_hora_modelo": "2026-11-16T20:45",
      "ultima_hora_modelo_nivel_cm": 157,
      "ultima_leitura_bruta": "2026-11-16T20:45",
      "ultima_leitura_bruta_nivel_cm": 157,
-     "idade_leitura_min": 87,
+     "idade_leitura_min": 92,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -4588,12 +4600,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 757,
+     "horas_modelo_disponiveis": 756,
      "ultima_hora_modelo": "2026-11-16T20:30",
      "ultima_hora_modelo_nivel_cm": 396,
      "ultima_leitura_bruta": "2026-11-16T20:30",
      "ultima_leitura_bruta_nivel_cm": 396,
-     "idade_leitura_min": 102,
+     "idade_leitura_min": 107,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -4880,14 +4892,14 @@
   },
   "8h_v002": {
    "modo": "ao_vivo",
-   "gerado_em": "2026-11-16T22:12:16.861371",
+   "gerado_em": "2026-11-16T22:16:50.965635",
    "hora_modelo": null,
    "hora_alvo": null,
-   "consultado_em": "2026-11-16T22:12:16",
+   "consultado_em": "2026-11-16T22:16:50",
    "telemetria_ultima_em": "2026-11-16T20:45:00",
    "telemetria_ultima_nivel_cm": 157,
    "telemetria_raw_rejeitada": null,
-   "idade_telemetria_min": 87,
+   "idade_telemetria_min": 92,
    "status_dados": "telemetria de Santa Tereza sinalizada como invalida; RNA 8h bloqueada para publicacao",
    "estacao": "86472600",
    "local": "Santa Tereza",
@@ -4933,12 +4945,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 763,
+     "horas_modelo_disponiveis": 762,
      "ultima_hora_modelo": "2026-11-16T20:45",
      "ultima_hora_modelo_nivel_cm": 157,
      "ultima_leitura_bruta": "2026-11-16T20:45",
      "ultima_leitura_bruta_nivel_cm": 157,
-     "idade_leitura_min": 87,
+     "idade_leitura_min": 92,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
@@ -4956,12 +4968,12 @@
      "fonte": "SGB/ANA - Hidrotelemetria",
      "tipo_dado": "leitura_observada_da_regua",
      "unidade": "cm",
-     "horas_modelo_disponiveis": 757,
+     "horas_modelo_disponiveis": 756,
      "ultima_hora_modelo": "2026-11-16T20:30",
      "ultima_hora_modelo_nivel_cm": 396,
      "ultima_leitura_bruta": "2026-11-16T20:30",
      "ultima_leitura_bruta_nivel_cm": 396,
-     "idade_leitura_min": 102,
+     "idade_leitura_min": 107,
      "qc_status": "NORMAL",
      "qc_fora_faixa_n": 0,
      "qc_ultima_fora_faixa": null,
