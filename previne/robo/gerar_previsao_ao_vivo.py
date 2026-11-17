@@ -2813,6 +2813,58 @@ def carregar_saida_atual():
     return None
 
 
+def recuperar_ultima_4h_emitida(cfg, indisponivel):
+    """Conserva uma previsao 4h JA EMITIDA enquanto seu alvo ainda e futuro.
+
+    Nunca calcula retroativamente a rede a partir de dados posteriores a t0.
+    Reaproveita somente o pacote completo ja publicado, com a emissao,
+    os 18 inputs e a auditoria originais. Sem isso, permanece indisponivel.
+    """
+    if indisponivel.get("nivel_previsto_cm") is not None:
+        return indisponivel
+    anterior = carregar_saida_atual()
+    if not isinstance(anterior, dict):
+        return indisponivel
+    prev = (anterior.get("horizontes") or {}).get("4h")
+    if not isinstance(prev, dict) or not prev.get("disponivel") or prev.get("nivel_previsto_cm") is None:
+        return indisponivel
+    if (prev.get("modelo") != cfg.get("modelo")
+            or prev.get("modelo_sha256") != cfg.get("modelo_sha256")
+            or prev.get("formula_contract_version") != cfg.get("formula_contract_version")
+            or prev.get("input_contract_version") != "hourly_exact_v1"
+            or prev.get("input_grade") != "hourly_exact"
+            or len(prev.get("input_values_cm") or []) != 18
+            or (prev.get("auditoria_inputs") or {}).get("status") != "NORMAL"
+            or (prev.get("qualidade_ao_vivo") or {}).get("status") != "NORMAL"):
+        return indisponivel
+
+    emitida = _parse_hora(prev.get("consultado_em") or "")
+    base = _parse_hora(prev.get("hora_modelo") or "")
+    alvo = _parse_hora(prev.get("hora_alvo") or "")
+    agora = agora_brt()
+    if (not emitida or not _eh_hora_cheia(base) or not alvo
+            or emitida > agora or emitida < base
+            or emitida >= base + dt.timedelta(hours=2)
+            or agora - emitida > dt.timedelta(minutes=90)
+            or alvo <= agora or alvo != base + dt.timedelta(hours=4)):
+        return indisponivel
+
+    copia = dict(prev)
+    copia["status"] = (
+        "ok - ultima previsao 4h emitida em "
+        + emitida.isoformat(timespec="minutes")
+        + "; aguardando entradas horarias para nova rodada"
+    )
+    copia["ultima_previsao_reaproveitada"] = True
+    copia["emissao_original_em"] = emitida.isoformat(timespec="seconds")
+    copia["ultima_tentativa_em"] = agora.isoformat(timespec="seconds")
+    copia["ultima_tentativa_status"] = "sem_base_atual"
+    copia["base_nova_status"] = indisponivel.get("status")
+    copia["proxima_base_diagnostico"] = indisponivel.get("proxima_base_diagnostico")
+    print("[STZ 4h] preservada emissao anterior valida, sem refazer RNA:", emitida, "->", alvo)
+    return copia
+
+
 def saida_respeita_contrato_horario_atual(atual):
     horizontes = (atual or {}).get("horizontes") or {}
     if set(horizontes) != {cfg["horizonte"] for cfg in MODELOS}:
@@ -3046,6 +3098,8 @@ def main():
         out = gerar_saida_modelo(cfg, series, t_modelo, aviso, estacoes_status)
         out["proxima_base_diagnostico"] = diagnosticar_proxima_base(cfg, series, t_modelo)
         out = aplicar_fallback_operacional(cfg, out, series, horas, aviso, estacoes_status)
+        if cfg["horizonte"] == "4h" and out.get("nivel_previsto_cm") is None:
+            out = recuperar_ultima_4h_emitida(cfg, out)
         horizontes[cfg["horizonte"]] = out
 
     # Mesmo sem RNA valida, publicar a telemetria observada deste ciclo.
@@ -3141,6 +3195,9 @@ def main():
                     f"{out['status']} - atencao: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
                     "aguardando conjunto completo de entradas na mesma hora cheia"
                 )
+    for valor in horizontes.values():
+        if valor.get("ultima_previsao_reaproveitada") and valor.get("disponivel"):
+            valor.setdefault("qualidade_ao_vivo", {})["status"] = "ATENCAO_BASE_REAPROVEITADA"
     escrever_pacote(horizontes, historico, aviso, series)
     try:
         escrever_janela_inputs_ai_lab(series, (horizontes.get("2h") or {}).get("hora_modelo"))
