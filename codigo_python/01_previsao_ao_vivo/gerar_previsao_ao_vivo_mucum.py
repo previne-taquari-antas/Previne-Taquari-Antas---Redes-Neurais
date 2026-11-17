@@ -38,6 +38,7 @@ MODELOS_AO_VIVO_JSON = os.path.join(RAIZ, "assets", "data", "mucum_modelos_ao_vi
 MAT_DIR = os.path.join(RAIZ, "assets", "mat")
 SAIDA = os.path.join(RAIZ, "previsao_ao_vivo_mucum.json")
 HISTORICO_SAIDA = os.path.join(RAIZ, "historico_previsoes_ao_vivo_mucum.json")
+ANA_NIVEIS_CACHE_SAIDA = os.path.join(RAIZ, "assets", "data", "mucum_niveis_observados_cache.json")
 AUDITORIA_MAX_GAP = dt.timedelta(minutes=30)
 BANKFULL_CM = 500            # nível normal / zero da mancha (régua 86510000)
 ALVO = "86510000"
@@ -346,6 +347,99 @@ def buscar_series_paralelo(codigos, funcao, max_workers=ANA_MAX_CONCORRENCIA):
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ana-live") as executor:
         resultados = list(executor.map(funcao, codigos))
     return dict(zip(codigos, resultados))
+
+def complementar_niveis_cache_observado(series, caminho=ANA_NIVEIS_CACHE_SAIDA):
+    """Recupera lags de leituras REAIS previamente vistas pela ANA, sem interpolar.
+
+    A fonte ANA tem falhas intermitentes/series parciais. O cache conserva o
+    instante original de cada leitura por estacao e nunca transforma uma
+    previsao, lacuna ou zero sintetico em observacao.
+    """
+    agora = agora_brt()
+    corte = agora - dt.timedelta(days=4)
+    cache = {"schema_version": 1, "estacoes": {}}
+    if os.path.isfile(caminho):
+        with open(caminho, encoding="utf-8") as arq:
+            anterior = json.load(arq)
+        if anterior.get("schema_version") != 1 or not isinstance(anterior.get("estacoes"), dict):
+            raise ValueError("cache ANA de Muçum com contrato invalido")
+        cache = anterior
+    elif os.path.isfile(SAIDA):
+        # Semente auditavel: somente a serie explicitamente OBSERVADA no
+        # ultimo feed de Muçum. Nunca usar 'passos' ou previsoes da RNA.
+        try:
+            with open(SAIDA, encoding="utf-8") as arq:
+                feed_antigo = json.load(arq)
+            pontos = feed_antigo.get("serie_observada_ana") or []
+            if isinstance(pontos, list):
+                pares = []
+                for p in pontos:
+                    if not isinstance(p, dict):
+                        continue
+                    try:
+                        hora = dt.datetime.fromisoformat(str(p["hora"]))
+                        valor = float(p["nivel_cm"])
+                    except (ValueError, TypeError, KeyError):
+                        continue
+                    if hora.tzinfo is not None:
+                        hora = hora.astimezone(BRT).replace(tzinfo=None)
+                    if corte <= hora <= agora and nivel_plausivel(valor, ALVO):
+                        pares.append([hora.isoformat(timespec="seconds"), valor])
+                if pares:
+                    cache["estacoes"][ALVO] = pares
+        except (OSError, ValueError, TypeError) as exc:
+            print("[MUC cache] sem semente valida:", exc)
+
+    resultado = {}
+    houve_mudanca = not os.path.isfile(caminho)
+    for cod, atuais in list(series.items()):
+        if not isinstance(atuais, dict) or str(cod).startswith("__"):
+            continue
+        cod = str(cod)
+        previos = cache["estacoes"].get(cod, [])
+        mescla = {}
+        for item in previos:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                continue
+            try:
+                hora = dt.datetime.fromisoformat(str(item[0]))
+                valor = float(item[1])
+            except (TypeError, ValueError):
+                continue
+            if hora.tzinfo is not None:
+                hora = hora.astimezone(BRT).replace(tzinfo=None)
+            if corte <= hora <= agora and nivel_plausivel(valor, cod):
+                mescla[hora] = valor
+
+        n_anterior = len(mescla)
+        for hora, valor in atuais.items():
+            if (isinstance(hora, dt.datetime) and hora.tzinfo is None
+                    and corte <= hora <= agora and nivel_plausivel(valor, cod)):
+                mescla[hora] = float(valor)
+        # Lags sao exatos: a leitura preservada tem a propria hora ANA.
+        series[cod] = dict(sorted(mescla.items()))
+        pontos = [[h.isoformat(timespec="seconds"), v] for h, v in sorted(mescla.items())]
+        if pontos != previos:
+            houve_mudanca = True
+        cache["estacoes"][cod] = pontos
+        resultado[cod] = {
+            "observacoes_reais": len(pontos),
+            "recuperadas_do_cache": sum(h not in atuais for h in mescla),
+            "novas_ou_atualizadas": max(0, len(pontos) - n_anterior),
+        }
+        if mescla:
+            hora_ultima = max(mescla)
+            raw = ULTIMA_RAW.get(cod)
+            if raw is None or raw[0] < hora_ultima:
+                ULTIMA_RAW[cod] = (hora_ultima, mescla[hora_ultima])
+
+    if houve_mudanca:
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        with open(caminho, "w", encoding="utf-8") as arq:
+            json.dump(cache, arq, ensure_ascii=False, separators=(",", ":"))
+            arq.write("\n")
+    return resultado
+
 
 def nivel_plausivel(valor, estacao=None):
     try:
@@ -1100,6 +1194,11 @@ def main():
         + sorted(todas_chuvas - {ALVO})
     )
     series = buscar_series_paralelo(estacoes, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA)
+    try:
+        print("[MUC cache] leituras observadas", complementar_niveis_cache_observado(series))
+    except Exception as exc:
+        # Falha do cache nao pode impedir consulta/uso de dados ANA atuais.
+        print("[MUC cache] indisponivel; mantendo somente ANA deste ciclo:", exc)
     series["__chuva_postos__"] = buscar_series_paralelo(
         estacoes_chuva, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
     )
