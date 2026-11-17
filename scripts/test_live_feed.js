@@ -111,3 +111,12 @@ async function withFetch(mock, fn) {
   process.exit(1);
 });
 
+
+// tentativa falha não faz previsão antiga passar na frente de uma mais nova
+{
+  const feed2 = require('../assets/js/live_feed.js');
+  const antigaComFalha = { consultado_em: '2026-09-16T18:00:00', ultima_tentativa_em: '2026-09-16T21:00:00', ultima_tentativa_status: 'falha' };
+  const nova = { consultado_em: '2026-09-16T19:37:50', status: 'ok' };
+  const escolhido = feed2.pickNewest([antigaComFalha, nova]);
+  if (escolhido !== nova) throw new Error('tentativa falha fez previsão antiga vencer a mais nova');
+}
