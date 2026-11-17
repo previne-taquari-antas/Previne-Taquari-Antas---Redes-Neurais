@@ -3197,7 +3197,11 @@ def main():
                 )
     for valor in horizontes.values():
         if valor.get("ultima_previsao_reaproveitada") and valor.get("disponivel"):
-            valor.setdefault("qualidade_ao_vivo", {})["status"] = "ATENCAO_BASE_REAPROVEITADA"
+            qualidade = valor.setdefault("qualidade_ao_vivo", {})
+            # Mantem o estado ATENCAO reconhecido pelo painel, inclusive quando
+            # os erros recentes tambem pedem revisao.
+            qualidade["status"] = "ATENCAO"
+            qualidade["base_reaproveitada"] = True
     escrever_pacote(horizontes, historico, aviso, series)
     try:
         escrever_janela_inputs_ai_lab(series, (horizontes.get("2h") or {}).get("hora_modelo"))
