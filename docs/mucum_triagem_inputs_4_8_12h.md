@@ -1,7 +1,90 @@
 # Muçum — triagem de inputs para a previsão de 4 h, 8 h e 12 h
 
-Pesquisa, sem efeito no robô ao vivo. Reproduzir com
-`python scripts/screen_mucum_input_candidates.py`; resultado completo em
+Pesquisa, sem efeito no robô ao vivo. O objetivo é acertar os **grandes eventos**;
+a Parte 1 mede o erro só em cheia e é a que orienta as recomendações. A Parte 2
+(todas as horas, incluindo a oscilação diária das usinas) fica como registro.
+
+# Parte 1 — grandes eventos
+
+Reproduzir com `python scripts/screen_mucum_flood_inputs.py`; resultado em
+`assets/data/research_mucum_flood_input_screening_latest.json`.
+
+## Como foi medido
+
+- **Horas de cheia:** Muçum ≥ 500 cm na emissão ou no alvo.
+- **Ramo de subida:** o rio sobe 50 cm ou mais dentro do horizonte.
+- **Pico:** a previsão emitida h horas antes do pico de cada evento.
+- **Eventos:** cheias de 2023–2024 e jul/2026 do arquivo histórico, mais quatro
+  eventos de set–nov/2026. A validação deixa um evento inteiro de fora por vez.
+- **Referência:** modelo só com Muçum + Linha José Júlio, nas mesmas horas.
+
+## Resultado
+
+Erro médio absoluto em cm, referência → com o input.
+
+| Input somado | Horizonte | Eventos | Horas de cheia | Ramo de subida | Viés na subida | Pico |
+|---|---|---|---|---|---|---|
+| Chuva observada média da bacia | 4 h | 6 | 24,7 → 21,2 | 56,2 → 44,0 | −31 → −19 | 59 → 49 |
+| | 8 h | 6 | 74,3 → 49,4 | 128,9 → 82,3 | −80 → −26 | 123 → 40 |
+| | 12 h | 6 | 134,6 → 90,3 | 217,5 → 148,6 | −129 → −33 | 272 → 137 |
+| Nível de Santa Tereza | 4 h | 4 | 23,0 → 20,6 | 40,9 → 32,8 | −28 → −18 | 24 → 25 |
+| | 8 h | 4 | 67,1 → 54,0 | 92,3 → 76,5 | −64 → −49 | 53 → 47 |
+| | 12 h | 4 | 118,9 → 88,3 | 133,2 → 113,3 | −100 → −77 | 171 → 116 |
+| Santa Tereza + chuva | 4 h | 4 | 31,0 → 22,8 | 52,8 → 40,2 | −38 → −30 | 11 → 8 |
+| | 8 h | 4 | 89,2 → 66,1 | 121,9 → 108,8 | −92 → −70 | 62 → 74 |
+| | 12 h | 4 | 159,0 → 102,7 | 193,7 → 152,3 | −153 → −69 | 193 → 157 |
+
+## O que isso diz
+
+1. **O erro na cheia é subestimar a subida.** Só com réguas, o modelo fica em média
+   31 cm abaixo em 4 h, 80 cm em 8 h e 129 cm em 12 h durante a subida. Na cheia de
+   setembro de 2023 a previsão de 12 h para o pico ficou 12 m abaixo.
+2. **Chuva já caída é o input que mais corrige isso**, e é o único testado em seis
+   eventos, incluindo os dois de 2023. Reduz o erro em horas de cheia em 14% (4 h),
+   34% (8 h) e 33% (12 h), e o viés na subida cai para um terço em 8 h e 12 h. As
+   janelas usadas são acumulados de 3, 6, 12, 24 e 48 h.
+3. **Média da bacia basta.** Separar a chuva em cinco sub-bacias deu o mesmo ganho
+   em 8 h e 12 h e menos em 4 h.
+4. **Santa Tereza ajuda em todos os horizontes** (10% a 26% nas horas de cheia), mas
+   só pôde ser testada nos quatro eventos de 2026.
+5. **Chuva prevista não acrescenta até 12 h.** Dando ao modelo a chuva futura
+   observada (previsão perfeita), o erro não cai: 49,4 → 52,5 cm em 8 h e
+   90,3 → 92,2 cm em 12 h. Nesse alcance o que manda é a água que já caiu.
+6. **O modelo precisa extrapolar.** Com gradient boosting, a chuva não ajudou em
+   cheia (8 h: 74,2 → 82,4 cm), porque árvores não preveem subida maior do que as
+   que viram no treino. O modelo linear, que extrapola, aproveitou o input.
+
+## Inconclusivo ou sem ganho em cheia
+
+- **Rio da Prata (Balsa do Prata 86447000):** sozinho fica entre −9% e +4%. Com
+  chuva o ganho em 8 h e 12 h é grande (45% e 62%), mas em menos de 200 horas e com
+  cobertura irregular nas cheias históricas. Vale coletar; não dá para afirmar.
+- **Rio Carreiro (Passo Carreiro 86500000):** piora de 15% a 28% em cheia.
+- **Usinas (Monte Claro, 14 de Julho) e hora do dia:** só importam em águas baixas.
+
+## Recomendação para grandes eventos
+
+1. **4 h:** somar chuva observada (acumulados de 3 a 48 h) e Santa Tereza. Hoje o
+   modelo de 4 h não tem nenhum dos dois.
+2. **8 h:** trocar o acumulado único de 24 h por várias janelas de chuva areal da
+   bacia e somar Santa Tereza.
+3. **12 h:** mesmo conjunto; a chuva é indispensável nesse horizonte.
+4. Treinar com arquitetura que extrapole e avaliar pelos critérios acima (horas de
+   cheia, subida, pico), não pelo erro médio de todas as horas.
+5. Garantir coleta contínua de Balsa do Prata para decidir sobre o Rio da Prata na
+   próxima cheia.
+
+## Limites
+
+- Chuva: 6 eventos. Santa Tereza e Passo Carreiro: só os 4 de 2026, dos quais dois
+  são pequenos (picos de 532 e 640 cm).
+- O erro de pico é uma previsão por evento; leitura qualitativa.
+- Não foi possível baixar histórico da ANA neste ambiente para estender Santa
+  Tereza às cheias de 2023–2024.
+
+# Parte 2 — todas as horas (inclui a oscilação das usinas)
+
+Reproduzir com `python scripts/screen_mucum_input_candidates.py`; resultado em
 `assets/data/research_mucum_input_screening_latest.json`.
 
 ## Resumo
@@ -92,12 +175,7 @@ Defasagem até Muçum (correlação máxima entre variações de 2 h):
 - Chuva prevista (ECMWF) não foi testada: não há arquivo histórico de previsões
   alinhado a esta base.
 
-## Próximos passos sugeridos
+## Observação
 
-1. Re-treinar 4 h e 8 h incluindo os dias de águas baixas, ou separar um modelo por
-   regime. É o maior ganho e não depende de input novo.
-2. Rodar em sombra um 4 h com Santa Tereza e um 12 h com chuva observada + Rio da
-   Prata, com o mesmo contrato de auditoria do ao vivo.
-3. Incluir Jararaca e Balsa do Prata na coleta de toda rodada e registrar latência.
-4. Repetir esta triagem com as cheias históricas (2023–2024) quando houver acesso
-   aos dados das novas estações.
+As recomendações valem as da Parte 1. Re-treinar para a oscilação das usinas reduz
+o erro médio do painel, mas não é o objetivo e não melhora a previsão de cheia.
