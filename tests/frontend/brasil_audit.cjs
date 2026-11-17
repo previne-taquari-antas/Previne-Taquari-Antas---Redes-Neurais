@@ -15,7 +15,8 @@ let URL = process.env.BRASIL_ORIGIN
 const local =
   !URL || /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\//.test(URL);
 const out =
-  process.env.BRASIL_REPORT || path.join(require('os').tmpdir(), "previne-brasil-ui-report.json");
+  process.env.BRASIL_REPORT ||
+  path.join(require("os").tmpdir(), "previne-brasil-ui-report.json");
 const cities = [
   ["Manaus", "Norte", -60.0217, -3.119],
   ["Recife", "Nordeste", -34.877, -8.0476],
@@ -352,13 +353,11 @@ function scene(c) {
   const load = async (data) => {
     const copy = structuredClone(data);
     copy.options.municipality += " / " + ++serial;
-    await page
-      .locator("#load")
-      .setInputFiles({
-        name: "synthetic.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify(copy)),
-      });
+    await page.locator("#load").setInputFiles({
+      name: "synthetic.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(copy)),
+    });
     await page.waitForFunction(
       (name) =>
         document.getElementById("municipality").value === name &&
@@ -389,13 +388,11 @@ function scene(c) {
     await page
       .locator("#source")
       .fill("TESTE SINTÉTICO - sem validade operacional");
-    await page
-      .locator("#upload")
-      .setInputFiles({
-        name,
-        mimeType: "application/geo+json",
-        buffer: Buffer.from(JSON.stringify(data)),
-      });
+    await page.locator("#upload").setInputFiles({
+      name,
+      mimeType: "application/geo+json",
+      buffer: Buffer.from(JSON.stringify(data)),
+    });
     await page.waitForFunction(() =>
       document
         .getElementById("status")
@@ -404,6 +401,12 @@ function scene(c) {
   };
   try {
     await page.goto(URL, { waitUntil: "networkidle", timeout: 60000 });
+    // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
+    await page.evaluate(() =>
+      document
+        .querySelectorAll("#avancado, #avancado details.etapa")
+        .forEach((d) => (d.open = true)),
+    );
     await check(
       local
         ? "Local dependencies and municipal interface loaded"
@@ -696,13 +699,11 @@ function scene(c) {
         await load(data);
         for (const kind of ["roads", "buildings", "destinations"]) {
           await page.locator("#layerKind").selectOption(kind);
-          await page
-            .locator("#upload")
-            .setInputFiles({
-              name: `${kind}.zip`,
-              mimeType: "application/zip",
-              buffer: await shapeZip(data.layers[kind]),
-            });
+          await page.locator("#upload").setInputFiles({
+            name: `${kind}.zip`,
+            mimeType: "application/zip",
+            buffer: await shapeZip(data.layers[kind]),
+          });
           await page.waitForFunction(() =>
             document
               .getElementById("status")

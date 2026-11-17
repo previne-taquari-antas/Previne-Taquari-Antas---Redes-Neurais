@@ -57,9 +57,13 @@ const server = http.createServer((req, res) => {
   });
   await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
   await page.goto(origin + "/cenario_municipal.html");
-  await page
-    .getByRole("button", { name: "Carregar exemplo: Santa Tereza" })
-    .click();
+  // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
+  await page.evaluate(() =>
+    document
+      .querySelectorAll("#avancado, #avancado details.etapa")
+      .forEach((d) => (d.open = true)),
+  );
+  await page.getByRole("button", { name: "Santa Tereza (RS)" }).click();
   await page.waitForFunction(() =>
     document.getElementById("status").textContent.includes("Exemplo carregado"),
   );
@@ -155,7 +159,9 @@ const server = http.createServer((req, res) => {
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page
-    .getByText("Modelo de elevação e geração HAND", { exact: true })
+    .getByText("Não tenho a mancha: gerar pelo terreno (HAND, experimental)", {
+      exact: true,
+    })
     .click();
   const T = require("../../assets/js/cenario_terreno.js");
   const terrain = T.writeGeoTIFF({
@@ -167,13 +173,11 @@ const server = http.createServer((req, res) => {
       (_, i) => Math.abs((i % 9) - 4) * 3 + (8 - Math.floor(i / 9)) + 0.25,
     ),
   });
-  await page
-    .locator("#terrainFile")
-    .setInputFiles({
-      name: "terreno.tif",
-      mimeType: "image/tiff",
-      buffer: Buffer.from(terrain),
-    });
+  await page.locator("#terrainFile").setInputFiles({
+    name: "terreno.tif",
+    mimeType: "image/tiff",
+    buffer: Buffer.from(terrain),
+  });
   await page.waitForFunction(() =>
     document.getElementById("terrainInfo").textContent.includes("9 × 9"),
   );
@@ -182,7 +186,10 @@ const server = http.createServer((req, res) => {
   await page.waitForFunction(
     () => !document.getElementById("generateHand").disabled,
   );
-  assert.match(await page.locator("#status").innerText(), /HAND gerado/);
+  assert.match(
+    await page.locator("#status").innerText(),
+    /Mancha gerada pelo terreno/,
+  );
   const terrainDownload = page.waitForEvent("download");
   await page.locator("#downloadTerrain").click();
   const terrainFile = await terrainDownload;

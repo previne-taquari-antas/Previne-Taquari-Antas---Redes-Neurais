@@ -263,6 +263,66 @@
     return { type: "FeatureCollection", features };
   }
 
+  // a área dividida em ladrilhos pequenos, para o servidor oficial (que só entrega áreas pequenas)
+  function ladrilhos([w, s, e, n], passo = 0.02) {
+    const nx = Math.max(1, Math.ceil((e - w) / passo)),
+      ny = Math.max(1, Math.ceil((n - s) / passo)),
+      dx = (e - w) / nx,
+      dy = (n - s) / ny,
+      out = [];
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++)
+        out.push([w + i * dx, s + j * dy, w + (i + 1) * dx, s + (j + 1) * dy]);
+    return out;
+  }
+  const quartos = ([w, s, e, n]) => {
+    const mx = (w + e) / 2,
+      my = (s + n) / 2;
+    return [
+      [w, s, mx, my],
+      [mx, s, e, my],
+      [w, my, mx, n],
+      [mx, my, e, n],
+    ];
+  };
+  // respostas de vários ladrilhos numa só, sem repetir o que aparece em dois deles
+  function junta(partes) {
+    const vistos = new Set(),
+      elements = [];
+    for (const p of partes)
+      for (const el of p.elements || []) {
+        const k = el.type + "/" + el.id;
+        if (vistos.has(k)) continue;
+        vistos.add(k);
+        elements.push(el);
+      }
+    return { osm3s: partes.find((p) => p.osm3s)?.osm3s, elements };
+  }
+
+  // ruas e edificações só da área (o servidor oficial entrega a caixa maior, por causa dos rios)
+  function recorta(r, [w, s, e, n]) {
+    const dentro = (c) => c[0] >= w && c[0] <= e && c[1] >= s && c[1] <= n,
+      algum = (g) =>
+        g.type === "Point"
+          ? dentro(g.coordinates)
+          : g.type === "LineString"
+            ? g.coordinates.some(dentro)
+            : g.type === "Polygon"
+              ? g.coordinates[0].some(dentro)
+              : g.coordinates.some((p) => p[0].some(dentro));
+    return {
+      ...r,
+      roads: {
+        type: "FeatureCollection",
+        features: r.roads.features.filter((f) => algum(f.geometry)),
+      },
+      buildings: {
+        type: "FeatureCollection",
+        features: r.buildings.features.filter((f) => algum(f.geometry)),
+      },
+    };
+  }
+
   const urlLugar = (texto) =>
     "https://nominatim.openstreetmap.org/search?format=jsonv2&polygon_geojson=1&polygon_threshold=0.0005&limit=5&q=" +
     encodeURIComponent(texto);
@@ -394,9 +454,12 @@
   // metros a partir das cores de um ponto do quadro
   const alturaTerrarium = (r, g, b) => r * 256 + g + b / 256 - 32768;
   // caixa aumentada em volta da área (o rio e as margens costumam passar da borda)
-  function folga([w, s, e, n], f = 0.25) {
-    const dx = (e - w) * f,
-      dy = (n - s) * f;
+  // Relevo e rios precisam de margem em volta da área: o rio muitas vezes passa logo fora dela, e sem
+  // ele a mancha sai errada. Pelo menos minKm de cada lado.
+  function folga([w, s, e, n], f = 0.25, minKm = 1.5) {
+    const kx = 111.32 * Math.cos((((s + n) / 2) * Math.PI) / 180),
+      dx = Math.max((e - w) * f, minKm / kx),
+      dy = Math.max((n - s) * f, minKm / 110.57);
     return [w - dx, Math.max(-84, s - dy), e + dx, Math.min(84, n + dy)];
   }
   const trechos = (roads) =>
@@ -416,6 +479,10 @@
     aproveita,
     simplifica,
     urlMapa,
+    ladrilhos,
+    recorta,
+    quartos,
+    junta,
     deMapa,
     quadrosRelevo,
     alturaTerrarium,

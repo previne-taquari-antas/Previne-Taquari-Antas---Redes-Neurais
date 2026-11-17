@@ -30,13 +30,16 @@ const server = http.createServer((req, res) => {
 });
 (async () => {
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const origin = process.env.MDT_ORIGIN || "http://127.0.0.1:" + server.address().port;
+  const origin =
+    process.env.MDT_ORIGIN || "http://127.0.0.1:" + server.address().port;
   const browser = await chromium.launch({
     ...(process.env.CHROME_PATH
       ? { executablePath: process.env.CHROME_PATH }
       : {}),
     headless: true,
-    ...(process.env.MDT_ORIGIN && process.env.HTTPS_PROXY ? {proxy:{server:process.env.HTTPS_PROXY}} : {}),
+    ...(process.env.MDT_ORIGIN && process.env.HTTPS_PROXY
+      ? { proxy: { server: process.env.HTTPS_PROXY } }
+      : {}),
     args: ["--no-sandbox"],
   });
   const page = await browser.newPage({
@@ -49,20 +52,28 @@ const server = http.createServer((req, res) => {
     if (/cenario_(worker|engine|terreno)\.js\?v=/.test(request.url()))
       workerRequests.push(request.url());
   });
-  if(!process.env.MDT_ORIGIN) await page.route("https://cdn.jsdelivr.net/npm/**", async (route) => {
-    const path = route
-      .request()
-      .url()
-      .replace("https://cdn.jsdelivr.net/npm/", "")
-      .replace(/@[^/]+/, "");
-    try {
-      await route.fulfill({ path: require.resolve(path) });
-    } catch (e) {
-      await route.continue();
-    }
-  });
-  if(!process.env.MDT_ORIGIN) await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
+  if (!process.env.MDT_ORIGIN)
+    await page.route("https://cdn.jsdelivr.net/npm/**", async (route) => {
+      const path = route
+        .request()
+        .url()
+        .replace("https://cdn.jsdelivr.net/npm/", "")
+        .replace(/@[^/]+/, "");
+      try {
+        await route.fulfill({ path: require.resolve(path) });
+      } catch (e) {
+        await route.continue();
+      }
+    });
+  if (!process.env.MDT_ORIGIN)
+    await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
   await page.goto(origin + "/cenario_municipal.html?verify=mdt-20261113");
+  // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
+  await page.evaluate(() =>
+    document
+      .querySelectorAll("#avancado, #avancado details.etapa")
+      .forEach((d) => (d.open = true)),
+  );
 
   const os = require("os"),
     T = require("../../assets/js/cenario_terreno.js");
@@ -81,7 +92,7 @@ const server = http.createServer((req, res) => {
       return full.call(this);
     };
   });
-  const first = page.locator("aside > fieldset").first();
+  const first = page.locator("#avancado > fieldset").first();
   assert.equal(await first.locator("#terrainFile").count(), 1);
   assert.equal(await first.locator("#copernicus").count(), 1);
   assert.equal(await first.locator("#areaUpload").count(), 1);
@@ -101,13 +112,11 @@ const server = http.createServer((req, res) => {
     bbox: [0, 0, 0.01, 0.01],
     values: Array(81).fill(42.25),
   });
-  await page
-    .locator("#terrainFile")
-    .setInputFiles({
-      name: "mdt_sem_municipio.tif",
-      mimeType: "image/tiff",
-      buffer: Buffer.from(small),
-    });
+  await page.locator("#terrainFile").setInputFiles({
+    name: "mdt_sem_municipio.tif",
+    mimeType: "image/tiff",
+    buffer: Buffer.from(small),
+  });
   await page.waitForFunction(() =>
     document
       .getElementById("terrainInfo")
@@ -125,13 +134,11 @@ const server = http.createServer((req, res) => {
       ],
     ],
   };
-  await page
-    .locator("#areaUpload")
-    .setInputFiles({
-      name: "area.geojson",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(aoi)),
-    });
+  await page.locator("#areaUpload").setInputFiles({
+    name: "area.geojson",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(aoi)),
+  });
   await page.waitForFunction(() =>
     document.getElementById("status").textContent.includes("Camada importada"),
   );
@@ -223,14 +230,19 @@ const server = http.createServer((req, res) => {
   assert(Array.from(raster[0]).every((x) => x === 123.25));
   assert.equal(image.getGeoKeys().GeographicTypeGeoKey, 4326);
   await page
-    .getByText("Modelo de elevação e geração HAND", { exact: true })
+    .getByText("Não tenho a mancha: gerar pelo terreno (HAND, experimental)", {
+      exact: true,
+    })
     .click();
   await page.locator("#drainArea").fill("0.001");
   await page.locator("#generateHand").click();
   await page.waitForFunction(
     () => !document.getElementById("generateHand").disabled,
   );
-  assert.match(await page.locator("#status").innerText(), /HAND gerado/);
+  assert.match(
+    await page.locator("#status").innerText(),
+    /Mancha gerada pelo terreno/,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   assert(await page.locator("#terrainFile").isVisible());
   assert.equal(
