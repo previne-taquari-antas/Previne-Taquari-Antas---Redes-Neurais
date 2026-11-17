@@ -113,6 +113,51 @@
     return fileName(path) === 'previsao_ao_vivo_mucum.json';
   }
 
+  // A coleta das RNAs de 8h e isolada para nao atrasar os ciclos 2h/4h.
+  // Nunca transformar uma previsao com inputs incompletos em valor publicado.
+  let stz8hRequest = null;
+  let stz8hRequestAt = 0;
+
+  async function fetchStz8h() {
+    const now = Date.now();
+    if (stz8hRequest && now - stz8hRequestAt < 60000) return stz8hRequest;
+    stz8hRequestAt = now;
+    stz8hRequest = fetchNewest([
+      {label:'arquivo 8h publicado', url:'previsao_stz_8h.json'},
+      {label:'RNA 8h GitHub Raw', url:'https://raw.githubusercontent.com/' + REPO + '/main/previsao_stz_8h.json'}
+    ]).catch(function () { return null; });
+    return stz8hRequest;
+  }
+
+  async function mergeStz8h(feed, path) {
+    if (fileName(path) !== 'previsao_ao_vivo.json' || !feed || !feed.horizontes) return feed;
+    const extra = await fetchStz8h();
+    const revision = stampMs(extra);
+    const age = Date.now() - revision;
+    if (!extra || extra.schema_version !== 1 || extra.estacao !== '86472600' ||
+        !Number.isFinite(revision) || age < -5*60000 || age > 90*60000) return feed;
+    const horizons = Object.assign({}, feed.horizontes);
+    ['8h','8h_v002'].forEach(function (key) {
+      const value = extra.horizontes && extra.horizontes[key];
+      if (!value || value.horizonte !== key || value.horizonte_h !== 8 || value.hand_zero_cm !== 160) return;
+      const item = Object.assign({}, value);
+      if (item.disponivel) {
+        const base = stampMs({hora_modelo:item.hora_modelo});
+        const target = stampMs({hora_modelo:item.hora_alvo});
+        const now = Date.now();
+        if (!Number.isFinite(base) || !Number.isFinite(target) ||
+            now - base >= 2*3600000 || target <= now || base > now+5*60000) {
+          item.disponivel = false;
+          item.nivel_previsto_cm = null;
+          item.passos = [];
+          item.status = 'indisponivel: previsao de 8h fora da janela valida';
+        }
+      }
+      horizons[key] = item;
+    });
+    return Object.assign({}, feed, {horizontes:horizons});
+  }
+
   function needsRefresh(feed) {
     const revision=stampMs(feed);
     if(!Number.isFinite(revision)||Date.now()-revision>MAX_REVISION_AGE_MS) return true;
@@ -142,7 +187,7 @@
       }
     }
     if(!feed) throw primaryError||new Error('fontes indisponíveis');
-    return selectPublicMucum4h(feed, isPublicMucumPage(path));
+    return await mergeStz8h(selectPublicMucum4h(feed, isPublicMucumPage(path)), path);
   }
 
   return {
