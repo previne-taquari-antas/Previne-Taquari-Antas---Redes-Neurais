@@ -72,10 +72,12 @@
   }
   function invalidate() {
     state.revision++;
+    const tinha = !!state.result;
     state.result = null;
     if (routeLayer) routeLayer.clearLayers();
     if (resultLayer) resultLayer.clearLayers();
-    $("results").hidden = false;
+    // sem resultado anterior, a área do resultado fica escondida até haver um
+    $("results").hidden = !tinha;
     $("results").textContent =
       "Configuração alterada. Calcule novamente para atualizar os resultados.";
     $("csv").disabled = $("routes").disabled = true;
@@ -548,6 +550,13 @@
     if (campo.value.trim() && campo.value !== nomeAuto) return;
     nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
   }
+  // Lugar pequeno (um bairro): mostra ele inteiro. Município grande: abre já perto do centro da
+  // cidade, numa escala em que a parte visível cabe no limite; aí basta tocar em "Usar esta parte".
+  function irAoLugar(l) {
+    if (l.centro && O.areaKm2(l.caixa) > O.AREA_MAX_KM2)
+      map.setView([l.centro[1], l.centro[0]], 15);
+    else vaiPara(l.caixa);
+  }
   function mostraLugares(lista) {
     const ul = $("placeResults");
     ul.replaceChildren();
@@ -559,7 +568,7 @@
       ir.textContent = "Ver no mapa";
       ir.onclick = () => {
         sugereNome(l);
-        vaiPara(l.caixa);
+        irAoLugar(l);
       };
       li.append(nome, ir);
       if (l.limite) {
@@ -572,7 +581,7 @@
     }
     if (lista.length) {
       sugereNome(lista[0]);
-      vaiPara(lista[0].caixa);
+      irAoLugar(lista[0]);
     }
   }
   // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
@@ -686,7 +695,7 @@
             "Os servidores de consulta estão lentos. Baixando também do servidor oficial do OpenStreetMap…",
           );
           return mapaOficial(
-            caixaRios,
+            O.ladrilhos(caixaRios).length <= 16 ? caixaRios : bbox,
             (f, t) => {
               if (!acabou)
                 status(
@@ -712,12 +721,14 @@
       const osm = await primeiro([
         viaConsulta.then((v) => v && { v, oficial: false }),
         viaOficial.then((v) => v && { v, oficial: true }),
+        // prazo total: depois de 2 min, desiste com uma mensagem em vez de ficar parado
+        espera(120000).then(() => null),
       ]);
       acabou = true;
       cancelaOficial.abort(); // o servidor oficial não segue baixando depois que outro respondeu
       if (!osm)
         throw Error(
-          "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
+          "O mapa das ruas e das casas não chegou em 2 minutos. Tente uma área menor (aproxime mais o mapa) ou tente de novo em alguns minutos.",
         );
       const bruto = O.converte(osm.v),
         r = osm.oficial ? O.recorta(bruto, bbox) : bruto;
@@ -849,6 +860,8 @@
       await fn();
     } catch (err) {
       status(err.message, true);
+      // no celular o aviso pode estar fora da tela: leva a pessoa até ele
+      $("status").scrollIntoView({ behavior: "smooth", block: "center" });
     } finally {
       button.disabled = false;
     }
@@ -946,6 +959,14 @@
           "p",
           "alerta",
           `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
+        ),
+      );
+    if (s.required < 15)
+      box.append(
+        el(
+          "p",
+          "alerta",
+          `Só ${n0(s.required)} ${s.required === 1 ? "edificação" : "edificações"} na área que precisa de ponto de encontro. Confira no mapa se marcou a parte certa da cidade (a que inunda, com casas) e se a mancha azul encosta nela.`,
         ),
       );
     if (r.removed)
@@ -1345,7 +1366,7 @@
       render();
       fit();
       status(
-        "Exemplo carregado: Santa Tereza, com a mancha do modelo do projeto (não é a área observada). Agora toque em Calcular.",
+        "Exemplo carregado: Santa Tereza, com uma mancha de inundação simulada (não é a cheia observada). Agora toque em Calcular.",
       );
     });
   function areaBox() {
@@ -1761,6 +1782,12 @@
     busy($("autoAll"), async () => {
       // sem área marcada (e sem bases importadas): usa a parte do mapa que está na tela
       if (!state.layers.aoi?.features.length && !state.layers.roads) {
+        if (map.getZoom() < 11) {
+          $("placeQuery").focus();
+          throw Error(
+            "Primeiro escreva o nome da cidade no passo 1 e toque em Procurar.",
+          );
+        }
         $("viewArea").click();
         if ($("status").classList.contains("error")) return;
       }

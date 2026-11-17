@@ -9,7 +9,8 @@
     "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
   ];
-  const AREA_MAX_KM2 = 60;
+  // acima disso o download e o cálculo passam de alguns minutos no celular
+  const AREA_MAX_KM2 = 20;
 
   // área aproximada da caixa [oeste, sul, leste, norte] em km²
   function areaKm2([w, s, e, n]) {
@@ -354,6 +355,11 @@
         return {
           nome: r.display_name || r.name || "",
           caixa: [b[2], b[0], b[3], b[1]],
+          // ponto central do lugar (para um município, costuma ser o centro da cidade)
+          centro:
+            Number.isFinite(+r.lat) && Number.isFinite(+r.lon)
+              ? [+r.lon, +r.lat]
+              : null,
           limite:
             g && (g.type === "Polygon" || g.type === "MultiPolygon") ? g : null,
         };
