@@ -157,7 +157,8 @@
           color: colors[kind],
           // a mancha gerada pelo terreno vem em muitas faixas: sem contorno, ela aparece como uma área só
           weight:
-            kind === "flood" && layer.features.length > 40
+            kind === "flood" &&
+            layer.features[0]?.properties?.modelo === "HAND experimental"
               ? 0
               : kind === "roads"
                 ? 2
@@ -433,7 +434,7 @@
   // Os servidores de consulta do OpenStreetMap são gratuitos e às vezes ficam fora do ar.
   // Em vez de tentar um por vez (minutos de espera), começa pelo principal e, a cada poucos
   // segundos sem resposta, chama também o próximo; vale o primeiro que responder.
-  function overpass(consulta, segundos = 60) {
+  function overpass(consulta, segundos = 60, prazo = 0) {
     const opts = {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -471,20 +472,22 @@
       chama();
       for (let k = 1; k < O.SERVIDORES.length; k++)
         timers.push(setTimeout(chama, 6000 * k));
+      // prazo total (s): passou, cancela o que ainda está aberto
+      if (prazo) timers.push(setTimeout(() => fim(null), prazo * 1000));
     });
   }
   // reserva: o servidor oficial do OpenStreetMap, em ladrilhos pequenos (3 de cada vez); ladrilho
   // com coisa demais é dividido em quatro
-  async function mapaOficial(bbox, aviso) {
+  async function mapaOficial(bbox, aviso, sinal) {
     const fila = O.ladrilhos(bbox).map((c) => [c, 0]),
       partes = [];
     let feitos = 0,
       total = fila.length;
     const um = async () => {
-      while (fila.length) {
+      while (fila.length && !(sinal && sinal.aborted)) {
         const [c, nivel] = fila.shift();
         try {
-          partes.push(O.deMapa(await pega(O.urlMapa(c), {}, 60)));
+          partes.push(O.deMapa(await pega(O.urlMapa(c), {}, 60, sinal)));
           feitos++;
           aviso(feitos, total);
         } catch (err) {
@@ -495,9 +498,18 @@
         }
       }
     };
-    await Promise.all([um(), um(), um()]);
+    // um ladrilho que falha de vez para os outros também
+    const para = new AbortController();
+    if (sinal) sinal.addEventListener("abort", () => para.abort());
+    sinal = para.signal;
+    await Promise.all([um(), um(), um()]).catch((err) => {
+      para.abort();
+      throw err;
+    });
+    if (para.signal.aborted) throw Error("cancelado");
     return O.junta(partes);
   }
+
   const vaiPara = ([w, s, e, n]) =>
     map.fitBounds(
       [
@@ -666,18 +678,23 @@
       // Os servidores de consulta e o oficial correm juntos: o oficial entra se os outros não
       // responderem em 15 s, e vale o primeiro que trouxer os dados.
       let acabou = false;
+      const cancelaOficial = new AbortController();
       const viaConsulta = overpass(O.consulta(bbox, caixaRios)),
         viaOficial = espera(15000).then(() => {
           if (acabou) return null;
           status(
             "Os servidores de consulta estão lentos. Baixando também do servidor oficial do OpenStreetMap…",
           );
-          return mapaOficial(caixaRios, (f, t) => {
-            if (!acabou)
-              status(
-                `Baixando do servidor oficial do OpenStreetMap: parte ${f} de ${t}…`,
-              );
-          }).catch((err) => {
+          return mapaOficial(
+            caixaRios,
+            (f, t) => {
+              if (!acabou)
+                status(
+                  `Baixando do servidor oficial do OpenStreetMap: parte ${f} de ${t}…`,
+                );
+            },
+            cancelaOficial.signal,
+          ).catch((err) => {
             console.warn("api.openstreetmap.org", err);
             return null;
           });
@@ -697,6 +714,7 @@
         viaOficial.then((v) => v && { v, oficial: true }),
       ]);
       acabou = true;
+      cancelaOficial.abort(); // o servidor oficial não segue baixando depois que outro respondeu
       if (!osm)
         throw Error(
           "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
@@ -1612,10 +1630,7 @@
     else {
       status("Buscando os rios mapeados da área…");
       // os rios são um pedido leve: se nenhum servidor responder em 20 s, a mancha segue só com o relevo
-      osm = await Promise.race([
-        overpass(O.consultaRios(t.bbox), 20),
-        espera(20000).then(() => null),
-      ]);
+      osm = await overpass(O.consultaRios(t.bbox), 20, 20);
       // reserva: o servidor oficial, se a caixa do relevo couber em poucos ladrilhos
       if (!osm && O.ladrilhos(t.bbox).length <= 16) {
         status("Buscando os rios no servidor oficial do OpenStreetMap…");

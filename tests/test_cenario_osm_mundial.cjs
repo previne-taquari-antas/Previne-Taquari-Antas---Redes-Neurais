@@ -409,3 +409,74 @@ test("rio largo em pedaços: só preenche o contorno fechado", () => {
   );
   assert.ok(solto.celulas < 30, String(solto.celulas));
 });
+
+test("rio cortado pela borda da área: as margens ficam marcadas, sem preencher a caixa", () => {
+  // margem de rio que atravessa a caixa: o servidor devolve vazio nos pontos de fora
+  const n = null,
+    r = O.mascaraRios(
+      {
+        elements: [
+          {
+            type: "way",
+            tags: { waterway: "riverbank" },
+            geometry: [
+              n,
+              ...g([
+                [0, 0.4],
+                [1, 0.4],
+              ]),
+              n,
+              n,
+              ...g([
+                [1, 0.6],
+                [0, 0.6],
+              ]),
+              n,
+            ],
+          },
+        ],
+      },
+      [0, 0, 1, 1],
+      10,
+      10,
+    );
+  for (let x = 0; x < 10; x++) {
+    assert.equal(r.mascara[4 * 10 + x], 1);
+    assert.equal(r.mascara[6 * 10 + x], 1);
+  }
+  assert.equal(r.mascara[1 * 10 + 5], 0);
+  assert.equal(r.mascara[9 * 10 + 5], 0);
+});
+
+test("recorta guarda a rua que atravessa a área sem ponto dentro dela", () => {
+  const rua = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-1, 0.5],
+          [2, 0.5],
+        ],
+      },
+    },
+    longe = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [5, 5],
+          [6, 6],
+        ],
+      },
+    },
+    r = O.recorta(
+      {
+        roads: { type: "FeatureCollection", features: [rua, longe] },
+        buildings: { type: "FeatureCollection", features: [] },
+      },
+      [0, 0, 1, 1],
+    );
+  assert.equal(r.roads.features.length, 1);
+});

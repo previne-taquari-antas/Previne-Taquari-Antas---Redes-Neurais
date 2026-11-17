@@ -306,15 +306,27 @@
 
   // ruas e edificações só da área (o servidor oficial entrega a caixa maior, por causa dos rios)
   function recorta(r, [w, s, e, n]) {
-    const dentro = (c) => c[0] >= w && c[0] <= e && c[1] >= s && c[1] <= n,
-      algum = (g) =>
+    // entra o que encosta na área: a caixa da geometria cruza a caixa da área (uma avenida reta pode
+    // atravessar a área sem ter nenhum ponto dentro dela)
+    const pontos = (g) =>
         g.type === "Point"
-          ? dentro(g.coordinates)
+          ? [g.coordinates]
           : g.type === "LineString"
-            ? g.coordinates.some(dentro)
+            ? g.coordinates
             : g.type === "Polygon"
-              ? g.coordinates[0].some(dentro)
-              : g.coordinates.some((p) => p[0].some(dentro));
+              ? g.coordinates[0]
+              : g.coordinates.flatMap((p) => p[0]),
+      algum = (g) => {
+        const c = pontos(g),
+          xs = c.map((p) => p[0]),
+          ys = c.map((p) => p[1]);
+        return (
+          Math.max(...xs) >= w &&
+          Math.min(...xs) <= e &&
+          Math.max(...ys) >= s &&
+          Math.min(...ys) <= n
+        );
+      };
     return {
       ...r,
       roads: {
@@ -364,12 +376,24 @@
   }
   // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
   // junta pedaços de linha pelas pontas e devolve só os anéis fechados (pedaço que não fecha não é preenchido)
+  // Junta pedaços de linha pelas pontas. Pontos vazios (fora da caixa pedida) cortam o pedaço.
+  // Devolve os anéis fechados e as cadeias que não fecharam.
   function aneis(pedacos) {
     const igual = (a, b) => a && b && a.lat === b.lat && a.lon === b.lon,
-      livres = pedacos
-        .map((g) => g.slice())
-        .filter((g) => g.length > 1 && g.every(Boolean)),
-      out = [];
+      livres = [],
+      fechados = [],
+      abertos = [];
+    for (const g of pedacos) {
+      let atual = [];
+      for (const p of g) {
+        if (p) atual.push(p);
+        else {
+          if (atual.length > 1) livres.push(atual);
+          atual = [];
+        }
+      }
+      if (atual.length > 1) livres.push(atual);
+    }
     while (livres.length) {
       let anel = livres.shift();
       for (let mudou = true; mudou && !igual(anel[0], anel.at(-1)); ) {
@@ -388,9 +412,10 @@
           break;
         }
       }
-      if (anel.length >= 4 && igual(anel[0], anel.at(-1))) out.push(anel);
+      if (anel.length >= 4 && igual(anel[0], anel.at(-1))) fechados.push(anel);
+      else abertos.push(anel);
     }
-    return out;
+    return { fechados, abertos };
   }
   function mascaraRios(osm, [w, s, e, n], largura, altura) {
     const m = new Uint8Array(largura * altura),
@@ -416,6 +441,12 @@
         for (let k = 0; k <= passos; k++)
           marca(x0 + ((x1 - x0) * k) / passos, y0 + ((y1 - y0) * k) / passos);
       }
+    }
+    // Só o contorno que fecha é preenchido. Pedaço que não fecha (cortado pela borda da área ou parte
+    // de um contorno maior) fica como linha: as duas margens e o eixo do rio já marcam a drenagem, e a
+    // água entre elas fica na altura do rio no relevo.
+    function preenche(pedacos) {
+      for (const anel of aneis(pedacos).fechados) miolo(anel);
     }
     function miolo(g) {
       // interior do polígono de água, por varredura das linhas da grade
@@ -448,7 +479,7 @@
       if (el.type === "way" && Array.isArray(el.geometry)) {
         linha(el.geometry);
         if (t.natural === "water" || t.waterway === "riverbank")
-          for (const anel of aneis([el.geometry])) miolo(anel);
+          preenche([el.geometry]);
       } else if (el.type === "relation") {
         const fora = [];
         for (const mb of el.members || [])
@@ -457,7 +488,7 @@
             if (mb.role === "outer") fora.push(mb.geometry);
           }
         // o contorno de um rio largo vem em vários pedaços: só se preenche depois de fechado
-        for (const anel of aneis(fora)) miolo(anel);
+        preenche(fora);
       }
     }
     let celulas = 0;
