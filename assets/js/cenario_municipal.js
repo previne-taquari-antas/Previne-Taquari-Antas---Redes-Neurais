@@ -1327,7 +1327,7 @@
       render();
       fit();
       status(
-        "Exemplo carregado. A mancha é modelada, não observada. Verifique contornos e referências antes de uso.",
+        "Exemplo carregado: Santa Tereza, com a mancha do modelo do projeto (não é a área observada). Agora toque em Calcular.",
       );
     });
   function areaBox() {
@@ -1616,6 +1616,16 @@
         overpass(O.consultaRios(t.bbox), 20),
         espera(20000).then(() => null),
       ]);
+      // reserva: o servidor oficial, se a caixa do relevo couber em poucos ladrilhos
+      if (!osm && O.ladrilhos(t.bbox).length <= 16) {
+        status("Buscando os rios no servidor oficial do OpenStreetMap…");
+        osm = await mapaOficial(t.bbox, (f, n) =>
+          status(
+            `Buscando os rios no servidor oficial do OpenStreetMap: parte ${f} de ${n}…`,
+          ),
+        ).catch(() => null);
+        if (osm) osm = { elements: O.converte(osm).rios };
+      }
       // guarda: gerar de novo com outro nível não pede os rios outra vez
       if (osm) state.rios = { caixa: t.bbox, elements: osm.elements || [] };
     }

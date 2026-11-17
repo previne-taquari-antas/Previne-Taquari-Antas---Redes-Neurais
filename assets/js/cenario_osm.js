@@ -45,8 +45,13 @@
     const rios = [];
     for (const el of osm.elements || []) {
       const t = el.tags || {};
+      // só o que é rio (o mesmo que a consulta pede): valas, açudes e lagoas não são drenagem do rio
       if (t.waterway || t.natural === "water") {
-        rios.push(el);
+        if (
+          /^(river|stream|canal|riverbank)$/.test(t.waterway || "") ||
+          (t.natural === "water" && /^(river|canal)$/.test(t.water || ""))
+        )
+          rios.push(el);
         continue;
       }
       if (t.building && el.center) {
@@ -358,6 +363,35 @@
     return `[out:json][timeout:90];${RIOS(caixaTxt(caixa))}`;
   }
   // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
+  // junta pedaços de linha pelas pontas e devolve só os anéis fechados (pedaço que não fecha não é preenchido)
+  function aneis(pedacos) {
+    const igual = (a, b) => a && b && a.lat === b.lat && a.lon === b.lon,
+      livres = pedacos
+        .map((g) => g.slice())
+        .filter((g) => g.length > 1 && g.every(Boolean)),
+      out = [];
+    while (livres.length) {
+      let anel = livres.shift();
+      for (let mudou = true; mudou && !igual(anel[0], anel.at(-1)); ) {
+        mudou = false;
+        for (let i = 0; i < livres.length; i++) {
+          const g = livres[i];
+          if (igual(anel.at(-1), g[0])) anel = anel.concat(g.slice(1));
+          else if (igual(anel.at(-1), g.at(-1)))
+            anel = anel.concat(g.slice(0, -1).reverse());
+          else if (igual(anel[0], g.at(-1))) anel = g.slice(0, -1).concat(anel);
+          else if (igual(anel[0], g[0]))
+            anel = g.slice(1).reverse().concat(anel);
+          else continue;
+          livres.splice(i, 1);
+          mudou = true;
+          break;
+        }
+      }
+      if (anel.length >= 4 && igual(anel[0], anel.at(-1))) out.push(anel);
+    }
+    return out;
+  }
   function mascaraRios(osm, [w, s, e, n], largura, altura) {
     const m = new Uint8Array(largura * altura),
       cx = (lon) => ((lon - w) / (e - w)) * largura,
@@ -414,13 +448,17 @@
       if (el.type === "way" && Array.isArray(el.geometry)) {
         linha(el.geometry);
         if (t.natural === "water" || t.waterway === "riverbank")
-          miolo(el.geometry);
-      } else if (el.type === "relation")
+          for (const anel of aneis([el.geometry])) miolo(anel);
+      } else if (el.type === "relation") {
+        const fora = [];
         for (const mb of el.members || [])
           if (Array.isArray(mb.geometry)) {
             linha(mb.geometry);
-            if (mb.role === "outer") miolo(mb.geometry);
+            if (mb.role === "outer") fora.push(mb.geometry);
           }
+        // o contorno de um rio largo vem em vários pedaços: só se preenche depois de fechado
+        for (const anel of aneis(fora)) miolo(anel);
+      }
     }
     let celulas = 0;
     for (const v of m) celulas += v;

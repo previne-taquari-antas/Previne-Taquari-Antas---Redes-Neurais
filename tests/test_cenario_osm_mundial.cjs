@@ -346,3 +346,66 @@ test("edificação que vem só com o centro vira ponto", () => {
   E.validate(r.buildings, "buildings");
   assert.match(O.consulta([0, 0, 1, 1]), /out tags center/);
 });
+
+test("rio largo em pedaços: só preenche o contorno fechado", () => {
+  const caixa = [0, 0, 1, 1];
+  // contorno em dois pedaços que fecham juntos (faixa entre 0,4 e 0,6 de latitude)
+  const r = O.mascaraRios(
+    {
+      elements: [
+        {
+          type: "relation",
+          tags: { natural: "water", water: "river" },
+          members: [
+            {
+              role: "outer",
+              geometry: g([
+                [0, 0.4],
+                [1, 0.4],
+                [1, 0.6],
+              ]),
+            },
+            {
+              role: "outer",
+              geometry: g([
+                [1, 0.6],
+                [0, 0.6],
+                [0, 0.4],
+              ]),
+            },
+          ],
+        },
+      ],
+    },
+    caixa,
+    10,
+    10,
+  );
+  assert.equal(r.mascara[5 * 10 + 5], 1);
+  assert.equal(r.mascara[1 * 10 + 5], 0);
+  // pedaço solto (o resto do contorno fora da área) não vira uma área cheia
+  const solto = O.mascaraRios(
+    {
+      elements: [
+        {
+          type: "relation",
+          tags: { natural: "water", water: "river" },
+          members: [
+            {
+              role: "outer",
+              geometry: g([
+                [0, 0.1],
+                [0.9, 0.9],
+                [0.1, 0.9],
+              ]),
+            },
+          ],
+        },
+      ],
+    },
+    caixa,
+    10,
+    10,
+  );
+  assert.ok(solto.celulas < 30, String(solto.celulas));
+});
