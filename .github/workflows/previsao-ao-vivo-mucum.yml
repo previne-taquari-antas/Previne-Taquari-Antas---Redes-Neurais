@@ -67,7 +67,7 @@ jobs:
 
           git pull --rebase --autostash origin main
           python -B -m py_compile codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py scripts/validar_previsao_ao_vivo_mucum.py scripts/test_previsao_ao_vivo_mucum_schema.py
-          python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema scripts.test_live_input_training_contracts
+          python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema scripts.test_live_input_training_contracts scripts.test_mucum_niveis_cache
           PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 540s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
           python -B scripts/validar_previsao_ao_vivo_mucum.py
           git add previsao_ao_vivo_mucum.json historico_previsoes_ao_vivo_mucum.json
