@@ -57,5 +57,34 @@ class EmissaoAnterior4hTest(unittest.TestCase):
         self.assertIs(self.run_recovery(p), self.sem_base)
 
 
+class AlvoFuturoObrigatorioTest(unittest.TestCase):
+    def test_previsao_2h_vencida_e_retirada(self):
+        out = {
+            "hora_alvo": "2026-11-16T22:00:00",
+            "nivel_previsto_cm": 198,
+            "disponivel": True,
+            "passos": [["2026-11-16T20:00:00", 161, 198]],
+            "auditoria_inputs": {"status": "NORMAL"},
+        }
+        R.bloquear_previsao_com_alvo_vencido(
+            out, dt.datetime(2026, 11, 16, 22, 15))
+        self.assertIsNone(out["nivel_previsto_cm"])
+        self.assertFalse(out["disponivel"])
+        self.assertEqual(out["bloqueio_publicacao"], "hora_alvo_vencida")
+        self.assertEqual(out["auditoria_inputs"]["status"], "ATENCAO")
+
+    def test_previsao_4h_com_alvo_futuro_permanece(self):
+        out = {
+            "hora_alvo": "2026-11-17T00:00:00",
+            "nivel_previsto_cm": 261,
+            "disponivel": True,
+            "passos": [["2026-11-16T20:00:00", 161, 261]],
+        }
+        R.bloquear_previsao_com_alvo_vencido(
+            out, dt.datetime(2026, 11, 16, 22, 15))
+        self.assertEqual(out["nivel_previsto_cm"], 261)
+        self.assertTrue(out["disponivel"])
+
+
 if __name__ == "__main__":
     unittest.main()
