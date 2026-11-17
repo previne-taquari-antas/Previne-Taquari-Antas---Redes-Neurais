@@ -30,7 +30,15 @@
   function pickNewest(feeds) {
     const ok = (feeds || []).filter(data => data && typeof data === 'object' && !Array.isArray(data) && Number.isFinite(stampMs(data)) && stampMs(data) <= Date.now()+5*60000);
     if (!ok.length) return null;
-    ok.sort(function (a, b) { return (stampMs(b) || 0) - (stampMs(a) || 0); });
+    // Empate na hora da previsão: vale a revisão que registra a tentativa mais recente (mesmo que tenha
+    // falhado), para o site mostrar que o robô tentou de novo. A tentativa falha só desempata; não faz
+    // uma previsão antiga passar na frente de uma mais nova.
+    function attemptMs(data) {
+      const raw = data && data.ultima_tentativa_em ? String(data.ultima_tentativa_em) : '';
+      const ms = raw ? Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + '-03:00') : NaN;
+      return Number.isFinite(ms) ? ms : (stampMs(data) || 0);
+    }
+    ok.sort(function (a, b) { return ((stampMs(b) || 0) - (stampMs(a) || 0)) || (attemptMs(b) - attemptMs(a)); });
     return ok[0];
   }
 
