@@ -71,6 +71,10 @@ jobs:
           PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 540s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
           python -B scripts/validar_previsao_ao_vivo_mucum.py
           git add previsao_ao_vivo_mucum.json historico_previsoes_ao_vivo_mucum.json
+          # O cache guarda apenas niveis ANA efetivamente observados, com seus horarios originais.
+          if [ -f assets/data/mucum_niveis_observados_cache.json ]; then
+            git add assets/data/mucum_niveis_observados_cache.json
+          fi
           if git diff --staged --quiet; then
             echo "sem mudanca neste ciclo"
           else
