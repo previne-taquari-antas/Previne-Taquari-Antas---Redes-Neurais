@@ -58,6 +58,37 @@ class SombraMucumTests(unittest.TestCase):
         self.assertEqual(faltam, [])
         self.assertEqual(x, [N(0), N(0) - N(4), (N(0) - N(1)) - (N(12) - N(13))])
 
+    def test_exp_idw_rain_filter(self) -> None:
+        # 2 postos, 1 sub-bacia; B sem dado em uma hora -> só A entra (IDW renormaliza)
+        hs = sorted(horas(60))
+        chuva = {"A": {h: 0.0 for h in hs}, "B": {h: 0.0 for h in hs}}
+        chuva["A"][T0 - dt.timedelta(hours=1)] = 4.0
+        chuva["B"][T0 - dt.timedelta(hours=1)] = 2.0
+        chuva["B"].pop(T0)
+        chuva["A"][T0] = 3.0
+        inp = {"tipo": "chuva_exp_idw", "tau_h": 12, "postos": ["A", "B"], "pesos_idw_sub_x_posto": [[1.0, 1.0]],
+               "areas_km2": [10.0], "nome": "c"}
+        x, faltam = S.montar_entradas([inp], {}, chuva, T0)
+        a = 2.718281828459045 ** (-1 / 12)
+        self.assertEqual(faltam, [])
+        self.assertAlmostEqual(x[0], a * 3.0 + 3.0, places=9)
+        # janela curta (sem aquecimento) -> ausente
+        curto = {"A": {h: 1.0 for h in horas(10)}}
+        x, faltam = S.montar_entradas([dict(inp, postos=["A"], pesos_idw_sub_x_posto=[[1.0]])], {}, curto, T0)
+        self.assertEqual(faltam, ["c"])
+
+    def test_daily_rain_qc_drops_excess_day(self) -> None:
+        d = dt.datetime(2026, 9, 21, 1, 0)
+        hs = [d + dt.timedelta(hours=i) for i in range(23)]
+        postos = ["A", "B", "C", "D", "E"]
+        chuva = {p: {h: 1.0 for h in hs} for p in postos}
+        chuva["C"] = {h: 10.0 for h in hs}          # 230 mm no dia contra 23 mm dos vizinhos
+        chuva["A"][T0] = 150.0                        # hora > 100 mm
+        limpa = S.qc_chuva_postos(chuva, postos)
+        self.assertEqual(limpa["C"], {})
+        self.assertNotIn(T0, limpa["A"])
+        self.assertEqual(len(limpa["B"]), 23)
+
     def test_live_qc_drops_zero_bitflip_and_stuck_sensor(self) -> None:
         alvo = {h: 500.0 + 10 * i for i, h in enumerate(horas(10))}   # Muçum variando 90 cm
         serie = {h: 42500.0 for h in horas(8)}                         # barragem travada 8 h
@@ -87,12 +118,20 @@ class SombraMucumTests(unittest.TestCase):
             contrato = json.loads(caminho.read_text(encoding="utf-8"))
             self.assertIn(contrato["alvo"], contrato["limites_estacao_cm"])
             for chave, hz in contrato["horizontes"].items():
-                niveis = [m["nivel_hierarquia"] for m in hz["modelos"]]
+                niveis = [m["nivel_hierarquia"] for m in hz["modelos"] if m["nivel_hierarquia"] >= 1]   # nível 0 = só registro
                 self.assertEqual(len(niveis), len(set(niveis)), f"{nome} {chave}: nível repetido")
                 for m in hz["modelos"]:
-                    mat = ROOT / m["mat"]
-                    self.assertTrue(mat.exists(), m["mat"])
-                    self.assertEqual(S._sha256(str(mat)), m["modelo_sha256"].upper(), m["mat"])
+                    if m.get("tipo_modelo") == "linear":
+                        self.assertEqual(len(m["coeficientes"]), m["n_inputs"])
+                        for i in m["inputs"]:
+                            if i["tipo"] == "chuva_exp_idw":
+                                self.assertEqual(len(i["pesos_idw_sub_x_posto"]), len(i["areas_km2"]))
+                                self.assertTrue(all(len(w) == len(i["postos"]) for w in i["pesos_idw_sub_x_posto"]))
+                                self.assertTrue(set(i["postos"]) <= set(contrato.get("qc_chuva_postos", [])))
+                    else:
+                        mat = ROOT / m["mat"]
+                        self.assertTrue(mat.exists(), m["mat"])
+                        self.assertEqual(S._sha256(str(mat)), m["modelo_sha256"].upper(), m["mat"])
                     self.assertEqual(len(m["inputs"]), m["n_inputs"])
                     self.assertEqual(m["inputs"][0]["tipo"], "nivel")
                     self.assertEqual(m["inputs"][0]["estacao"], contrato["alvo"])   # âncora ALT

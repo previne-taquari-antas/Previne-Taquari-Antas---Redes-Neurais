@@ -19,7 +19,11 @@ relação ao robô principal, exigidas pelo treino v2:
     > 30 cm) viram dado ausente;
   * hierarquia de reserva por horizonte: usa o primeiro nível com todas as
     entradas e base com antecedência suficiente; publica o nível usado e o motivo;
-  * faixa de incerteza (E95 da auditoria por situação: subida / >= 1500 cm / geral).
+  * faixa de incerteza (E95 da auditoria por situação: subida / >= 1500 cm / geral);
+  * (18/11/2026) modelos lineares (tipo_modelo = "linear": intercepto + coeficientes, sem .mat) e
+    entrada "chuva_exp_idw" (IDW posto -> sub-bacia com pesos fixos, média por área, filtro
+    exponencial de 12 h) com o QC diário de chuva da v2 sobre `qc_chuva_postos`: reserva v4 de
+    Muçum para horas sem a Linha José Júlio (4/8 h só registro, nível 0; 12 h novo horizonte).
 O mesmo script atende Santa Tereza: `--contrato assets/data/santa_tereza_modelos_sombra.json`
 (o contrato define "alvo", "saida_json" e "historico_jsonl").
 EXPERIMENTAL — não é alerta oficial.
@@ -161,6 +165,58 @@ def _media_acumulados(inp, chuva, t, deslocamento=0):
     return sum(acc) / len(acc) if acc else None
 
 
+def qc_chuva_postos(chuva, postos):
+    """QC diário da v2 (qc_chuva) sobre os postos baixados: total do dia (rótulo da hora) contra a mediana
+    dos demais; subregistro (< 0,2 x mediana com mediana >= 15 mm) ou excesso (> 4 x mediana + 50 e > 80 mm)
+    anula o dia inteiro; hora > 100 mm é anulada."""
+    dia = {p: {} for p in postos}
+    for p in postos:
+        for h, v in (chuva.get(p) or {}).items():
+            dia[p][h.date()] = dia[p].get(h.date(), 0.0) + v
+    limpa = dict(chuva)
+    for p in postos:
+        serie = chuva.get(p) or {}
+        ruins = set()
+        for d, tot in dia[p].items():
+            outros = sorted(dia[q][d] for q in postos if q != p and d in dia[q])
+            if not outros:
+                continue
+            k = len(outros)
+            med = outros[k // 2] if k % 2 else (outros[k // 2 - 1] + outros[k // 2]) / 2
+            if (tot < 0.2 * med and med >= 15) or (tot > 4 * med + 50 and tot > 80):
+                ruins.add(d)
+        limpa[p] = {h: v for h, v in serie.items() if h.date() not in ruins and v <= 100}
+    return limpa
+
+
+def _chuva_exp_idw(inp, chuva, t):
+    """Chuva média da região (IDW posto -> sub-bacia com pesos fixos, só postos com dado na hora; média ponderada
+    pela área) filtrada por c_t = exp(-1/tau) c_{t-1} + p_t, desde o início da janela baixada; hora sem posto = 0."""
+    import math
+    postos, W, areas = inp["postos"], inp["pesos_idw_sub_x_posto"], inp["areas_km2"]
+    a = math.exp(-1.0 / float(inp.get("tau_h", 12)))
+    horas = [h for p in postos for h in (chuva.get(p) or {})]
+    if not horas or max(horas) < t - dt.timedelta(hours=int(inp.get("horas_minimas_recentes", 3))):
+        return None
+    inicio = min(horas)
+    if t - inicio < dt.timedelta(hours=int(inp.get("aquecimento_h", 48))):
+        return None
+    c, h = 0.0, inicio
+    while h <= t:
+        num_area = den_area = 0.0
+        vals = [(j, (chuva.get(p) or {}).get(h)) for j, p in enumerate(postos)]
+        vals = [(j, v) for j, v in vals if v is not None]
+        if vals:
+            for i, ar in enumerate(areas):
+                den = sum(W[i][j] for j, _ in vals)
+                if den > 0:
+                    num_area += ar * sum(W[i][j] * v for j, v in vals) / den
+                    den_area += ar
+        c = a * c + (num_area / den_area if den_area > 0 else 0.0)
+        h += dt.timedelta(hours=1)
+    return c
+
+
 def montar_entradas(inputs, niveis, chuva, t):
     x, faltam = [], []
     for inp in inputs:
@@ -186,6 +242,8 @@ def montar_entradas(inputs, niveis, chuva, t):
                 if pa is not None and pb is not None:
                     difs.append(pa - pb)
             v = sum(difs) / len(difs) if difs else None
+        elif tipo == "chuva_exp_idw":
+            v = _chuva_exp_idw(inp, chuva, t)
         else:
             raise ValueError(f"tipo de entrada não suportado: {tipo}")
         x.append(v)
@@ -221,10 +279,13 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
     resultados, escolhido = [], None
     H = int(nivel_cfg["horizonte_h"])
     for m in sorted(nivel_cfg["modelos"], key=lambda m: m["nivel_hierarquia"]):
-        mat = os.path.join(RAIZ, m["mat"])
+        linear = m.get("tipo_modelo") == "linear"
+        mat = None if linear else os.path.join(RAIZ, m["mat"])
         item = {"modelo": m["modelo_id"], "nivel_hierarquia": m["nivel_hierarquia"], "papel": m.get("papel"),
                 "horizonte_h": H, "disponivel": False}
-        if not os.path.exists(mat):
+        if linear:
+            pass
+        elif not os.path.exists(mat):
             item["status"] = "MAT ausente"
             resultados.append(item)
             continue
@@ -245,7 +306,7 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
             continue
         t, x = base
         antecedencia, ok = R.antecedencia_efetiva({"horizonte_h": H}, t, agora)
-        variacao = R.prever(mat, x)
+        variacao = (float(m["intercepto"]) + sum(float(b) * v for b, v in zip(m["coeficientes"], x))) if linear else R.prever(mat, x)
         nivel_base = niveis[ALVO][t]
         previsto = nivel_base + variacao
         subindo = (niveis[ALVO].get(t - dt.timedelta(hours=1)) or nivel_base) < nivel_base
@@ -305,10 +366,14 @@ def main(argv=None):
     limites = contrato.get("limites_estacao_cm", {})
     estacoes = [ALVO] + sorted({c for hz in contrato["horizontes"].values() for m in hz["modelos"]
                                 for c in m.get("estacoes_nivel", []) + m.get("estacoes_chuva", [])} - {ALVO})
+    estacoes = estacoes + sorted(set(contrato.get("qc_chuva_postos", [])) - set(estacoes))
     niveis, chuva = {}, {}
-    for cod in estacoes:
-        n, c = baixar(cod)
-        niveis[cod], chuva[cod] = n, c
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for cod, (n, c) in zip(estacoes, ex.map(baixar, estacoes)):
+            niveis[cod], chuva[cod] = n, c
+    if contrato.get("qc_chuva_postos"):
+        chuva = qc_chuva_postos(chuva, [p for p in contrato["qc_chuva_postos"] if p in chuva])
     niveis[ALVO] = qc_niveis(ALVO, niveis.get(ALVO, {}), limites)
     for cod in estacoes:
         if cod != ALVO:
