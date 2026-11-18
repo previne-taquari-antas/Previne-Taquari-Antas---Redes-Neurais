@@ -43,8 +43,11 @@ const server = http.createServer((req, res) => {
     }),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const workerRequests=[];
-  page.on("request", request=>{if(/cenario_(worker|engine|terreno)\.js\?v=/.test(request.url()))workerRequests.push(request.url());});
+  const workerRequests = [];
+  page.on("request", (request) => {
+    if (/cenario_(worker|engine|terreno)\.js\?v=/.test(request.url()))
+      workerRequests.push(request.url());
+  });
   await page.route("https://cdn.jsdelivr.net/npm/**", async (route) => {
     const path = route
       .request()
@@ -59,6 +62,12 @@ const server = http.createServer((req, res) => {
   });
   await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
   await page.goto(origin + "/cenario_municipal.html");
+  // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
+  await page.evaluate(() =>
+    document
+      .querySelectorAll("#avancado, #avancado details.etapa")
+      .forEach((d) => (d.open = true)),
+  );
 
   const f = (type, coordinates, properties = {}) => ({
       type: "Feature",
@@ -106,13 +115,11 @@ const server = http.createServer((req, res) => {
     },
   };
   const load = async (data) => {
-    await page
-      .locator("#load")
-      .setInputFiles({
-        name: "scene.json",
-        mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify(data)),
-      });
+    await page.locator("#load").setInputFiles({
+      name: "scene.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(data)),
+    });
     await page.waitForFunction(() =>
       document
         .getElementById("status")
@@ -166,13 +173,11 @@ const server = http.createServer((req, res) => {
   await load(withEmpty);
   assert.match(await calc(), /2 de 2/);
   await page.locator("#layerKind").selectOption("buildings");
-  await page
-    .locator("#upload")
-    .setInputFiles({
-      name: "bad.geojson",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(fc([f("Point", [[0, 0]])]))),
-    });
+  await page.locator("#upload").setInputFiles({
+    name: "bad.geojson",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fc([f("Point", [[0, 0]])]))),
+  });
   await page.waitForFunction(() =>
     document.getElementById("status").textContent.includes("WGS84"),
   );
@@ -211,9 +216,9 @@ const server = http.createServer((req, res) => {
   assert.equal(deleted.layers.blocks.features.length, 0);
   await load(deleted);
   assert.deepEqual(errors, []);
-  assert(workerRequests.some(url=>url.includes("cenario_worker.js?v=")));
-  assert(workerRequests.some(url=>url.includes("cenario_engine.js?v=")));
-  assert(workerRequests.some(url=>url.includes("cenario_terreno.js?v=")));
+  assert(workerRequests.some((url) => url.includes("cenario_worker.js?v=")));
+  assert(workerRequests.some((url) => url.includes("cenario_engine.js?v=")));
+  assert(workerRequests.some((url) => url.includes("cenario_terreno.js?v=")));
   console.log(
     "PASS municipal audit: invalid input, save guard, empty layers, malformed GeoJSON, edit/delete toolbar, roundtrip",
   );

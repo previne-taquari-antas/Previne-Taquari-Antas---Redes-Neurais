@@ -9,7 +9,8 @@
     "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
   ];
-  const AREA_MAX_KM2 = 60;
+  // acima disso o download e o cálculo passam de alguns minutos no celular
+  const AREA_MAX_KM2 = 20;
 
   // área aproximada da caixa [oeste, sul, leste, norte] em km²
   function areaKm2([w, s, e, n]) {
@@ -45,8 +46,13 @@
     const rios = [];
     for (const el of osm.elements || []) {
       const t = el.tags || {};
+      // só o que é rio (o mesmo que a consulta pede): valas, açudes e lagoas não são drenagem do rio
       if (t.waterway || t.natural === "water") {
-        rios.push(el);
+        if (
+          /^(river|stream|canal|riverbank)$/.test(t.waterway || "") ||
+          (t.natural === "water" && /^(river|canal)$/.test(t.water || ""))
+        )
+          rios.push(el);
         continue;
       }
       if (t.building && el.center) {
@@ -263,6 +269,78 @@
     return { type: "FeatureCollection", features };
   }
 
+  // a área dividida em ladrilhos pequenos, para o servidor oficial (que só entrega áreas pequenas)
+  function ladrilhos([w, s, e, n], passo = 0.02) {
+    const nx = Math.max(1, Math.ceil((e - w) / passo)),
+      ny = Math.max(1, Math.ceil((n - s) / passo)),
+      dx = (e - w) / nx,
+      dy = (n - s) / ny,
+      out = [];
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++)
+        out.push([w + i * dx, s + j * dy, w + (i + 1) * dx, s + (j + 1) * dy]);
+    return out;
+  }
+  const quartos = ([w, s, e, n]) => {
+    const mx = (w + e) / 2,
+      my = (s + n) / 2;
+    return [
+      [w, s, mx, my],
+      [mx, s, e, my],
+      [w, my, mx, n],
+      [mx, my, e, n],
+    ];
+  };
+  // respostas de vários ladrilhos numa só, sem repetir o que aparece em dois deles
+  function junta(partes) {
+    const vistos = new Set(),
+      elements = [];
+    for (const p of partes)
+      for (const el of p.elements || []) {
+        const k = el.type + "/" + el.id;
+        if (vistos.has(k)) continue;
+        vistos.add(k);
+        elements.push(el);
+      }
+    return { osm3s: partes.find((p) => p.osm3s)?.osm3s, elements };
+  }
+
+  // ruas e edificações só da área (o servidor oficial entrega a caixa maior, por causa dos rios)
+  function recorta(r, [w, s, e, n]) {
+    // entra o que encosta na área: a caixa da geometria cruza a caixa da área (uma avenida reta pode
+    // atravessar a área sem ter nenhum ponto dentro dela)
+    const pontos = (g) =>
+        g.type === "Point"
+          ? [g.coordinates]
+          : g.type === "LineString"
+            ? g.coordinates
+            : g.type === "Polygon"
+              ? g.coordinates[0]
+              : g.coordinates.flatMap((p) => p[0]),
+      algum = (g) => {
+        const c = pontos(g),
+          xs = c.map((p) => p[0]),
+          ys = c.map((p) => p[1]);
+        return (
+          Math.max(...xs) >= w &&
+          Math.min(...xs) <= e &&
+          Math.max(...ys) >= s &&
+          Math.min(...ys) <= n
+        );
+      };
+    return {
+      ...r,
+      roads: {
+        type: "FeatureCollection",
+        features: r.roads.features.filter((f) => algum(f.geometry)),
+      },
+      buildings: {
+        type: "FeatureCollection",
+        features: r.buildings.features.filter((f) => algum(f.geometry)),
+      },
+    };
+  }
+
   const urlLugar = (texto) =>
     "https://nominatim.openstreetmap.org/search?format=jsonv2&polygon_geojson=1&polygon_threshold=0.0005&limit=5&q=" +
     encodeURIComponent(texto);
@@ -277,6 +355,11 @@
         return {
           nome: r.display_name || r.name || "",
           caixa: [b[2], b[0], b[3], b[1]],
+          // ponto central do lugar (para um município, costuma ser o centro da cidade)
+          centro:
+            Number.isFinite(+r.lat) && Number.isFinite(+r.lon)
+              ? [+r.lon, +r.lat]
+              : null,
           limite:
             g && (g.type === "Polygon" || g.type === "MultiPolygon") ? g : null,
         };
@@ -298,6 +381,48 @@
     return `[out:json][timeout:90];${RIOS(caixaTxt(caixa))}`;
   }
   // células da grade (largura x altura sobre a caixa) por onde passa rio; devolve {mascara, celulas}
+  // junta pedaços de linha pelas pontas e devolve só os anéis fechados (pedaço que não fecha não é preenchido)
+  // Junta pedaços de linha pelas pontas. Pontos vazios (fora da caixa pedida) cortam o pedaço.
+  // Devolve os anéis fechados e as cadeias que não fecharam.
+  function aneis(pedacos) {
+    const igual = (a, b) => a && b && a.lat === b.lat && a.lon === b.lon,
+      livres = [],
+      fechados = [],
+      abertos = [];
+    for (const g of pedacos) {
+      let atual = [];
+      for (const p of g) {
+        if (p) atual.push(p);
+        else {
+          if (atual.length > 1) livres.push(atual);
+          atual = [];
+        }
+      }
+      if (atual.length > 1) livres.push(atual);
+    }
+    while (livres.length) {
+      let anel = livres.shift();
+      for (let mudou = true; mudou && !igual(anel[0], anel.at(-1)); ) {
+        mudou = false;
+        for (let i = 0; i < livres.length; i++) {
+          const g = livres[i];
+          if (igual(anel.at(-1), g[0])) anel = anel.concat(g.slice(1));
+          else if (igual(anel.at(-1), g.at(-1)))
+            anel = anel.concat(g.slice(0, -1).reverse());
+          else if (igual(anel[0], g.at(-1))) anel = g.slice(0, -1).concat(anel);
+          else if (igual(anel[0], g[0]))
+            anel = g.slice(1).reverse().concat(anel);
+          else continue;
+          livres.splice(i, 1);
+          mudou = true;
+          break;
+        }
+      }
+      if (anel.length >= 4 && igual(anel[0], anel.at(-1))) fechados.push(anel);
+      else abertos.push(anel);
+    }
+    return { fechados, abertos };
+  }
   function mascaraRios(osm, [w, s, e, n], largura, altura) {
     const m = new Uint8Array(largura * altura),
       cx = (lon) => ((lon - w) / (e - w)) * largura,
@@ -322,6 +447,12 @@
         for (let k = 0; k <= passos; k++)
           marca(x0 + ((x1 - x0) * k) / passos, y0 + ((y1 - y0) * k) / passos);
       }
+    }
+    // Só o contorno que fecha é preenchido. Pedaço que não fecha (cortado pela borda da área ou parte
+    // de um contorno maior) fica como linha: as duas margens e o eixo do rio já marcam a drenagem, e a
+    // água entre elas fica na altura do rio no relevo.
+    function preenche(pedacos) {
+      for (const anel of aneis(pedacos).fechados) miolo(anel);
     }
     function miolo(g) {
       // interior do polígono de água, por varredura das linhas da grade
@@ -354,13 +485,17 @@
       if (el.type === "way" && Array.isArray(el.geometry)) {
         linha(el.geometry);
         if (t.natural === "water" || t.waterway === "riverbank")
-          miolo(el.geometry);
-      } else if (el.type === "relation")
+          preenche([el.geometry]);
+      } else if (el.type === "relation") {
+        const fora = [];
         for (const mb of el.members || [])
           if (Array.isArray(mb.geometry)) {
             linha(mb.geometry);
-            if (mb.role === "outer") miolo(mb.geometry);
+            if (mb.role === "outer") fora.push(mb.geometry);
           }
+        // o contorno de um rio largo vem em vários pedaços: só se preenche depois de fechado
+        preenche(fora);
+      }
     }
     let celulas = 0;
     for (const v of m) celulas += v;
@@ -394,9 +529,12 @@
   // metros a partir das cores de um ponto do quadro
   const alturaTerrarium = (r, g, b) => r * 256 + g + b / 256 - 32768;
   // caixa aumentada em volta da área (o rio e as margens costumam passar da borda)
-  function folga([w, s, e, n], f = 0.25) {
-    const dx = (e - w) * f,
-      dy = (n - s) * f;
+  // Relevo e rios precisam de margem em volta da área: o rio muitas vezes passa logo fora dela, e sem
+  // ele a mancha sai errada. Pelo menos minKm de cada lado.
+  function folga([w, s, e, n], f = 0.25, minKm = 1.5) {
+    const kx = 111.32 * Math.cos((((s + n) / 2) * Math.PI) / 180),
+      dx = Math.max((e - w) * f, minKm / kx),
+      dy = Math.max((n - s) * f, minKm / 110.57);
     return [w - dx, Math.max(-84, s - dy), e + dx, Math.min(84, n + dy)];
   }
   const trechos = (roads) =>
@@ -416,6 +554,10 @@
     aproveita,
     simplifica,
     urlMapa,
+    ladrilhos,
+    recorta,
+    quartos,
+    junta,
     deMapa,
     quadrosRelevo,
     alturaTerrarium,

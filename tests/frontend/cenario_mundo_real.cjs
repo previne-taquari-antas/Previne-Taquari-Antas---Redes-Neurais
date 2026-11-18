@@ -283,6 +283,12 @@ async function validaSantaTereza(p, reg, estado) {
     try {
       await p.goto(base);
       await p.waitForTimeout(1500);
+      // as etapas detalhadas ficam em "Opções avançadas"
+      await p.evaluate(() =>
+        document
+          .querySelectorAll("#avancado, #avancado details.etapa")
+          .forEach((d) => (d.open = true)),
+      );
       if (lugar.validacao) {
         await validaSantaTereza(p, reg, estado);
         if (reg.erros.length) throw Error("erro de script: " + reg.erros[0]);
@@ -301,10 +307,10 @@ async function validaSantaTereza(p, reg, estado) {
       r = temLimite
         ? await passo("usar limite", () => usar.click())
         : { erro: true, texto: "sem limite" };
-      if (lugar.grande && !/Usar a área visível/.test(r.texto))
+      if (lugar.grande && !/Usar esta parte do mapa/.test(r.texto))
         throw Error("devia orientar a usar a área visível: " + r.texto);
       if (r.erro) {
-        if (temLimite && !/Usar a área visível/.test(r.texto))
+        if (temLimite && !/Usar esta parte do mapa/.test(r.texto))
           throw Error("área: " + r.texto);
         await p
           .locator("#placeResults li:first-child button", {

@@ -82,3 +82,44 @@ jobs:
           name: browser-interaction-report
           path: /tmp/previne-browser-report.json
           retention-days: 14
+
+  municipal:
+    # Página do cenário municipal: exemplo, importação de arquivos, terreno, bloqueios, celular.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /cenario_municipal.html
+            /assets/js/
+            /assets/data/rota_fuga/santa_tereza_pontos_encontro_hand.json
+            /tests/frontend/
+            /tests/fixtures/brasil_osm/
+            /tests/test_cenario_*.cjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/frontend/package-lock.json
+      - name: Install pinned browser dependencies
+        working-directory: tests/frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Cálculo e bases abertas
+        run: node --test tests/test_cenario_engine.cjs tests/test_cenario_osm_mundial.cjs tests/test_cenario_idiomas.cjs
+      - name: Exemplo, salvar e reabrir, celular
+        working-directory: tests/frontend
+        run: node municipal.cjs
+      - name: Entradas inválidas, desenhos e bloqueios
+        working-directory: tests/frontend
+        run: node municipal_audit.cjs
+      - name: Terreno (MDT) grande e mancha pelo terreno
+        working-directory: tests/frontend
+        run: node mdt_audit.cjs
+      - name: Bases de cidades brasileiras e arquivos Shapefile
+        working-directory: tests/frontend
+        run: node brasil_audit.cjs

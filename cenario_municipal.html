@@ -304,6 +304,108 @@
         border-radius: 50%;
         margin-right: 4px;
       }
+      .guia {
+        border: 2px solid #14684f;
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin: 0 0 14px;
+        background: #f7fbf9;
+      }
+      .idiomas {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+        margin: -4px 0 4px;
+      }
+      .idiomas button {
+        font-size: 12px;
+        padding: 3px 8px;
+        margin: 0;
+        background: transparent;
+      }
+      .idiomas button[aria-pressed="true"] {
+        background: #14684f;
+        color: #fff;
+      }
+      .guia h2 {
+        margin: 0 0 4px;
+      }
+      .passos {
+        padding-left: 22px;
+        margin: 10px 0;
+      }
+      .passos > li {
+        margin: 0 0 14px;
+      }
+      .passos > li > b {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .passos > li > .muted {
+        display: block;
+        margin-bottom: 6px;
+      }
+      .passos li.feito > b::after {
+        content: " ✓";
+        color: #14684f;
+      }
+      .linha {
+        display: flex;
+        gap: 6px;
+        align-items: flex-end;
+      }
+      .linha > input {
+        flex: 1;
+        min-width: 0;
+      }
+      .linha > button {
+        margin: 0;
+      }
+      .linha.dupla > label {
+        flex: 1;
+        margin: 0 0 6px;
+        font-size: 13px;
+      }
+      button.grande {
+        width: 100%;
+        font-size: 16px;
+        padding: 12px;
+      }
+      .ok {
+        display: block;
+        color: #14684f;
+        font-weight: 600;
+        font-size: 13px;
+        margin-top: 4px;
+      }
+      .exemplo button {
+        padding: 4px 8px;
+        font-size: 13px;
+      }
+      #avancado {
+        border: 1px solid #c7d9d0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin: 14px 0;
+      }
+      #avancado > summary small {
+        display: block;
+        font-weight: 400;
+        color: #526c62;
+      }
+      .map-cta {
+        position: absolute;
+        z-index: 700;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #14684f;
+        color: #fff;
+        box-shadow: 0 2px 10px #0005;
+        font-size: 15px;
+        padding: 10px 16px;
+        white-space: nowrap;
+      }
       .busy {
         opacity: 0.65;
       }
@@ -327,32 +429,21 @@
           font-size: 11px;
           padding: 4px 6px;
         }
-        /* o aviso do que a página está fazendo acompanha a tela, onde quer que a pessoa esteja */
-        #status {
-          position: fixed;
-          left: 8px;
-          right: 8px;
-          bottom: 8px;
-          z-index: 900;
-          margin: 0;
-          font-size: 13px;
-          max-height: 34dvh;
-          overflow: auto;
-          box-shadow: 0 2px 12px #0005;
-          border: 1px solid #9cc5ad;
+        /* celular: um botão só para marcar a área, o que fica em cima do mapa */
+        #passo2 #viewArea {
+          display: none;
         }
-        #status.error {
-          border-color: #e0a8a2;
-        }
-        main {
-          padding-bottom: 110px;
+        /* celular: os passos, o mapa logo abaixo, depois o resultado e o resto */
+        .guia {
+          order: -3;
+          margin: 12px;
         }
         .map-shell {
+          order: -2;
+          height: 55dvh;
+        }
+        #results {
           order: -1;
-          height: 46dvh;
-          position: sticky;
-          top: 0;
-          z-index: 600;
         }
         main {
           background: #fff;
@@ -363,10 +454,6 @@
         aside > * {
           margin-left: 12px;
           margin-right: 12px;
-        }
-        .inicio {
-          order: -2;
-          padding-top: 12px;
         }
         header {
           padding: 12px;
@@ -387,393 +474,408 @@
     </header>
     <main>
       <aside>
-        <div class="inicio">
-          <p class="notice">
-            Estudo técnico para configurar e comparar cenários. Os resultados
-            dependem das bases e hipóteses informadas e precisam de validação
-            municipal. Não são instruções de evacuação à população.
+        <section class="guia" aria-labelledby="guiaTit">
+          <p class="idiomas" role="group" aria-label="Idioma / Language">
+            <button type="button" data-lang="pt" lang="pt">Português</button
+            ><button type="button" data-lang="en" lang="en">English</button
+            ><button type="button" data-lang="es" lang="es">Español</button>
           </p>
-          <ol class="como">
-            <li>
-              <b>Monte o cenário:</b> procure o lugar, marque a área e baixe as
-              ruas e edificações (ou importe as suas). Depois informe a mancha
-              de inundação.
+          <h2 id="guiaTit">Calcule em 3 passos</h2>
+          <p class="muted">
+            Para qualquer cidade do mundo. A página baixa o mapa das ruas e das
+            casas, o relevo e os rios, e mostra quantas pessoas chegam a pé a um
+            lugar seguro no tempo escolhido.
+          </p>
+          <ol class="passos">
+            <li id="passo1">
+              <b>Onde fica?</b>
+              <div class="linha">
+                <input
+                  id="placeQuery"
+                  type="search"
+                  aria-label="Nome da cidade, bairro ou endereço"
+                  placeholder="Ex.: Lajeado, Brasil"
+                  maxlength="200"
+                /><button id="placeSearch" class="primary">Procurar</button>
+              </div>
+              <ul id="placeResults" aria-live="polite"></ul>
             </li>
-            <li>
-              <b>Escolha o tempo máximo a pé</b> e, se quiser, os pontos de
-              encontro que o município já tem.
+            <li id="passo2">
+              <b>Qual parte da cidade?</b>
+              <span class="muted"
+                >Aproxime o mapa até ver só a parte que inunda (o centro, um
+                bairro perto do rio) e toque em “Usar esta parte do mapa”.</span
+              >
+              <button id="viewArea">Usar esta parte do mapa</button>
+              <span id="areaOk" class="ok" hidden></span>
             </li>
-            <li>
-              <b>Calcule</b> e veja quantas pessoas chegam a um ponto no tempo,
-              e por qual caminho.
+            <li id="passo3">
+              <b>Quanto o rio sobe e quanto tempo a pé?</b>
+              <div class="linha dupla">
+                <label
+                  >Rio sobe (m)<input
+                    id="autoLevel"
+                    type="number"
+                    min="0"
+                    max="200"
+                    step="0.1"
+                    value="2"
+                /></label>
+                <label
+                  >Tempo a pé (min)<input
+                    id="minutes"
+                    type="number"
+                    min="1"
+                    max="240"
+                    value="20"
+                /></label>
+              </div>
+              <span class="muted"
+                >O quanto o rio sobe vem da régua ou de uma cheia conhecida: a
+                ferramenta não prevê a cheia.</span
+              >
+              <button id="autoAll" class="primary grande">Calcular</button>
             </li>
           </ol>
-          <p class="muted">
-            Serve para qualquer município, de qualquer país: as bases abertas
-            (mapa OpenStreetMap e relevo) cobrem o mundo todo. Primeira vez
-            aqui? Veja o exemplo, ou procure o seu lugar na etapa 1 e toque em
-            “Montar e calcular tudo”.
-          </p>
-          <div class="row">
-            <button id="example" class="primary">
-              Ver um exemplo: Santa Tereza</button
-            ><button id="reset">Começar um município novo</button>
-          </div>
           <div id="status" class="status" role="status" aria-live="polite">
-            Comece pelo exemplo ou, para um município novo, pela área de
-            interesse na etapa 1.
+            Comece pelo passo 1: escreva o nome da cidade e toque em Procurar.
           </div>
-        </div>
-        <fieldset>
-          <legend>1 · Município, área e terreno</legend>
-          <label
-            >Município / identificação do cenário<input
-              id="municipality"
-              placeholder="Ex.: Município · cenário de planejamento"
-              maxlength="140"
-          /></label>
-          <label
-            >Procurar o lugar (cidade, bairro ou endereço, em qualquer
-            país)<input
-              id="placeQuery"
-              type="search"
-              placeholder="Ex.: Lajeado, Brasil · Valencia, España"
-              maxlength="200"
-          /></label>
-          <button id="placeSearch">Procurar no mapa</button>
-          <ul id="placeResults" aria-live="polite"></ul>
+          <p class="muted exemplo">
+            Ou veja um exemplo pronto:
+            <button id="example">Santa Tereza (RS)</button>
+          </p>
+          <p class="notice">
+            Estudo técnico para planejar e comparar cenários, com bases abertas
+            que podem ter falhas. Não é instrução de evacuação à população.
+          </p>
+        </section>
+        <section id="results" hidden aria-live="polite"></section>
+        <details id="avancado">
+          <summary>
+            Opções avançadas
+            <small
+              >importar arquivos do município, relevo, bloqueios, pontos de
+              encontro e capacidade, salvar e relatórios</small
+            >
+          </summary>
           <p class="muted">
-            Depois de achar o lugar, aproxime o mapa da parte que inunda e toque
-            em “Usar a área visível no mapa”. Também dá para usar o limite do
-            lugar (se for pequeno) ou desenhar a área. Prefira uma área pequena
-            (um bairro, a parte da cidade perto do rio): o cálculo fica mais
-            rápido.
+            Depois de calcular, dá para ajustar qualquer etapa aqui e tocar em
+            “Calcular cenário e rotas” no fim.
           </p>
-          <label
-            >Importar área de interesse (GeoJSON ou Shapefile ZIP)<input
-              id="areaUpload"
-              type="file"
-              accept=".geojson,.json,.zip"
-          /></label>
-          <p class="muted">
-            A poligonal define o recorte do terreno e a área do planejamento.
-            Arquivos vetoriais de área: até 25 MB; este limite não se aplica ao
-            MDT.
-          </p>
-          <div class="row">
-            <button id="viewArea">Usar a área visível no mapa</button
-            ><button id="drawArea">Desenhar área</button
-            ><button id="downloadArea">Baixar poligonal</button>
-          </div>
-          <h2>Montar tudo automaticamente</h2>
-          <p class="muted">
-            Com a área definida, a página baixa as ruas e edificações, busca o
-            relevo e os rios, gera a mancha de inundação e calcula os pontos de
-            encontro. Depois dá para ajustar cada etapa abaixo e calcular de
-            novo.
-          </p>
-          <label
-            >Quanto o rio sobe acima do nível normal (m)<input
-              id="autoLevel"
-              type="number"
-              min="0"
-              max="200"
-              step="0.1"
-              value="2"
-          /></label>
-          <p class="muted">
-            Use a régua ou uma cheia conhecida. Esse número decide o tamanho da
-            mancha: a ferramenta não prevê a cheia.
-          </p>
-          <button id="autoAll" class="primary">Montar e calcular tudo</button>
-          <h2>Terreno (modelo de elevação, MDT)</h2>
-          <p class="muted">
-            Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5), e
-            a página busca sozinha quando precisa. Para baixar um modelo ou ler
-            somente o recorte de um arquivo grande, desenhe ou importe a área de
-            interesse primeiro.
-          </p>
-          <label
-            >Importar meu MDT / modelo de elevação (GeoTIFF)<input
-              id="terrainFile"
-              type="file"
-              accept=".tif,.tiff"
-          /></label>
-          <p id="terrainLimits" class="muted">
-            GeoTIFF sem limite fixo de 25 MB ou 100 MB. Leitura por partes, com
-            recorte pela área selecionada e uso de versões reduzidas quando
-            disponíveis. O tamanho suportado depende da memória do navegador e
-            da organização do arquivo. Use EPSG:4326 e alturas em metros.
-          </p>
-          <button id="copernicus" class="primary">
-            Buscar o relevo da área (automático)
-          </button>
-          <button id="downloadTerrain">Salvar o relevo em arquivo</button>
-          <p class="muted">
-            O relevo é carregado direto na página, sem baixar nem importar
-            arquivo. Vem de bases abertas que cobrem o mundo (cerca de 30 m por
-            ponto); se o município tem um MDT melhor, importe acima. Ao gerar a
-            mancha na etapa 5, o relevo também é buscado sozinho.
-          </p>
-          <p id="terrainInfo" class="muted" role="status" aria-live="polite">
-            Nenhum terreno carregado.
-          </p>
-        </fieldset>
-        <fieldset>
-          <legend>2 · Mapas do município (ruas, edificações, mancha)</legend>
-          <button id="osmDownload" class="primary">
-            Baixar ruas e edificações do OpenStreetMap
-          </button>
-          <p class="muted">
-            Funciona em qualquer lugar do mundo, para a área de interesse da
-            etapa 1 (até 60 km²). O OpenStreetMap é feito por voluntários: pode
-            faltar rua ou casa; confira no mapa. Se o município tem bases
-            próprias, importe abaixo; elas substituem as baixadas.
-          </p>
-          <h2>Ou importar os seus arquivos</h2>
-          <label
-            >Camada a importar<select id="layerKind">
-              <option value="aoi">Área de interesse</option>
-              <option value="roads">Vias</option>
-              <option value="buildings">Edificações</option>
-              <option value="flood">Mancha de inundação</option>
-              <option value="eligible">Áreas elegíveis para destinos</option>
-              <option value="destinations">Pontos de encontro e abrigos</option>
-              <option value="blocks">Bloqueios</option>
-            </select></label
-          >
-          <label
-            >Arquivo GeoJSON ou Shapefile ZIP<input
-              id="upload"
-              type="file"
-              accept=".json,.geojson,.zip"
-          /></label>
-          <p class="muted">
-            O ZIP deve incluir .shp, .shx, .dbf e .prj. Cada importação
-            substitui apenas a camada selecionada. Coordenadas internas em
-            WGS84. Limite para estas camadas vetoriais: 25 MB. Esse limite não
-            se aplica ao GeoTIFF do MDT, importado na etapa 1.
-          </p>
-          <label
-            >Fonte / identificação da base<input
-              id="source"
-              placeholder="Órgão, levantamento e data"
-          /></label>
-          <ul id="layers"></ul>
-          <details>
-            <summary>Tipos de vias utilizados</summary>
+          <button id="reset">Começar um município novo</button>
+          <fieldset>
+            <legend>1 · Município, área e terreno</legend>
             <label
-              >Classes highway separadas por vírgula<input
-                id="roadTypes"
-                value="residential,unclassified,tertiary,secondary,primary,living_street,service,pedestrian,footway,path,steps,track,sem_classificacao"
+              >Município / identificação do cenário<input
+                id="municipality"
+                placeholder="Ex.: Município · cenário de planejamento"
+                maxlength="140"
+            /></label>
+            <label
+              >Importar área de interesse (GeoJSON ou Shapefile ZIP)<input
+                id="areaUpload"
+                type="file"
+                accept=".geojson,.json,.zip"
             /></label>
             <p class="muted">
-              Usa acesso a pé; exclui foot=no e access=no. Pontes e túneis em
-              níveis distintos não são conectados nos cruzamentos. A rede é
-              refeita ao calcular. Para ligar níveis diferentes em acessos de
-              pontes, forneça identificadores de nó compartilhados na base
-              (node_ids ou osm_node_ids no GeoJSON). Só a coincidência de
-              coordenadas não confirma uma ligação entre níveis.
+              A poligonal define o recorte do terreno e a área do planejamento.
+              Arquivos vetoriais de área: até 25 MB; este limite não se aplica
+              ao MDT.
             </p>
-          </details>
-        </fieldset>
-        <fieldset>
-          <legend>3 · Tempo e população</legend>
-          <div class="row">
+            <div class="row">
+              <button id="drawArea">Desenhar área</button
+              ><button id="downloadArea">Baixar poligonal</button>
+            </div>
+            <h2>Terreno (modelo de elevação, MDT)</h2>
+            <p class="muted">
+              Opcional: só é preciso para gerar a mancha pelo terreno (etapa 5),
+              e a página busca sozinha quando precisa. Para baixar um modelo ou
+              ler somente o recorte de um arquivo grande, desenhe ou importe a
+              área de interesse primeiro.
+            </p>
             <label
-              >Tempo máximo (min)<input
-                id="minutes"
-                type="number"
-                min="1"
-                max="240"
-                value="20" /></label
-            ><label
-              >Velocidade (m/s)<input
-                id="speed"
-                type="number"
-                min="0.1"
-                max="3"
-                step="0.1"
-                value="0.9"
+              >Importar meu MDT / modelo de elevação (GeoTIFF)<input
+                id="terrainFile"
+                type="file"
+                accept=".tif,.tiff"
             /></label>
-          </div>
-          <label
-            >Pessoas por edificação sem cadastro populacional<input
-              id="peoplePerBuilding"
-              type="number"
-              min="1"
-              max="10000"
-              step="1"
-              value="3"
-          /></label>
-          <p class="muted">
-            Tempo de deslocamento na rede, com velocidade constante. Não estima
-            quando a água chega nem ajusta a velocidade à declividade. O
-            cadastro pode informar pessoas/population/ocupantes por edificação.
-          </p>
-          <label
-            ><input id="allBuildings" type="checkbox" /> Considerar todas as
-            edificações da área de interesse</label
-          >
-        </fieldset>
-        <details class="etapa">
-          <summary>
-            4 · Bloqueios e desenhos no mapa <small>(opcional)</small>
-          </summary>
+            <p id="terrainLimits" class="muted">
+              GeoTIFF sem limite fixo de 25 MB ou 100 MB. Leitura por partes,
+              com recorte pela área selecionada e uso de versões reduzidas
+              quando disponíveis. O tamanho suportado depende da memória do
+              navegador e da organização do arquivo. Use EPSG:4326 e alturas em
+              metros.
+            </p>
+            <button id="copernicus" class="primary">
+              Buscar o relevo da área (automático)
+            </button>
+            <button id="downloadTerrain">Salvar o relevo em arquivo</button>
+            <p class="muted">
+              O relevo é carregado direto na página, sem baixar nem importar
+              arquivo. Vem de bases abertas que cobrem o mundo (cerca de 30 m
+              por ponto); se o município tem um MDT melhor, importe acima. Ao
+              gerar a mancha na etapa 5, o relevo também é buscado sozinho.
+            </p>
+            <p id="terrainInfo" class="muted" role="status" aria-live="polite">
+              Nenhum terreno carregado.
+            </p>
+          </fieldset>
           <fieldset>
-            <legend class="muted">
-              Ruas fechadas, pontos e áreas desenhados à mão
-            </legend>
+            <legend>2 · Mapas do município (ruas, edificações, mancha)</legend>
+            <button id="osmDownload" class="primary">
+              Baixar ruas e edificações do OpenStreetMap
+            </button>
+            <p class="muted">
+              Funciona em qualquer lugar do mundo, para a área de interesse da
+              etapa 1 (até 60 km²). O OpenStreetMap é feito por voluntários:
+              pode faltar rua ou casa; confira no mapa. Se o município tem bases
+              próprias, importe abaixo; elas substituem as baixadas.
+            </p>
+            <h2>Ou importar os seus arquivos</h2>
             <label
-              >Desenhar no mapa<select id="drawKind">
-                <option value="blockLine">Bloqueio por linha</option>
-                <option value="blockPolygon">Área obstruída</option>
-                <option value="blockPoint">
-                  Bloqueio pontual (raio de 15 m)
-                </option>
-                <option value="destination">Destino</option>
-                <option value="eligible">Área elegível</option>
+              >Camada a importar<select id="layerKind">
+                <option value="aoi">Área de interesse</option>
+                <option value="roads">Vias</option>
+                <option value="buildings">Edificações</option>
                 <option value="flood">Mancha de inundação</option>
+                <option value="eligible">Áreas elegíveis para destinos</option>
+                <option value="destinations">
+                  Pontos de encontro e abrigos
+                </option>
+                <option value="blocks">Bloqueios</option>
               </select></label
             >
-            <button id="draw">Iniciar desenho</button
-            ><button id="clearBlocks">Remover todos os bloqueios</button>
+            <label
+              >Arquivo GeoJSON ou Shapefile ZIP<input
+                id="upload"
+                type="file"
+                accept=".json,.geojson,.zip"
+            /></label>
             <p class="muted">
-              Edite ou exclua os desenhos pelas ferramentas no mapa. Alterações
-              invalidam os resultados anteriores.
+              O ZIP deve incluir .shp, .shx, .dbf e .prj. Cada importação
+              substitui apenas a camada selecionada. Coordenadas internas em
+              WGS84. Limite para estas camadas vetoriais: 25 MB. Esse limite não
+              se aplica ao GeoTIFF do MDT, importado na etapa 1.
+            </p>
+            <label
+              >Fonte / identificação da base<input
+                id="source"
+                placeholder="Órgão, levantamento e data"
+            /></label>
+            <ul id="layers"></ul>
+            <details>
+              <summary>Tipos de vias utilizados</summary>
+              <label
+                >Classes highway separadas por vírgula<input
+                  id="roadTypes"
+                  value="residential,unclassified,tertiary,secondary,primary,living_street,service,pedestrian,footway,path,steps,track,sem_classificacao"
+              /></label>
+              <p class="muted">
+                Usa acesso a pé; exclui foot=no e access=no. Pontes e túneis em
+                níveis distintos não são conectados nos cruzamentos. A rede é
+                refeita ao calcular. Para ligar níveis diferentes em acessos de
+                pontes, forneça identificadores de nó compartilhados na base
+                (node_ids ou osm_node_ids no GeoJSON). Só a coincidência de
+                coordenadas não confirma uma ligação entre níveis.
+              </p>
+            </details>
+          </fieldset>
+          <fieldset>
+            <legend>3 · Tempo e população</legend>
+            <div class="row">
+              <label
+                >Velocidade (m/s)<input
+                  id="speed"
+                  type="number"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  value="0.9"
+              /></label>
+            </div>
+            <label
+              >Pessoas por edificação sem cadastro populacional<input
+                id="peoplePerBuilding"
+                type="number"
+                min="1"
+                max="10000"
+                step="1"
+                value="3"
+            /></label>
+            <p class="muted">
+              Tempo de deslocamento na rede, com velocidade constante. Não
+              estima quando a água chega nem ajusta a velocidade à declividade.
+              O cadastro pode informar pessoas/population/ocupantes por
+              edificação.
+            </p>
+            <label
+              ><input id="allBuildings" type="checkbox" /> Considerar todas as
+              edificações da área de interesse</label
+            >
+          </fieldset>
+          <details class="etapa">
+            <summary>
+              4 · Bloqueios e desenhos no mapa <small>(opcional)</small>
+            </summary>
+            <fieldset>
+              <legend class="muted">
+                Ruas fechadas, pontos e áreas desenhados à mão
+              </legend>
+              <label
+                >Desenhar no mapa<select id="drawKind">
+                  <option value="blockLine">Bloqueio por linha</option>
+                  <option value="blockPolygon">Área obstruída</option>
+                  <option value="blockPoint">
+                    Bloqueio pontual (raio de 15 m)
+                  </option>
+                  <option value="destination">Destino</option>
+                  <option value="eligible">Área elegível</option>
+                  <option value="flood">Mancha de inundação</option>
+                </select></label
+              >
+              <button id="draw">Iniciar desenho</button
+              ><button id="clearBlocks">Remover todos os bloqueios</button>
+              <p class="muted">
+                Edite ou exclua os desenhos pelas ferramentas no mapa.
+                Alterações invalidam os resultados anteriores.
+              </p>
+            </fieldset>
+          </details>
+          <fieldset>
+            <legend>5 · Mancha de inundação</legend>
+            <p class="muted">
+              Importe a mancha na etapa 2 ou desenhe na etapa 4. Se não houver
+              nenhuma, baixe o relevo na etapa 1 e gere uma mancha aproximada
+              aqui embaixo.
+            </p>
+            <label
+              >Natureza da mancha<select id="floodType">
+                <option value="observada">Histórica observada</option>
+                <option value="modelada">Modelada / simulada</option>
+                <option value="hand">HAND experimental</option>
+              </select></label
+            >
+            <label
+              >Evento / referência<input
+                id="floodEvent"
+                placeholder="Data, nível de referência e fonte"
+            /></label>
+            <label
+              >Afastamento mínimo dos destinos (m)<input
+                id="margin"
+                type="number"
+                min="0"
+                max="5000"
+                value="100"
+            /></label>
+            <label
+              ><input id="excludeFlood" type="checkbox" /> Excluir também as
+              vias já inundadas</label
+            >
+            <p class="notice">
+              Sem essa opção, o cenário representa deslocamento antes da
+              inundação: as vias na mancha permanecem disponíveis. Bloqueios
+              manuais sempre são excluídos. Uma mancha histórica não é o limite
+              de uma cheia futura.
+            </p>
+            <details>
+              <summary>
+                Não tenho a mancha: gerar pelo terreno (HAND, experimental)
+              </summary>
+              <p class="muted">
+                A página busca o relevo e os rios mapeados (OpenStreetMap) da
+                área e marca como inundado tudo o que fica até o nível escolhido
+                acima do rio mais próximo. Como os rios vêm do mapa, não é
+                preciso ter a bacia inteira para achar o rio. O que o terreno
+                não diz é quanto o rio sobe: informe o nível com base na régua
+                ou numa cheia conhecida.
+              </p>
+              <label
+                >Córregos sem nome no mapa: área mínima que drena para eles
+                (km²)<input
+                  id="drainArea"
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value="1"
+              /></label>
+              <label
+                >Quanto o rio sobe acima do nível normal (m)<input
+                  id="handLevel"
+                  type="number"
+                  min="0"
+                  max="200"
+                  step="0.1"
+                  value="2"
+              /></label>
+              <button id="generateHand" class="primary">
+                Gerar a mancha pelo terreno
+              </button>
+              <p class="notice">
+                Modelo experimental (HAND, fluxo D8), numa grade de até 320 ×
+                320 pontos sobre a área. Rio que não está no OpenStreetMap só
+                aparece se a área que drena para ele estiver dentro do recorte.
+                Não representa propagação, velocidade ou horário de chegada da
+                cheia e não usa cotas de régua sem calibração.
+              </p>
+            </details>
+          </fieldset>
+          <fieldset>
+            <legend>6 · Pontos de encontro e capacidade</legend>
+            <label
+              >Seleção dos destinos<select id="mode">
+                <option value="misto">Destinos cadastrados + sugestões</option>
+                <option value="manual">Somente destinos cadastrados</option>
+                <option value="automatico">Somente sugestões</option>
+              </select></label
+            >
+            <p class="muted">
+              Clique em “Destino” na etapa 4 para cadastrar no mapa. Polígonos
+              de abrigos importados recebem um ponto representativo para ligação
+              à rede; revise o acesso real.
+            </p>
+            <div id="destinationList"></div>
+            <label
+              ><input id="enforceCapacity" type="checkbox" /> Exigir capacidade
+              informada em todos os destinos</label
+            >
+            <p class="muted">
+              Capacidades conhecidas sempre são respeitadas. Sem a exigência
+              acima, destinos com capacidade desconhecida podem receber pessoas
+              e ficam destacados como pendentes de validação. Sugestões
+              automáticas não têm capacidade cadastrada. Grupos de uma
+              edificação permanecem juntos.
+            </p>
+          </fieldset>
+          <button id="calculate" class="primary">
+            Calcular cenário e rotas
+          </button>
+          <fieldset style="margin-top: 16px">
+            <legend>7 · Salvar o cenário e baixar relatórios</legend>
+            <button id="save">Salvar este cenário (arquivo)</button
+            ><label
+              >Reabrir cenário JSON<input
+                id="load"
+                type="file"
+                accept=".json" /></label
+            ><button id="csv">Baixar relatório CSV</button
+            ><button id="routes">Baixar rotas GeoJSON</button>
+            <p class="muted">
+              Os arquivos ficam no seu dispositivo. O cenário inclui bases,
+              fontes, parâmetros e bloqueios; o terreno é salvo separadamente.
+              Nenhum cadastro é enviado ao servidor.
             </p>
           </fieldset>
         </details>
-        <fieldset>
-          <legend>5 · Mancha de inundação</legend>
-          <p class="muted">
-            Importe a mancha na etapa 2 ou desenhe na etapa 4. Se não houver
-            nenhuma, baixe o relevo na etapa 1 e gere uma mancha aproximada aqui
-            embaixo.
-          </p>
-          <label
-            >Natureza da mancha<select id="floodType">
-              <option value="observada">Histórica observada</option>
-              <option value="modelada">Modelada / simulada</option>
-              <option value="hand">HAND experimental</option>
-            </select></label
-          >
-          <label
-            >Evento / referência<input
-              id="floodEvent"
-              placeholder="Data, nível de referência e fonte"
-          /></label>
-          <label
-            >Afastamento mínimo dos destinos (m)<input
-              id="margin"
-              type="number"
-              min="0"
-              max="5000"
-              value="100"
-          /></label>
-          <label
-            ><input id="excludeFlood" type="checkbox" /> Excluir também as vias
-            já inundadas</label
-          >
-          <p class="notice">
-            Sem essa opção, o cenário representa deslocamento antes da
-            inundação: as vias na mancha permanecem disponíveis. Bloqueios
-            manuais sempre são excluídos. Uma mancha histórica não é o limite de
-            uma cheia futura.
-          </p>
-          <details>
-            <summary>
-              Não tenho a mancha: gerar pelo terreno (HAND, experimental)
-            </summary>
-            <p class="muted">
-              A página busca o relevo e os rios mapeados (OpenStreetMap) da área
-              e marca como inundado tudo o que fica até o nível escolhido acima
-              do rio mais próximo. Como os rios vêm do mapa, não é preciso ter a
-              bacia inteira para achar o rio. O que o terreno não diz é quanto o
-              rio sobe: informe o nível com base na régua ou numa cheia
-              conhecida.
-            </p>
-            <label
-              >Córregos sem nome no mapa: área mínima que drena para eles
-              (km²)<input
-                id="drainArea"
-                type="number"
-                min="0.001"
-                step="0.001"
-                value="1"
-            /></label>
-            <label
-              >Quanto o rio sobe acima do nível normal (m)<input
-                id="handLevel"
-                type="number"
-                min="0"
-                max="200"
-                step="0.1"
-                value="2"
-            /></label>
-            <button id="generateHand" class="primary">
-              Gerar a mancha pelo terreno
-            </button>
-            <p class="notice">
-              Modelo experimental (HAND, fluxo D8), numa grade de até 320 × 320
-              pontos sobre a área. Rio que não está no OpenStreetMap só aparece
-              se a área que drena para ele estiver dentro do recorte. Não
-              representa propagação, velocidade ou horário de chegada da cheia e
-              não usa cotas de régua sem calibração.
-            </p>
-          </details>
-        </fieldset>
-        <fieldset>
-          <legend>6 · Pontos de encontro e capacidade</legend>
-          <label
-            >Seleção dos destinos<select id="mode">
-              <option value="misto">Destinos cadastrados + sugestões</option>
-              <option value="manual">Somente destinos cadastrados</option>
-              <option value="automatico">Somente sugestões</option>
-            </select></label
-          >
-          <p class="muted">
-            Clique em “Destino” na etapa 4 para cadastrar no mapa. Polígonos de
-            abrigos importados recebem um ponto representativo para ligação à
-            rede; revise o acesso real.
-          </p>
-          <div id="destinationList"></div>
-          <label
-            ><input id="enforceCapacity" type="checkbox" /> Exigir capacidade
-            informada em todos os destinos</label
-          >
-          <p class="muted">
-            Capacidades conhecidas sempre são respeitadas. Sem a exigência
-            acima, destinos com capacidade desconhecida podem receber pessoas e
-            ficam destacados como pendentes de validação. Sugestões automáticas
-            não têm capacidade cadastrada. Grupos de uma edificação permanecem
-            juntos.
-          </p>
-        </fieldset>
-        <button id="calculate" class="primary">Calcular cenário e rotas</button>
-        <section id="results" hidden aria-live="polite"></section>
-        <fieldset style="margin-top: 16px">
-          <legend>7 · Salvar o cenário e baixar relatórios</legend>
-          <button id="save">Salvar este cenário (arquivo)</button
-          ><label
-            >Reabrir cenário JSON<input
-              id="load"
-              type="file"
-              accept=".json" /></label
-          ><button id="csv">Baixar relatório CSV</button
-          ><button id="routes">Baixar rotas GeoJSON</button>
-          <p class="muted">
-            Os arquivos ficam no seu dispositivo. O cenário inclui bases,
-            fontes, parâmetros e bloqueios; o terreno é salvo separadamente.
-            Nenhum cadastro é enviado ao servidor.
-          </p>
-        </fieldset>
       </aside>
       <div class="map-shell">
         <div
           id="map"
           aria-label="Mapa para configuração do cenário municipal"
         ></div>
+        <button id="viewAreaMap" class="map-cta" type="button">
+          Usar esta parte do mapa
+        </button>
         <div class="map-note">
           <span><i style="background: #2479c7"></i>inundação</span>
           <span><i style="background: #be731a"></i>edificação</span>
@@ -806,6 +908,7 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/shpjs@6.1.0/dist/shp.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="assets/js/cenario_idiomas.js"></script>
     <script src="assets/js/cenario_engine.js"></script>
     <script src="assets/js/cenario_osm.js"></script>
     <script src="assets/js/cenario_terreno.js"></script>

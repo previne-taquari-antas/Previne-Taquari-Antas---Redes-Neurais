@@ -1,5 +1,14 @@
 "use strict";
 (() => {
+  // idioma do fluxo principal (assets/js/cenario_idiomas.js); sem o arquivo, fica em português
+  const I = window.CenarioIdioma || {
+    tr: (t) => t,
+    aplica() {},
+    idioma: () => "pt",
+  };
+  let LANG = I.idioma();
+  const LOC = () =>
+    LANG === "en" ? "en-US" : LANG === "es" ? "es-ES" : "pt-BR";
   const $ = (id) => document.getElementById(id),
     E = CenarioEngine,
     fc = (features) => ({ type: "FeatureCollection", features }),
@@ -56,8 +65,10 @@
       else $(id).value = value;
     }
   }
+  let statusPt = null;
   const status = (text, error = false) => {
-    $("status").textContent = text;
+    statusPt = text;
+    $("status").textContent = I.tr(text, LANG);
     $("status").className = "status" + (error ? " error" : "");
   };
   function download(content, name, type = "application/json") {
@@ -72,10 +83,12 @@
   }
   function invalidate() {
     state.revision++;
+    const tinha = !!state.result;
     state.result = null;
     if (routeLayer) routeLayer.clearLayers();
     if (resultLayer) resultLayer.clearLayers();
-    $("results").hidden = false;
+    // sem resultado anterior, a área do resultado fica escondida até haver um
+    $("results").hidden = !tinha;
     $("results").textContent =
       "Configuração alterada. Calcule novamente para atualizar os resultados.";
     $("csv").disabled = $("routes").disabled = true;
@@ -155,8 +168,15 @@
       const geo = L.geoJSON(layer, {
         style: () => ({
           color: colors[kind],
-          weight: kind === "roads" ? 2 : 2.5,
-          fillOpacity: kind === "flood" ? 0.3 : 0.08,
+          // a mancha gerada pelo terreno vem em muitas faixas: sem contorno, ela aparece como uma área só
+          weight:
+            kind === "flood" &&
+            layer.features[0]?.properties?.modelo === "HAND experimental"
+              ? 0
+              : kind === "roads"
+                ? 2
+                : 2.5,
+          fillOpacity: kind === "flood" ? 0.35 : 0.08,
         }),
         pointToLayer: (f, p) =>
           kind === "destinations"
@@ -409,55 +429,100 @@
   $("areaUpload").onchange = (e) => importLayer(e, "aoi");
   // bases abertas para qualquer lugar do mundo (assets/js/cenario_osm.js)
   const O = window.CenarioOSM;
-  async function pega(url, opts, segundos = 150) {
+  async function pega(url, opts, segundos = 150, fora) {
     const c = new AbortController(),
-      t = setTimeout(() => c.abort(), segundos * 1000);
+      t = setTimeout(() => c.abort(), segundos * 1000),
+      solta = () => c.abort();
+    if (fora) fora.addEventListener("abort", solta);
     try {
       const r = await fetch(url, { ...opts, signal: c.signal });
       if (!r.ok) throw Error("HTTP " + r.status);
       return await r.json();
     } finally {
       clearTimeout(t);
+      if (fora) fora.removeEventListener("abort", solta);
     }
   }
   const espera = (ms) => new Promise((r) => setTimeout(r, ms));
-  // tenta cada servidor do Overpass; se estiver ocupado (429/502/504), espera e tenta de novo, mais uma vez
-  async function overpass(consulta, segundos = 120) {
+  // Os servidores de consulta do OpenStreetMap são gratuitos e às vezes ficam fora do ar.
+  // Em vez de tentar um por vez (minutos de espera), começa pelo principal e, a cada poucos
+  // segundos sem resposta, chama também o próximo; vale o primeiro que responder.
+  function overpass(consulta, segundos = 60, prazo = 0) {
     const opts = {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "data=" + encodeURIComponent(consulta),
     };
-    // o primeiro servidor é o principal: quando está ocupado, vale insistir nele antes de ir aos outros,
-    // que costumam demorar mais
-    for (const [k, url] of O.SERVIDORES.entries()) {
-      const vezes = k ? 1 : 3;
-      for (let vez = 0; vez < vezes; vez++) {
-        if (k && !vez)
-          status(
-            `O servidor do OpenStreetMap não respondeu. Tentando outro (${k + 1} de ${O.SERVIDORES.length})…`,
-          );
-        const t0 = Date.now();
+    return new Promise((resolve) => {
+      const geral = new AbortController(),
+        timers = [];
+      let feito = false,
+        abertos = 0,
+        prox = 0;
+      const fim = (r) => {
+        if (feito) return;
+        feito = true;
+        timers.forEach(clearTimeout);
+        geral.abort();
+        resolve(r);
+      };
+      const chama = () => {
+        if (feito || prox >= O.SERVIDORES.length) return;
+        const url = O.SERVIDORES[prox++],
+          t0 = Date.now();
+        abertos++;
+        pega(url, opts, segundos, geral.signal)
+          .then(fim)
+          .catch((err) => {
+            console.warn(url, Math.round((Date.now() - t0) / 1000) + " s", err);
+            chama(); // falhou: o próximo entra já
+          })
+          .finally(() => {
+            abertos--;
+            if (!feito && !abertos && prox >= O.SERVIDORES.length) fim(null);
+          });
+      };
+      chama();
+      for (let k = 1; k < O.SERVIDORES.length; k++)
+        timers.push(setTimeout(chama, 6000 * k));
+      // prazo total (s): passou, cancela o que ainda está aberto
+      if (prazo) timers.push(setTimeout(() => fim(null), prazo * 1000));
+    });
+  }
+  // reserva: o servidor oficial do OpenStreetMap, em ladrilhos pequenos (3 de cada vez); ladrilho
+  // com coisa demais é dividido em quatro
+  async function mapaOficial(bbox, aviso, sinal) {
+    const fila = O.ladrilhos(bbox).map((c) => [c, 0]),
+      partes = [];
+    let feitos = 0,
+      total = fila.length;
+    const um = async () => {
+      while (fila.length && !(sinal && sinal.aborted)) {
+        const [c, nivel] = fila.shift();
         try {
-          return await pega(url, opts, k ? Math.min(segundos, 60) : segundos);
+          partes.push(O.deMapa(await pega(O.urlMapa(c), {}, 60, sinal)));
+          feitos++;
+          aviso(feitos, total);
         } catch (err) {
-          console.warn(url, Math.round((Date.now() - t0) / 1000) + " s", err);
-          // recusa por excesso de pedidos chega ao navegador como falha de rede, sem o código HTTP
-          if (
-            vez + 1 >= vezes ||
-            err.name === "AbortError" ||
-            /HTTP 4(?!29)\d\d/.test(err.message)
-          )
-            break;
-          status(
-            "O servidor do OpenStreetMap está ocupado. Tentando de novo em alguns segundos…",
-          );
-          await espera(6000 + 4000 * vez);
+          if (/HTTP 400/.test(err.message) && nivel < 2) {
+            fila.push(...O.quartos(c).map((q) => [q, nivel + 1]));
+            total += 3;
+          } else throw err;
         }
       }
-    }
-    return null;
+    };
+    // um ladrilho que falha de vez para os outros também
+    const para = new AbortController();
+    if (sinal) sinal.addEventListener("abort", () => para.abort());
+    sinal = para.signal;
+    await Promise.all([um(), um(), um()]).catch((err) => {
+      para.abort();
+      throw err;
+    });
+    if (para.signal.aborted) throw Error("cancelado");
+    return O.junta(partes);
   }
+
   const vaiPara = ([w, s, e, n]) =>
     map.fitBounds(
       [
@@ -481,7 +546,7 @@
         grande = km2 > O.AREA_MAX_KM2;
       status(
         grande
-          ? `O limite tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa” (até ${O.AREA_MAX_KM2} km²).`
+          ? `O limite tem cerca de ${Math.round(km2).toLocaleString(LOC())} km², grande para baixar as ruas e edificações. Aproxime o mapa da parte que inunda e toque em “Usar esta parte do mapa” (até ${O.AREA_MAX_KM2} km²).`
           : "Área de interesse definida. Agora baixe as ruas e edificações na etapa 2.",
         grande,
       );
@@ -496,6 +561,13 @@
     if (campo.value.trim() && campo.value !== nomeAuto) return;
     nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
   }
+  // Lugar pequeno (um bairro): mostra ele inteiro. Município grande: abre já perto do centro da
+  // cidade, numa escala em que a parte visível cabe no limite; aí basta tocar em "Usar esta parte".
+  function irAoLugar(l) {
+    if (l.centro && O.areaKm2(l.caixa) > O.AREA_MAX_KM2)
+      map.setView([l.centro[1], l.centro[0]], 15);
+    else vaiPara(l.caixa);
+  }
   function mostraLugares(lista) {
     const ul = $("placeResults");
     ul.replaceChildren();
@@ -507,7 +579,7 @@
       ir.textContent = "Ver no mapa";
       ir.onclick = () => {
         sugereNome(l);
-        vaiPara(l.caixa);
+        irAoLugar(l);
       };
       li.append(nome, ir);
       if (l.limite) {
@@ -518,22 +590,34 @@
       }
       ul.append(li);
     }
+    I.aplica([ul], LANG);
     if (lista.length) {
       sugereNome(lista[0]);
-      vaiPara(lista[0].caixa);
+      irAoLugar(lista[0]);
     }
   }
   // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
   $("viewArea").onclick = () => {
     try {
       const b = map.getBounds().pad(-0.04),
-        [w, s, e, n] = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()],
+        // o mapa dá a volta no mundo: traz a longitude de volta para -180..180
+        volta = Math.round((b.getWest() + b.getEast()) / 2 / 360) * 360,
+        [w, s, e, n] = [
+          b.getWest() - volta,
+          b.getSouth(),
+          b.getEast() - volta,
+          b.getNorth(),
+        ],
         km2 = O.areaKm2([w, s, e, n]);
+      if (w < -180 || e > 180)
+        throw Error(
+          "Essa parte do mapa cruza a linha de data (longitude 180°). Arraste o mapa para um lado só dela e toque de novo.",
+        );
       if (km2 > O.AREA_MAX_KM2)
         throw Error(
           (km2 > 20000
             ? "A área na tela é grande demais."
-            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km².`) +
+            : `A área na tela tem cerca de ${Math.round(km2).toLocaleString(LOC())} km².`) +
             ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
       state.layers.aoi = E.validate(
@@ -558,13 +642,27 @@
       state.sources.aoi = "Área escolhida no mapa";
       invalidate();
       render();
+      passoFeito(2);
+      $("areaOk").hidden = false;
+      $("areaOk").textContent = I.tr(
+        `Área marcada: cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km².`,
+        LANG,
+      );
+      if (celular()) mostra($("passo3"));
       status(
-        `Área de interesse definida (cerca de ${km2.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km²). Agora baixe as ruas e edificações na etapa 2.`,
+        `Área marcada (cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km²). Agora informe quanto o rio sobe e toque em Calcular.`,
       );
     } catch (err) {
       status(err.message, true);
     }
   };
+  // passos do topo: marca o que já foi feito e, no celular, leva a pessoa até onde precisa olhar
+  const celular = () => matchMedia("(max-width: 800px)").matches;
+  const passoFeito = (n, sim = true) =>
+    $("passo" + n) && $("passo" + n).classList.toggle("feito", sim);
+  const mostra = (el) =>
+    el && el.scrollIntoView({ behavior: "smooth", block: "start" });
+  $("viewAreaMap").onclick = () => $("viewArea").click();
   $("placeSearch").onclick = () =>
     busy($("placeSearch"), async () => {
       const q = $("placeQuery").value.trim();
@@ -585,9 +683,11 @@
         );
       }
       mostraLugares(lista);
+      passoFeito(1, lista.length > 0);
+      if (lista.length && celular()) mostra($("map"));
       status(
         lista.length
-          ? "Lugar encontrado. Aproxime o mapa da parte que inunda e toque em “Usar a área visível no mapa”."
+          ? "Lugar encontrado. Agora aproxime o mapa da parte que inunda e toque em “Usar esta parte do mapa”."
           : "Nenhum lugar encontrado com esse nome. Tente incluir o estado ou o país.",
         !lista.length,
       );
@@ -604,47 +704,60 @@
         km2 = O.areaKm2(bbox);
       if (km2 > O.AREA_MAX_KM2)
         throw Error(
-          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString("pt-BR")} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
+          `A área de interesse tem cerca de ${Math.round(km2).toLocaleString(LOC())} km². Para baixar do OpenStreetMap, use até ${O.AREA_MAX_KM2} km²: desenhe uma área menor em volta da parte que inunda.`,
         );
-      status(
-        "Baixando ruas e edificações do OpenStreetMap… pode levar um minuto.",
-      );
+      status("Baixando ruas e edificações do OpenStreetMap…");
       // os rios da área (com folga) vêm junto: servem para gerar a mancha pelo terreno
       const caixaRios = O.folga(bbox);
-      let osm = await overpass(O.consulta(bbox, caixaRios), 150);
-      if (!osm) {
-        // pedido grande para o servidor: tenta em duas partes (ruas e rios; depois edificações)
-        status("O pedido não passou inteiro. Tentando em duas partes…");
-        const [qRuas, qCasas] = O.consultaPartes(bbox, caixaRios),
-          a = await overpass(qRuas, 120),
-          b = a && (await overpass(qCasas, 120));
-        if (a && b)
-          osm = {
-            osm3s: a.osm3s,
-            elements: [...(a.elements || []), ...(b.elements || [])],
-          };
-      }
-      if (!osm) {
-        // reserva: o próprio servidor do OpenStreetMap, que entrega áreas pequenas
-        status(
-          "Tentando direto no servidor do OpenStreetMap (funciona para áreas pequenas)…",
-        );
-        try {
-          osm = O.deMapa(await pega(O.urlMapa(bbox), {}, 120));
-        } catch (err) {
-          console.warn("api.openstreetmap.org", err);
-          if (/HTTP (400|509)/.test(err.message))
-            throw Error(
-              "Os servidores de consulta do OpenStreetMap não responderam e a área é grande para o servidor de reserva. Use uma área menor ou tente de novo em alguns minutos.",
-            );
-        }
-      }
+      // Os servidores de consulta e o oficial correm juntos: o oficial entra se os outros não
+      // responderem em 15 s, e vale o primeiro que trouxer os dados.
+      let acabou = false;
+      const cancelaOficial = new AbortController();
+      const viaConsulta = overpass(O.consulta(bbox, caixaRios)),
+        viaOficial = espera(15000).then(() => {
+          if (acabou) return null;
+          status(
+            "Os servidores de consulta estão lentos. Baixando também do servidor oficial do OpenStreetMap…",
+          );
+          return mapaOficial(
+            O.ladrilhos(caixaRios).length <= 16 ? caixaRios : bbox,
+            (f, t) => {
+              if (!acabou)
+                status(
+                  `Baixando do servidor oficial do OpenStreetMap: parte ${f} de ${t}…`,
+                );
+            },
+            cancelaOficial.signal,
+          ).catch((err) => {
+            console.warn("api.openstreetmap.org", err);
+            return null;
+          });
+        });
+      const primeiro = (ps) =>
+        new Promise((ok) => {
+          let falta = ps.length;
+          ps.forEach((p) =>
+            p.then((v) => {
+              if (v) ok(v);
+              else if (!--falta) ok(null);
+            }),
+          );
+        });
+      const osm = await primeiro([
+        viaConsulta.then((v) => v && { v, oficial: false }),
+        viaOficial.then((v) => v && { v, oficial: true }),
+        // prazo total: depois de 2 min, desiste com uma mensagem em vez de ficar parado
+        espera(120000).then(() => null),
+      ]);
+      acabou = true;
+      cancelaOficial.abort(); // o servidor oficial não segue baixando depois que outro respondeu
       if (!osm)
         throw Error(
-          "O OpenStreetMap não respondeu agora. Tente de novo em alguns minutos ou importe os arquivos do município.",
+          "O mapa das ruas e das casas não chegou em 2 minutos. Tente uma área menor (aproxime mais o mapa) ou tente de novo em alguns minutos.",
         );
-      const r = O.converte(osm);
-      state.rios = { caixa: caixaRios, elements: r.rios };
+      const bruto = O.converte(osm.v),
+        r = osm.oficial ? O.recorta(bruto, bbox) : bruto;
+      state.rios = { caixa: caixaRios, elements: bruto.rios };
       if (!r.roads.features.length)
         throw Error(
           "O OpenStreetMap não tem ruas mapeadas nessa área. Confira a área de interesse ou importe os arquivos do município.",
@@ -654,12 +767,12 @@
       // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
       if (r.buildings.features.length > 10000)
         throw Error(
-          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString("pt-BR")}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+          `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString(LOC())}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
         );
       const nt = O.trechos(r.roads);
       if (nt > 15000)
         throw Error(
-          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString("pt-BR")} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar a área visível no mapa” e baixe de novo.`,
+          `Essa área tem ruas demais para o cálculo (${nt.toLocaleString(LOC())} trechos; o limite é 15 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
         );
       const fonte =
         "OpenStreetMap (ODbL)" +
@@ -690,7 +803,7 @@
       invalidate();
       render();
       fit();
-      const n0 = (v) => v.toLocaleString("pt-BR");
+      const n0 = (v) => v.toLocaleString(LOC());
       status(
         `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
           (r.buildings.features.length
@@ -772,6 +885,8 @@
       await fn();
     } catch (err) {
       status(err.message, true);
+      // no celular o aviso pode estar fora da tela: leva a pessoa até ele
+      $("status").scrollIntoView({ behavior: "smooth", block: "center" });
     } finally {
       button.disabled = false;
     }
@@ -807,7 +922,7 @@
       state.result = r;
       showResults(r);
       status(
-        "Cenário calculado. Clique nas edificações para examinar as rotas.",
+        "Cenário calculado. Toque numa edificação no mapa para ver o caminho dela.",
       );
     });
   function showResults(r) {
@@ -820,7 +935,7 @@
       "Resultado · " +
       ($("municipality").value || "Município não identificado");
     box.append(h);
-    const n0 = (v) => Number(v).toLocaleString("pt-BR"),
+    const n0 = (v) => Number(v).toLocaleString(LOC()),
       el = (tag, cls, text) => {
         const e = document.createElement(tag);
         if (cls) e.className = cls;
@@ -832,9 +947,40 @@
         d.append(el("b", "", n0(num)), el("span", "", text));
         return d;
       };
-    // o número interno do ponto sugerido confunde ao lado do nº da lista
-    const nomeCurto = (t) =>
-      String(t).replace(/^(Ponto sugerido) \d+$/, "Sugerido pelo cálculo");
+    // ponto sugerido ganha o nome da rua com nome mais perto (até 150 m); o número interno confunde
+    const ruas = (state.layers.roads?.features || []).filter(
+        (f) => f.properties?.name && f.geometry?.type === "LineString",
+      ),
+      ruaPerto = (p) => {
+        let melhor = null,
+          dm = 150;
+        for (const f of ruas)
+          for (const c of f.geometry.coordinates) {
+            const d = E.distance(p, c);
+            if (d < dm) {
+              dm = d;
+              melhor = f.properties.name;
+            }
+          }
+        return melhor;
+      },
+      nomes = new Map(
+        r.destinations.map((d) => [
+          d,
+          /^Ponto sugerido \d+$/.test(String(d.name))
+            ? ruaPerto(d.p)
+              ? "Perto de " + ruaPerto(d.p)
+              : "Sugerido pelo cálculo"
+            : d.name,
+        ]),
+      ),
+      nomeCurto = (t) => {
+        for (const [d, n] of nomes) if (d.name === t) return n;
+        return String(t).replace(
+          /^(Ponto sugerido) \d+$/,
+          "Sugerido pelo cálculo",
+        );
+      };
     const minutos = $("minutes").value,
       pct = s.people ? Math.round((100 * s.served) / s.people) : 0;
     box.append(
@@ -869,6 +1015,14 @@
           "p",
           "alerta",
           `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
+        ),
+      );
+    if (s.required < 15)
+      box.append(
+        el(
+          "p",
+          "alerta",
+          `Só ${n0(s.required)} ${s.required === 1 ? "edificação" : "edificações"} na área que precisa de ponto de encontro. Confira no mapa se marcou a parte certa da cidade (a que inunda, com casas) e se a mancha azul encosta nela.`,
         ),
       );
     if (r.removed)
@@ -978,10 +1132,12 @@
     }
     r.buildings.forEach((b, i) => {
       if (!b.required) return;
+      // casas menores e um pouco transparentes, para a mancha azul aparecer por baixo delas
       const l = L.circleMarker([b.p[1], b.p[0]], {
-        radius: 5,
+        radius: 3.5,
+        weight: 1,
         color: b.destination == null ? "#b91c1c" : "#126b47",
-        fillOpacity: 0.9,
+        fillOpacity: 0.6,
       }).addTo(resultLayer);
       l.on("click", () => {
         routeLayer.clearLayers();
@@ -1014,6 +1170,7 @@
       });
     });
     $("csv").disabled = $("routes").disabled = false;
+    I.aplica([box], LANG);
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   $("save").onclick = () => {
@@ -1268,13 +1425,13 @@
       render();
       fit();
       status(
-        "Exemplo carregado. A mancha é modelada, não observada. Verifique contornos e referências antes de uso.",
+        "Exemplo carregado: Santa Tereza, com uma mancha de inundação simulada (não é a cheia observada). Agora toque em Calcular.",
       );
     });
   function areaBox() {
     if (!state.layers.aoi?.features.length)
       throw Error(
-        "Defina a área de interesse primeiro: procure o lugar na etapa 1 e toque em “Usar a área visível no mapa”.",
+        "Defina a área de interesse primeiro: procure o lugar na etapa 1 e toque em “Usar esta parte do mapa”.",
       );
     const b = L.geoJSON(state.layers.aoi).getBounds();
     return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
@@ -1288,7 +1445,7 @@
   }
   function updateTerrain() {
     $("terrainInfo").textContent = state.terrain
-      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
+      ? `${state.terrain.source}${state.terrain.fileBytes ? " · arquivo " + (state.terrain.fileBytes / 1048576).toLocaleString(LOC(), { maximumFractionDigits: 1 }) + " MB" : ""} · ${state.terrain.width} × ${state.terrain.height} pontos sobre a área (com folga em volta).`
       : "Nenhum terreno carregado.";
   }
   async function readTerrain(tiff, bbox) {
@@ -1552,7 +1709,18 @@
       osm = g;
     else {
       status("Buscando os rios mapeados da área…");
-      osm = await overpass(O.consultaRios(t.bbox), 100);
+      // os rios são um pedido leve: se nenhum servidor responder em 20 s, a mancha segue só com o relevo
+      osm = await overpass(O.consultaRios(t.bbox), 20, 20);
+      // reserva: o servidor oficial, se a caixa do relevo couber em poucos ladrilhos
+      if (!osm && O.ladrilhos(t.bbox).length <= 16) {
+        status("Buscando os rios no servidor oficial do OpenStreetMap…");
+        osm = await mapaOficial(t.bbox, (f, n) =>
+          status(
+            `Buscando os rios no servidor oficial do OpenStreetMap: parte ${f} de ${n}…`,
+          ),
+        ).catch(() => null);
+        if (osm) osm = { elements: O.converte(osm).rios };
+      }
       // guarda: gerar de novo com outro nível não pede os rios outra vez
       if (osm) state.rios = { caixa: t.bbox, elements: osm.elements || [] };
     }
@@ -1671,7 +1839,18 @@
   });
   $("autoAll").onclick = () =>
     busy($("autoAll"), async () => {
-      areaBox();
+      // sem área marcada (e sem bases importadas): usa a parte do mapa que está na tela
+      if (!state.layers.aoi?.features.length && !state.layers.roads) {
+        if (map.getZoom() < 11) {
+          $("placeQuery").focus();
+          throw Error(
+            "Primeiro escreva o nome da cidade no passo 1 e toque em Procurar.",
+          );
+        }
+        $("viewArea").click();
+        if ($("status").classList.contains("error")) return;
+      }
+      if (!state.layers.roads) areaBox();
       if (!$("autoLevel").checkValidity() || $("autoLevel").value === "")
         throw Error("Informe quanto o rio sobe, em metros.");
       $("handLevel").value = $("autoLevel").value;
@@ -1682,6 +1861,33 @@
         await etapaAuto("generateHand");
       await etapaAuto("calculate");
     });
+  // textos fixos do fluxo principal no idioma escolhido
+  const traduziveis = () => [
+    document.querySelector("header"),
+    document.querySelector(".guia"),
+    document.querySelector("#avancado > summary"),
+    document.querySelector(".map-note"),
+    $("viewAreaMap"),
+    $("results"),
+  ];
+  function trocaIdioma(lang) {
+    LANG = lang;
+    try {
+      localStorage.setItem("previne-idioma", lang);
+    } catch (e) {}
+    I.aplica(traduziveis(), lang);
+    if (statusPt != null) $("status").textContent = I.tr(statusPt, lang);
+    document
+      .querySelectorAll("[data-lang]")
+      .forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.lang === lang)),
+      );
+  }
+  document
+    .querySelectorAll("[data-lang]")
+    .forEach((b) => (b.onclick = () => trocaIdioma(b.dataset.lang)));
+  statusPt = $("status").textContent.replace(/\s+/g, " ").trim();
+  trocaIdioma(LANG);
   $("csv").disabled = $("routes").disabled = true;
   render();
 })();
