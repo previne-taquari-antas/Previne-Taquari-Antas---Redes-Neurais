@@ -30,6 +30,7 @@ const NIVEIS = (process.env.NIVEIS || "2,4,6,8,10,12,16,20").split(",").map(Numb
       await p.setInputFiles("#areaUpload", path.join(prep, s.slug + "_area.geojson"));
       await p.waitForTimeout(800);
       const t0 = Date.now();
+      if (process.env.DRAIN) await p.fill("#drainArea", process.env.DRAIN);
       for (const nivel of NIVEIS) {
         await p.fill("#handLevel", String(nivel));
         await p.click("#generateHand");

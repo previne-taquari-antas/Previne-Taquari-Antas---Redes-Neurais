@@ -346,19 +346,33 @@
     ],
     ["Perto de (.+)", "Near $1", "Cerca de $1"],
     [
+      "A área tinha casas e ruas demais para o cálculo e foi reduzida para cerca de " +
+        N +
+        " km² em volta do centro\\.",
+      "The area had too many houses and streets for the calculation and was reduced to about $1 km² around its center.",
+      "El área tenía demasiadas casas y calles para el cálculo y se redujo a unos $1 km² alrededor del centro.",
+    ],
+    [
+      "Nenhum lugar seguro dentro da área marcada: ela fica toda na mancha ou a menos de " +
+        N +
+        " m dela\\. Marque uma área maior, que inclua terreno mais alto, ou confira quanto o rio sobe\\.",
+      "No safe place inside the marked area: all of it is in the flood area or less than $1 m from it. Mark a larger area that includes higher ground, or check how much the river rises.",
+      "Ningún lugar seguro dentro del área marcada: toda queda en la mancha o a menos de $1 m de ella. Marque un área más grande, que incluya terreno más alto, o revise cuánto sube el río.",
+    ],
+    [
       "Quanto dá para confiar na mancha\\?",
       "How far can the flood area be trusted?",
       "¿Cuánto se puede confiar en la mancha?",
     ],
     [
-      "Testada na cheia de maio de 2024 em 9 cidades do vale do Taquari, contra a área atingida do Mapa Único do RS: com o rio subindo de 16 a 24 m, a mancha pegou de 85% a 98% das casas atingidas.",
-      "Tested on the May 2024 flood in 9 towns of the Taquari valley (Brazil), against the state's mapped affected area: with the river rising 16 to 24 m, the flood area caught 85% to 98% of the affected houses.",
-      "Probada en la crecida de mayo de 2024 en 9 ciudades del valle del Taquari (Brasil), contra el área afectada mapeada por el estado: con el río subiendo de 16 a 24 m, la mancha detectó del 85% al 98% de las casas afectadas.",
+      "Testada na cheia de maio de 2024 em 9 cidades do vale do Taquari, contra a área atingida do Mapa Único do RS: com o rio subindo de 16 a 24 m, a mancha pegou de 67% a 98% das casas atingidas \\(8 das 9 cidades acima de 77%\\).",
+      "Tested on the May 2024 flood in 9 towns of the Taquari valley (Brazil), against the state's mapped affected area: with the river rising 16 to 24 m, the flood area caught 67% to 98% of the affected houses (above 77% in 8 of the 9 towns).",
+      "Probada en la crecida de mayo de 2024 en 9 ciudades del valle del Taquari (Brasil), contra el área afectada mapeada por el estado: con el río subiendo de 16 a 24 m, la mancha detectó del 67% al 98% de las casas afectadas (más del 77% en 8 de las 9 ciudades).",
     ],
     [
-      "Ela também marca casas que não foram atingidas \\(de 20% a 45% das marcadas\\): erra para o lado seguro.",
-      "It also marks houses that were not affected (20% to 45% of those marked): it errs on the safe side.",
-      "También marca casas que no fueron afectadas (del 20% al 45% de las marcadas): se equivoca hacia el lado seguro.",
+      "Das casas que ela marca, de 72% a 84% foram mesmo atingidas.",
+      "Of the houses it marks, 72% to 84% were really affected.",
+      "De las casas que marca, del 72% al 84% fueron realmente afectadas.",
     ],
     [
       "Não prevê a água que vem da chuva longe do rio, de diques que rompem ou de enxurradas, e é menos precisa em planícies. Um modelo de terreno do município \\(MDT\\) melhora o resultado.",

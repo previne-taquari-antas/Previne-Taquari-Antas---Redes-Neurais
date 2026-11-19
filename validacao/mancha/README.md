@@ -25,24 +25,30 @@ acima do rio. Aqui ela é comparada com cheias reais.
 
 ## Resultado (melhor nível de cada lugar)
 
-Cheia de maio de 2024, vale do Taquari, contra o Mapa Único do RS:
+Cheia de maio de 2024, vale do Taquari, contra o Mapa Único do RS. A página usa, desde esta validação, canal com
+**10 km² ou mais** de área que drena para ele como rio (antes, 1 km²); a tabela compara os dois.
 
-| Cidade | Casas atingidas / na zona | Rio sobe | Pegou | Acertou | Nota |
-|---|---|---|---|---|---|
-| Muçum | 3.593 / 5.507 | +28 m | 92% | 82% | 87 |
-| Santa Tereza | 772 / 1.436 | +24 m | 98% | 73% | 83 |
-| Roca Sales | 3.268 / 6.103 | +16 m | 85% | 72% | 78 |
-| Cruzeiro do Sul | 5.913 / 13.246 | +12 m | 76% | 76% | 76 |
-| Estrela | 5.604 / 15.273 | +16 m | 87% | 66% | 75 |
-| Lajeado | 3.926 / 12.459 | +12 m | 71% | 78% | 74 |
-| Encantado | 3.976 / 9.443 | +16 m | 85% | 65% | 74 |
-| Colinas | 1.446 / 2.942 | +24 m | 87% | 64% | 74 |
-| Arroio do Meio | 5.305 / 10.786 | +20 m | 89% | 60% | 72 |
+| Cidade | Casas atingidas / na zona | 10 km² (atual): rio sobe · pegou · acertou · nota | 1 km² (anterior): nota |
+|---|---|---|---|
+| Muçum | 3.593 / 5.507 | +24 m · 90% · 84% · 87 | 87 |
+| Encantado | 3.976 / 9.443 | +20 m · 86% · 84% · 85 | 74 |
+| Santa Tereza | 772 / 1.436 | +24 m · 98% · 73% · 84 | 83 |
+| Arroio do Meio | 5.305 / 10.786 | +24 m · 90% · 77% · 83 | 72 |
+| Roca Sales | 3.268 / 6.103 | +16 m · 80% · 84% · 82 | 78 |
+| Colinas | 1.446 / 2.942 | +24 m · 77% · 82% · 80 | 74 |
+| Cruzeiro do Sul | 5.913 / 13.246 | +16 m · 84% · 72% · 78 | 76 |
+| Estrela | 5.604 / 15.273 | +16 m · 79% · 75% · 77 | 75 |
+| Lajeado | 3.926 / 12.459 | +20 m · 67% · 76% · 71 | 74 |
 
-Com o rio subindo de 16 a 24 m, a mancha pegou de 85% a 98% das casas atingidas e também marcou casas que não
-foram (de 20% a 45% das marcadas): o erro fica do lado seguro. Detalhe por nível em `resultado_casas.txt`.
+Média da nota: 81 com 10 km², 77 com 1 km². Com 100 km² a página não acha drenagem em 7 das 9 cidades; quando
+isso acontece com 10 km², ela tenta de novo com 1 km². Com 1 km², os arroios pequenos contam como rio e a mancha
+marca os fundos de vale deles.
 
-Outros lugares, contra o satélite (Copernicus):
+Na subida que melhor reproduziu 2024 em cada cidade (16 a 24 m), a mancha pegou de 67% a 98% das casas
+atingidas (8 das 9 cidades acima de 77%), e das casas que ela marcou, de 72% a 84% foram mesmo atingidas.
+Detalhe por nível em `resultado_casas_10km2.txt` e `resultado_casas_1km2.txt`.
+
+Outros lugares, contra o satélite (Copernicus), medidos com o limite anterior de 1 km²:
 
 - **Derna (Líbia, 2023, rompimento de barragem):** +12 m pegou 87% e acertou 87%.
 - **Alfafar (Espanha, 2024):** +6 m pegou 76% e acertou 14%. Boa parte da água veio da chuva na planície.
@@ -56,7 +62,7 @@ Outros lugares, contra o satélite (Copernicus):
 
 - Uma referência boa existe só para o vale do Taquari; fora dele, só pelo satélite, que mostra uma cheia já
   baixando ou água de chuva.
-- O "Rio sobe" que dá o melhor resultado varia de 12 a 28 m entre as cidades. Não foi conferido contra a régua de
+- O "Rio sobe" que dá o melhor resultado varia de 16 a 24 m entre as cidades. Não foi conferido contra a régua de
   cada cidade em 2024.
 - Relevo de 30 m de superfície (inclui parte de prédios e árvores).
 
@@ -65,6 +71,6 @@ Outros lugares, contra o satélite (Copernicus):
 ```
 python3 prepara.py                 # zonas e referências em prep/
 python3 agua.py                    # edificações do OpenStreetMap (osm/)
-NODE_PATH=$(npm root -g) node gera.js   # manchas pela página (BASE= para outra cópia; SO= para escolher lugares)
+NODE_PATH=$(npm root -g) node gera.js   # manchas pela página (BASE= outra cópia; SO= lugares; DRAIN= km²; SAIDA= pasta)
 python3 casas.py                   # comparação pelas casas
 ```

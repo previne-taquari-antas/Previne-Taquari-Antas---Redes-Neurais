@@ -65,6 +65,8 @@
       else $(id).value = value;
     }
   }
+  // aviso de área reduzida pela página (cidade densa), mostrado com o resultado
+  let avisoArea = "";
   let statusPt = null;
   const status = (text, error = false) => {
     statusPt = text;
@@ -559,7 +561,12 @@
   function sugereNome(l) {
     const campo = $("municipality");
     if (campo.value.trim() && campo.value !== nomeAuto) return;
-    nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
+    // o nome que a pessoa digitou (o do serviço de busca pode vir em outra escrita, como 熊本県)
+    const digitado = $("placeQuery").value.split(",")[0].trim();
+    nomeAuto = campo.value = (digitado || l.nome.split(",")[0].trim()).slice(
+      0,
+      140,
+    );
   }
   // Lugar pequeno (um bairro): mostra ele inteiro. Município grande: abre já perto do centro da
   // cidade, numa escala em que a parte visível cabe no limite; aí basta tocar em "Usar esta parte".
@@ -668,6 +675,7 @@
             ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
       marcaArea([w, s, e, n]);
+      avisoArea = "";
       invalidate();
       render();
       passoFeito(2);
@@ -792,7 +800,36 @@
         );
       // curvas com muitos pontos viram menos trechos (os cruzamentos ficam): cabe uma área maior no cálculo
       r.roads = O.simplifica(r.roads);
-      // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
+      // Cidade densa: em vez de pedir para aproximar o mapa, reduz a área em volta do centro até caber no
+      // cálculo (16 mil edificações não terminaram de calcular em 10 minutos no teste com serviços reais)
+      let caixaFinal = null;
+      for (let vez = 0; vez < 5; vez++) {
+        const nb = r.buildings.features.length,
+          ntr = O.trechos(r.roads);
+        if (nb <= 10000 && ntr <= 15000) break;
+        const f = Math.min(
+            0.85,
+            Math.sqrt(9000 / Math.max(nb, 1)),
+            Math.sqrt(13000 / Math.max(ntr, 1)),
+          ),
+          c = caixaFinal || bbox,
+          cx = (c[0] + c[2]) / 2,
+          cy = (c[1] + c[3]) / 2,
+          hx = ((c[2] - c[0]) / 2) * f,
+          hy = ((c[3] - c[1]) / 2) * f;
+        caixaFinal = [cx - hx, cy - hy, cx + hx, cy + hy];
+        Object.assign(r, O.recorta(r, caixaFinal));
+      }
+      if (caixaFinal) {
+        marcaArea(caixaFinal);
+        const km2 = O.areaKm2(caixaFinal);
+        $("areaOk").hidden = false;
+        $("areaOk").textContent = I.tr(
+          `Área marcada: cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km².`,
+          LANG,
+        );
+        avisoArea = `A área tinha casas e ruas demais para o cálculo e foi reduzida para cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km² em volta do centro.`;
+      } else avisoArea = "";
       if (r.buildings.features.length > 10000)
         throw Error(
           `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString(LOC())}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
@@ -835,7 +872,9 @@
       status(
         `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
           (r.buildings.features.length
-            ? aviso + " Falta a mancha de inundação (etapa 5)."
+            ? aviso +
+              (avisoArea ? " " + avisoArea : "") +
+              " Falta a mancha de inundação (etapa 5)."
             : " Nenhuma edificação mapeada nessa área: importe as edificações do município."),
         !r.buildings.features.length,
       );
@@ -1043,6 +1082,15 @@
           "p",
           "alerta",
           `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
+        ),
+      );
+    if (avisoArea) box.append(el("p", "notice", avisoArea));
+    if (!r.destinations.length && s.required)
+      box.append(
+        el(
+          "p",
+          "alerta",
+          `Nenhum lugar seguro dentro da área marcada: ela fica toda na mancha ou a menos de ${$("margin").value} m dela. Marque uma área maior, que inclua terreno mais alto, ou confira quanto o rio sobe.`,
         ),
       );
     if (s.required < 15)
@@ -1855,16 +1903,30 @@
             E.distance([w, s], [w, n])) /
           t.height;
       status("Condicionando terreno e calculando HAND experimental…");
-      const layer = await compute("hand", [
-        t.values,
-        t.width,
-        t.height,
-        cellArea,
-        Number($("drainArea").value) * 1e6,
-        Number($("handLevel").value),
-        t.bbox,
-        rios ? rios.mascara : null,
-      ]);
+      // Padrão de 10 km²: na validação com a cheia de 2024 (validacao/mancha), acertou mais que 1 km², que
+      // inunda os fundos de vale de arroios pequenos. Sem canal desse tamanho na área, tenta 1 km² e depois menos.
+      const hand = (limiteKm2) =>
+        compute("hand", [
+          t.values,
+          t.width,
+          t.height,
+          cellArea,
+          limiteKm2 * 1e6,
+          Number($("handLevel").value),
+          t.bbox,
+          rios ? rios.mascara : null,
+        ]);
+      let limite = Number($("drainArea").value),
+        layer;
+      for (;;) {
+        try {
+          layer = await hand(limite);
+          break;
+        } catch (err) {
+          if (!/Nenhuma drenagem/.test(err.message) || limite <= 0.1) throw err;
+          limite = limite > 1 ? 1 : 0.1;
+        }
+      }
       if (rev !== state.revision)
         throw Error("Configuração alterada durante a geração. Gere novamente.");
       if (!layer.features.length)
@@ -1874,7 +1936,7 @@
         t.source +
         (rios ? " · rios do OpenStreetMap" : "") +
         " · HAND D8 experimental · área contribuinte " +
-        $("drainArea").value +
+        limite +
         " km² · nível " +
         $("handLevel").value +
         " m";
