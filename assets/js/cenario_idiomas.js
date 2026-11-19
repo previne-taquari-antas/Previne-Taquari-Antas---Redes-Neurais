@@ -346,6 +346,15 @@
     ],
     ["Perto de (.+)", "Near $1", "Cerca de $1"],
     [
+      "Nenhuma edificação da área fica na mancha nem a menos de " +
+        N +
+        " m dela: com o rio subindo " +
+        N +
+        " m, ninguém aqui precisa sair\\. Para outra cheia, mude quanto o rio sobe e calcule de novo\\.",
+      "No building in the area is in the flood area or less than $1 m from it: with the river rising $2 m, nobody here needs to leave. For another flood, change how much the river rises and calculate again.",
+      "Ninguna edificación del área queda en la mancha ni a menos de $1 m de ella: con el río subiendo $2 m, nadie aquí necesita salir. Para otra crecida, cambie cuánto sube el río y calcule de nuevo.",
+    ],
+    [
       "A área tinha casas e ruas demais para o cálculo e foi reduzida para cerca de " +
         N +
         " km² em volta do centro\\.",

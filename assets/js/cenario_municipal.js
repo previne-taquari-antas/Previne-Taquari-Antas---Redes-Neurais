@@ -1085,6 +1085,14 @@
         ),
       );
     if (avisoArea) box.append(el("p", "notice", avisoArea));
+    if (!s.required)
+      box.append(
+        el(
+          "p",
+          "notice",
+          `Nenhuma edificação da área fica na mancha nem a menos de ${$("margin").value} m dela: com o rio subindo ${$("autoLevel").value} m, ninguém aqui precisa sair. Para outra cheia, mude quanto o rio sobe e calcule de novo.`,
+        ),
+      );
     if (!r.destinations.length && s.required)
       box.append(
         el(
@@ -1093,7 +1101,7 @@
           `Nenhum lugar seguro dentro da área marcada: ela fica toda na mancha ou a menos de ${$("margin").value} m dela. Marque uma área maior, que inclua terreno mais alto, ou confira quanto o rio sobe.`,
         ),
       );
-    if (s.required < 15)
+    if (s.required && s.required < 15)
       box.append(
         el(
           "p",
