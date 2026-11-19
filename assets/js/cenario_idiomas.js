@@ -346,6 +346,26 @@
     ],
     ["Perto de (.+)", "Near $1", "Cerca de $1"],
     [
+      "Quanto dá para confiar na mancha\\?",
+      "How far can the flood area be trusted?",
+      "¿Cuánto se puede confiar en la mancha?",
+    ],
+    [
+      "Testada na cheia de maio de 2024 em 9 cidades do vale do Taquari, contra a área atingida do Mapa Único do RS: com o rio subindo de 16 a 24 m, a mancha pegou de 85% a 98% das casas atingidas.",
+      "Tested on the May 2024 flood in 9 towns of the Taquari valley (Brazil), against the state's mapped affected area: with the river rising 16 to 24 m, the flood area caught 85% to 98% of the affected houses.",
+      "Probada en la crecida de mayo de 2024 en 9 ciudades del valle del Taquari (Brasil), contra el área afectada mapeada por el estado: con el río subiendo de 16 a 24 m, la mancha detectó del 85% al 98% de las casas afectadas.",
+    ],
+    [
+      "Ela também marca casas que não foram atingidas \\(de 20% a 45% das marcadas\\): erra para o lado seguro.",
+      "It also marks houses that were not affected (20% to 45% of those marked): it errs on the safe side.",
+      "También marca casas que no fueron afectadas (del 20% al 45% de las marcadas): se equivoca hacia el lado seguro.",
+    ],
+    [
+      "Não prevê a água que vem da chuva longe do rio, de diques que rompem ou de enxurradas, e é menos precisa em planícies. Um modelo de terreno do município \\(MDT\\) melhora o resultado.",
+      "It does not predict water from rain far from the river, levee breaches or flash floods, and is less precise on flat plains. A municipal terrain model (DTM) improves the result.",
+      "No predice el agua de lluvia lejos del río, de diques que se rompen o de riadas, y es menos precisa en llanuras. Un modelo de terreno del municipio (MDT) mejora el resultado.",
+    ],
+    [
       "Baixar planilha por edificação",
       "Download spreadsheet by building",
       "Descargar planilla por edificación",
