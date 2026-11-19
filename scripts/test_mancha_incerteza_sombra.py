@@ -73,6 +73,23 @@ class TestCalculo(unittest.TestCase):
         self.assertFalse(r["disponivel"])
 
 
+class TestPagina(unittest.TestCase):
+    def test_exemplo_e_pagina(self):
+        with open(os.path.join(PASTA, "exemplo_cheia_set2026.json"), encoding="utf-8") as f:
+            ex = json.load(f)
+        self.assertEqual(ex["modo"], "exemplo")
+        for k in ("4h", "8h", "12h"):
+            r = ex["horizontes"][k]
+            h = r["hand_m"]
+            self.assertTrue(h["90"] <= h["50"] <= h["10"], k)
+            self.assertIn("pessoas", r["observado"]["expostos"])
+        with open(os.path.join(RAIZ, "mucum_mancha_incerteza_sombra.html"), encoding="utf-8") as f:
+            html = f.read()
+        for trecho in ("sombra_atual.json", "exemplo_cheia_set2026.json", "contornos_extravasamento.json",
+                       "não é alerta oficial", 'name="robots" content="noindex"'):
+            self.assertIn(trecho, html)
+
+
 class TestRoboponta(unittest.TestCase):
     def test_roda_e_confere(self):
         tmp = tempfile.mkdtemp()

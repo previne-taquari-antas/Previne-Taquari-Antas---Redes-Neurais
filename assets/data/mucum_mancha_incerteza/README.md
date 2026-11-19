@@ -17,6 +17,14 @@ workflow `mancha-incerteza-mucum-sombra.yml` depois de cada ciclo da previsão a
 4. Confere as previsões antigas quando a hora-alvo passa (`historico_sombra.jsonl`) e
    resume a cobertura real em `sombra_atual.json → verificacao`.
 
+## Página de pesquisa (fora do menu)
+`mucum_mancha_incerteza_sombra.html` desenha as três áreas (90 / 50 / 10 %) sobre o mapa,
+reaproveitando os contornos HAND publicados, e mostra pessoas, idosos, crianças, domicílios,
+escolas e saúde em cada uma. Lê `sombra_atual.json` do GitHub Raw (a cópia publicada do site
+fica para trás até o próximo deploy) e tem um exemplo fixo, `exemplo_cheia_set2026.json`
+(cheia de 22/09/2026, recalculada pelo próprio robô; abrir com `?ver=exemplo`).
+`noindex`, sem link no menu, com aviso de "não é alerta oficial".
+
 ## De onde vêm as tabelas
 - `tabela_incerteza.json`: 99 quantis do erro (cm) da validação cruzada por evento do
   controle LJJ de Muçum (58 eventos, 2018–2026). **Não** são erros do modelo publicado:
