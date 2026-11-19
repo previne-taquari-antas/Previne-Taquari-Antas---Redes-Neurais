@@ -1,6 +1,8 @@
 """Chuva observada ao vivo pela REDE recomendada pela frente de chuva ao vivo (versão 'avtelqc2', branch
 cursor/hec-bacia145-aovivo): ANA telemetria (72) + CEMADEN público (66) + INMET (13, só com INMET_TOKEN), sem a
 lista negra (dados/postos_rede.json, gerado por preparar_dados.py rede).
+19/11/2026: + todas as ANA (dados/ana_bacia.json, 154) e CEMADEN (dados/cemaden_bacia.json, 125) da bacia + 10 km;
+CEMADEN pelo endpoint horário de 720 h (cemaden.baixar_720); QC por janela (qc_janela) antes do causal. Ver LEIAME.
 
   hora H = (H − 1 h, H], BRT (convenção do forcamento_v3)
   ANA      HidroTelemetria em série (429 em paralelo) com backoff; hora só com todos os registros da cadência; relógio
@@ -93,17 +95,63 @@ def qc_causal(series, horas, xy):
     return fora
 
 
+def qc_janela(series, horas, xy, min_horas=24):
+    """QC da chuva da calibração (forcamento_v2.qc_iterativo, usado no v3/v3b/v4) sobre a janela inteira até a última
+    hora pedida — só passado, então vale ao vivo. Total do posto vs média dos 3 vizinhos nas horas em que todos têm dado:
+    vizinhos > 30 mm e posto < 0,4x (subregistro) ou > 2,5x (excesso) → posto fora da janela toda. Remove um por
+    rodada (o mais distante da razão 1 em log) e recalcula. 19/11/2026: no X77 o QC só por hora deixava entrar
+    estações CEMADEN zeradas no início da chuva (os vizinhos ainda não somavam 30 mm em 72 h).
+    Altera series; devolve {posto: motivo}, {posto: razão}."""
+    excl, razoes = {}, {}
+    while True:
+        cs = list(series)
+        novos = {}
+        for c in cs:
+            viz = sorted((x for x in cs if x != c), key=lambda x: math.dist(xy[c], xy[x]))[:3]
+            hs = [h for h in horas if h in series[c] and all(h in series[v] for v in viz)]
+            if len(hs) < min_horas:
+                continue
+            tc = sum(series[c][h] for h in hs)
+            tv = sum(sum(series[v][h] for h in hs) for v in viz) / len(viz)
+            razoes[c] = round(tc / tv, 2) if tv > 0 else None
+            if tv > MIN_VIZ and tc < LIM_SUB * tv:
+                novos[c] = "subregistro"
+            elif tv > MIN_VIZ and tc > LIM_EXC * tv:
+                novos[c] = "excesso"
+        if not novos:
+            return excl, razoes
+        pior = max(novos, key=lambda c: abs(math.log(max(razoes[c] or 1e-3, 1e-3))))
+        excl[pior] = novos[pior]
+        series.pop(pior)
+
+
 class RedeAoVivo(co.FonteChuvaObservada):
-    nome = "rede ao vivo ANA + CEMADEN + INMET (QC causal avtelqc2, IDW p=2)"
+    nome = "rede ao vivo ANA + CEMADEN (todas da bacia, endpoint 720 h) + INMET (QC causal avtelqc2, IDW p=2)"
 
     def __init__(self, pasta_cemaden=None, coletar_agora=True, paralelo_ana=1, min_estacoes_hora=5,
-                 frac_ultima_hora=0.5, rede=None, fontes=("ANA", "CEMADEN", "INMET")):
+                 frac_ultima_hora=0.5, rede=None, fontes=("ANA", "CEMADEN", "INMET"), todos_postos=True,
+                 qc_janela=True):
         r = rede or json.loads((geo.DADOS / "postos_rede.json").read_text(encoding="utf-8"))
         self.negra = set(r.get("lista_negra", []))
         self.postos = {c: p for c, p in r["postos"].items() if c not in self.negra and p["fonte"] in fontes}
+        # 19/11/2026: todas as estações ANA telemétricas da bacia + 10 km (não só as 72 vivas em 09/10/2026)
+        if todos_postos and "ANA" in fontes:
+            for c, e in json.loads((geo.DADOS / "ana_bacia.json").read_text(encoding="utf-8"))["estacoes"].items():
+                if c not in self.negra:
+                    self.postos.setdefault(c, dict(fonte="ANA", lat=e["lat"], lon=e["lon"], origem=e["origem"]))
+        # 19/11/2026: todas as estações CEMADEN com chuva na bacia + 10 km (não só as 66 da rede), pelo endpoint de 720 h
+        self.cem_720 = {}
+        if todos_postos and "CEMADEN" in fontes:
+            for c, e in cemaden.estacoes_bacia().items():
+                if c in self.negra:
+                    continue
+                self.cem_720[c] = e["idestacao"]
+                self.postos.setdefault(c, dict(fonte="CEMADEN", lat=e["lat"], lon=e["lon"], nome_publico=e["nome"],
+                                               municipio=e["municipio"], origem="cemaden_bacia.json"))
         self.pasta_cem, self.coletar_agora = pasta_cemaden, coletar_agora
         self.paralelo, self.min_est, self.frac = paralelo_ana, min_estacoes_hora, frac_ultima_hora
         self.fontes = fontes
+        self.qc_janela = qc_janela
 
     def _fonte(self, c):
         return self.postos[c]["fonte"]
@@ -150,8 +198,18 @@ class RedeAoVivo(co.FonteChuvaObservada):
                     if self.pasta_cem:
                         cemaden.gravar(self.pasta_cem, inst, est, dict(n_publicas=n_pub, origem="ciclo"))
             sc, ic, rateio = cemaden.horarias(coletas, horas)
+            # endpoint horário (720 h): manda nas horas que publica; o coletor só completa as que faltam (hora corrente)
+            hs = set(horas)
+            s720, falhas_720 = cemaden.baixar_720({c: self.cem_720[c] for c in cem if c in self.cem_720})                 if self.cem_720 else ({}, {})
+            n_720 = {}
             for c in cem:
-                s = {h: v for h, v in sc.get(c, {}).items() if 0 <= v <= co.MAX_MM_H}
+                s = dict(sc.get(c, {}))
+                d720 = {h: v for h, v in s720.get(c, {}).items() if h in hs}
+                if d720:
+                    s.update(d720)
+                    n_720[c] = len(d720)
+                    rateio[c] = rateio.get(c, set()) - set(d720)
+                s = {h: v for h, v in s.items() if 0 <= v <= co.MAX_MM_H}
                 if s:
                     series[c] = s
             soma = {k: sum(v[k] for c, v in ic.items() if c in cem) for k in ("exatas", "aproximadas", "bloco")}
@@ -161,7 +219,12 @@ class RedeAoVivo(co.FonteChuvaObservada):
                                    coleta_agora=self.coletar_agora, erro_coleta=erro,
                                    horas_exatas=soma["exatas"], horas_leitura_ate_30min=soma["aproximadas"],
                                    horas_por_bloco=soma["bloco"],
-                                   ultima_coleta_utc=str(max(c[0] for c in coletas)) if coletas else None)
+                                   ultima_coleta_utc=str(max(c[0] for c in coletas)) if coletas else None,
+                                   endpoint_720h=dict(consultados=len([c for c in cem if c in self.cem_720]),
+                                                      com_horas_na_janela=len(n_720), horas=sum(n_720.values()),
+                                                      falhas=falhas_720,
+                                                      ultima_hora_brt=str(max((max(s) for s in s720.values() if s),
+                                                                              default=None))))
         tempos["CEMADEN"] = round(time.time() - t, 1)
 
         # INMET
@@ -189,6 +252,7 @@ class RedeAoVivo(co.FonteChuvaObservada):
         xs, ys = geo.utm22s([self.postos[c]["lon"] for c in cs], [self.postos[c]["lat"] for c in cs])
         xy = {c: (x, y) for c, x, y in zip(cs, xs, ys)}
         fora_h = qc_hora(series, horas, xy, rateio)
+        fora_j, razoes_j = qc_janela(series, horas, xy) if self.qc_janela else ({}, {})
         fora_c = qc_causal(series, horas, xy)
         codes = sorted(series)
         n_est = [sum(1 for c in codes if h in series[c]) for h in horas]
@@ -225,7 +289,9 @@ class RedeAoVivo(co.FonteChuvaObservada):
         cob = dict(rede="dados/postos_rede.json", lista_negra=sorted(self.negra), por_fonte=info,
                    postos_usados=codes, postos_usados_por_fonte={f: sum(1 for c in codes if self._fonte(c) == f)
                                                                  for f in self.fontes},
-                   qc_horas_fora_trava_ou_isolada=fora_h, qc_horas_fora_72h_vizinhos=fora_c,
+                   qc_horas_fora_trava_ou_isolada=fora_h, qc_fora_janela_inteira=fora_j,
+                   qc_razao_total_vizinhos={c: r for c, r in razoes_j.items() if c in fora_j},
+                   qc_horas_fora_72h_vizinhos=fora_c,
                    estacoes_por_hora=n_est, estacoes_por_hora_por_fonte=por_fonte_h,
                    horas_sem_estacao=sem, horas_degradadas_menos_10_postos=degradado,
                    ultima_hora_pedida=str(ate), ultima_hora_observada=str(ate_obs),

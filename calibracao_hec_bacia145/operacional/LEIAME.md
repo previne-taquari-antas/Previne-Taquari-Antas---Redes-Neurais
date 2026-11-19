@@ -233,6 +233,24 @@ status, rodada UTC, idade em t0 e na emissão, cobertura, chuva prevista na baci
 `corrigido{cen}`, `nivel_previsto_cm{cen}`, `ultimo_observado_valido`, `erro_em_tv_m3s`, `tau_h_usado`, `curva`; em
 Muçum `cotas_previstas`; com ensemble `conjunto`; no retroativo `verificacao_apos_t0`), `avisos[]`, `tempos_s`.
 
+## Chuva observada com TODOS os postos (19/11/2026, Claude; branch `claude/hec-bacia145-cemaden-720h`)
+
+- **CEMADEN pelo endpoint horário de 720 h** (`cemaden.baixar_720`, `mapservices.cemaden.gov.br/MapaInterativoWS/resources/horario/{idestacao}/720`,
+  público): 30 dias de chuva horária por estação, rótulo no fim da hora em UTC (BRT = −3 h, conferido por defasagem
+  contra a ANA). Dispensa o coletor de 10 min para as horas fechadas (o coletor parou em 11/10; sem ele o CEMADEN só
+  entrava nas últimas ~6 h). A última hora sai ~40 min depois de fechar. 6 conexões, ~18 s para 125 estações.
+- **Todas as estações** da bacia + 10 km: `dados/cemaden_bacia.json` (125 CEMADEN com chuva, de todos os tipos; antes 66)
+  e `dados/ana_bacia.json` (154 ANA: rede + inventário v3 + telemétricas da lista oficial que faltavam; antes 72), menos
+  a lista negra. `RedeAoVivo(todos_postos=False)` volta à rede antiga.
+- **QC por janela** (`qc_janela`, o `qc_iterativo` da chuva da calibração v3/v4), só com horas até t0: posto com total
+  < 0,4x ou > 2,5x a média dos 3 vizinhos (vizinhos > 30 mm) sai da janela toda. Depois vem o QC causal de 72 h de antes.
+  `RedeAoVivo(qc_janela=False)` desliga.
+- **X77 retro (rede ao vivo, pc-f8-c025 + d_piv)**: com o QC só por hora, estações CEMADEN zeradas no começo da chuva
+  entravam; a vazão simulada (antes da correção) em Muçum em t0 ficava em 721 m³/s (−12 h; obs. 1128) e 1812 (−6 h;
+  obs. 2389). Com o QC por janela: 1055 e 2457. A chuva da bacia até t0 sobe de 83 para 93 mm. O pico previsto fica
+  alto (10,5 m em −12 h, 10,2 m em −6 h; obs. 9,53 m): com a chuva certa em t0, o excesso é do modelo, não da chuva.
+  Resultados em `D:\PREVINE\hec_calibracao_20261005\PRE_REGISTRO_X77.md` (rótulos `x77_rede*`).
+
 ## Onde guardar o histórico do CEMADEN e o estado
 
 | opção | prós | contras | uso |

@@ -12,6 +12,11 @@ dados/postos_rede.json). Por isso há um COLETOR (a cada 10 min) que guarda as l
             Com o coletor contínuo quase toda hora tem leitura própria; o rateio só cobre lacunas curtas. Sem
             histórico, o posto entra só nas últimas ~6 h.
 Uso do coletor: python cemaden.py coletar --pasta <dir> [--loop-min 10 --vezes N]
+
+19/11/2026 (Claude): o mapa interativo também tem um endpoint HORÁRIO por estação com as últimas 720 h
+(baixar_720 / ler_720). Ele dispensa o coletor para as horas fechadas e cobre TODAS as estações CEMADEN com chuva na
+bacia + 10 km (dados/cemaden_bacia.json, 125), não só as 66 da rede. O coletor/coleta na hora continua só para
+completar a hora corrente que o endpoint ainda não publicou.
 """
 import argparse
 import json
@@ -162,6 +167,60 @@ def horarias(coletas, horas, desvio_max_min=30, bloco_max_h=6):
         info[c] = dict(exatas=n_zero, aproximadas=n_ex - n_zero, bloco=len(s) - n_ex,
                        ultimo_dado_brt=str(rr[ultimo][2]))
     return out, info, rateio
+
+
+URL_720 = "https://mapservices.cemaden.gov.br/MapaInterativoWS/resources/horario/{}/720"
+
+
+def estacoes_bacia():
+    """{CEM_cod: {idestacao, nome, municipio, tipo, lat, lon}}: todas as estações CEMADEN com chuva na bacia + 10 km
+    (dados/cemaden_bacia.json; inclui as 66 da rede recomendada)."""
+    return json.loads((DADOS / "cemaden_bacia.json").read_text(encoding="utf-8"))["estacoes"]
+
+
+def ler_720(d):
+    """Série {hora BRT: mm} do JSON do endpoint horário. `horarios` é UMA linha do tempo contínua (721 rótulos) e cada
+    linha de `acumulados` (uma por data UTC) só tem valor nas posições daquela data. Rótulo = fim da hora em UTC
+    (conferido por defasagem contra a ANA em 19/11/2026: 43 de 53 estações em fase), então hora BRT = rótulo − 3 h,
+    já na convenção (H − 1 h, H]."""
+    s = {}
+    for data, vals in zip(d.get("datas", []), d.get("acumulados", [])):
+        dia = datetime.strptime(data, "%d/%m/%Y")
+        for i, v in enumerate(vals):
+            if v is not None and i < len(d["horarios"]):
+                s[dia + timedelta(hours=int(str(d["horarios"][i]).rstrip("h"))) + BRT] = float(v)
+    return s
+
+
+def baixar_720(estacoes, timeout=30, tentativas=3, paralelo=6):
+    """Últimas 720 h horárias de cada estação ({CEM_cod: idestacao}); endpoint público, sem credencial, `paralelo`
+    conexões (em série eram ~2 s por estação, 125 estações ≈ 4,5 min).
+    Substitui o histórico do coletor: com isto o CEMADEN entra com até 30 dias, não só as últimas ~6 h.
+    Devolve ({cod: {hora BRT: mm}}, {cod: erro})."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def um(item):
+        c, i = item
+        erro = None
+        for k in range(tentativas):
+            try:
+                r = requests.get(URL_720.format(i), timeout=timeout,
+                                 headers={"User-Agent": "previne-hec-aovivo/1.0 (pesquisa)"})
+                r.raise_for_status()
+                return c, ler_720(r.json()), None
+            except Exception as exc:  # noqa: BLE001
+                erro = repr(exc)[:160]
+                time.sleep(3 * (k + 1))
+        return c, None, erro
+
+    out, falhas = {}, {}
+    with ThreadPoolExecutor(max_workers=max(1, paralelo)) as ex:
+        for c, s, e in ex.map(um, estacoes.items()):
+            if s is None:
+                falhas[c] = e
+            else:
+                out[c] = s
+    return out, falhas
 
 
 def main():
