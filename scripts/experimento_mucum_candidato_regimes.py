@@ -56,6 +56,7 @@ HORIZONS = (2, 4, 8)
 BLOCK_DAYS, PURGE_H = 7, 48
 OFFSET_CSV_ROBO_H = 1
 SUBIDA, ESTAVEL = 30, 10
+CHEIA_CM, SUBIDA_CHEIA_CM = 500, 50  # bankfull_cm do robô de Muçum; critério do #306
 CANDIDATES = {
     "base_M_LJJ": ["M", "LJJ"],
     "M_LJJ_chuva": ["M", "LJJ", "RAIN"],
@@ -179,9 +180,18 @@ def regime(delta: float) -> str:
     return "variacao_moderada"
 
 
-def summarize(err: pd.Series, reg: pd.Series) -> dict:
-    out = {"geral": {"n": int(err.size), "mae_cm": round(float(err.abs().mean()), 1),
-                     "vies_cm": round(float(err.mean()), 1)}}
+def _m(e: pd.Series) -> dict | None:
+    if not e.size:
+        return None
+    return {"n": int(e.size), "mae_cm": round(float(e.abs().mean()), 1), "vies_cm": round(float(e.mean()), 1)}
+
+
+def summarize(err: pd.Series, reg: pd.Series, cheia: pd.Series | None = None,
+              subida_cheia: pd.Series | None = None) -> dict:
+    out = {"geral": _m(err)}
+    if cheia is not None:
+        out["cheia"] = _m(err[cheia])
+        out["subida_em_cheia"] = _m(err[subida_cheia])
     for name, g in err.groupby(reg):
         out[name] = {"n": int(g.size), "mae_cm": round(float(g.abs().mean()), 1), "vies_cm": round(float(g.mean()), 1)}
     return out
@@ -209,17 +219,20 @@ def main() -> None:
         j = lv.loc[idx]
         verdade, agora = j.observado_cm.astype(float), j.nivel_rio_agora_cm.astype(float)
         reg = (verdade - agora).map(regime)
+        cheia = np.maximum(agora, verdade) >= CHEIA_CM
+        sub_cheia = cheia & ((verdade - agora) >= SUBIDA_CHEIA_CM)
         linha = {
             "horizonte_h": h,
             "periodo": [str(idx.min()), str(idx.max())],
             "modelos_ao_vivo": sorted(j.modelo.unique()),
-            "persistencia": summarize(agora - verdade, reg),
-            "rna_ao_vivo": summarize(j.nivel_previsto_cm.astype(float) - verdade, reg),
+            "persistencia": summarize(agora - verdade, reg, cheia, sub_cheia),
+            "rna_ao_vivo": summarize(j.nivel_previsto_cm.astype(float) - verdade, reg, cheia, sub_cheia),
         }
         for name, p in preds.items():
-            linha[name] = summarize(agora + p.loc[idx] - verdade, reg)
+            linha[name] = summarize(agora + p.loc[idx] - verdade, reg, cheia, sub_cheia)
         resultados.append(linha)
-        print(f"{h}h: n={len(idx)}", {k: linha[k]["geral"]["mae_cm"] for k in linha if isinstance(linha[k], dict) and "geral" in linha[k]})
+        print(f"{h}h cheia: n={int(cheia.sum())}", {k: linha[k]["cheia"]["mae_cm"] for k in linha
+                                                   if isinstance(linha[k], dict) and linha[k].get("cheia")})
     payload = {
         "schema_version": "mucum_candidato_regimes_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -229,6 +242,7 @@ def main() -> None:
             "validacao": f"blocos de {BLOCK_DAYS} dias em 2026 com purga de {PURGE_H} h + horizonte; cheias históricas sempre no treino",
             "modelo": "RidgeCV sobre a variação do nível (StandardScaler)",
             "alinhamento": f"hora do CSV = hora_modelo do robô + {OFFSET_CSV_ROBO_H} h; chuva atrasada mais 1 h",
+            "cheia": f"nivel agora ou observado >= {CHEIA_CM} cm (bankfull_cm do robô); subida em cheia: + >= {SUBIDA_CHEIA_CM} cm",
             "regimes_cm": {"subida": f">= +{SUBIDA}", "descida": f"<= -{SUBIDA}", "estavel": f"|delta| < {ESTAVEL}"},
             "candidatos": CANDIDATES,
         },

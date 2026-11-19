@@ -1,13 +1,17 @@
 # Avaliação prospectiva das previsões ao vivo — 19/11/2026
 
-Pesquisa. Não é alerta oficial.
+Pesquisa. Não é alerta oficial. **O foco é a cheia**: só contam as horas em que
+o nível na emissão ou na hora-alvo atinge a cota de transbordamento do robô
+(`bankfull_cm`: Santa Tereza 1.500 cm, Muçum 500 cm). O erro com o rio baixo não
+entra nas conclusões.
 
 ## Por que existe
 
 Os robôs guardam em `historico_previsoes_ao_vivo*.json` só os últimos 1.200
 registros (cerca de 2 a 3 semanas). A agenda (`rna-multi-horizonte`) exige ganho
 consistente **por evento** fora da amostra — e essa evidência estava sendo
-apagada a cada ciclo.
+apagada a cada ciclo. Como as cheias são raras, perder um evento é perder boa
+parte da prova.
 
 ## O que foi feito
 
@@ -23,45 +27,41 @@ apagada a cada ciclo.
    1.200, a amostragem diária não perde registros. Resultado: 9.966 registros
    de Santa Tereza e 10.027 de Muçum.
 3. `scripts/avaliar_arquivo_ao_vivo.py` publica
-   `assets/data/avaliacao_prospectiva_ao_vivo_latest.json`: MAE, P95, viés e
-   skill contra a persistência, por regime do rio (subida ≥ +30 cm, estável
-   < 10 cm, descida ≤ −30 cm) e disponibilidade (lacunas).
+   `assets/data/avaliacao_prospectiva_ao_vivo_latest.json` com MAE, P95, viés e
+   skill contra a persistência **em cheia** e **na subida em cheia** (+50 cm ou
+   mais no horizonte), além de disponibilidade (lacunas). Os recortes por
+   regime em todas as horas ficam no JSON só como registro.
 
-## Achados (modelos em produção hoje)
+## Achados em cheia (Muçum ≥ 500 cm)
 
-| Local | Horizonte | MAE rede | MAE persistência | Subida: rede / pers. | **Rio estável: rede / pers.** |
+| Horizonte | Modelo | Horas | MAE RNA | MAE persistência | Subida em cheia: RNA / persistência |
 |---|---|---|---|---|---|
-| Santa Tereza | 2h | 7,5 | 17,0 | 22 / 60 | 4,6 / 4,2 |
-| Santa Tereza | 2h versão B | 7,3 | 16,4 | 19 / 59 | 5,0 / 4,2 |
-| Santa Tereza | 4h V11 | 20,0 | 35,0 | 40 / 78 | 10,8 / 4,3 |
-| Muçum | 2h | 7,6 | 8,9 | 34 / 46 (viés −21) | 5,3 / 3,8 |
-| Muçum | 4h | 33,1 | 32,8 | 53 / 80 | **26,3 / 4,5** |
-| Muçum | 8h | 67,7 | 62,1 | 90 / 121 | **66,4 / 4,4** |
-| Muçum | 8h versão B | 67,2 | 62,4 | 88 / 122 | **63,0 / 4,4** (viés +36) |
+| 2h | V001 (desde 27/08) | 433 | **6,9** | 11,5 | 51,5 / 73,1 (n=11, viés −36) |
+| 4h | 015 (desde 28/09) | 249 | **23,0** | 46,5 | 49,8 / 112,5 (n=49) |
+| 8h | 032 (desde 28/08) | 325 | **53,9** | 88,7 | 101,3 / 199,5 (n=96) |
+| 8h B | 034 | 325 | 59,3 | 88,7 | 103,9 / 199,5 |
 
-(cm; períodos: STZ 2h desde 07/08, 4h V11 desde 08/10; Muçum 2h desde 27/08,
-4h desde 28/09, 8h desde 28/08.)
-
-1. **Santa Tereza 2h e 4h são robustos:** ganham da persistência em subida e
-   descida e quase empatam com rio parado.
-2. **Muçum 4h e 8h inventam movimento.** Com o rio parado, erram 26 cm (4h) e
-   63–66 cm (8h), contra ~4 cm da persistência. No geral a 8h **perde** da
-   persistência. O ganho nas subidas é real (≈ 26–34 %), mas vem junto de
-   oscilações falsas — risco de alarme falso e de perder confiança.
-3. **Muçum 2h subestima subidas** (viés −21 cm), o mesmo problema que a triagem
-   do PR #306 encontrou em 4/8/12h.
-4. **Disponibilidade cai na cheia.** A 8h de Muçum ficou 253 h sem previsão a
-   partir de 21/09/2026 19h; a 4h de Santa Tereza teve lacuna de 62 h no mesmo
-   evento. A previsão some justamente quando é mais necessária.
+1. **Em cheia, as RNAs de Muçum ganham com folga da persistência** em todos os
+   horizontes: cortam o erro pela metade na subida.
+2. **A 2h ainda fica abaixo do real na subida rápida** (viés −36 cm em 11
+   horas), o mesmo padrão da triagem do PR #306.
+3. **Santa Tereza teve poucas horas acima de 1.500 cm** no período (11 na 2h
+   atual; nenhuma desde a entrada da 4h V11 em 08/10). Ainda não dá para
+   concluir; o arquivo permanente é o que vai permitir juntar essa prova.
+4. **A previsão some na cheia.** A 8h de Muçum ficou 253 h sem previsão a partir
+   de 21/09/2026 19h — a maior cheia do período (pico de 1.538 cm em 28/09)
+   ficou sem nenhuma previsão de 8h. A 4h de Santa Tereza teve lacuna de 62 h no
+   mesmo evento. É o problema mais grave encontrado: a previsão falta justamente
+   quando é necessária.
 
 ## Próximos passos sugeridos
 
-- Muçum 4h/8h: testar um filtro/combinação com a persistência quando o rio está
-  estável e sem chuva relevante, ou incluir as entradas da triagem (#306:
-  chuva média da bacia, nível de Santa Tereza) e avaliar por regime.
-- Investigar a causa das lacunas de 21–24/09 (fonte ANA, contrato de entrada).
-- Repetir esta avaliação mensalmente: `python -B scripts/avaliar_arquivo_ao_vivo.py`.
+- Investigar a causa das lacunas de 21–24/09 (fonte ANA, contrato de entrada,
+  guardrail) e garantir que a previsão não desligue em cheia.
+- Muçum 2h: corrigir a subestimação da subida (ver
+  `docs/mucum_candidato_regimes_20261119.md` e #306).
+- Repetir esta avaliação a cada cheia: `python -B scripts/avaliar_arquivo_ao_vivo.py`.
 
-Limites: poucas cheias grandes no período; regimes definidos pelo próprio
-observado (não são conhecidos na hora da previsão); modelos trocaram ao longo do
-tempo, então períodos diferentes têm hidrologia diferente.
+Limites: poucas cheias no período (em Muçum, 28/09–02/10 com 1.538 cm, 03–05/10
+com 641 cm, 04–07/11 com 953 cm e algumas pequenas perto de 500 cm); os modelos
+trocaram ao longo do tempo, então períodos diferentes têm cheias diferentes.

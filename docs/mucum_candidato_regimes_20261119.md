@@ -1,16 +1,18 @@
-# Muçum — candidato linear com chuva e Santa Tereza contra a RNA ao vivo
+# Muçum — candidato linear com chuva contra a RNA ao vivo, em cheia
 
 Pesquisa, 19/11/2026. Não altera o robô ao vivo e não é alerta oficial.
 Reproduzir: `python scripts/experimento_mucum_candidato_regimes.py` (pandas +
 scikit-learn, ~5 s). Resultado: `assets/data/research_mucum_candidato_regimes_latest.json`.
 
+**Foco: só cheia.** Contam as horas com Muçum ≥ 500 cm (`bankfull_cm` do robô)
+na emissão ou na hora-alvo, como no #306. O erro com o rio baixo não entra nas
+conclusões; os recortes de todas as horas ficam no JSON só como registro.
+
 ## Pergunta
 
-A triagem do PR #306 mostrou, só em horas de cheia, que a chuva média da bacia
-e o nível de Santa Tereza reduzem a subestimação das subidas. A avaliação
-prospectiva (`docs/avaliacao_prospectiva_ao_vivo_20261119.md`) mostrou outro
-problema: as RNAs de 4h e 8h erram muito **com o rio parado**. As mesmas
-entradas resolvem as duas coisas, em todas as horas?
+A triagem do PR #306 mostrou, em horas de cheia, que a chuva média da bacia e o
+nível de Santa Tereza reduzem a subestimação das subidas. Isso se confirma
+contra a RNA **ao vivo**, nas mesmas horas?
 
 ## Método
 
@@ -25,113 +27,80 @@ entradas resolvem as duas coisas, em todas as horas?
   candidato = nível do robô agora + variação prevista.
 - **Alinhamento descoberto:** o rótulo `time_local` do CSV de pesquisa fica
   1 h à frente de `hora_modelo` do robô (diferença média 2,8 cm com o
-  deslocamento, 10 cm sem). A chuva entra atrasada em mais 1 h por cautela.
-  Os resultados de 4h e 8h se mantêm com deslocamento de 0, 1 ou 2 h.
+  deslocamento, 10 cm sem). O CSV é média da hora, que vai até ~45 min além da
+  leitura usada pelo robô: o candidato pode ter uma pequena vantagem aqui. A
+  chuva entra atrasada em mais 1 h por cautela. Os resultados de 4h e 8h se
+  mantêm com deslocamento de 0, 1 ou 2 h.
 
-## Resultado (MAE em cm, mesmas horas)
+## Resultado em cheia (MAE em cm, mesmas horas)
 
-| Horizonte | Horas | Persistência | RNA ao vivo | M+LJJ | M+LJJ+chuva | M+LJJ+STZ+chuva |
-|---|---|---|---|---|---|---|
-| 2h | 1.015 | 9,2 | **8,0** | 14,3 | 14,0 | 18,4 |
-| 4h | 1.011 | 33,5 | 35,6 | 24,0 | 22,3 | **21,0** |
-| 8h | 837 | 57,4 | 78,6 | 38,7 | 34,0 | **30,8** |
+| Horizonte | Horas | Persistência | RNA ao vivo | M+LJJ+chuva | M+LJJ+STZ+chuva |
+|---|---|---|---|---|---|
+| 2h | 202 | 12,8 | **6,8** | 16,4 | 29,9 |
+| 4h | 212 | 50,9 | 29,1 | **15,1** | 28,5 |
+| 8h | 128 | 88,7 | 64,9 | **34,3** | 35,4 |
 
-Por regime (melhor candidato contra RNA ao vivo):
+Subida em cheia (+50 cm ou mais): 4h 22,3 (candidato) vs 49,1 (RNA) vs 116,3
+(persistência), n=46; 8h 45,3 vs 93,2 vs 156,8, n=43.
 
-| | Rio estável | Subida ≥ 30 cm | Descida ≤ −30 cm |
-|---|---|---|---|
-| 4h | 16,7 vs 27,5 | 27,1 vs 53,0 | 25,5 vs 27,3 |
-| 8h | 32,5 vs 87,1 | 36,1 vs 96,7 | 25,7 vs 59,3 |
+Erro na hora do pico, por evento (cm, candidato / RNA):
 
-Só o período depois da correção de contratos de 12/11 (#299), com poucas horas:
-4h 18,1 vs 43,9 cm; 8h 24,0 vs 62,1 cm. A vantagem continua.
+| Evento | Pico | 2h | 4h | 8h |
+|---|---|---|---|---|
+| 28/09–02/10 | 1.538 cm | −12 / +1 | −11 / +59 | sem RNA (lacuna de 253 h) |
+| 03–05/10 | 641 cm | −1 / +7 | 0 / +42 | −21 / −16 |
+| 04–07/11 | 953 cm | −23 / +5 | +13 / +68 | −16 / −33 |
+| 6, 9 e 10/10 (pequenos, ~500–530 cm) | | | +4 a +20 / −5 a +44 | −37 a +34 / **−205 a +244** |
 
 ## Leitura
 
-1. **Em 4h e 8h, até o modelo linear mais simples supera a RNA ao vivo** em
-   todos os regimes. Chuva e Santa Tereza acrescentam ganho (8h: 38,7 → 30,8).
-   O teste retrospectivo de #299 dava 31–34 cm para a 8h032. Ao vivo ela fica
-   em 62–80 cm. A queda de desempenho entre teste e operação é o achado
-   principal e precisa de explicação (entrada ao vivo diferente da de
-   treino? escala? lacunas preenchidas?).
-2. **Em 2h a RNA ao vivo é melhor.** O candidato perde com o rio parado
-   (oscila ~11 cm, contra 4 da persistência). Para 2h o problema a atacar é só
-   o viés nas subidas (−20 cm).
-3. Com o rio parado, o candidato ainda erra mais que a persistência (4h: 16,7
-   vs 4,5). Uma combinação com a persistência quando não há chuva nem
-   tendência é o próximo teste natural.
+1. **2h: a RNA ao vivo é a melhor** (6,8 cm em cheia, erro no pico ≤ 7 cm nas
+   cheias grandes). O candidato não serve para 2h.
+2. **4h: o candidato erra metade da RNA em cheia** (15 vs 29 cm) e no pico não
+   passa de 13 cm, enquanto a RNA **superestimou os picos** em +42 a +68 cm
+   nas três cheias maiores.
+3. **8h: vantagem menos clara.** A diferença média (34 vs 65 cm) vem quase toda
+   das cheias pequenas de outubro, em que a RNA errou ±200 cm. Na cheia de
+   novembro (953 cm) os dois ficam próximos (MAE 38 vs 40 cm). A maior cheia do
+   período ficou sem previsão de 8h.
+4. A variante com Santa Tereza **piora em cheia** (2h 29,9; 4h 28,5), porque
+   Santa Tereza não existe nas cheias históricas do treino. Fica fora da sombra.
 
-## Diagnóstico: por que a RNA de 8h piora ao vivo
+## Contexto da RNA de 8h
 
-- O erro oficial de teste da 8h032 é **49,4 cm**, medido só em eventos de cheia
-  (31, 33, 34, 35 e 37; workbook de auditoria). Os 31–34 cm do #299 eram de um
-  subconjunto.
-- **Os dados de treino quase não têm rio baixo:** no workbook da 8h032, 99,7 %
-  das linhas têm Muçum acima de 300 cm (mediana 621 cm; 25 % entre 300 e
-  500 cm). Ao vivo, 32 % das previsões de 8h saem com o rio abaixo de 300 cm
-  (hoje: 170 cm). Nessa faixa a rede extrapola.
-- Erro ao vivo por faixa do nível na emissão (MAE em cm, RNA / persistência):
-
-| Faixa | 2h | 4h | 8h |
-|---|---|---|---|
-| ≤ 300 cm | 11,9 / 10,6 | 50,3 / 36,6 | 76,4 / 70,1 |
-| 300–500 | 5,1 / 6,5 | 24,2 / 25,2 | 70,6 / 52,0 |
-| 500–800 | 5,1 / 7,8 | 18,1 / 35,6 | 41,5 / 65,6 |
-| > 800 | 11,8 / 21,4 | 27,3 / 56,8 | 81,4 / 198,0 |
-
-  **Acima de 500 cm as RNAs ganham da persistência**; o mau resultado geral vem
-  do rio baixo, fora da faixa de treino.
-- Candidato contra RNA nas mesmas horas, por faixa (MAE em cm):
-
-| Faixa | 4h M+LJJ+chuva / RNA | 8h M+LJJ+chuva / RNA |
-|---|---|---|
-| ≤ 300 cm | 31,3 / 50,4 | 31,0 / 80,5 |
-| 300–500 | 17,3 / 25,7 | 37,8 / 84,5 |
-| 500–800 | 15,0 / 23,6 | 26,6 / 50,1 |
-| > 800 | 15,7 / 34,3 (n=77) | 46,1 / 58,1 (n=14) |
-
-  O candidato só com chuva ganha em todas as faixas. A variante com Santa
-  Tereza **piora em cheia grande** (4h > 800 cm: 48,1 cm), porque Santa Tereza
-  não existe nas cheias históricas do treino: para sombra, usar M+LJJ+chuva.
-
-**Recomendação:** retreinar as RNAs de 4h/8h incluindo períodos contínuos de rio
-baixo e médio (não só eventos), ou aplicar as RNAs só dentro da faixa de treino
-(p.ex. Muçum ≥ 300 cm) e usar outro modelo fora dela.
+- O erro oficial de teste da 8h032 é **49,4 cm**, medido nos eventos de cheia
+  31, 33, 34, 35 e 37 (workbook de auditoria); os 31–34 cm do #299 eram de um
+  subconjunto. Ao vivo, em cheia, ela fica em 54 cm no arquivo completo desde
+  28/08 (`avaliacao_prospectiva_ao_vivo_latest.json`), perto do teste.
+- O treino da 8h032 é de cheia (99,7 % das linhas com Muçum > 300 cm), o que é
+  coerente com o objetivo do sistema. Os erros grandes fora da cheia não são
+  relevantes para esta pesquisa.
 
 ## Limites
 
 - Não é teste prospectivo: é validação em blocos sobre 8 semanas de 2026,
-  enquanto a RNA foi avaliada de fato ao vivo. O candidato tem a vantagem de
-  ver dados limpos (CSV de pesquisa, lacunas ≤ 2 h interpoladas).
-- Poucas cheias grandes no período; Santa Tereza só existe em 2026 nas séries
-  usadas.
-- O CSV é média horária; o robô lê o último valor.
-
-## Próximos passos
-
-1. Rodar o melhor candidato **em sombra no robô** (mesmas entradas ao vivo, sem
-   publicação), gravando no arquivo permanente, para ter prova prospectiva de
-   verdade.
-2. Investigar a diferença teste × ao vivo da 8h032 (reconstruir as entradas ao
-   vivo de algumas horas e comparar com o que o treino teria usado).
-3. Testar a combinação com persistência em regime estável.
+  enquanto a RNA foi avaliada de fato ao vivo. O candidato vê dados mais limpos
+  (CSV de pesquisa, lacunas ≤ 2 h interpoladas).
+- **Poucas cheias:** três relevantes (1.538, 641 e 953 cm) e algumas pequenas
+  perto de 500 cm. Diferenças em um único evento são leitura qualitativa.
 
 ## Sombra (a partir de 19/11/2026)
 
-O candidato **M + LJJ + chuva** (sem Santa Tereza, que piora em cheia grande)
-foi congelado para 4h e 8h e roda em sombra:
+Para ter prova prospectiva de verdade, o candidato **M + LJJ + chuva** foi
+congelado para 4h e 8h e roda em sombra:
 
 - Treino: `python scripts/treinar_candidato_mucum_sombra.py` →
   `config/mucum_candidato_ridge_v1.json` (coeficientes, padronização, hash,
-  `congelado_ate` = 19/11 14:00, validação em blocos refeita com as mesmas
-  funções da sombra: 4h 22,1 cm vs 45,4 da persistência; 8h 36,3 vs 77,8).
+  `congelado_ate` = 19/11 14:00).
 - Variáveis: `scripts/mucum_candidato_features.py`, o mesmo código no treino e
   na operação (só biblioteca padrão).
 - Operação: `.github/workflows/candidato-mucum-sombra.yml` roda depois de cada
-  atualização dos CSVs pelo robô HEC (e de hora em hora, de reserva). Usa só a
-  hora completa mais recente (até 3 h de atraso), nunca reescreve uma previsão
-  emitida e confere quando a hora-alvo aparece. Saída em
-  `assets/data/mucum_candidato_sombra/` (mesmo formato do arquivo permanente;
-  `hora_modelo` na convenção do robô, para comparar com a RNA).
-- Avaliação honesta: só registros com `posterior_ao_congelamento = true`.
+  atualização dos CSVs pelo robô HEC (e de hora em hora, de reserva). Emite em
+  todas as horas, porque a subida de uma cheia começa abaixo de 500 cm; usa só
+  a hora completa mais recente (até 3 h de atraso), nunca reescreve uma
+  previsão emitida e confere quando a hora-alvo aparece. Saída em
+  `assets/data/mucum_candidato_sombra/`.
+- **Avaliação:** só registros com `posterior_ao_congelamento = true` e só em
+  cheia (nível na emissão ou no alvo ≥ 500 cm), comparando com a RNA nas
+  mesmas `hora_modelo`, por evento e no pico.
 - Não toca RNA, robô principal nem páginas. Não é alerta oficial.

@@ -29,6 +29,9 @@ RAIZ = Path(__file__).resolve().parents[1]
 ARQUIVO = RAIZ / "assets" / "data" / "historico_ao_vivo_arquivo"
 SAIDA = RAIZ / "assets" / "data" / "avaliacao_prospectiva_ao_vivo_latest.json"
 
+# Cota de transbordamento do robô (bankfull_cm): o foco da avaliação é a cheia.
+CHEIA_CM = {"santa_tereza": 1500, "mucum": 500}
+SUBIDA_CHEIA_CM = 50
 SUBIDA_CM = 30
 ESTAVEL_CM = 10
 MIN_REGISTROS = 30
@@ -108,13 +111,13 @@ def disponibilidade(horas: list[str]) -> dict:
     }
 
 
-def avaliar_local(regs: list[dict]) -> list[dict]:
+def avaliar_local(regs: list[dict], cheia_cm: float | None = None) -> list[dict]:
     grupos: dict[tuple, list[dict]] = defaultdict(list)
     for r in regs:
         grupos[(r.get("horizonte"), r.get("modelo"))].append(r)
     linhas = []
     for (hz, modelo), rs in sorted(grupos.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
-        pares, por_regime = [], defaultdict(list)
+        pares, por_regime, cheia, subida_cheia = [], defaultdict(list), [], []
         for r in rs:
             if r.get("status_auditoria") != "conferido":
                 continue
@@ -123,6 +126,10 @@ def avaliar_local(regs: list[dict]) -> list[dict]:
                 continue
             pares.append((p, a, o))
             por_regime[regime(a, o)].append((p, a, o))
+            if cheia_cm is not None and max(a, o) >= cheia_cm:
+                cheia.append((p, a, o))
+                if o - a >= SUBIDA_CHEIA_CM:
+                    subida_cheia.append((p, a, o))
         if len(pares) < MIN_REGISTROS:
             continue
         horas = [r["hora_modelo"] for r in rs if r.get("hora_modelo")]
@@ -132,6 +139,8 @@ def avaliar_local(regs: list[dict]) -> list[dict]:
             "primeira_hora_modelo": min(horas),
             "ultima_hora_modelo": max(horas),
             "registros": len(rs),
+            "cheia": metricas(cheia),
+            "subida_em_cheia": metricas(subida_cheia),
             "geral": metricas(pares),
             "por_regime": {k: metricas(v) for k, v in sorted(por_regime.items())},
             "disponibilidade": disponibilidade(horas),
@@ -152,6 +161,9 @@ def main(argv=None) -> int:
         "definicoes": {
             "persistencia": "nivel do rio na hora da previsao repetido na hora-alvo",
             "skill_mae_vs_persistencia": "1 - MAE_rede / MAE_persistencia (>0 = rede melhor)",
+            "cheia": "nivel agora ou observado >= cota de transbordamento do robo (bankfull_cm)",
+            "cheia_cm": CHEIA_CM,
+            "subida_em_cheia": f"cheia e observado - nivel_agora >= {SUBIDA_CHEIA_CM} cm",
             "subida": f"observado - nivel_agora >= {SUBIDA_CM} cm",
             "descida": f"observado - nivel_agora <= -{SUBIDA_CM} cm",
             "estavel": f"|observado - nivel_agora| < {ESTAVEL_CM} cm",
@@ -160,14 +172,16 @@ def main(argv=None) -> int:
         "locais": {},
     }
     for local in locais:
-        resultado["locais"][local] = avaliar_local(carregar(local, args.arquivo))
+        resultado["locais"][local] = avaliar_local(carregar(local, args.arquivo), CHEIA_CM.get(local))
     texto = json.dumps(resultado, ensure_ascii=False, indent=1) + "\n"
     args.saida.write_text(texto, encoding="utf-8")
     for local, linhas in resultado["locais"].items():
         for l in linhas:
-            g = l["geral"]
-            print(f"{local:12s} {l['horizonte']:12s} {l['modelo'][:40]:40s} n={g['n']:5d} "
-                  f"MAE {g['mae_cm']:6.1f} pers {g['mae_persistencia_cm']:6.1f} skill {g['skill_mae_vs_persistencia']}")
+            g = l["cheia"]
+            if not g:
+                continue
+            print(f"{local:12s} {l['horizonte']:12s} {l['modelo'][:40]:40s} cheia n={g['n']:4d} "
+                  f"MAE {g['mae_cm']:6.1f} pers {g['mae_persistencia_cm']:6.1f} vies {g['vies_cm']:6.1f}")
     return 0
 
 
