@@ -115,3 +115,23 @@ baixo e médio (não só eventos), ou aplicar as RNAs só dentro da faixa de tre
 2. Investigar a diferença teste × ao vivo da 8h032 (reconstruir as entradas ao
    vivo de algumas horas e comparar com o que o treino teria usado).
 3. Testar a combinação com persistência em regime estável.
+
+## Sombra (a partir de 19/11/2026)
+
+O candidato **M + LJJ + chuva** (sem Santa Tereza, que piora em cheia grande)
+foi congelado para 4h e 8h e roda em sombra:
+
+- Treino: `python scripts/treinar_candidato_mucum_sombra.py` →
+  `config/mucum_candidato_ridge_v1.json` (coeficientes, padronização, hash,
+  `congelado_ate` = 19/11 14:00, validação em blocos refeita com as mesmas
+  funções da sombra: 4h 22,1 cm vs 45,4 da persistência; 8h 36,3 vs 77,8).
+- Variáveis: `scripts/mucum_candidato_features.py`, o mesmo código no treino e
+  na operação (só biblioteca padrão).
+- Operação: `.github/workflows/candidato-mucum-sombra.yml` roda depois de cada
+  atualização dos CSVs pelo robô HEC (e de hora em hora, de reserva). Usa só a
+  hora completa mais recente (até 3 h de atraso), nunca reescreve uma previsão
+  emitida e confere quando a hora-alvo aparece. Saída em
+  `assets/data/mucum_candidato_sombra/` (mesmo formato do arquivo permanente;
+  `hora_modelo` na convenção do robô, para comparar com a RNA).
+- Avaliação honesta: só registros com `posterior_ao_congelamento = true`.
+- Não toca RNA, robô principal nem páginas. Não é alerta oficial.

@@ -1,0 +1,63 @@
+name: Candidato Muçum em sombra
+
+# Pesquisa: candidato linear (Muçum + Linha José Júlio + chuva da bacia) para
+# 4h e 8h, congelado em config/mucum_candidato_ridge_v1.json. Só grava em
+# assets/data/mucum_candidato_sombra/. Não toca RNA, robô principal nem páginas.
+# Não é alerta oficial. Ver docs/mucum_candidato_regimes_20261119.md.
+
+on:
+  workflow_run:
+    # O robô HEC atualiza os CSVs horários de pesquisa a cada ~10 min.
+    workflows:
+      - "HEC twin Muçum forward ~5d"
+    types: [completed]
+  schedule:
+    # Reserva, caso o encadeamento pare.
+    - cron: '37 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/candidato_mucum_sombra.py'
+      - 'scripts/mucum_candidato_features.py'
+      - 'config/mucum_candidato_ridge_v1.json'
+      - '.github/workflows/candidato-mucum-sombra.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: candidato-mucum-sombra
+  cancel-in-progress: false
+
+jobs:
+  sombra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Testes (só biblioteca padrão)
+        run: python -B -m unittest scripts.test_candidato_mucum_sombra
+      - name: Prever, conferir e publicar
+        run: |
+          git config user.name  "previne-robo"
+          git config user.email "previne-robo@users.noreply.github.com"
+          python -B scripts/candidato_mucum_sombra.py
+          git add assets/data/mucum_candidato_sombra
+          if git diff --staged --quiet; then
+            echo "sem mudança neste ciclo"
+            exit 0
+          fi
+          git commit -m "bot: candidato Muçum em sombra [skip ci]"
+          for tentativa in 1 2 3 4 5; do
+            if git pull --rebase --autostash origin main && git push; then
+              exit 0
+            fi
+            echo "push rejeitado (${tentativa}), refazendo rebase..."
+            sleep 5
+          done
+          echo "falha ao publicar a sombra"
+          exit 1
