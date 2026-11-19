@@ -61,6 +61,43 @@ Só o período depois da correção de contratos de 12/11 (#299), com poucas hor
    vs 4,5). Uma combinação com a persistência quando não há chuva nem
    tendência é o próximo teste natural.
 
+## Diagnóstico: por que a RNA de 8h piora ao vivo
+
+- O erro oficial de teste da 8h032 é **49,4 cm**, medido só em eventos de cheia
+  (31, 33, 34, 35 e 37; workbook de auditoria). Os 31–34 cm do #299 eram de um
+  subconjunto.
+- **Os dados de treino quase não têm rio baixo:** no workbook da 8h032, 99,7 %
+  das linhas têm Muçum acima de 300 cm (mediana 621 cm; 25 % entre 300 e
+  500 cm). Ao vivo, 32 % das previsões de 8h saem com o rio abaixo de 300 cm
+  (hoje: 170 cm). Nessa faixa a rede extrapola.
+- Erro ao vivo por faixa do nível na emissão (MAE em cm, RNA / persistência):
+
+| Faixa | 2h | 4h | 8h |
+|---|---|---|---|
+| ≤ 300 cm | 11,9 / 10,6 | 50,3 / 36,6 | 76,4 / 70,1 |
+| 300–500 | 5,1 / 6,5 | 24,2 / 25,2 | 70,6 / 52,0 |
+| 500–800 | 5,1 / 7,8 | 18,1 / 35,6 | 41,5 / 65,6 |
+| > 800 | 11,8 / 21,4 | 27,3 / 56,8 | 81,4 / 198,0 |
+
+  **Acima de 500 cm as RNAs ganham da persistência**; o mau resultado geral vem
+  do rio baixo, fora da faixa de treino.
+- Candidato contra RNA nas mesmas horas, por faixa (MAE em cm):
+
+| Faixa | 4h M+LJJ+chuva / RNA | 8h M+LJJ+chuva / RNA |
+|---|---|---|
+| ≤ 300 cm | 31,3 / 50,4 | 31,0 / 80,5 |
+| 300–500 | 17,3 / 25,7 | 37,8 / 84,5 |
+| 500–800 | 15,0 / 23,6 | 26,6 / 50,1 |
+| > 800 | 15,7 / 34,3 (n=77) | 46,1 / 58,1 (n=14) |
+
+  O candidato só com chuva ganha em todas as faixas. A variante com Santa
+  Tereza **piora em cheia grande** (4h > 800 cm: 48,1 cm), porque Santa Tereza
+  não existe nas cheias históricas do treino: para sombra, usar M+LJJ+chuva.
+
+**Recomendação:** retreinar as RNAs de 4h/8h incluindo períodos contínuos de rio
+baixo e médio (não só eventos), ou aplicar as RNAs só dentro da faixa de treino
+(p.ex. Muçum ≥ 300 cm) e usar outro modelo fora dela.
+
 ## Limites
 
 - Não é teste prospectivo: é validação em blocos sobre 8 semanas de 2026,
