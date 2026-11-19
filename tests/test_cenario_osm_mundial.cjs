@@ -124,6 +124,60 @@ test("lugares do Nominatim: caixa em oeste, sul, leste, norte e limite só se fo
   assert.match(O.urlLugar("São Paulo"), /q=S%C3%A3o%20Paulo/);
 });
 
+test("sede do município pela relação do OSM (admin_centre, senão label) e só dentro da caixa", () => {
+  const [l] = O.lugares([
+    {
+      display_name: "Pelotas",
+      osm_type: "relation",
+      osm_id: 361756,
+      lat: "-31.56",
+      lon: "-52.34",
+      boundingbox: ["-31.80", "-31.32", "-52.61", "-52.00"],
+    },
+  ]);
+  assert.equal(l.relacao, 361756);
+  assert.match(O.urlRelacao(l.relacao), /relation\/361756\.json$/);
+  const rel = (members) => ({ elements: [{ type: "relation", members }] });
+  assert.equal(
+    O.sedeDaRelacao(
+      rel([
+        { type: "way", ref: 1, role: "outer" },
+        { type: "node", ref: 7, role: "label" },
+        { type: "node", ref: 9, role: "admin_centre" },
+      ]),
+    ),
+    9,
+  );
+  assert.equal(
+    O.sedeDaRelacao(rel([{ type: "node", ref: 7, role: "label" }])),
+    7,
+  );
+  assert.equal(
+    O.sedeDaRelacao(rel([{ type: "way", ref: 1, role: "outer" }])),
+    null,
+  );
+  assert.equal(O.sedeDaRelacao(null), null);
+  const no = (lon, lat) => ({ elements: [{ type: "node", lon, lat }] });
+  assert.deepEqual(
+    O.pontoDoNo(no(-52.341, -31.77), l.caixa),
+    [-52.341, -31.77],
+  );
+  assert.equal(O.pontoDoNo(no(-40, -20), l.caixa), null);
+  assert.equal(O.pontoDoNo({}, l.caixa), null);
+  // ponto e caminho não são relação
+  assert.equal(
+    O.lugares([
+      {
+        display_name: "x",
+        osm_type: "way",
+        osm_id: 3,
+        boundingbox: ["1", "2", "3", "4"],
+      },
+    ])[0].relacao,
+    null,
+  );
+});
+
 const T = require("../assets/js/cenario_terreno.js");
 
 test("rios do mapa viram células da grade (linha e polígono de água)", () => {

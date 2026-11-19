@@ -570,6 +570,20 @@
   }
   // Lugar pequeno (um bairro): mostra ele inteiro. Município grande: abre já perto do centro da
   // cidade, numa escala em que a parte visível cabe no limite; aí basta tocar em "Usar esta parte".
+  // município grande: troca o centro geométrico pela sede marcada no OSM (poucos segundos; se a
+  // API não responder, fica o ponto do Nominatim)
+  async function acertaSede(l) {
+    if (l.sedeVista || !l.relacao || !l.centro) return;
+    l.sedeVista = true;
+    if (O.areaKm2(l.caixa) <= O.AREA_MAX_KM2) return;
+    try {
+      const ref = O.sedeDaRelacao(await pega(O.urlRelacao(l.relacao), {}, 6));
+      const p = ref && O.pontoDoNo(await pega(O.urlNo(ref), {}, 6), l.caixa);
+      if (p) l.centro = p;
+    } catch (e) {
+      // sem a sede, vale o ponto central do Nominatim
+    }
+  }
   function irAoLugar(l) {
     if (l.centro && O.areaKm2(l.caixa) > O.AREA_MAX_KM2)
       map.setView([l.centro[1], l.centro[0]], 15);
@@ -584,8 +598,9 @@
         ir = document.createElement("button");
       nome.textContent = l.nome;
       ir.textContent = "Ver no mapa";
-      ir.onclick = () => {
+      ir.onclick = async () => {
         sugereNome(l);
+        await acertaSede(l);
         irAoLugar(l);
       };
       li.append(nome, ir);
@@ -718,6 +733,7 @@
           "A busca de lugares não respondeu. Tente de novo em instantes ou aproxime o mapa e desenhe a área.",
         );
       }
+      if (lista.length) await acertaSede(lista[0]);
       mostraLugares(lista);
       passoFeito(1, lista.length > 0);
       if (lista.length && celular()) mostra($("map"));
@@ -1123,18 +1139,21 @@
       (s.estimated
         ? `População estimada em ${n0(s.estimated)} edificações (sem cadastro). `
         : "") +
-      (r.destinations.some((d) => d.capacity === null)
-        ? "Há pontos sem capacidade informada: o resultado não garante que há espaço para todos. "
-        : "As capacidades cadastradas foram respeitadas. ") +
-      "A escolha dos pontos é aproximada; pode existir uma solução melhor.";
-    box.append(note);
-    box.append(
-      el(
-        "p",
-        "muted",
-        "Toque numa linha para ver o ponto no mapa; toque numa edificação para ver o caminho dela.",
-      ),
-    );
+      (!r.destinations.length
+        ? ""
+        : (r.destinations.some((d) => d.capacity === null)
+            ? "Há pontos sem capacidade informada: o resultado não garante que há espaço para todos. "
+            : "As capacidades cadastradas foram respeitadas. ") +
+          "A escolha dos pontos é aproximada; pode existir uma solução melhor.");
+    if (note.textContent) box.append(note);
+    if (r.destinations.length)
+      box.append(
+        el(
+          "p",
+          "muted",
+          "Toque numa linha para ver o ponto no mapa; toque numa edificação para ver o caminho dela.",
+        ),
+      );
     const table = document.createElement("table");
     const head = document.createElement("tr");
     for (const t of ["Nº", "Ponto de encontro", "Pessoas", "Capacidade"]) {
@@ -1197,7 +1216,7 @@
         }
       };
     });
-    box.append(table);
+    if (r.destinations.length) box.append(table);
     for (const d of r.rejected) {
       const n = document.createElement("p");
       n.textContent = "Ponto não usado: " + d.name + " — " + d.reason;
@@ -1207,11 +1226,15 @@
     for (const b of r.buildings)
       if (b.required && b.destination == null)
         reasons[b.reason] = (reasons[b.reason] || 0) + 1;
-    for (const [reason, n] of Object.entries(reasons)) {
+    // um único motivo "sem destino no tempo" já está dito no resumo acima
+    const soTempo =
+      Object.keys(reasons).length === 1 &&
+      reasons["Sem destino alcançável no tempo escolhido"];
+    for (const [reason, n] of soTempo ? [] : Object.entries(reasons)) {
       const p = document.createElement("p");
       p.className = "muted";
       p.textContent =
-        n + (n === 1 ? " edificação: " : " edificações: ") + reason;
+        n0(n) + (n === 1 ? " edificação: " : " edificações: ") + reason;
       box.append(p);
     }
     r.buildings.forEach((b, i) => {

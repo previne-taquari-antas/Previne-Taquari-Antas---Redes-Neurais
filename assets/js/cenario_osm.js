@@ -362,10 +362,35 @@
               : null,
           limite:
             g && (g.type === "Polygon" || g.type === "MultiPolygon") ? g : null,
+          // relação do OSM (município): permite achar a sede quando o ponto central cai no interior
+          relacao: r.osm_type === "relation" && r.osm_id ? r.osm_id : null,
         };
       })
       .filter(Boolean)
       .filter((l, i, t) => t.findIndex((x) => x.nome === l.nome) === i);
+  }
+
+  // Sede do município: o Nominatim às vezes dá o centro geométrico do território (em Pelotas, a
+  // 23 km da cidade). A relação no OSM costuma apontar a sede (admin_centre) ou o rótulo (label).
+  const urlRelacao = (id) =>
+    "https://api.openstreetmap.org/api/0.6/relation/" + id + ".json";
+  const urlNo = (id) =>
+    "https://api.openstreetmap.org/api/0.6/node/" + id + ".json";
+  function sedeDaRelacao(resp) {
+    const m = resp?.elements?.[0]?.members || [],
+      no = (papel) => m.find((x) => x.type === "node" && x.role === papel);
+    return (no("admin_centre") || no("label"))?.ref ?? null;
+  }
+  function pontoDoNo(resp, caixa) {
+    const n = resp?.elements?.[0],
+      p = [Number(n?.lon), Number(n?.lat)];
+    return p.every(Number.isFinite) &&
+      p[0] >= caixa[0] &&
+      p[0] <= caixa[2] &&
+      p[1] >= caixa[1] &&
+      p[1] <= caixa[3]
+      ? p
+      : null;
   }
 
   // rios mapeados: a drenagem do HAND sem precisar da bacia inteira
@@ -570,6 +595,10 @@
     converte,
     urlLugar,
     lugares,
+    urlRelacao,
+    urlNo,
+    sedeDaRelacao,
+    pontoDoNo,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.CenarioOSM = api;
