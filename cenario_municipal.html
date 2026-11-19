@@ -393,6 +393,19 @@
         font-weight: 400;
         color: #526c62;
       }
+      .acoes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 10px 0;
+      }
+      .acoes button {
+        margin: 0;
+      }
+      .acoes .link {
+        flex-basis: 100%;
+        font-size: 12px;
+      }
       .map-cta {
         position: absolute;
         z-index: 700;
@@ -422,12 +435,16 @@
           flex-direction: column;
           height: auto;
         }
+        /* celular: legenda numa linha só, que rola de lado, para não cobrir o mapa */
         .map-note {
           left: 6px;
           right: 6px;
           bottom: 18px;
           font-size: 11px;
           padding: 4px 6px;
+          white-space: nowrap;
+          overflow-x: auto;
+          pointer-events: auto;
         }
         /* celular: um botão só para marcar a área, o que fica em cima do mapa */
         #passo2 #viewArea {
@@ -877,7 +894,10 @@
           Usar esta parte do mapa
         </button>
         <div class="map-note">
-          <span><i style="background: #2479c7"></i>inundação</span>
+          <span
+            ><i style="background: #2479c7"></i
+            ><span id="legInund">inundação</span></span
+          >
           <span><i style="background: #be731a"></i>edificação</span>
           <span
             ><i style="background: #126b47"></i>chega a um ponto no tempo</span

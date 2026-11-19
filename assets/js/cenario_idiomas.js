@@ -346,6 +346,43 @@
     ],
     ["Perto de (.+)", "Near $1", "Cerca de $1"],
     [
+      "Baixar planilha por edificação",
+      "Download spreadsheet by building",
+      "Descargar planilla por edificación",
+    ],
+    [
+      "Baixar rotas \\(GeoJSON\\)",
+      "Download routes (GeoJSON)",
+      "Descargar rutas (GeoJSON)",
+    ],
+    [
+      "Copiar link deste cenário",
+      "Copy link to this scenario",
+      "Copiar enlace de este escenario",
+    ],
+    ["Link copiado", "Link copied", "Enlace copiado"],
+    ["Copie o link abaixo", "Copy the link below", "Copie el enlace de abajo"],
+    [
+      "O link refaz o cálculo com o mesmo lugar, a mesma área, o mesmo nível do rio e o mesmo tempo, com os dados do mapa do dia em que for aberto.",
+      "The link redoes the calculation with the same place, area, river level and time, using the map data of the day it is opened.",
+      "El enlace rehace el cálculo con el mismo lugar, la misma área, el mismo nivel del río y el mismo tiempo, con los datos del mapa del día en que se abra.",
+    ],
+    [
+      "Cenário aberto pelo link. Calculando…",
+      "Scenario opened from the link. Calculating…",
+      "Escenario abierto desde el enlace. Calculando…",
+    ],
+    [
+      "O link tem uma área inválida ou grande demais. Comece pelo passo 1.",
+      "The link has an invalid or too large area. Start with step 1.",
+      "El enlace tiene un área inválida o demasiado grande. Empiece por el paso 1.",
+    ],
+    [
+      "inundação simulada \\(rio \\+" + N + " m\\)",
+      "simulated flooding (river +$1 m)",
+      "inundación simulada (río +$1 m)",
+    ],
+    [
       N + " edificaç(?:ão|ões): Sem destino alcançável no tempo escolhido",
       "$1 building(s): no meeting point reachable in the chosen time",
       "$1 edificación(es): sin destino alcanzable en el tiempo elegido",

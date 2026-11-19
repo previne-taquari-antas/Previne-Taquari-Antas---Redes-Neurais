@@ -597,6 +597,53 @@
     }
   }
   // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
+  // link de um cenário feito pelos três passos: lugar, área, nível do rio, tempo e idioma
+  function linkDoCenario() {
+    const f = state.layers.aoi?.features?.[0];
+    if (!f || state.sources.aoi !== "Área escolhida no mapa") return null;
+    if (!/OpenStreetMap/.test(state.sources.roads || "")) return null;
+    const c = f.geometry.coordinates[0],
+      xs = c.map((p) => p[0]),
+      ys = c.map((p) => p[1]),
+      r5 = (v) => v.toFixed(5),
+      u = new URL(location.href.split("?")[0].split("#")[0]);
+    u.searchParams.set(
+      "area",
+      [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+        .map(r5)
+        .join(","),
+    );
+    u.searchParams.set("rio", $("autoLevel").value);
+    u.searchParams.set("tempo", $("minutes").value);
+    if ($("municipality").value.trim())
+      u.searchParams.set("lugar", $("municipality").value.trim());
+    if (LANG !== "pt") u.searchParams.set("lang", LANG);
+    return u.toString();
+  }
+  function marcaArea(caixa) {
+    // arredonda como no link (5 casas, cerca de 1 m): o link refaz exatamente a mesma área
+    const [w, s, e, n] = caixa.map((v) => Math.round(v * 1e5) / 1e5);
+    state.layers.aoi = E.validate(
+      {
+        type: "Feature",
+        properties: { nome: "Área visível no mapa" },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [w, s],
+              [e, s],
+              [e, n],
+              [w, n],
+              [w, s],
+            ],
+          ],
+        },
+      },
+      "aoi",
+    );
+    state.sources.aoi = "Área escolhida no mapa";
+  }
   $("viewArea").onclick = () => {
     try {
       const b = map.getBounds().pad(-0.04),
@@ -620,26 +667,7 @@
             : `A área na tela tem cerca de ${Math.round(km2).toLocaleString(LOC())} km².`) +
             ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
-      state.layers.aoi = E.validate(
-        {
-          type: "Feature",
-          properties: { nome: "Área visível no mapa" },
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [w, s],
-                [e, s],
-                [e, n],
-                [w, n],
-                [w, s],
-              ],
-            ],
-          },
-        },
-        "aoi",
-      );
-      state.sources.aoi = "Área escolhida no mapa";
+      marcaArea([w, s, e, n]);
       invalidate();
       render();
       passoFeito(2);
@@ -1170,6 +1198,44 @@
       });
     });
     $("csv").disabled = $("routes").disabled = false;
+    // o que fazer com o resultado, sem abrir as opções avançadas
+    const acoes = el("div", "acoes"),
+      botao = (txt, fn) => {
+        const b = el("button", "", txt);
+        b.type = "button";
+        b.onclick = fn;
+        acoes.append(b);
+        return b;
+      };
+    botao("Baixar planilha por edificação", () => $("csv").click());
+    botao("Baixar rotas (GeoJSON)", () => $("routes").click());
+    const link = linkDoCenario();
+    if (link) {
+      const campo = el("input", "link");
+      campo.readOnly = true;
+      campo.value = link;
+      campo.setAttribute("aria-label", "Link deste cenário");
+      const copia = botao("Copiar link deste cenário", async () => {
+        campo.hidden = false;
+        campo.select();
+        try {
+          await navigator.clipboard.writeText(link);
+          copia.textContent = I.tr("Link copiado", LANG);
+        } catch (e) {
+          copia.textContent = I.tr("Copie o link abaixo", LANG);
+        }
+      });
+      campo.hidden = true;
+      acoes.append(campo);
+    }
+    box.append(
+      el(
+        "p",
+        "muted",
+        "O link refaz o cálculo com o mesmo lugar, a mesma área, o mesmo nível do rio e o mesmo tempo, com os dados do mapa do dia em que for aberto.",
+      ),
+      acoes,
+    );
     I.aplica([box], LANG);
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1813,6 +1879,11 @@
         $("handLevel").value +
         " m";
       $("floodType").value = "hand";
+      if ($("legInund"))
+        $("legInund").textContent = I.tr(
+          `inundação simulada (rio +${$("handLevel").value} m)`,
+          LANG,
+        );
       $("floodEvent").value =
         "HAND experimental; não calibrado com régua ou evento histórico";
       invalidate();
@@ -1890,4 +1961,38 @@
   trocaIdioma(LANG);
   $("csv").disabled = $("routes").disabled = true;
   render();
+  // cenário aberto por link: marca a área, preenche os campos e calcula
+  try {
+    const q = new URLSearchParams(location.search),
+      area = (q.get("area") || "").split(",").map(Number);
+    if (area.length === 4 && area.every(Number.isFinite)) {
+      const [w, s, e, n] = area;
+      if (
+        w < e &&
+        s < n &&
+        w >= -180 &&
+        e <= 180 &&
+        O.areaKm2(area) <= O.AREA_MAX_KM2
+      ) {
+        if (q.get("lugar"))
+          $("municipality").value = q.get("lugar").slice(0, 140);
+        if (q.get("rio")) $("autoLevel").value = q.get("rio");
+        if (q.get("tempo")) $("minutes").value = q.get("tempo");
+        $("placeQuery").value = q.get("lugar") || "";
+        marcaArea(area);
+        render();
+        fit();
+        passoFeito(1);
+        passoFeito(2);
+        status("Cenário aberto pelo link. Calculando…");
+        setTimeout(() => $("autoAll").click(), 300);
+      } else
+        status(
+          "O link tem uma área inválida ou grande demais. Comece pelo passo 1.",
+          true,
+        );
+    }
+  } catch (err) {
+    console.warn(err);
+  }
 })();
