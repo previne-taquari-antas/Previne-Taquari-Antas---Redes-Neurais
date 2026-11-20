@@ -1100,6 +1100,14 @@
           `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
         ),
       );
+    if (s.crossing)
+      box.append(
+        el(
+          "p",
+          "notice",
+          `${n0(s.crossing)} ${s.crossing === 1 ? "edificação tem" : "edificações têm"} a rota passando por dentro da mancha depois de estar fora dela, por exemplo numa ponte (em amarelo no mapa). Confira se essa passagem estará aberta durante a retirada.`,
+        ),
+      );
     if (avisoArea) box.append(el("p", "notice", avisoArea));
     if (!s.required)
       box.append(
@@ -1243,7 +1251,14 @@
       const l = L.circleMarker([b.p[1], b.p[0]], {
         radius: 3.5,
         weight: 1,
-        color: b.destination == null ? "#b91c1c" : "#126b47",
+        color:
+          b.destination == null
+            ? "#b91c1c"
+            : b.crossesFlood
+              ? "#5c4300"
+              : "#126b47",
+        fillColor:
+          b.crossesFlood && b.destination != null ? "#ffd60a" : undefined,
         fillOpacity: 0.6,
       }).addTo(resultLayer);
       l.on("click", () => {
@@ -1271,7 +1286,8 @@
                   nomeCurto(r.destinations[b.destination].name) +
                   ") · " +
                   (b.seconds / 60).toFixed(1) +
-                  " min"),
+                  " min" +
+                  (b.crossesFlood ? " · a rota passa pela mancha" : "")),
           ),
         ).openPopup();
       });
@@ -1481,6 +1497,7 @@
               estimada: b.estimated,
               destino: r.destinations[b.destination].name,
               tempo_min: b.seconds / 60,
+              passa_pela_mancha: !!b.crossesFlood,
             },
             geometry: { type: "LineString", coordinates },
           });

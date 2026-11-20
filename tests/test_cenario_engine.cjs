@@ -252,10 +252,15 @@ test("route leaves the flood and avoids re-entering it when a dry path fits the 
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += E.distance(pts[i - 1], pts[i]);
   assert(Math.abs(len / 0.9 - r.buildings[0].seconds) < 1e-6, "tempo é o real");
+  assert.equal(r.buildings[0].crossesFlood, false);
+  assert.equal(r.summary.crossing, 0);
   // sem tempo para contornar, usa a rua reta em vez de deixar a casa sem destino
   const r2 = E.plan(x, { ...o, minutes: 10 });
   assert.equal(r2.summary.assigned, 1);
   assert(!E.route(r2, 0).some((p) => p[1] === 0.001));
+  // a rua reta sai da mancha e entra de novo na faixa: fica marcada
+  assert.equal(r2.buildings[0].crossesFlood, true);
+  assert.equal(r2.summary.crossing, 1);
   // floodPenalty 1 volta ao menor tempo
   const r3 = E.plan(x, { ...o, floodPenalty: 1 });
   assert(!E.route(r3, 0).some((p) => p[1] === 0.001));

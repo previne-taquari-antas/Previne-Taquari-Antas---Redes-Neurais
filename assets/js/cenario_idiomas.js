@@ -99,6 +99,11 @@
       "llega a un punto a tiempo",
     ],
     ["não chega no tempo", "does not reach in time", "no llega a tiempo"],
+    [
+      "chega, mas a rota passa pela mancha",
+      "reaches, but the route crosses the flood",
+      "llega, pero la ruta cruza la mancha",
+    ],
     ["ponto de encontro", "meeting point", "punto de encuentro"],
     ["bloqueio", "blockage", "bloqueo"],
     ["caminho", "route", "camino"],
@@ -301,6 +306,12 @@
         " (edificação não chega|edificações não chegam) a nenhum ponto no tempo escolhido \\(em vermelho no mapa\\). Aumente o tempo, cadastre outro ponto ou preveja transporte.",
       "$1 building(s) do not reach any point in the chosen time (red on the map). Increase the time, add another point or plan transport.",
       "$1 edificación(es) no llegan a ningún punto en el tiempo elegido (en rojo en el mapa). Aumente el tiempo, agregue otro punto o prevea transporte.",
+    ],
+    [
+      N +
+        " (edificação tem|edificações têm) a rota passando por dentro da mancha depois de estar fora dela, por exemplo numa ponte \\(em amarelo no mapa\\)\\. Confira se essa passagem estará aberta durante a retirada\\.",
+      "$1 building(s) have a route that goes back into the flood after leaving it, for example over a bridge (yellow on the map). Check that this crossing will be open during the evacuation.",
+      "$1 edificación(es) tienen la ruta pasando por dentro de la mancha después de haber salido, por ejemplo por un puente (en amarillo en el mapa). Verifique que ese paso esté abierto durante la evacuación.",
     ],
     [
       "Só " +

@@ -972,6 +972,36 @@
         d.fast = shortest(adj, d.node, true);
       delete d.quick;
     }
+    // Rota que entra na mancha depois de estar fora dela (50 m seguidos secos), como numa ponte
+    // sobre o rio: fica marcada, para alguém conferir se a passagem estará aberta.
+    if (wet)
+      for (const b of buildings) {
+        if (b.destination == null) continue;
+        const d = selected[b.destination],
+          tree = b.via === "fast" && d.fast ? d.fast : d.route;
+        let n = b.node,
+          fora = !wet(b.p),
+          seco = 0,
+          molhado = 0,
+          guard = 0;
+        while (n >= 0 && tree.next[n] >= 0 && guard++ < g.nodes.length) {
+          const m = tree.next[n],
+            p = g.nodes[n],
+            q = g.nodes[m],
+            dd = distance(p, q),
+            k = Math.max(1, Math.min(100, Math.round(dd / 10)));
+          for (let i = 0; i < k; i++)
+            if (!wet(lerp(p, q, (i + 0.5) / k))) {
+              seco += dd / k;
+              if (seco >= 50) fora = true;
+            } else {
+              seco = 0;
+              if (fora) molhado += dd / k;
+            }
+          n = m;
+        }
+        b.crossesFlood = molhado >= 30;
+      }
     for (const i of pending) {
       const b = buildings[i];
       b.reason =
@@ -994,6 +1024,7 @@
         required: required.length,
         assigned: assigned.length,
         unassigned: pending.size,
+        crossing: assigned.filter((b) => b.crossesFlood).length,
         people: required.reduce((s, b) => s + b.people, 0),
         served: assigned.reduce((s, b) => s + b.people, 0),
         estimated: required.filter((b) => b.estimated).length,
