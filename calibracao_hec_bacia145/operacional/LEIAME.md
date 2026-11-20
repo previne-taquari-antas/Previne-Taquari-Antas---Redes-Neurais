@@ -242,14 +242,17 @@ Muçum `cotas_previstas`; com ensemble `conjunto`; no retroativo `verificacao_ap
 - **Todas as estações** da bacia + 10 km: `dados/cemaden_bacia.json` (125 CEMADEN com chuva, de todos os tipos; antes 66)
   e `dados/ana_bacia.json` (154 ANA: rede + inventário v3 + telemétricas da lista oficial que faltavam; antes 72), menos
   a lista negra. `RedeAoVivo(todos_postos=False)` volta à rede antiga.
-- **QC por janela** (`qc_janela`, o `qc_iterativo` da chuva da calibração v3/v4), só com horas até t0: posto com total
-  < 0,4x ou > 2,5x a média dos 3 vizinhos (vizinhos > 30 mm) sai da janela toda. Depois vem o QC causal de 72 h de antes.
-  `RedeAoVivo(qc_janela=False)` desliga.
-- **X77 retro (rede ao vivo, pc-f8-c025 + d_piv)**: com o QC só por hora, estações CEMADEN zeradas no começo da chuva
-  entravam; a vazão simulada (antes da correção) em Muçum em t0 ficava em 721 m³/s (−12 h; obs. 1128) e 1812 (−6 h;
-  obs. 2389). Com o QC por janela: 1055 e 2457. A chuva da bacia até t0 sobe de 83 para 93 mm. O pico previsto fica
-  alto (10,5 m em −12 h, 10,2 m em −6 h; obs. 9,53 m): com a chuva certa em t0, o excesso é do modelo, não da chuva.
-  Resultados em `D:\PREVINE\hec_calibracao_20261005\PRE_REGISTRO_X77.md` (rótulos `x77_rede*`).
+- **QC com as regras da chuva da calibração** (só horas até t0): `cobertura_minima` (posto com dado em < 50 % das
+  horas ou total zero não entra, como o MIN_COBERTURA do forcamento_v3/v4) e `qc_janela` (o `qc_iterativo`: total
+  < 0,4x ou > 2,5x a média dos 3 vizinhos, vizinhos > 30 mm, sai da janela toda). Extra só ao vivo: `excesso_forte`
+  (posto > 100 mm e > 5x os vizinhos sai mesmo com vizinhos < 30 mm, que é o começo de todo evento). Depois vem o QC
+  causal de 72 h de antes. `RedeAoVivo(qc_janela=False)` desliga tudo isso.
+- **Paridade com a calibração (X77, 25/10–09/11):** a chuva ao vivo dá 110,3 mm na bacia contra 110,0 do forcamento_v4,
+  sub-bacias p10–p90 dentro de ±5 %, correlação 0,98.
+- **X77 retro (rede ao vivo, pc-f8-c025 + d_piv, ECMWF), erro do pico em Muçum:** −24 h +1,09 m, −12 h −0,19 m,
+  −6 h +0,33 m (com o arquivo da calibração: +1,06 / −0,23 / +0,33). Sem a cobertura mínima, um posto morto e um com
+  77 de 260 h deixavam passar a ANA 86195000 (468 mm espúrios, picos de 90 mm/h) e derrubavam o CEMADEN bom ao lado:
+  o pico ia a +0,95 m em −12 h. Resultados: `D:\PREVINE\hec_calibracao_20261005\PRE_REGISTRO_X77.md` (`x77_rede*`).
 
 ## Onde guardar o histórico do CEMADEN e o estado
 

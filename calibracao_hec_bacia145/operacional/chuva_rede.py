@@ -34,6 +34,7 @@ BRT = timedelta(hours=-3)
 TRAVA_H, TRAVA_MIN, TRAVA_AMP = 6, 2.0, 1.0
 ISOL_MIN, ISOL_VIZ = 10.0, 1.0
 LIM_SUB, LIM_EXC, MIN_VIZ, JAN_QC = 0.4, 2.5, 30.0, 72
+EXC_FORTE_MM, EXC_FORTE_X = 100.0, 5.0
 
 
 def _vizinhos(cs, xy, k=3):
@@ -95,6 +96,23 @@ def qc_causal(series, horas, xy):
     return fora
 
 
+def cobertura_minima(series, horas, frac=0.5):
+    """Regra de entrada da chuva da calibração (forcamento_v3/v4: MIN_COBERTURA = 0,5): só entra posto com dado em
+    >= frac das horas da janela e total > 0. 19/11/2026: no X77 um posto morto (só zeros) e um com 77 de 260 h
+    deixaram passar um posto com 468 mm espúrios (86195000) e derrubaram o vizinho bom. Altera series."""
+    fora = {}
+    for c in list(series):
+        s = series[c]
+        n = sum(1 for h in horas if h in s)
+        if n < frac * len(horas):
+            fora[c] = f"cobertura {n}/{len(horas)} h"
+        elif sum(s.values()) <= 0:
+            fora[c] = "total zero"
+        if c in fora:
+            series.pop(c)
+    return fora
+
+
 def qc_janela(series, horas, xy, min_horas=24):
     """QC da chuva da calibração (forcamento_v2.qc_iterativo, usado no v3/v3b/v4) sobre a janela inteira até a última
     hora pedida — só passado, então vale ao vivo. Total do posto vs média dos 3 vizinhos nas horas em que todos têm dado:
@@ -118,6 +136,10 @@ def qc_janela(series, horas, xy, min_horas=24):
                 novos[c] = "subregistro"
             elif tv > MIN_VIZ and tc > LIM_EXC * tv:
                 novos[c] = "excesso"
+            elif tc > EXC_FORTE_MM and tc > EXC_FORTE_X * tv:
+                # só ao vivo: no começo do evento os vizinhos ainda não somam 30 mm e um posto com picos espúrios passava
+                # (X77, −24 h: 86195000 com 465 mm contra 26 mm dos vizinhos)
+                novos[c] = "excesso_forte"
         if not novos:
             return excl, razoes
         pior = max(novos, key=lambda c: abs(math.log(max(razoes[c] or 1e-3, 1e-3))))
@@ -252,7 +274,9 @@ class RedeAoVivo(co.FonteChuvaObservada):
         xs, ys = geo.utm22s([self.postos[c]["lon"] for c in cs], [self.postos[c]["lat"] for c in cs])
         xy = {c: (x, y) for c, x, y in zip(cs, xs, ys)}
         fora_h = qc_hora(series, horas, xy, rateio)
-        fora_j, razoes_j = qc_janela(series, horas, xy) if self.qc_janela else ({}, {})
+        h_ate = [h for h in horas if h <= ate]
+        fora_cob = cobertura_minima(series, h_ate) if self.qc_janela else {}
+        fora_j, razoes_j = qc_janela(series, h_ate, xy) if self.qc_janela else ({}, {})
         fora_c = qc_causal(series, horas, xy)
         codes = sorted(series)
         n_est = [sum(1 for c in codes if h in series[c]) for h in horas]
@@ -289,7 +313,7 @@ class RedeAoVivo(co.FonteChuvaObservada):
         cob = dict(rede="dados/postos_rede.json", lista_negra=sorted(self.negra), por_fonte=info,
                    postos_usados=codes, postos_usados_por_fonte={f: sum(1 for c in codes if self._fonte(c) == f)
                                                                  for f in self.fontes},
-                   qc_horas_fora_trava_ou_isolada=fora_h, qc_fora_janela_inteira=fora_j,
+                   qc_horas_fora_trava_ou_isolada=fora_h, qc_fora_cobertura_minima=fora_cob, qc_fora_janela_inteira=fora_j,
                    qc_razao_total_vizinhos={c: r for c, r in razoes_j.items() if c in fora_j},
                    qc_horas_fora_72h_vizinhos=fora_c,
                    estacoes_por_hora=n_est, estacoes_por_hora_por_fonte=por_fonte_h,
