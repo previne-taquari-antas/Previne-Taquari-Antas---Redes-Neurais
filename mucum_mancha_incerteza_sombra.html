@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PREVINE · Mancha com incerteza — Muçum (pesquisa)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{--bg:#eef3f1;--panel:#fff;--ink:#132019;--muted:#5c6b63;--line:#dfe8e1;--brand:#0f6b4a;--blue:#1e5fbf;--warn:#8a5a12;--warn-bg:#fff5df;
+        --p90:#b2182b;--p50:#e8833a;--p10:#f2c94c;--obs:#1e5fbf;--shadow:0 1px 3px rgba(19,32,25,.08)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Tahoma,Verdana,Geneva,sans-serif;line-height:1.45}
+  .wrap{max-width:1150px;margin:0 auto;padding:22px 16px 48px}
+  header{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+  .mark{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--blue));flex:0 0 auto}
+  .kicker{font-size:11px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.04em}
+  h1{margin:2px 0 2px;font-size:24px}h2{font-size:17px;margin:0 0 8px}h3{font-size:14px;margin:0 0 6px}
+  .subtitle{margin:0;color:var(--muted);font-size:13px}
+  .badge{display:block;background:var(--warn-bg);border:1px solid #edcf91;color:var(--warn);border-radius:12px;padding:10px 14px;font-size:13px;margin:0 0 14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 17px;box-shadow:var(--shadow);margin-top:14px}
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f7faf8}
+  .seg button{border:0;background:transparent;padding:8px 13px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--brand);color:#fff}
+  .seg button:disabled{color:#aab5ae;cursor:not-allowed}
+  .label{font-size:12px;color:var(--muted);font-weight:700;margin-right:4px}
+  #estado{margin:10px 0 0;font-size:13px;color:var(--muted)}
+  .layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;margin-top:14px}
+  #map{height:560px;border-radius:14px;border:1px solid var(--line);background:#dde6e1}
+  .cards{display:flex;flex-direction:column;gap:10px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px;border-left:6px solid var(--line)}
+  .card.p90{border-left-color:var(--p90)}.card.p50{border-left-color:var(--p50)}.card.p10{border-left-color:var(--p10)}.card.obs{border-left-color:var(--obs)}
+  .card .t{font-size:12px;color:var(--muted);font-weight:700}
+  .card .big{font-size:22px;font-weight:700}
+  .card .small{font-size:12px;color:var(--muted)}
+  .nivel{font-size:13px}.nivel b{font-size:18px}
+  table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-size:12px}
+  .table-scroll{overflow-x:auto}
+  .legend{background:#fff;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.6;box-shadow:var(--shadow)}
+  .legend i{display:inline-block;width:14px;height:10px;margin-right:6px;vertical-align:middle;border-radius:2px}
+  .geo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .geo div{background:#f7faf8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+  footer{color:var(--muted);font-size:11px;margin-top:22px}
+  a{color:var(--brand)}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}#map{height:420px}.geo{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header><span class="mark" aria-hidden="true"></span><div>
+    <div class="kicker">PREVINE · geotecnologia · pesquisa em sombra</div>
+    <h1>Mancha prevista com incerteza — Muçum</h1>
+    <p class="subtitle">Em vez de uma linha só, três áreas: onde a água quase certamente chega, onde provavelmente chega e até onde pode chegar no pior caso.</p>
+  </div></header>
+
+  <p class="badge" role="note"><strong>Pesquisa · não é alerta oficial.</strong> Esta página não está no menu do site.
+    Os números vêm do robô sombra e estão sendo testados contra as cheias reais antes de qualquer uso público.
+    A previsão oficial continua em <a href="mucum_previsao_inundacao.html">Previsão de inundação · Muçum</a>.</p>
+
+  <section class="panel" aria-label="Escolha o que ver">
+    <div class="controls">
+      <div><span class="label" id="lbl-fonte">Ver:</span>
+        <span class="seg" role="group" aria-labelledby="lbl-fonte">
+          <button type="button" data-fonte="agora" aria-pressed="true">Agora (robô)</button>
+          <button type="button" data-fonte="exemplo" aria-pressed="false">Exemplo: cheia de 22/09/2026</button>
+        </span></div>
+      <div><span class="label" id="lbl-h">Antecedência:</span>
+        <span class="seg" role="group" aria-labelledby="lbl-h" id="horizontes"></span></div>
+    </div>
+    <p id="estado" aria-live="polite">Carregando…</p>
+  </section>
+
+  <div class="layout">
+    <div id="map" role="region" aria-label="Mapa de Muçum com as três áreas de chance de alagar"></div>
+    <div class="cards" id="cards" aria-live="polite"></div>
+  </div>
+
+  <section class="panel" aria-labelledby="t-tab">
+    <h2 id="t-tab">Quem está em cada área</h2>
+    <div class="table-scroll"><table id="tabela"></table></div>
+    <p class="small" style="font-size:12px;color:var(--muted);margin:8px 0 0">Cada área inclui as menores: a de 10 % contém a de 50 %, que contém a de 90 %.
+      "Esperado" é a soma de cada endereço vezes a chance de ele alagar.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="t-geo">
+    <h2 id="t-geo">De onde vem cada peça (geotecnologia)</h2>
+    <div class="geo">
+      <div><strong>Até onde a água chega com cada nível do rio</strong><br>Modelo digital de terreno (drone + ANADEM, 2 m) transformado em HAND,
+        a altura de cada ponto acima do rio. Área alagada = HAND abaixo de (régua − 5 m), só a parte ligada ao rio.</div>
+      <div><strong>Se essa conversão está certa</strong><br>Mancha observada da cheia de maio/2024 (Planet SkySat, ADA) e radar Sentinel-1 em
+        2020, 2024 e 2026. Confirmam a regra dos 5 m, com margem de ±1,5 m de altura.</div>
+      <div><strong>Quanto a previsão do nível pode errar</strong><br>Erros fora da amostra de 58 cheias (2018–2026), separados pela situação do rio
+        (descendo, estável, subindo, subindo forte) e pela faixa de nível.</div>
+      <div><strong>Quem está em cada área</strong><br>Endereços georreferenciados do CNEFE 2022 (IBGE) e população, idosos e crianças por setor
+        censitário do Censo 2022 (mapa de risco à vida). Só contagens, nenhum endereço individual.</div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="t-ver">
+    <h2 id="t-ver">O robô está acertando?</h2>
+    <p id="verificacao" style="font-size:13px;margin:0">—</p>
+  </section>
+
+  <footer>Dados: <a id="link-dados" href="assets/data/mucum_mancha_incerteza/README.md">assets/data/mucum_mancha_incerteza</a> ·
+    contornos HAND reaproveitados de <code>assets/data/mucum_inundacao/contornos_extravasamento.json</code>.</footer>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="assets/js/contornos_por_nivel.js?v=20261021-niveis"></script>
+<script>
+(function(){
+'use strict';
+const REPO='previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais';
+const PASTA='assets/data/mucum_mancha_incerteza/';
+const CONTORNOS_URL='assets/data/mucum_inundacao/contornos_extravasamento.json';
+const BOUNDS=[[-29.210139,-51.930139],[-29.109861,-51.819861]];
+const ROTULO={'90':'Quase certa','50':'Provável','10':'Pior caso'};
+const COR={'90':'#b2182b','50':'#e8833a','10':'#f2c94c'};
+const ORDEM=['2h','4h','8h','12h'];
+const fmt=n=>(n==null?'—':Number(n).toLocaleString('pt-BR'));
+const m=cm=>(cm==null?'—':(cm/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' m');
+const hm=h=>(h==null?'—':h.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' m');
+const hora=s=>{if(!s)return'—';const d=new Date(String(s).slice(0,19));return isNaN(d)?s:d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});};
+
+let dados={agora:null,exemplo:null},fonte='agora',hSel=null,contornos=null,camadas=[],enquadrado=false;
+
+function bust(u){return u+(u.includes('?')?'&':'?')+'cb='+Date.now();}
+async function buscar(urls){
+  for(const u of urls){
+    try{const r=await fetch(bust(u),{cache:'no-store'});if(r.ok)return await r.json();}catch(e){}
+  }
+  return null;
+}
+function urlsDe(arq){return['https://raw.githubusercontent.com/'+REPO+'/main/'+PASTA+arq,PASTA+arq];}
+
+const map=L.map('map',{scrollWheelZoom:false}).fitBounds(BOUNDS);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri, Maxar'});
+const osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+L.control.layers({'Ruas (OSM)':osm,'Satélite':sat},null,{collapsed:true}).addTo(map);
+const leg=L.control({position:'bottomright'});
+leg.onAdd=function(){const d=L.DomUtil.create('div','legend');
+  d.innerHTML='<strong>Chance de alagar</strong><br><i style="background:#b2182b"></i>90 % · quase certa<br><i style="background:#e8833a"></i>50 % · provável<br><i style="background:#f2c94c"></i>10 % · pior caso<br><i style="background:none;border:2px dashed #0b3d91"></i>água que chegou (exemplo)';return d;};
+leg.addTo(map);
+
+function featDoHand(h){
+  if(!contornos||h==null)return null;
+  const dm=Math.round(h*10);
+  return contornos.features.find(f=>Math.round(f.properties.nivel_m*10)===dm)||null;
+}
+async function geom(f){if(!f)return null;if(f.geometry)return f;if(contornos.carregarGeometria)return contornos.carregarGeometria(f);return null;}
+
+async function desenhar(r){
+  camadas.forEach(c=>map.removeLayer(c));camadas=[];
+  if(!r||!r.disponivel||!contornos)return;
+  const itens=[['10',r.hand_m['10']],['50',r.hand_m['50']],['90',r.hand_m['90']]];
+  const feats=await Promise.all(itens.map(([,h])=>geom(featDoHand(h)).catch(()=>null)));
+  if(r!==atual())return;
+  itens.forEach(([p],i)=>{const f=feats[i];if(!f)return;
+    camadas.push(L.geoJSON(f,{style:{color:COR[p],weight:p==='10'?1.5:0.5,fillColor:COR[p],fillOpacity:p==='10'?0.55:0.6},interactive:false}).addTo(map));});
+  if(camadas.length&&!enquadrado){try{map.fitBounds(camadas[0].getBounds(),{padding:[10,10]});enquadrado=true;}catch(e){}}
+  if(r.observado){const f=await geom(featDoHand(r.observado.hand_obs_m)).catch(()=>null);
+    if(f&&r===atual())camadas.push(L.geoJSON(f,{style:{color:'#0b3d91',weight:1.5,dashArray:'5 4',fill:false},interactive:false}).addTo(map));}
+}
+
+function atual(){const d=dados[fonte];return d&&d.horizontes?d.horizontes[hSel]:null;}
+
+function montarHorizontes(){
+  const d=dados[fonte],box=document.getElementById('horizontes');box.innerHTML='';
+  const hs=d&&d.horizontes?ORDEM.filter(k=>d.horizontes[k]):[];
+  if(!hs.includes(hSel))hSel=hs.find(k=>d.horizontes[k].disponivel)||hs[0]||null;
+  hs.forEach(k=>{const b=document.createElement('button');b.type='button';b.textContent=k.replace('h',' h');
+    b.setAttribute('aria-pressed',String(k===hSel));
+    if(!d.horizontes[k].disponivel)b.title='indisponível: '+(d.horizontes[k].motivo||'');
+    b.onclick=()=>{hSel=k;render();};box.appendChild(b);});
+}
+
+function card(cls,t,big,small){return '<div class="card '+cls+'"><div class="t">'+t+'</div><div class="big">'+big+'</div><div class="small">'+small+'</div></div>';}
+
+function render(){
+  document.querySelectorAll('[data-fonte]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.fonte===fonte)));
+  montarHorizontes();
+  const d=dados[fonte],r=atual(),est=document.getElementById('estado'),cards=document.getElementById('cards'),tab=document.getElementById('tabela');
+  if(!d){est.textContent=fonte==='agora'?'O robô sombra ainda não publicou nenhuma rodada (ele começa depois do merge). Veja o exemplo da cheia de setembro.':'Exemplo indisponível.';
+    cards.innerHTML='';tab.innerHTML='';desenhar(null);return;}
+  if(!r){est.textContent='Nenhum horizonte na previsão.';cards.innerHTML='';tab.innerHTML='';desenhar(null);return;}
+  if(!r.disponivel){est.textContent='Previsão de '+hSel.replace('h',' h')+' indisponível agora: '+(r.motivo||'sem motivo informado')+'.';
+    cards.innerHTML='';tab.innerHTML='';desenhar(null);return;}
+  const quando=fonte==='agora'?'Gerado '+hora(d.previsao_gerada_em)+' · ':(d.evento+' · ');
+  est.textContent=quando+'previsão feita '+hora(r.hora_modelo)+' para '+hora(r.hora_alvo)+(r.situacao==='todos'?' · sem a subida da última hora (margem geral)':' · rio '+r.situacao.replace('estavel','estável')+(r.taxa_cm_h!=null?' ('+r.taxa_cm_h+' cm/h)':''))+(r.proxy_horizonte?' · usa a margem de erro de 4 h':'')+'.';
+  const f=r.faixa_nivel_cm,dentro=r.hand_m['10']==null;
+  let html='<div class="card"><div class="t">Nível previsto na régua</div><div class="nivel">entre <b>'+m(f.p10)+'</b> e <b>'+m(f.p90)+'</b></div><div class="small">mais provável '+m(f.p50)+' · régua agora '+m(r.nivel_atual_cm)+'</div></div>';
+  if(dentro){html+=card('','Água dentro da calha','—','Mesmo no pior caso o rio não sai do leito. Nenhuma área para desenhar.');}
+  else{['90','50','10'].forEach(p=>{const e=r.expostos[p];
+      html+=card('p'+p,ROTULO[p]+' · '+p+' % de chance',r.hand_m[p]==null?'—':fmt(e.pessoas)+' pessoas',r.hand_m[p]==null?'água na calha':fmt(e['domicílios'])+' domicílios · '+fmt(e.idosos)+' idosos · '+fmt(e.criancas)+' crianças');});
+    if(r.observado)html+=card('obs','O que aconteceu de verdade',fmt(r.observado.expostos.pessoas)+' pessoas','régua chegou a '+m(r.observado.obs_cm)+' (linha tracejada azul)');}
+  cards.innerHTML=html;
+  const lin=[['pessoas','Pessoas'],['idosos','Idosos'],['criancas','Crianças'],['domicílios','Domicílios'],['escolas','Escolas'],['saúde','Saúde'],['religiosos','Templos'],['dom. coletivos','Dom. coletivos']];
+  let t='<thead><tr><th>Área</th><th>90 %</th><th>50 %</th><th>10 %</th><th>Esperado</th>'+(r.observado?'<th>Real</th>':'')+'</tr></thead><tbody>';
+  lin.forEach(([k,n])=>{t+='<tr><td>'+n+'</td>'+['90','50','10'].map(p=>'<td>'+fmt(r.expostos[p][k])+'</td>').join('')+'<td>'+fmt(r.expostos_esperados[k])+'</td>'+(r.observado?'<td>'+fmt(r.observado.expostos[k])+'</td>':'')+'</tr>';});
+  t+='<tr><td>Altura acima do rio (HAND)</td>'+['90','50','10'].map(p=>'<td>'+hm(r.hand_m[p])+'</td>').join('')+'<td></td>'+(r.observado?'<td>'+hm(r.observado.hand_obs_m)+'</td>':'')+'</tr></tbody>';
+  tab.innerHTML=t;
+  desenhar(r);
+}
+
+function verificacao(){
+  const v=dados.agora&&dados.agora.verificacao,el=document.getElementById('verificacao');
+  const ks=v?Object.keys(v):[];
+  if(!ks.length){el.textContent='Ainda sem previsões conferidas. Quando a hora-alvo de cada previsão passar, o robô compara a faixa com a régua real e mostra aqui quantas vezes acertou (meta: 8 em cada 10).';return;}
+  el.innerHTML=ORDEM.filter(k=>v[k]).map(k=>{const o=v[k];return '<strong>'+k.replace('h',' h')+'</strong>: régua dentro da faixa em '+fmt(o.dentro_p10_p90)+' de '+fmt(o.n)+' horas ('+Math.round((o.cobertura||0)*100)+' %)'+(o.n_cheia?' · com rio acima de 5 m: '+fmt(o.dentro_cheia)+' de '+fmt(o.n_cheia):'');}).join('<br>');
+}
+
+document.querySelectorAll('[data-fonte]').forEach(b=>b.onclick=()=>{fonte=b.dataset.fonte;hSel=null;render();});
+
+Promise.all([
+  buscar(urlsDe('sombra_atual.json')),
+  buscar([PASTA+'exemplo_cheia_set2026.json',urlsDe('exemplo_cheia_set2026.json')[0]]),
+  PrevineContornos.carregar(CONTORNOS_URL).catch(e=>{console.error('contornos',e);return null;})
+]).then(([a,e,c])=>{
+  dados.agora=a;dados.exemplo=e;contornos=c;
+  if(new URLSearchParams(location.search).get('ver')==='exemplo'||!a)fonte=e?'exemplo':'agora';
+  verificacao();render();
+  if(!c)document.getElementById('estado').textContent+=' (contornos do mapa não carregaram)';
+});
+})();
+</script>
+</body>
+</html>
