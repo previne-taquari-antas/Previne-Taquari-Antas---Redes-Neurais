@@ -65,6 +65,8 @@
       else $(id).value = value;
     }
   }
+  // aviso de área reduzida pela página (cidade densa), mostrado com o resultado
+  let avisoArea = "";
   let statusPt = null;
   const status = (text, error = false) => {
     statusPt = text;
@@ -559,10 +561,29 @@
   function sugereNome(l) {
     const campo = $("municipality");
     if (campo.value.trim() && campo.value !== nomeAuto) return;
-    nomeAuto = campo.value = l.nome.split(",")[0].trim().slice(0, 140);
+    // o nome que a pessoa digitou (o do serviço de busca pode vir em outra escrita, como 熊本県)
+    const digitado = $("placeQuery").value.split(",")[0].trim();
+    nomeAuto = campo.value = (digitado || l.nome.split(",")[0].trim()).slice(
+      0,
+      140,
+    );
   }
   // Lugar pequeno (um bairro): mostra ele inteiro. Município grande: abre já perto do centro da
   // cidade, numa escala em que a parte visível cabe no limite; aí basta tocar em "Usar esta parte".
+  // município grande: troca o centro geométrico pela sede marcada no OSM (poucos segundos; se a
+  // API não responder, fica o ponto do Nominatim)
+  async function acertaSede(l) {
+    if (l.sedeVista || !l.relacao || !l.centro) return;
+    l.sedeVista = true;
+    if (O.areaKm2(l.caixa) <= O.AREA_MAX_KM2) return;
+    try {
+      const ref = O.sedeDaRelacao(await pega(O.urlRelacao(l.relacao), {}, 6));
+      const p = ref && O.pontoDoNo(await pega(O.urlNo(ref), {}, 6), l.caixa);
+      if (p) l.centro = p;
+    } catch (e) {
+      // sem a sede, vale o ponto central do Nominatim
+    }
+  }
   function irAoLugar(l) {
     if (l.centro && O.areaKm2(l.caixa) > O.AREA_MAX_KM2)
       map.setView([l.centro[1], l.centro[0]], 15);
@@ -577,8 +598,9 @@
         ir = document.createElement("button");
       nome.textContent = l.nome;
       ir.textContent = "Ver no mapa";
-      ir.onclick = () => {
+      ir.onclick = async () => {
         sugereNome(l);
+        await acertaSede(l);
         irAoLugar(l);
       };
       li.append(nome, ir);
@@ -597,6 +619,53 @@
     }
   }
   // a área que está na tela vira a área de interesse (mais fácil que desenhar, ainda mais no celular)
+  // link de um cenário feito pelos três passos: lugar, área, nível do rio, tempo e idioma
+  function linkDoCenario() {
+    const f = state.layers.aoi?.features?.[0];
+    if (!f || state.sources.aoi !== "Área escolhida no mapa") return null;
+    if (!/OpenStreetMap/.test(state.sources.roads || "")) return null;
+    const c = f.geometry.coordinates[0],
+      xs = c.map((p) => p[0]),
+      ys = c.map((p) => p[1]),
+      r5 = (v) => v.toFixed(5),
+      u = new URL(location.href.split("?")[0].split("#")[0]);
+    u.searchParams.set(
+      "area",
+      [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+        .map(r5)
+        .join(","),
+    );
+    u.searchParams.set("rio", $("autoLevel").value);
+    u.searchParams.set("tempo", $("minutes").value);
+    if ($("municipality").value.trim())
+      u.searchParams.set("lugar", $("municipality").value.trim());
+    if (LANG !== "pt") u.searchParams.set("lang", LANG);
+    return u.toString();
+  }
+  function marcaArea(caixa) {
+    // arredonda como no link (5 casas, cerca de 1 m): o link refaz exatamente a mesma área
+    const [w, s, e, n] = caixa.map((v) => Math.round(v * 1e5) / 1e5);
+    state.layers.aoi = E.validate(
+      {
+        type: "Feature",
+        properties: { nome: "Área visível no mapa" },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [w, s],
+              [e, s],
+              [e, n],
+              [w, n],
+              [w, s],
+            ],
+          ],
+        },
+      },
+      "aoi",
+    );
+    state.sources.aoi = "Área escolhida no mapa";
+  }
   $("viewArea").onclick = () => {
     try {
       const b = map.getBounds().pad(-0.04),
@@ -620,26 +689,8 @@
             : `A área na tela tem cerca de ${Math.round(km2).toLocaleString(LOC())} km².`) +
             ` Aproxime o mapa até a parte que inunda (até ${O.AREA_MAX_KM2} km²) e toque de novo.`,
         );
-      state.layers.aoi = E.validate(
-        {
-          type: "Feature",
-          properties: { nome: "Área visível no mapa" },
-          geometry: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [w, s],
-                [e, s],
-                [e, n],
-                [w, n],
-                [w, s],
-              ],
-            ],
-          },
-        },
-        "aoi",
-      );
-      state.sources.aoi = "Área escolhida no mapa";
+      marcaArea([w, s, e, n]);
+      avisoArea = "";
       invalidate();
       render();
       passoFeito(2);
@@ -682,6 +733,7 @@
           "A busca de lugares não respondeu. Tente de novo em instantes ou aproxime o mapa e desenhe a área.",
         );
       }
+      if (lista.length) await acertaSede(lista[0]);
       mostraLugares(lista);
       passoFeito(1, lista.length > 0);
       if (lista.length && celular()) mostra($("map"));
@@ -764,7 +816,36 @@
         );
       // curvas com muitos pontos viram menos trechos (os cruzamentos ficam): cabe uma área maior no cálculo
       r.roads = O.simplifica(r.roads);
-      // no teste com serviços reais, 16 mil edificações não terminaram de calcular em 10 minutos
+      // Cidade densa: em vez de pedir para aproximar o mapa, reduz a área em volta do centro até caber no
+      // cálculo (16 mil edificações não terminaram de calcular em 10 minutos no teste com serviços reais)
+      let caixaFinal = null;
+      for (let vez = 0; vez < 5; vez++) {
+        const nb = r.buildings.features.length,
+          ntr = O.trechos(r.roads);
+        if (nb <= 10000 && ntr <= 15000) break;
+        const f = Math.min(
+            0.85,
+            Math.sqrt(9000 / Math.max(nb, 1)),
+            Math.sqrt(13000 / Math.max(ntr, 1)),
+          ),
+          c = caixaFinal || bbox,
+          cx = (c[0] + c[2]) / 2,
+          cy = (c[1] + c[3]) / 2,
+          hx = ((c[2] - c[0]) / 2) * f,
+          hy = ((c[3] - c[1]) / 2) * f;
+        caixaFinal = [cx - hx, cy - hy, cx + hx, cy + hy];
+        Object.assign(r, O.recorta(r, caixaFinal));
+      }
+      if (caixaFinal) {
+        marcaArea(caixaFinal);
+        const km2 = O.areaKm2(caixaFinal);
+        $("areaOk").hidden = false;
+        $("areaOk").textContent = I.tr(
+          `Área marcada: cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km².`,
+          LANG,
+        );
+        avisoArea = `A área tinha casas e ruas demais para o cálculo e foi reduzida para cerca de ${km2.toLocaleString(LOC(), { maximumFractionDigits: 1 })} km² em volta do centro.`;
+      } else avisoArea = "";
       if (r.buildings.features.length > 10000)
         throw Error(
           `Essa área tem edificações demais para o cálculo (${r.buildings.features.length.toLocaleString(LOC())}; o limite é 10 mil). Aproxime o mapa da parte que inunda, toque em “Usar esta parte do mapa” e baixe de novo.`,
@@ -807,7 +888,9 @@
       status(
         `Baixado do OpenStreetMap: ${n0(r.roads.features.length)} ruas e ${n0(r.buildings.features.length)} edificações.` +
           (r.buildings.features.length
-            ? aviso + " Falta a mancha de inundação (etapa 5)."
+            ? aviso +
+              (avisoArea ? " " + avisoArea : "") +
+              " Falta a mancha de inundação (etapa 5)."
             : " Nenhuma edificação mapeada nessa área: importe as edificações do município."),
         !r.buildings.features.length,
       );
@@ -1017,7 +1100,32 @@
           `${n0(s.unassigned)} ${s.unassigned === 1 ? "edificação não chega" : "edificações não chegam"} a nenhum ponto no tempo escolhido (em vermelho no mapa). Aumente o tempo, cadastre outro ponto ou preveja transporte.`,
         ),
       );
-    if (s.required < 15)
+    if (s.crossing)
+      box.append(
+        el(
+          "p",
+          "notice",
+          `${n0(s.crossing)} ${s.crossing === 1 ? "edificação tem" : "edificações têm"} a rota passando por dentro da mancha depois de estar fora dela, por exemplo numa ponte (em amarelo no mapa). Confira se essa passagem estará aberta durante a retirada.`,
+        ),
+      );
+    if (avisoArea) box.append(el("p", "notice", avisoArea));
+    if (!s.required)
+      box.append(
+        el(
+          "p",
+          "notice",
+          `Nenhuma edificação da área fica na mancha nem a menos de ${$("margin").value} m dela: com o rio subindo ${$("autoLevel").value} m, ninguém aqui precisa sair. Para outra cheia, mude quanto o rio sobe e calcule de novo.`,
+        ),
+      );
+    if (!r.destinations.length && s.required)
+      box.append(
+        el(
+          "p",
+          "alerta",
+          `Nenhum lugar seguro dentro da área marcada: ela fica toda na mancha ou a menos de ${$("margin").value} m dela. Marque uma área maior, que inclua terreno mais alto, ou confira quanto o rio sobe.`,
+        ),
+      );
+    if (s.required && s.required < 15)
       box.append(
         el(
           "p",
@@ -1039,18 +1147,21 @@
       (s.estimated
         ? `População estimada em ${n0(s.estimated)} edificações (sem cadastro). `
         : "") +
-      (r.destinations.some((d) => d.capacity === null)
-        ? "Há pontos sem capacidade informada: o resultado não garante que há espaço para todos. "
-        : "As capacidades cadastradas foram respeitadas. ") +
-      "A escolha dos pontos é aproximada; pode existir uma solução melhor.";
-    box.append(note);
-    box.append(
-      el(
-        "p",
-        "muted",
-        "Toque numa linha para ver o ponto no mapa; toque numa edificação para ver o caminho dela.",
-      ),
-    );
+      (!r.destinations.length
+        ? ""
+        : (r.destinations.some((d) => d.capacity === null)
+            ? "Há pontos sem capacidade informada: o resultado não garante que há espaço para todos. "
+            : "As capacidades cadastradas foram respeitadas. ") +
+          "A escolha dos pontos é aproximada; pode existir uma solução melhor.");
+    if (note.textContent) box.append(note);
+    if (r.destinations.length)
+      box.append(
+        el(
+          "p",
+          "muted",
+          "Toque numa linha para ver o ponto no mapa; toque numa edificação para ver o caminho dela.",
+        ),
+      );
     const table = document.createElement("table");
     const head = document.createElement("tr");
     for (const t of ["Nº", "Ponto de encontro", "Pessoas", "Capacidade"]) {
@@ -1113,7 +1224,7 @@
         }
       };
     });
-    box.append(table);
+    if (r.destinations.length) box.append(table);
     for (const d of r.rejected) {
       const n = document.createElement("p");
       n.textContent = "Ponto não usado: " + d.name + " — " + d.reason;
@@ -1123,11 +1234,15 @@
     for (const b of r.buildings)
       if (b.required && b.destination == null)
         reasons[b.reason] = (reasons[b.reason] || 0) + 1;
-    for (const [reason, n] of Object.entries(reasons)) {
+    // um único motivo "sem destino no tempo" já está dito no resumo acima
+    const soTempo =
+      Object.keys(reasons).length === 1 &&
+      reasons["Sem destino alcançável no tempo escolhido"];
+    for (const [reason, n] of soTempo ? [] : Object.entries(reasons)) {
       const p = document.createElement("p");
       p.className = "muted";
       p.textContent =
-        n + (n === 1 ? " edificação: " : " edificações: ") + reason;
+        n0(n) + (n === 1 ? " edificação: " : " edificações: ") + reason;
       box.append(p);
     }
     r.buildings.forEach((b, i) => {
@@ -1136,7 +1251,14 @@
       const l = L.circleMarker([b.p[1], b.p[0]], {
         radius: 3.5,
         weight: 1,
-        color: b.destination == null ? "#b91c1c" : "#126b47",
+        color:
+          b.destination == null
+            ? "#b91c1c"
+            : b.crossesFlood
+              ? "#5c4300"
+              : "#126b47",
+        fillColor:
+          b.crossesFlood && b.destination != null ? "#ffd60a" : undefined,
         fillOpacity: 0.6,
       }).addTo(resultLayer);
       l.on("click", () => {
@@ -1164,12 +1286,51 @@
                   nomeCurto(r.destinations[b.destination].name) +
                   ") · " +
                   (b.seconds / 60).toFixed(1) +
-                  " min"),
+                  " min" +
+                  (b.crossesFlood ? " · a rota passa pela mancha" : "")),
           ),
         ).openPopup();
       });
     });
     $("csv").disabled = $("routes").disabled = false;
+    // o que fazer com o resultado, sem abrir as opções avançadas
+    const acoes = el("div", "acoes"),
+      botao = (txt, fn) => {
+        const b = el("button", "", txt);
+        b.type = "button";
+        b.onclick = fn;
+        acoes.append(b);
+        return b;
+      };
+    botao("Baixar planilha por edificação", () => $("csv").click());
+    botao("Baixar rotas (GeoJSON)", () => $("routes").click());
+    const link = linkDoCenario();
+    if (link) {
+      const campo = el("input", "link");
+      campo.readOnly = true;
+      campo.value = link;
+      campo.setAttribute("aria-label", "Link deste cenário");
+      const copia = botao("Copiar link deste cenário", async () => {
+        campo.hidden = false;
+        campo.select();
+        try {
+          await navigator.clipboard.writeText(link);
+          copia.textContent = I.tr("Link copiado", LANG);
+        } catch (e) {
+          copia.textContent = I.tr("Copie o link abaixo", LANG);
+        }
+      });
+      campo.hidden = true;
+      acoes.append(campo);
+    }
+    box.append(
+      el(
+        "p",
+        "muted",
+        "O link refaz o cálculo com o mesmo lugar, a mesma área, o mesmo nível do rio e o mesmo tempo, com os dados do mapa do dia em que for aberto.",
+      ),
+      acoes,
+    );
     I.aplica([box], LANG);
     box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1336,6 +1497,7 @@
               estimada: b.estimated,
               destino: r.destinations[b.destination].name,
               tempo_min: b.seconds / 60,
+              passa_pela_mancha: !!b.crossesFlood,
             },
             geometry: { type: "LineString", coordinates },
           });
@@ -1789,16 +1951,30 @@
             E.distance([w, s], [w, n])) /
           t.height;
       status("Condicionando terreno e calculando HAND experimental…");
-      const layer = await compute("hand", [
-        t.values,
-        t.width,
-        t.height,
-        cellArea,
-        Number($("drainArea").value) * 1e6,
-        Number($("handLevel").value),
-        t.bbox,
-        rios ? rios.mascara : null,
-      ]);
+      // Padrão de 10 km²: na validação com a cheia de 2024 (validacao/mancha), acertou mais que 1 km², que
+      // inunda os fundos de vale de arroios pequenos. Sem canal desse tamanho na área, tenta 1 km² e depois menos.
+      const hand = (limiteKm2) =>
+        compute("hand", [
+          t.values,
+          t.width,
+          t.height,
+          cellArea,
+          limiteKm2 * 1e6,
+          Number($("handLevel").value),
+          t.bbox,
+          rios ? rios.mascara : null,
+        ]);
+      let limite = Number($("drainArea").value),
+        layer;
+      for (;;) {
+        try {
+          layer = await hand(limite);
+          break;
+        } catch (err) {
+          if (!/Nenhuma drenagem/.test(err.message) || limite <= 0.1) throw err;
+          limite = limite > 1 ? 1 : 0.1;
+        }
+      }
       if (rev !== state.revision)
         throw Error("Configuração alterada durante a geração. Gere novamente.");
       if (!layer.features.length)
@@ -1808,11 +1984,16 @@
         t.source +
         (rios ? " · rios do OpenStreetMap" : "") +
         " · HAND D8 experimental · área contribuinte " +
-        $("drainArea").value +
+        limite +
         " km² · nível " +
         $("handLevel").value +
         " m";
       $("floodType").value = "hand";
+      if ($("legInund"))
+        $("legInund").textContent = I.tr(
+          `inundação simulada (rio +${$("handLevel").value} m)`,
+          LANG,
+        );
       $("floodEvent").value =
         "HAND experimental; não calibrado com régua ou evento histórico";
       invalidate();
@@ -1890,4 +2071,38 @@
   trocaIdioma(LANG);
   $("csv").disabled = $("routes").disabled = true;
   render();
+  // cenário aberto por link: marca a área, preenche os campos e calcula
+  try {
+    const q = new URLSearchParams(location.search),
+      area = (q.get("area") || "").split(",").map(Number);
+    if (area.length === 4 && area.every(Number.isFinite)) {
+      const [w, s, e, n] = area;
+      if (
+        w < e &&
+        s < n &&
+        w >= -180 &&
+        e <= 180 &&
+        O.areaKm2(area) <= O.AREA_MAX_KM2
+      ) {
+        if (q.get("lugar"))
+          $("municipality").value = q.get("lugar").slice(0, 140);
+        if (q.get("rio")) $("autoLevel").value = q.get("rio");
+        if (q.get("tempo")) $("minutes").value = q.get("tempo");
+        $("placeQuery").value = q.get("lugar") || "";
+        marcaArea(area);
+        render();
+        fit();
+        passoFeito(1);
+        passoFeito(2);
+        status("Cenário aberto pelo link. Calculando…");
+        setTimeout(() => $("autoAll").click(), 300);
+      } else
+        status(
+          "O link tem uma área inválida ou grande demais. Comece pelo passo 1.",
+          true,
+        );
+    }
+  } catch (err) {
+    console.warn(err);
+  }
 })();

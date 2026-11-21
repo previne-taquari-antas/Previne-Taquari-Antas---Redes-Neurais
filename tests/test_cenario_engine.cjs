@@ -208,6 +208,88 @@ test("route uses assigned tree and ends at chosen destination", () => {
   assert.deepEqual(p[0], r.buildings[i].p);
   assert.deepEqual(p.at(-1), [0.004, 0]);
 });
+test("route leaves the flood and avoids re-entering it when a dry path fits the time", () => {
+  const sq = (x0, x1, y0, y1) =>
+    f("Polygon", [
+      [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+        [x0, y0],
+      ],
+    ]);
+  const x = {
+    roads: fc([
+      f("LineString", [
+        [0, 0],
+        [0.001, 0],
+        [0.004, 0],
+      ]),
+      f("LineString", [
+        [0.001, 0],
+        [0.001, 0.001],
+        [0.004, 0.001],
+        [0.004, 0],
+      ]),
+    ]),
+    buildings: fc([f("Point", [0, 0], { pessoas: 3 })]),
+    destinations: fc([f("Point", [0.004, 0], { nome: "Alto" })]),
+    // a casa está na mancha; uma faixa de mancha corta a rua reta mais adiante
+    flood: fc([
+      sq(-0.0005, 0.0005, -0.0005, 0.0005),
+      sq(0.0015, 0.0025, -0.0005, 0.0005),
+    ]),
+  };
+  const o = { ...opts, allBuildings: false, minutes: 20 };
+  const r = E.plan(x, o);
+  assert.equal(r.summary.assigned, 1);
+  const pts = E.route(r, 0);
+  assert(
+    pts.some((p) => p[0] === 0.001 && p[1] === 0.001),
+    "deveria contornar a faixa",
+  );
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += E.distance(pts[i - 1], pts[i]);
+  assert(Math.abs(len / 0.9 - r.buildings[0].seconds) < 1e-6, "tempo é o real");
+  assert.equal(r.buildings[0].crossesFlood, false);
+  assert.equal(r.summary.crossing, 0);
+  // sem tempo para contornar, usa a rua reta em vez de deixar a casa sem destino
+  const r2 = E.plan(x, { ...o, minutes: 10 });
+  assert.equal(r2.summary.assigned, 1);
+  assert(!E.route(r2, 0).some((p) => p[1] === 0.001));
+  // a rua reta sai da mancha e entra de novo na faixa: fica marcada
+  assert.equal(r2.buildings[0].crossesFlood, true);
+  assert.equal(r2.summary.crossing, 1);
+  // floodPenalty 1 volta ao menor tempo
+  const r3 = E.plan(x, { ...o, floodPenalty: 1 });
+  assert(!E.route(r3, 0).some((p) => p[1] === 0.001));
+});
+test("each house goes to the cheapest chosen point, not the first one that reached it", () => {
+  const x = {
+    roads: fc([
+      f("LineString", [
+        [-0.006, 0],
+        [0, 0],
+        [0.006, 0],
+      ]),
+    ]),
+    buildings: fc([
+      f("Point", [-0.002, 0], { pessoas: 3 }),
+      f("Point", [-0.001, 0], { pessoas: 3 }),
+      f("Point", [0.002, 0], { pessoas: 3 }),
+    ]),
+    destinations: fc([
+      f("Point", [-0.006, 0], { nome: "Oeste" }),
+      f("Point", [0.006, 0], { nome: "Leste" }),
+    ]),
+  };
+  const r = E.plan(x, { ...opts, minutes: 30 });
+  assert.equal(r.summary.assigned, 3);
+  const nome = (i) => r.destinations[r.buildings[i].destination].name;
+  assert.equal(nome(0), "Oeste");
+  assert.equal(nome(2), "Leste");
+});
 test("HAND uses contributing area, higher level increases extent; nodata rejected", () => {
   const w = 9,
     h = 9,

@@ -393,6 +393,26 @@
         font-weight: 400;
         color: #526c62;
       }
+      details.confianca {
+        margin: 10px 0 0;
+        font-size: 13px;
+      }
+      details.confianca p {
+        margin: 6px 0;
+      }
+      .acoes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 10px 0;
+      }
+      .acoes button {
+        margin: 0;
+      }
+      .acoes .link {
+        flex-basis: 100%;
+        font-size: 12px;
+      }
       .map-cta {
         position: absolute;
         z-index: 700;
@@ -422,12 +442,16 @@
           flex-direction: column;
           height: auto;
         }
+        /* celular: legenda numa linha só, que rola de lado, para não cobrir o mapa */
         .map-note {
           left: 6px;
           right: 6px;
           bottom: 18px;
           font-size: 11px;
           padding: 4px 6px;
+          white-space: nowrap;
+          overflow-x: auto;
+          pointer-events: auto;
         }
         /* celular: um botão só para marcar a área, o que fica em cima do mapa */
         #passo2 #viewArea {
@@ -535,6 +559,23 @@
                 ferramenta não prevê a cheia.</span
               >
               <button id="autoAll" class="primary grande">Calcular</button>
+              <details class="confianca">
+                <summary>Quanto dá para confiar na mancha?</summary>
+                <p>
+                  Testada na cheia de maio de 2024 em 9 cidades do vale do
+                  Taquari, contra a área atingida do Mapa Único do RS: com o rio
+                  subindo de 16 a 24 m, a mancha pegou de 67% a 98% das casas
+                  atingidas (8 das 9 cidades acima de 77%).
+                </p>
+                <p>
+                  Das casas que ela marca, de 72% a 84% foram mesmo atingidas.
+                </p>
+                <p>
+                  Não prevê a água que vem da chuva longe do rio, de diques que
+                  rompem ou de enxurradas, e é menos precisa em planícies. Um
+                  modelo de terreno do município (MDT) melhora o resultado.
+                </p>
+              </details>
             </li>
           </ol>
           <div id="status" class="status" role="status" aria-live="polite">
@@ -797,7 +838,7 @@
                   type="number"
                   min="0.001"
                   step="0.001"
-                  value="1"
+                  value="10"
               /></label>
               <label
                 >Quanto o rio sobe acima do nível normal (m)<input
@@ -877,10 +918,17 @@
           Usar esta parte do mapa
         </button>
         <div class="map-note">
-          <span><i style="background: #2479c7"></i>inundação</span>
+          <span
+            ><i style="background: #2479c7"></i
+            ><span id="legInund">inundação</span></span
+          >
           <span><i style="background: #be731a"></i>edificação</span>
           <span
             ><i style="background: #126b47"></i>chega a um ponto no tempo</span
+          >
+          <span
+            ><i style="background: #ffd60a; border: 1px solid #5c4300"></i
+            >chega, mas a rota passa pela mancha</span
           >
           <span><i style="background: #b91c1c"></i>não chega no tempo</span>
           <span
