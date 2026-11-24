@@ -130,7 +130,15 @@ PARAMS_LRSMAR = dict(PARAMS_LRSMAF, **{f"x{k}_{g}": (lo, hi, "log") for g in ("T
                                        for k, lo, hi in (("dmax", 1 / 3, 3.0), ("sup", 1 / 3, 3.0),
                                                          ("finf", 0.2, 5.0), ("psoil", 0.2, 5.0))})
 SOLO_MAX_SMA = 1499.0   # HEC: camada <= 1500 mm (ERROR 42001); vale para dmax + sup depois dos multiplicadores
-FAMILIAS = {"dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcv": PARAMS_LRDCV, "lrdc8": PARAMS_LRDC8,
+# Percolação baixa (24/11/2026, Claude): no pc-f8-c025 perc = 12 mm/h (teto) e só 0–5 % da chuva passa da percolação,
+# então quase tudo vira base (GW-1, k1 ~28 h) e o pico das cheias grandes sai pela metade com o volume certo
+# (pico_por_porte.py). Com perc 0,5–5 mm/h o excesso superficial cresce com a cheia (perc 4: 25–33 % da chuva nas
+# janelas grandes, 2–15 % nas pequenas). lrdcfb = lrdcf com perc nessa faixa; lrdcfvb = lrdcfb + Clark variável (com
+# excesso superficial de verdade o Clark variável passa a agir).
+PARAMS_LRDCFB = dict(PARAMS_LRDCF, perc=(0.5, 5.0, "log"))
+PARAMS_LRDCFVB = dict(PARAMS_LRDCFB, ie=PARAMS_LRDCV["ie"], atc=PARAMS_LRDCV["atc"], ar=PARAMS_LRDCV["ar"])
+
+FAMILIAS = {"lrdcfb": PARAMS_LRDCFB, "lrdcfvb": PARAMS_LRDCFVB, "dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcv": PARAMS_LRDCV, "lrdc8": PARAMS_LRDC8,
             "lrdcv8": PARAMS_LRDCV8, "lrdcr": PARAMS_LRDCR, "lrdcf": PARAMS_LRDCF, "lrscsf": PARAMS_LRSCSF,
             "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR}
 
