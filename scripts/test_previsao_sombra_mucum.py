@@ -77,6 +77,54 @@ class SombraMucumTests(unittest.TestCase):
         x, faltam = S.montar_entradas([dict(inp, postos=["A"], pesos_idw_sub_x_posto=[[1.0]])], {}, curto, T0)
         self.assertEqual(faltam, ["c"])
 
+    def test_mm3_level_is_mean_of_last_three_hourly_changes(self) -> None:
+        n = {"X": {T0: 130.0, T0 - dt.timedelta(hours=1): 120.0, T0 - dt.timedelta(hours=2): 100.0, T0 - dt.timedelta(hours=3): 100.0}}
+        inp = {"tipo": "mm3_nivel", "estacao": "X", "nome": "m"}
+        x, _ = S.montar_entradas([inp], n, {}, T0)
+        self.assertAlmostEqual(x[0], (10 + 20 + 0) / 3)
+        n["X"].pop(T0 - dt.timedelta(hours=3))                    # 2 variações bastam (min_periods=2 do treino)
+        self.assertAlmostEqual(S.montar_entradas([inp], n, {}, T0)[0][0], 15.0)
+        n["X"].pop(T0 - dt.timedelta(hours=1))                    # só 0 variação completa -> ausente
+        self.assertEqual(S.montar_entradas([inp], n, {}, T0)[1], ["m"])
+
+    def test_area_rain_idw_windows(self) -> None:
+        S.POSTOS_IDW[:] = ["A", "B"]
+        S.REGIOES_CHUVA.clear()
+        S.REGIOES_CHUVA["R"] = {"areas_km2": [1.0, 3.0], "pesos_idw_sub_x_posto": [[1.0, 0.0001], [0.0001, 1.0]]}
+        S._CACHE_AREA.clear()
+        hs = horas(60)
+        chuva = {"A": {h: 1.0 for h in hs}, "B": {h: 2.0 for h in hs}}
+        chuva["B"].pop(T0)                                        # só A na hora T0 -> as duas sub-bacias recebem A
+        base = lambda k: {"tipo": "chuva_area", "regiao": "R", "nome": f"c{k}"}
+        x, faltam = S.montar_entradas([base(1) | {"op": "acum", "janela_h": 2}, base(2) | {"op": "dif", "janela_h": 24}], {}, chuva, T0)
+        p = (1.0 * (1 + 0.0001 * 2) / 1.0001 + 3.0 * (0.0001 * 1 + 2) / 1.0001) / 4   # média por área numa hora com A e B
+        self.assertEqual(faltam, [])
+        self.assertAlmostEqual(x[0], 1.0 + p, places=9)
+        self.assertAlmostEqual(x[1], (1.0 + 23 * p) - 24 * p, places=9)
+        vazio = {"A": {}, "B": {}}
+        self.assertEqual(S.montar_entradas([base(3) | {"op": "acum", "janela_h": 2}], {}, vazio, T0)[1], ["c3"])   # nunca zero
+        S._CACHE_AREA.clear()
+
+    def test_mixture_uses_first_complete_ridge_and_trees(self) -> None:
+        import json, tempfile
+        from unittest import mock
+        arv = {"colunas": ["a"], "modelos": [{"base_score": 10.0, "arvores": [[[0, 5.0, 1, 2, 2, 0.0], [-1, 0, -1, -1, -1, 1.0], [-1, 0, -1, -1, -1, -1.0]]]}]}
+        self.assertEqual(S.avaliar_xgb(arv, [3.0]), 11.0)
+        self.assertEqual(S.avaliar_xgb(arv, [None]), 9.0)          # faltante -> ramo padrão
+        niveis = {S.ALVO: {h: 500.0 for h in horas(3)}}
+        nivel = lambda est: {"tipo": "nivel", "estacao": est, "defasagem_h": 0, "nome": f"n{est}"}
+        with tempfile.TemporaryDirectory() as d:
+            arq = Path(d) / "x.json"
+            arq.write_text(json.dumps(arv), encoding="utf-8")
+            m = {"modelo_id": "mix", "tipo_modelo": "mistura", "nivel_hierarquia": 1, "peso_xgb": 0.5,
+                 "xgb": {"arquivo": str(arq), "inputs": [nivel("86472000")]},
+                 "lineares": [{"nome": "CTRL", "intercepto": 0.0, "coeficientes": [1.0], "inputs": [nivel("86472000")]},
+                              {"nome": "MU9", "intercepto": 20.0, "coeficientes": [0.0], "inputs": [nivel(S.ALVO)]}]}
+            with mock.patch.object(S.R, "antecedencia_efetiva", return_value=(3.5, True)):
+                escolhido, _ = S.prever_horizonte({"horizonte_h": 4, "modelos": [m]}, niveis, {}, sorted(niveis[S.ALVO]), T0)
+        self.assertEqual(escolhido["linear_usado"], "MU9")          # sem LJJ -> cai para o ridge só de Muçum
+        self.assertEqual(escolhido["nivel_previsto_cm"], 500.0 + 0.5 * 9.0 + 0.5 * 20.0)
+
     def test_daily_rain_qc_drops_excess_day(self) -> None:
         d = dt.datetime(2026, 9, 21, 1, 0)
         hs = [d + dt.timedelta(hours=i) for i in range(23)]
@@ -121,6 +169,26 @@ class SombraMucumTests(unittest.TestCase):
                 niveis = [m["nivel_hierarquia"] for m in hz["modelos"] if m["nivel_hierarquia"] >= 1]   # nível 0 = só registro
                 self.assertEqual(len(niveis), len(set(niveis)), f"{nome} {chave}: nível repetido")
                 for m in hz["modelos"]:
+                    if m.get("tipo_modelo") == "mistura":
+                        arq = ROOT / m["xgb"]["arquivo"]
+                        self.assertTrue(arq.exists(), m["xgb"]["arquivo"])
+                        self.assertEqual(S._sha256(str(arq)), m["xgb"]["sha256"].upper())
+                        mod = json.loads(arq.read_text(encoding="utf-8"))
+                        self.assertEqual(mod["colunas"], [i["nome"] for i in m["xgb"]["inputs"]])
+                        for v in mod["verificacao"]:                 # árvores em Python puro = xgboost no treino
+                            self.assertAlmostEqual(S.avaliar_xgb(mod, v["x"]), v["y"], places=6)
+                        for lin in m["lineares"]:
+                            self.assertEqual(len(lin["coeficientes"]), len(lin["inputs"]))
+                            self.assertEqual(lin["inputs"][0]["estacao"], contrato["alvo"])
+                        for i in m["xgb"]["inputs"] + [j for lin in m["lineares"] for j in lin["inputs"]]:
+                            if i["tipo"] == "chuva_area":
+                                rg = contrato["regioes_chuva"][i["regiao"]]
+                                self.assertEqual(len(rg["pesos_idw_sub_x_posto"]), len(rg["areas_km2"]))
+                                self.assertTrue(all(len(w) == len(contrato["postos_chuva_idw"]) for w in rg["pesos_idw_sub_x_posto"]))
+                        self.assertTrue(set(contrato["postos_chuva_idw"]) <= set(contrato["qc_chuva_postos"]))
+                        for est in m["estacoes_nivel"]:
+                            self.assertIn(est, contrato["limites_estacao_cm"])
+                        continue
                     if m.get("tipo_modelo") == "linear":
                         self.assertEqual(len(m["coeficientes"]), m["n_inputs"])
                         for i in m["inputs"]:
