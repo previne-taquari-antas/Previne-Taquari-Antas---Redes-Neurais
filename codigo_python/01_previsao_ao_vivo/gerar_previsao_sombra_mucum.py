@@ -653,7 +653,7 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
         linear, mistura = tipo == "linear", tipo == "mistura"
         mat = None if (linear or mistura) else os.path.join(RAIZ, m["mat"])
         item = {"modelo": m["modelo_id"], "nivel_hierarquia": m["nivel_hierarquia"], "papel": m.get("papel"),
-                "horizonte_h": H, "disponivel": False}
+                "nome_exibicao": m.get("nome_exibicao") or m["modelo_id"], "horizonte_h": H, "disponivel": False}
         if mistura:
             comps = m.get("ml") or [{"tipo": "xgb_json", "nome": "xgb", **m["xgb"]}]
             peso = float(m["peso_ml"] if "peso_ml" in m else m["peso_xgb"])
@@ -740,7 +740,29 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
             if escolhido is None and m["nivel_hierarquia"] >= 1:   # nível 0 = controle, só registro
                 escolhido = item
         resultados.append(item)
+        if mistura and item.get("nivel_previsto_cm") is not None:
+            resultados += _componentes_como_robos(m, item, vals, v_l, nivel_base)
     return escolhido, resultados
+
+
+def _componentes_como_robos(m, item, vals, v_l, nivel_base):
+    """Cada parte da mistura vira um 'robô' próprio no histórico (só acompanhamento; nunca é escolhido pela hierarquia)."""
+    comps = m.get("ml") or [{"tipo": "xgb_json", "nome": "xgb"}]
+    nomes = m.get("nomes_componentes", {})
+    partes = [(c.get("nome") or c["tipo"], v) for c, v in zip(comps, vals)] + [("RIDGE", v_l)]
+    if len(comps) > 1:
+        partes.append(("ML", sum(vals) / len(vals)))
+    out = []
+    for nome, v in partes:
+        previsto = nivel_base + v
+        out.append({"modelo": f"{m['modelo_id']}::{nome}", "nivel_hierarquia": item["nivel_hierarquia"], "papel": "componente",
+                    "nome_exibicao": nomes.get(nome, f"{m.get('nome_exibicao', m['modelo_id'])} · só {nome}"),
+                    "horizonte_h": item["horizonte_h"], "hora_modelo": item["hora_modelo"], "hora_alvo": item["hora_alvo"],
+                    "nivel_base_cm": item["nivel_base_cm"], "nivel_previsto_cm": round(previsto, 1),
+                    "antecedencia_efetiva_h": item["antecedencia_efetiva_h"],
+                    "status": item["status"] if R.nivel_plausivel(previsto, ALVO) else "previsão fora da faixa plausível",
+                    "disponivel": bool(item["disponivel"] and R.nivel_plausivel(previsto, ALVO))})
+    return out
 
 
 # ------------------------------------------------------------------ histórico
@@ -763,7 +785,48 @@ def atualizar_historico(registros_novos, niveis_alvo):
     with open(HISTORICO, "w", encoding="utf-8") as f:
         for r in sorted(hist.values(), key=lambda r: (r["hora_modelo"], r["modelo"])):
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    gravar_recente(hist.values())
     return len(hist)
+
+
+DIAS_RECENTE = 10
+NOMES, LOCAL = {}, None
+
+
+def gravar_recente(registros, caminho=None):
+    """Arquivo pequeno para a página de previsão: os últimos DIAS_RECENTE dias de TODOS os robôs em sombra, com nome legível.
+    O histórico completo (jsonl) continua sendo a fonte permanente."""
+    caminho = caminho or HISTORICO.replace("historico_", "").replace(".jsonl", "_recente.json")
+    regs = [r for r in registros if r.get("hora_alvo")]
+    if not regs:
+        return
+    fim = max(R._parse_hora(r["hora_alvo"]) for r in regs)
+    ini = fim - dt.timedelta(days=DIAS_RECENTE)
+    campos = ("modelo", "nivel_hierarquia", "horizonte_h", "hora_modelo", "hora_alvo", "nivel_base_cm", "nivel_previsto_cm",
+              "observado_cm", "erro_cm", "status", "usado")
+    out = []
+    for r in sorted(regs, key=lambda r: (r["hora_alvo"], r["modelo"])):
+        if R._parse_hora(r["hora_alvo"]) < ini:
+            continue
+        x = {k: r.get(k) for k in campos}
+        x["nome_exibicao"] = r.get("nome_exibicao") or NOMES.get(r["modelo"]) or r["modelo"]
+        x["papel"] = r.get("papel") or ("componente" if "::" in r["modelo"] else NOMES.get(("papel", r["modelo"])))
+        out.append(x)
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump({"gerado_em": R.agora_brt().isoformat(timespec="seconds"), "alvo": ALVO, "local": LOCAL,
+                   "aviso": "SOMBRA EXPERIMENTAL — robôs calibrados em acompanhamento; não é alerta oficial.",
+                   "dias": DIAS_RECENTE, "registros": out}, f, ensure_ascii=False, separators=(",", ":"))
+
+
+def _nomes_do_contrato(contrato):
+    nomes = {}
+    for cfg in contrato["horizontes"].values():
+        for m in cfg["modelos"]:
+            nomes[m["modelo_id"]] = m.get("nome_exibicao") or m["modelo_id"]
+            nomes[("papel", m["modelo_id"])] = m.get("papel")
+            for k, v in (m.get("nomes_componentes") or {}).items():
+                nomes[f"{m['modelo_id']}::{k}"] = v
+    return nomes
 
 
 def main(argv=None):
@@ -776,6 +839,9 @@ def main(argv=None):
     ALVO = str(contrato.get("alvo") or ALVO)
     SAIDA = os.path.join(RAIZ, contrato.get("saida_json") or os.path.basename(SAIDA))
     HISTORICO = os.path.join(RAIZ, contrato.get("historico_jsonl") or os.path.basename(HISTORICO))
+    global NOMES, LOCAL
+    NOMES = _nomes_do_contrato(contrato)
+    LOCAL = contrato.get("local") or ("Santa Tereza" if "santa_tereza" in os.path.basename(CONTRATO) else "Muçum")
     limites = contrato.get("limites_estacao_cm", {})
     global REGIOES_CHUVA, POSTOS_IDW
     REGIOES_CHUVA = contrato.get("regioes_chuva", {})
@@ -845,7 +911,7 @@ def main(argv=None):
         }
         for it in todos:
             if it.get("nivel_previsto_cm") is not None:
-                novos.append({k: it.get(k) for k in ("modelo", "nivel_hierarquia", "horizonte_h", "hora_modelo", "hora_alvo",
+                novos.append({k: it.get(k) for k in ("modelo", "nome_exibicao", "papel", "nivel_hierarquia", "horizonte_h", "hora_modelo", "hora_alvo",
                                                       "nivel_base_cm", "nivel_previsto_cm", "antecedencia_efetiva_h", "status")}
                              | {"observado_cm": None, "erro_cm": None, "usado": bool(escolhido and it["modelo"] == escolhido["modelo"])})
     saida["historico_registros"] = atualizar_historico(novos, niveis.get(ALVO, {}))
