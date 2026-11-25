@@ -169,6 +169,33 @@ class SombraMucumTests(unittest.TestCase):
                 niveis = [m["nivel_hierarquia"] for m in hz["modelos"] if m["nivel_hierarquia"] >= 1]   # nível 0 = só registro
                 self.assertEqual(len(niveis), len(set(niveis)), f"{nome} {chave}: nível repetido")
                 for m in hz["modelos"]:
+                    if m.get("tipo_modelo") == "mistura" and m.get("ml"):
+                        pistas = json.loads((ROOT / m["pistas"]).read_text(encoding="utf-8"))
+                        nsub = len(pistas["sub_bacias"])
+                        self.assertEqual(len(pistas["pesos_idw_sub_x_posto"]), nsub)
+                        self.assertTrue(all(len(w) == len(pistas["postos"]) for w in pistas["pesos_idw_sub_x_posto"]))
+                        self.assertTrue(all(p["fonte"] != "CEMADEN" or "idestacao" in p for p in pistas["postos"]))
+                        self.assertTrue((ROOT / pistas["nowcast"]["arquivo"]).exists())
+                        for comp in m["ml"]:
+                            arq = ROOT / comp["arquivo"]
+                            self.assertTrue(arq.exists(), comp["arquivo"])
+                            self.assertEqual(S._sha256(str(arq)), comp["sha256"].upper())
+                            if comp["tipo"] == "gru":
+                                g = json.loads(arq.read_text(encoding="utf-8"))
+                                self.assertEqual(len(g["modelos"][0]["ms"]), len(comp["sinais"]))
+                                self.assertEqual(len(g["modelos"][0]["mz"]), len(comp["estaticas"]))
+                        ins = [i for comp in m["ml"] for k in ("inputs", "sinais", "estaticas") for i in comp.get(k, [])]
+                        ins += [j for lin in m["lineares"] for j in lin["inputs"]]
+                        for i in ins:
+                            if i["tipo"] == "chuva_area":
+                                self.assertEqual(i.get("fonte_chuva"), "v4t")
+                                self.assertIn(i["regiao"], pistas["regioes"])
+                        for lin in m["lineares"]:
+                            self.assertEqual(len(lin["coeficientes"]), len(lin["inputs"]))
+                            self.assertEqual(lin["inputs"][0]["estacao"], contrato["alvo"])
+                        for est in m["estacoes_nivel"]:
+                            self.assertIn(est, contrato["limites_estacao_cm"])
+                        continue
                     if m.get("tipo_modelo") == "mistura":
                         arq = ROOT / m["xgb"]["arquivo"]
                         self.assertTrue(arq.exists(), m["xgb"]["arquivo"])
@@ -205,6 +232,101 @@ class SombraMucumTests(unittest.TestCase):
                     self.assertEqual(m["inputs"][0]["estacao"], contrato["alvo"])   # âncora ALT
                     for est in m["estacoes_nivel"]:
                         self.assertIn(est, contrato["limites_estacao_cm"])
+
+    def test_cemaden_hour_is_utc_minus_3(self) -> None:
+        d = {"datas": ["22/09/2026"], "horarios": ["12h", "13h", "14h"], "acumulados": [[0.4, None, 150.0]]}
+        self.assertEqual(S.series_cemaden(d), {dt.datetime(2026, 9, 22, 9, 0): 0.4})   # None e > 100 mm descartados
+
+    def _grade_v4t(self, S_):
+        import numpy as np
+        C = {"area_km2": [1.0, 3.0], "tt_h": [5.0, 20.0], "lat": [-29.0, -28.5], "lon": [-51.9, -51.0], "sub_bacias": ["a", "b"],
+             "regioes": {"R": [0, 1], "B": [1]}, "up_niv": [], "ramos_up_niv": [], "ups": {"8": [], "12": []}, "ramos_ups": [],
+             "janela_chuva_h": len(S_)}
+        S.PISTAS = S.PV.Pistas(C)
+        hs = [T0 - dt.timedelta(hours=len(S_) - 1 - i) for i in range(len(S_))]
+        S.CHUVA_V4T = {"horas": hs, "idx": {h: i for i, h in enumerate(hs)}, "S": np.asarray(S_, float)}
+        S._CACHE_V4T.clear()
+        S._CACHE_PISTAS.clear()
+
+    def test_v4t_area_rain_from_subbasin_grid(self) -> None:
+        import numpy as np
+        g = np.ones((60, 2)) * [1.0, 2.0]
+        g[-1, 1] = np.nan                                  # sub-bacia b sem posto em T0: média só com a
+        g[-30] = np.nan                                     # hora sem posto nenhum
+        self._grade_v4t(g)
+        inp = lambda **k: {"tipo": "chuva_area", "fonte_chuva": "v4t", "regiao": "R", "nome": "c"} | k
+        x, falt = S.montar_entradas([inp(op="acum", janela_h=2), inp(op="acum", janela_h=40), inp(op="exp", tau_h=3)], {}, {}, T0)
+        self.assertAlmostEqual(x[0], 1.0 + (1 * 1 + 3 * 2) / 4)
+        self.assertIsNone(x[1])                                    # janela com hora sem posto -> faltante, nunca zero
+        a = np.exp(-1 / 3)
+        esp = 0.0
+        for i in range(60):
+            esp = a * esp + (0.0 if i == 30 else (1.0 if i == 59 else 1.75))
+        self.assertAlmostEqual(x[2], esp)
+        S.PISTAS, S.CHUVA_V4T = None, None
+
+    def test_rain_state_roundtrip(self) -> None:
+        import math, tempfile
+        import numpy as np
+        g = np.array([[0.0, 1.25], [np.nan, np.nan], [np.nan, 0.5]])
+        self._grade_v4t(g)
+        with tempfile.TemporaryDirectory() as d:
+            arq = str(Path(d) / "e.csv")
+            self.assertEqual(S.gravar_estado_chuva(S.CHUVA_V4T, ["a", "b"], arq), 2)    # hora sem dado não é gravada
+            est = S.ler_estado_chuva(["a", "b"], arq)
+            self.assertEqual(S.ler_estado_chuva(["a", "x"], arq), {})                    # sub-bacias diferentes: ignora
+        self.assertEqual(est[T0 - dt.timedelta(hours=2)], [0.0, 1.25])
+        self.assertTrue(math.isnan(est[T0][0]) and est[T0][1] == 0.5)
+        S.PISTAS, S.CHUVA_V4T = None, None
+
+    def test_fresh_rain_overrides_state(self) -> None:
+        import numpy as np
+        self._grade_v4t(np.zeros((3, 2)))
+        S.PISTAS.C.update({"postos": [{"codigo": "P"}], "pesos_idw_sub_x_posto": [[1.0], [1.0]], "janela_chuva_h": 3})
+        est = {T0 - dt.timedelta(hours=2): [9.0, 9.0], T0 - dt.timedelta(hours=1): [7.0, 7.0], T0: [5.0, 5.0]}
+        G = S.montar_chuva_v4t({"P": {T0 - dt.timedelta(hours=1): 2.0, T0 - dt.timedelta(hours=2): 3.0}}, T0, T0 - dt.timedelta(hours=1), est)
+        self.assertEqual(G["S"][:, 0].tolist(), [9.0, 2.0, 5.0])    # antiga = estado; fresca com posto = IDW; fresca sem posto = estado
+        est.pop(T0 - dt.timedelta(hours=2))                          # estado sem a hora antiga (1ª rodada): usa o posto (CEMADEN 720 h)
+        G = S.montar_chuva_v4t({"P": {T0 - dt.timedelta(hours=2): 3.0}}, T0, T0 - dt.timedelta(hours=1), est)
+        self.assertEqual(G["S"][:, 0].tolist(), [3.0, 7.0, 5.0])
+        S.PISTAS, S.CHUVA_V4T = None, None
+
+    def test_npz_trees_and_gru_numpy(self) -> None:
+        import numpy as np
+        T = {"feat": np.array([0, -1, -1, -1], np.int16), "thr": np.array([5, 0, 0, 0], np.float32), "esq": np.array([1, -1, -1, -1]),
+             "dir": np.array([2, -1, -1, -1]), "falt": np.array([2, -1, -1, -1]), "folha": np.array([0, 1, -1, 4], np.float32),
+             "raiz": np.array([0, 3]), "modelo": np.array([0, 1]), "base_score": np.array([10.0, 0.0])}
+        self.assertEqual(S.PV.avaliar_arvores(T, [3.0], 0), 11.0)
+        self.assertEqual(S.PV.avaliar_arvores(T, [None], 0), 9.0)
+        self.assertEqual(S.PV.avaliar_arvores(T, [3.0]), (11.0 + 4.0) / 2)       # média das sementes
+        z = lambda *s: np.zeros(s).tolist()
+        m = {"ms": [0.0], "ss": [1.0], "mz": [2.0], "sz": [1.0], "ys": 10.0, "weight_ih": z(3, 1), "weight_hh": z(3, 1), "bias_ih": z(3),
+             "bias_hh": z(3), "f0_w": [[0.0, 1.0]], "f0_b": [0.0], "f2_w": [1.0], "f2_b": 0.5}
+        # h = 0.5*tanh(0)=0 ... estática 3 -> z=(3-2)/1=1 -> GELU(1)=0.8413 -> (0.8413+0.5)*10
+        self.assertAlmostEqual(S.PV.gru_prever({"modelos": [m]}, np.zeros((4, 1)), [3.0]), (0.841344746 + 0.5) * 10, places=5)
+        self.assertAlmostEqual(S.PV.gru_prever({"modelos": [m]}, np.zeros((4, 1)), [None]), 5.0, places=9)   # faltante -> média
+
+    def test_final_mixture_averages_ml_components(self) -> None:
+        import tempfile
+        import numpy as np
+        from unittest import mock
+        niveis = {S.ALVO: {h: 500.0 for h in horas(3)}}
+        nivel = {"tipo": "nivel", "estacao": S.ALVO, "defasagem_h": 0, "nome": "n"}
+        with tempfile.TemporaryDirectory() as d:
+            arqs = []
+            for k, folha in enumerate((4.0, 8.0)):
+                a = Path(d) / f"t{k}.npz"
+                np.savez(a, feat=np.array([-1], np.int16), thr=np.zeros(1, np.float32), esq=np.array([-1]), dir=np.array([-1]),
+                         falt=np.array([-1]), folha=np.array([folha], np.float32), raiz=np.array([0]), modelo=np.array([0]), base_score=np.array([0.0]))
+                arqs.append(str(a))
+            m = {"modelo_id": "final", "tipo_modelo": "mistura", "nivel_hierarquia": 1, "peso_ml": 0.75,
+                 "ml": [{"tipo": "arvores_npz", "nome": "a", "arquivo": arqs[0], "inputs": [nivel]},
+                        {"tipo": "arvores_npz", "nome": "b", "arquivo": arqs[1], "inputs": [nivel]}],
+                 "lineares": [{"nome": "MU9", "intercepto": 20.0, "coeficientes": [0.0], "inputs": [nivel]}]}
+            with mock.patch.object(S.R, "antecedencia_efetiva", return_value=(3.5, True)):
+                escolhido, _ = S.prever_horizonte({"horizonte_h": 8, "modelos": [m]}, niveis, {}, sorted(niveis[S.ALVO]), T0)
+        self.assertEqual(escolhido["nivel_previsto_cm"], 500.0 + 0.75 * 6.0 + 0.25 * 20.0)
+        self.assertEqual(set(escolhido["componentes_ml"]), {"a", "b"})
 
     def test_hierarchy_skips_control_and_falls_back_when_inputs_missing(self) -> None:
         import tempfile

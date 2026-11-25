@@ -1,5 +1,6 @@
 # RNAs v2 de Muçum e de Santa Tereza (4 h e 8 h com estações a montante) em SOMBRA.
-# Não altera os feeds públicos: grava somente previsao_sombra_mucum.json,
+# Não altera os feeds públicos: grava somente previsao_sombra_mucum.json, estado_chuva_subbacias_mucum.csv
+# (chuva por sub-bacia dos últimos 35 dias, ANA + CEMADEN, para o balde de umidade do solo),
 # previsao_sombra_santa_tereza.json e os históricos permanentes para avaliação.
 name: Previsao em sombra - Mucum e Santa Tereza v2
 
@@ -8,6 +9,8 @@ on:
     branches: [main]
     paths:
       - 'codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py'
+      - 'codigo_python/01_previsao_ao_vivo/mucum_pistas_v4t.py'
+      - 'assets/data/mucum_v4t/**'
       - 'assets/data/mucum_modelos_sombra.json'
       - 'assets/data/santa_tereza_modelos_sombra.json'
       - 'assets/mat/sombra_mucum_v2/**'
@@ -44,7 +47,7 @@ jobs:
           # cada alvo é independente: falha em um não impede o outro
           timeout --signal=TERM --kill-after=20s 600s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py || echo "falha na sombra de Muçum"
           timeout --signal=TERM --kill-after=20s 600s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py --contrato assets/data/santa_tereza_modelos_sombra.json || echo "falha na sombra de Santa Tereza"
-          for f in previsao_sombra_mucum.json historico_previsao_sombra_mucum.jsonl previsao_sombra_santa_tereza.json historico_previsao_sombra_santa_tereza.jsonl; do
+          for f in previsao_sombra_mucum.json historico_previsao_sombra_mucum.jsonl estado_chuva_subbacias_mucum.csv previsao_sombra_santa_tereza.json historico_previsao_sombra_santa_tereza.jsonl; do
             if [ -f "$f" ]; then git add "$f"; fi
           done
           if git diff --staged --quiet; then

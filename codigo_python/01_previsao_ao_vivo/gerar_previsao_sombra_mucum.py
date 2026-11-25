@@ -28,6 +28,11 @@ relação ao robô principal, exigidas pelo treino v2:
     avaliadas em Python puro, faltantes permitidos) + (1 - peso_xgb) x 1º ridge da cascata com entradas
     completas; entradas novas "mm3_nivel" (média das 3 últimas variações horárias, >= 2) e "chuva_area"
     (chuva média por área de uma região do contrato, IDW de todos os postos com dado na hora; op acum / dif / exp).
+  * (25/11/2026) versão final v4t (mistura com "ml" e "pistas"): chuva por sub-bacia com TODOS os postos (ANA +
+    CEMADEN ao vivo pelo mapa interativo; QC diário conjunto), guardada entre rodadas em estado_chuva_subbacias_mucum.csv
+    (35 dias, para o balde de umidade do solo); entradas "pista" (índice de chegada, balde PDM50, postos a montante,
+    nowcast dos pluviômetros; mucum_pistas_v4t.py) e "chuva_area" com fonte_chuva = "v4t"; parte de aprendizado de
+    máquina = média de componentes (árvores .npz, GRU em numpy, árvores JSON antigas).
 O mesmo script atende Santa Tereza: `--contrato assets/data/santa_tereza_modelos_sombra.json`
 (o contrato define "alvo", "saida_json" e "historico_jsonl").
 EXPERIMENTAL — não é alerta oficial.
@@ -58,6 +63,16 @@ TRAVADO_VARIACAO_ALVO_CM = 30.0
 REGIOES_CHUVA = {}       # contrato['regioes_chuva'] (receita v4)
 POSTOS_IDW = []          # contrato['postos_chuva_idw']
 _CACHE_AREA = {}
+_specpv = importlib.util.spec_from_file_location("mucum_pistas_v4t", os.path.join(AQUI, "mucum_pistas_v4t.py"))
+PV = importlib.util.module_from_spec(_specpv)
+_specpv.loader.exec_module(PV)
+ESTADO_CHUVA = os.path.join(RAIZ, "estado_chuva_subbacias_mucum.csv")
+CEMADEN_URL = "https://mapservices.cemaden.gov.br/MapaInterativoWS/resources/horario/{id}/{horas}"
+PISTAS = None            # PV.Pistas da versão final v4t (contrato com "pistas") ou None
+CHUVA_V4T = None         # grade horária da chuva por sub-bacia: {"horas", "idx", "S"}
+_CACHE_V4T = {}
+_CACHE_PISTAS = {}
+_ARQ = {}
 
 
 # ---------------------------------------------------------------- leitura ANA
@@ -105,11 +120,54 @@ def series_da_resposta(xml):
     return niveis, chuva
 
 
-def baixar(cod):
-    xml = R._obter_xml_ana(cod, DIAS_JANELA, R.ANA_TIMEOUT_NIVEL_S, R.ANA_RETRIES_NIVEL, R._serie_de_xml, "ANA sombra")
+def _serie_nivel_ou_chuva(xml):
+    """aceita a resposta se tiver nível OU chuva (posto só pluviométrico não pode virar 'sem resposta')"""
+    serie, nbytes, ultima = R._serie_de_xml(xml)
+    if serie:
+        return serie, nbytes, ultima
+    return R._serie_chuva_de_xml(xml)
+
+
+def baixar(cod, dias=None):
+    xml = R._obter_xml_ana(cod, dias or DIAS_JANELA, R.ANA_TIMEOUT_NIVEL_S, R.ANA_RETRIES_NIVEL, _serie_nivel_ou_chuva, "ANA sombra")
     if xml is None:
         return {}, {}
     return series_da_resposta(xml)
+
+
+def series_cemaden(d):
+    """Resposta do mapa interativo do CEMADEN -> chuva por hora (BRT). Como no treino (10_CHUVA_TODAS): hora do dado =
+    data + horário (UTC, fim da hora) - 3 h."""
+    s = {}
+    for data, vals in zip(d.get("datas") or [], d.get("acumulados") or []):
+        try:
+            dia = dt.datetime.strptime(data, "%d/%m/%Y")
+        except (TypeError, ValueError):
+            continue
+        for i, v in enumerate(vals or []):
+            if v is None:
+                continue
+            try:
+                v = float(v)
+                h = int(str(d["horarios"][i]).rstrip("h"))
+            except (TypeError, ValueError, IndexError, KeyError):
+                continue
+            if 0 <= v <= 100:
+                s[dia + dt.timedelta(hours=h) - dt.timedelta(hours=3)] = v
+    return s
+
+
+def baixar_cemaden(idestacao, horas):
+    import urllib.request
+    url = CEMADEN_URL.format(id=int(idestacao), horas=int(horas))
+    for k in range(2):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "previne-robo/1.0"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return series_cemaden(json.loads(r.read().decode("utf-8")))
+        except Exception as e:      # noqa: BLE001 — posto sem resposta vira posto sem dado
+            print(f"[CEMADEN {idestacao}] tent={k + 1} erro: {e}")
+    return {}
 
 
 # ------------------------------------------------------- controle de qualidade
@@ -281,6 +339,204 @@ def _chuva_area(inp, chuva, t):
     raise ValueError(f"op de chuva_area não suportada: {op}")
 
 
+# ------------------------------------------- versão final v4t: chuva por sub-bacia (todos os postos) e pistas
+def ler_estado_chuva(subs, caminho=None):
+    """estado_chuva_subbacias_mucum.csv: 'hora;sub...' e uma linha por hora (vazio = sem posto). {hora: [valores]}"""
+    import math
+    caminho = caminho or ESTADO_CHUVA
+    if not os.path.exists(caminho):
+        return {}
+    with open(caminho, encoding="utf-8") as f:
+        cab = f.readline().strip().split(";")
+        if cab[1:] != list(subs):
+            print("estado de chuva com sub-bacias diferentes do contrato: ignorado")
+            return {}
+        est = {}
+        for linha in f:
+            p = linha.rstrip("\n").split(";")
+            if len(p) != len(subs) + 1:
+                continue
+            try:
+                est[dt.datetime.strptime(p[0], "%Y-%m-%dT%H:%M")] = [float(v) if v else math.nan for v in p[1:]]
+            except ValueError:
+                continue
+    return est
+
+
+def gravar_estado_chuva(G, subs, caminho=None):
+    import numpy as np
+    linhas = ["hora;" + ";".join(subs)]
+    for h, row in zip(G["horas"], G["S"]):
+        if np.isfinite(row).any():
+            linhas.append(h.strftime("%Y-%m-%dT%H:%M") + ";" + ";".join(
+                "" if not np.isfinite(v) else (f"{v:.2f}".rstrip("0").rstrip(".") or "0") for v in row))
+    with open(caminho or ESTADO_CHUVA, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(linhas) + "\n")
+    return len(linhas) - 1
+
+
+def montar_chuva_v4t(chuva_postos, fim, inicio_fresco, estado):
+    """Grade horária (janela_chuva_h horas até fim) da chuva por sub-bacia: horas >= inicio_fresco vêm do IDW dos postos
+    baixados agora (se algum posto tem dado); as demais vêm do estado salvo e, onde o estado não tem a hora (primeira
+    rodada, robô parado), do IDW dos postos que cobrem a hora (CEMADEN 720 h)."""
+    import numpy as np
+    C = PISTAS.C
+    n = int(C["janela_chuva_h"])
+    horas = [fim - dt.timedelta(hours=n - 1 - i) for i in range(n)]
+    idx = {h: i for i, h in enumerate(horas)}
+    cods = [p["codigo"] for p in C["postos"]]
+    V = np.full((n, len(cods)), np.nan)
+    for j, c in enumerate(cods):
+        for h, v in (chuva_postos.get(c) or {}).items():
+            i = idx.get(h)
+            if i is not None:
+                V[i, j] = v
+    if "_W" not in C:
+        C["_W"] = np.asarray(C["pesos_idw_sub_x_posto"], float)
+    Sf = PV.chuva_subbacias(V, C["_W"])
+    S = np.full((n, len(C["sub_bacias"])), np.nan)
+    for h, vals in estado.items():
+        i = idx.get(h)
+        if i is not None:
+            S[i] = vals
+    tem = np.isfinite(Sf).any(1)
+    fresca = tem & np.array([h >= inicio_fresco for h in horas])
+    lacuna = tem & ~np.isfinite(S).any(1)
+    S[fresca | lacuna] = Sf[fresca | lacuna]
+    return {"horas": horas, "idx": idx, "S": S, "postos_com_dado": int(np.isfinite(V).any(0).sum())}
+
+
+def _media_v4t(reg):
+    import numpy as np
+    chave = ("media", reg)
+    if chave not in _CACHE_V4T:
+        sub = PISTAS.C["regioes"][reg]
+        _CACHE_V4T[chave] = PV.media_area(CHUVA_V4T["S"][:, sub], PISTAS.A_km2[sub])
+    return _CACHE_V4T[chave]
+
+
+def _serie_v4t(reg, op, k):
+    """série da região na grade: acum k (NaN se alguma hora sem dado, como rolling min_periods=k) ou filtro exp (tau k)"""
+    import numpy as np
+    chave = (reg, op, k)
+    if chave not in _CACHE_V4T:
+        m = _media_v4t(reg)
+        if op == "exp":
+            s = PV.filtro_exp(m, k)
+        else:
+            z = np.concatenate([[0.0], np.cumsum(np.nan_to_num(m, nan=0.0))])
+            f = np.concatenate([[0], np.cumsum(~np.isfinite(m))])
+            s = np.full(len(m), np.nan)
+            i = np.arange(k - 1, len(m))
+            s[i] = np.where(f[i + 1] - f[i + 1 - k] == 0, z[i + 1] - z[i + 1 - k], np.nan)
+        _CACHE_V4T[chave] = s
+    return _CACHE_V4T[chave]
+
+
+def _cobertura_v4t(i, n):
+    """horas com algum posto entre as n horas até a posição i da grade"""
+    import numpy as np
+    ok = np.isfinite(CHUVA_V4T["S"][max(0, i - n + 1):i + 1]).any(1)
+    return int(ok.sum())
+
+
+def _chuva_area_v4t(inp, t):
+    import numpy as np
+    if CHUVA_V4T is None or t not in CHUVA_V4T["idx"]:
+        return None
+    i = CHUVA_V4T["idx"][t]
+    reg, op = inp["regiao"], inp["op"]
+    if op == "exp":
+        aq = int(inp.get("aquecimento_h", 48))
+        rec = int(inp.get("horas_minimas_recentes", 3))
+        if i + 1 < aq or _cobertura_v4t(i, aq) < 0.9 * aq or _cobertura_v4t(i, rec + 1) == 0:
+            return None
+        v = _serie_v4t(reg, "exp", int(inp["tau_h"]))[i]
+    elif op == "acum":
+        v = _serie_v4t(reg, "acum", int(inp["janela_h"]))[i]
+    elif op == "dif":
+        k = int(inp["janela_h"])
+        a = _serie_v4t(reg, "acum", k)
+        v = a[i] - a[i - k] if i - k >= 0 else np.nan
+    else:
+        raise ValueError(f"op de chuva_area não suportada: {op}")
+    return float(v) if np.isfinite(v) else None
+
+
+def pistas_em(niveis, t):
+    """todas as pistas da versão final em t (None quando a chuva guardada não cobre o necessário)"""
+    import numpy as np
+    if t in _CACHE_PISTAS:
+        return _CACHE_PISTAS[t]
+    out = {}
+    if PISTAS is not None:
+        G = CHUVA_V4T
+        i = G["idx"].get(t) if G else None
+        if i is not None and _cobertura_v4t(i, 4) > 0:
+            S = G["S"]
+            if _cobertura_v4t(i, 72) >= 66:
+                nc = PISTAS.nc(S, i, t.hour, t.month)
+                out.update(nc)
+                T = _carregar_npz(os.path.join(RAIZ, PISTAS.C["nowcast"]["arquivo"]))
+                x = [nc[k] for k in PISTAS.C["nowcast"]["colunas"]]
+                for mi, alvo in enumerate(PISTAS.C["nowcast"]["alvos"]):
+                    out[f"NOW_{alvo}"] = max(PV.avaliar_arvores(T, x, mi), 0.0)
+            if _cobertura_v4t(i, 264) >= 0.9 * 264:            # API7 (168 h) + hidrograma (até ~80 h)
+                out.update(PISTAS.cheg(S, i))
+            if _cobertura_v4t(i, 720) >= 0.9 * 720:            # balde: 30 dias para esquecer a condição inicial
+                out.update(PISTAS.pdm50(S, i))
+        def nivel(cod, h):                                     # buraco: último valor das 3 h anteriores
+            for a in range(4):
+                v = _n(niveis, cod, t - dt.timedelta(hours=h + a))
+                if v is not None:
+                    return v
+            return None
+        out.update(PISTAS.montante(nivel))
+    out = {k: (None if v is None or not np.isfinite(v) else float(v)) for k, v in out.items()}
+    _CACHE_PISTAS[t] = out
+    return out
+
+
+def _carregar_npz(caminho):
+    if caminho not in _ARQ:
+        import numpy as np
+        with np.load(caminho, allow_pickle=False) as z:
+            _ARQ[caminho] = PV.arvores_de_npz(z)
+    return _ARQ[caminho]
+
+
+def _carregar_json(caminho):
+    if caminho not in _ARQ:
+        with open(caminho, encoding="utf-8") as f:
+            _ARQ[caminho] = json.load(f)
+    return _ARQ[caminho]
+
+
+def prever_gru(comp, niveis, chuva, t):
+    """sequência das últimas L horas (níveis relativos ao valor em t, buraco = último valor anterior; chuva das
+    regiões) + entradas estáticas em t -> variação prevista (cm)"""
+    import numpy as np
+    G = _carregar_json(os.path.join(RAIZ, comp["arquivo"]))
+    L, nv = int(comp["L"]), int(comp["n_niveis"])
+    hs = [t - dt.timedelta(hours=L - 1 - k) for k in range(L)]
+    seq = np.full((L, len(comp["sinais"])), np.nan)
+    for j, inp in enumerate(comp["sinais"]):
+        if inp["tipo"] == "nivel":
+            serie = niveis.get(inp["estacao"]) or {}
+            antes = [h for h in serie if h < hs[0]]
+            ult = serie[max(antes)] if antes else None
+            for k, h in enumerate(hs):
+                ult = serie.get(h, ult)
+                seq[k, j] = np.nan if ult is None else ult
+        else:
+            for k, h in enumerate(hs):
+                v = montar_entradas([inp], niveis, chuva, h)[0][0]
+                seq[k, j] = np.nan if v is None else v
+    seq[:, :nv] -= seq[-1:, :nv]
+    est, faltam = montar_entradas(comp["estaticas"], niveis, chuva, t)
+    return PV.gru_prever(G, np.nan_to_num(seq, nan=0.0), est), faltam
+
+
 def montar_entradas(inputs, niveis, chuva, t):
     x, faltam = [], []
     for inp in inputs:
@@ -313,7 +569,9 @@ def montar_entradas(inputs, niveis, chuva, t):
             difs = [a - b for a, b in difs if a is not None and b is not None]
             v = sum(difs) / len(difs) if len(difs) >= 2 else None
         elif tipo == "chuva_area":
-            v = _chuva_area(inp, chuva, t)
+            v = _chuva_area_v4t(inp, t) if inp.get("fonte_chuva") == "v4t" else _chuva_area(inp, chuva, t)
+        elif tipo == "pista":
+            v = pistas_em(niveis, t).get(inp["nome"])
         else:
             raise ValueError(f"tipo de entrada não suportado: {tipo}")
         x.append(v)
@@ -397,13 +655,19 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
         item = {"modelo": m["modelo_id"], "nivel_hierarquia": m["nivel_hierarquia"], "papel": m.get("papel"),
                 "horizonte_h": H, "disponivel": False}
         if mistura:
-            arq = os.path.join(RAIZ, m["xgb"]["arquivo"])
-            if not os.path.exists(arq):
-                item["status"] = "árvores do xgboost ausentes"
-                resultados.append(item)
-                continue
-            if m["xgb"].get("sha256") and _sha256(arq) != m["xgb"]["sha256"].upper():
-                item["status"] = "sha256 das árvores não confere"
+            comps = m.get("ml") or [{"tipo": "xgb_json", "nome": "xgb", **m["xgb"]}]
+            peso = float(m["peso_ml"] if "peso_ml" in m else m["peso_xgb"])
+            erro = None
+            for comp in comps:
+                arq = os.path.join(RAIZ, comp["arquivo"])
+                if not os.path.exists(arq):
+                    erro = f"arquivo do componente {comp.get('nome')} ausente"
+                elif comp.get("sha256") and _sha256(arq) != comp["sha256"].upper():
+                    erro = f"sha256 do componente {comp.get('nome')} não confere"
+            if m.get("pistas") and PISTAS is None:
+                erro = "pistas v4t não carregadas"
+            if erro:
+                item["status"] = erro
                 resultados.append(item)
                 continue
             base = _base_mistura(m, niveis, chuva, horas_alvo)
@@ -414,12 +678,23 @@ def prever_horizonte(nivel_cfg, niveis, chuva, horas_alvo, agora):
                 resultados.append(item)
                 continue
             t, lin, xl = base
-            xx, falt_x = montar_entradas(m["xgb"]["inputs"], niveis, chuva, t)
-            v_x, v_l = avaliar_xgb(carregar_xgb(arq), xx), _linear(lin, xl)
-            w = float(m["peso_xgb"])
-            variacao = w * v_x + (1 - w) * v_l
+            vals, det, falt_x = [], {}, []
+            for comp in comps:
+                arq = os.path.join(RAIZ, comp["arquivo"])
+                if comp["tipo"] == "gru":
+                    v, fx = prever_gru(comp, niveis, chuva, t)
+                else:
+                    xx, fx = montar_entradas(comp["inputs"], niveis, chuva, t)
+                    v = avaliar_xgb(carregar_xgb(arq), xx) if comp["tipo"] == "xgb_json" else PV.avaliar_arvores(_carregar_npz(arq), xx)
+                vals.append(v)
+                det[comp.get("nome") or comp["tipo"]] = {"variacao_cm": round(v, 1), "entradas_faltando": fx}
+                falt_x += fx
+            v_x, v_l = sum(vals) / len(vals), _linear(lin, xl)
+            variacao = peso * v_x + (1 - peso) * v_l
             item.update({"linear_usado": lin["nome"], "variacao_xgb_cm": round(v_x, 1), "variacao_linear_cm": round(v_l, 1),
                          "xgb_entradas_faltando": falt_x})
+            if m.get("ml"):
+                item["componentes_ml"] = det
         else:
             if linear:
                 pass
@@ -509,11 +784,44 @@ def main(argv=None):
                                 for c in m.get("estacoes_nivel", []) + m.get("estacoes_chuva", [])} - {ALVO})
     estacoes = estacoes + sorted(set(contrato.get("qc_chuva_postos", [])) - set(estacoes))
     estacoes = estacoes + sorted(set(POSTOS_IDW) - set(estacoes))
+    # versão final v4t: chuva de todos os postos (ANA + CEMADEN) por sub-bacia, com estado entre rodadas
+    global PISTAS, CHUVA_V4T
+    arq_pistas = sorted({m["pistas"] for hz in contrato["horizontes"].values() for m in hz["modelos"] if m.get("pistas")})
+    PISTAS = PV.Pistas(json.load(open(os.path.join(RAIZ, arq_pistas[0]), encoding="utf-8"))) if arq_pistas else None
+    dias = int(argv[argv.index("--dias-chuva") + 1]) if "--dias-chuva" in argv else DIAS_JANELA
+    postos_v4t = PISTAS.C["postos"] if PISTAS else []
+    estado, horas_cem = {}, 24 * min(dias, 30) + 3
+    if PISTAS:
+        estado = ler_estado_chuva(PISTAS.C["sub_bacias"])
+        h0 = agora.replace(minute=0, second=0, microsecond=0)
+        antigas = [h0 - dt.timedelta(hours=k) for k in range(24 * DIAS_JANELA, 700)]   # o balde exige 30 dias; CEMADEN dá 720 h
+        if sum(h in estado for h in antigas) < 0.9 * len(antigas):          # estado incompleto: CEMADEN 720 h nesta rodada
+            horas_cem = 720
+            print(f"estado da chuva cobre {sum(h in estado for h in antigas)} de {len(antigas)} horas antigas: CEMADEN 720 h")
+    ana_v4t = [p["codigo"] for p in postos_v4t if p["fonte"] == "ANA"]
+    estacoes = estacoes + sorted(set(ana_v4t) - set(estacoes))
     niveis, chuva = {}, {}
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=8) as ex:
-        for cod, (n, c) in zip(estacoes, ex.map(baixar, estacoes)):
+        for cod, (n, c) in zip(estacoes, ex.map(lambda c_: baixar(c_, dias if c_ in ana_v4t else None), estacoes)):
             niveis[cod], chuva[cod] = n, c
+        cem = [p for p in postos_v4t if p["fonte"] == "CEMADEN"]
+        chuva_cem = dict(zip([p["codigo"] for p in cem], ex.map(lambda p: baixar_cemaden(p["idestacao"], horas_cem), cem)))
+    resumo_v4t = None
+    if PISTAS:
+        brutos = {c: chuva.get(c) or {} for c in ana_v4t} | chuva_cem
+        limpos = qc_chuva_postos(brutos, [c for c in brutos if brutos[c]])
+        fim = agora.replace(minute=0, second=0, microsecond=0)
+        inicio_fresco = (agora - dt.timedelta(days=dias)).replace(minute=0, second=0, microsecond=0) + dt.timedelta(hours=2)
+        CHUVA_V4T = montar_chuva_v4t(limpos, fim, inicio_fresco, estado)
+        n_linhas = gravar_estado_chuva(CHUVA_V4T, PISTAS.C["sub_bacias"])
+        com = lambda f: sum(1 for p in postos_v4t if p["fonte"] == f and brutos.get(p["codigo"]))
+        resumo_v4t = {"postos_com_dado": {"ANA": com("ANA"), "CEMADEN": com("CEMADEN")},
+                      "postos_no_contrato": {"ANA": len(ana_v4t), "CEMADEN": len(cem)},
+                      "obs": "INMET entrou no treino, mas não é baixado ao vivo (exige token)",
+                      "horas_no_estado_lido": len(estado), "horas_com_chuva_na_grade": n_linhas, "cemaden_horas_pedidas": horas_cem,
+                      "grade": [CHUVA_V4T["horas"][0].isoformat(timespec="minutes"), CHUVA_V4T["horas"][-1].isoformat(timespec="minutes")]}
+        print("chuva v4t:", resumo_v4t)
     if contrato.get("qc_chuva_postos"):
         chuva = qc_chuva_postos(chuva, [p for p in contrato["qc_chuva_postos"] if p in chuva])
     niveis[ALVO] = qc_niveis(ALVO, niveis.get(ALVO, {}), limites)
@@ -523,7 +831,7 @@ def main(argv=None):
     horas_alvo = sorted(niveis[ALVO])
     saida = {"gerado_em": agora.isoformat(timespec="seconds"), "aviso": "SOMBRA EXPERIMENTAL — não publicado no site; não é alerta oficial.",
              "contrato": os.path.relpath(CONTRATO, RAIZ), "alvo": ALVO, "ultima_hora_alvo": horas_alvo[-1].isoformat() if horas_alvo else None,
-             "estacoes_sem_dado": [c for c in estacoes if not niveis.get(c) and not chuva.get(c)], "horizontes": {}}
+             "estacoes_sem_dado": [c for c in estacoes if not niveis.get(c) and not chuva.get(c)], "chuva_v4t": resumo_v4t, "horizontes": {}}
     novos = []
     for chave, cfg in contrato["horizontes"].items():
         escolhido, todos = prever_horizonte(cfg, niveis, chuva, horas_alvo, agora) if horas_alvo else (None, [])
