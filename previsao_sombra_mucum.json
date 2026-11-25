@@ -1,0 +1,1108 @@
+{
+ "gerado_em": "2026-11-25T18:55:32",
+ "aviso": "SOMBRA EXPERIMENTAL — não publicado no site; não é alerta oficial.",
+ "contrato": "assets/data/mucum_modelos_sombra.json",
+ "alvo": "86510000",
+ "ultima_hora_alvo": "2026-11-25T18:00:00",
+ "estacoes_sem_dado": [
+  "86210900",
+  "86450600",
+  "86451000",
+  "86506000",
+  "2851093",
+  "2951154",
+  "2951155"
+ ],
+ "chuva_v4t": {
+  "postos_com_dado": {
+   "ANA": 66,
+   "CEMADEN": 124
+  },
+  "postos_no_contrato": {
+   "ANA": 69,
+   "CEMADEN": 129
+  },
+  "obs": "INMET entrou no treino, mas não é baixado ao vivo (exige token)",
+  "horas_no_estado_lido": 0,
+  "horas_com_chuva_na_grade": 721,
+  "cemaden_horas_pedidas": 720,
+  "grade": [
+   "2026-10-21T19:00",
+   "2026-11-25T18:00"
+  ]
+ },
+ "horizontes": {
+  "4h": {
+   "horizonte_h": 4,
+   "nivel_usado": 1,
+   "modelo_usado": "MISTURA__MUCUM__04h__ALT__V4T_FINAL_DEP15_RIDGE__20261125",
+   "previsao": {
+    "modelo": "MISTURA__MUCUM__04h__ALT__V4T_FINAL_DEP15_RIDGE__20261125",
+    "nivel_hierarquia": 1,
+    "papel": "principal",
+    "nome_exibicao": "xgboost + ridge · todos os postos (principal)",
+    "horizonte_h": 4,
+    "disponivel": true,
+    "linear_usado": "CTRL",
+    "variacao_xgb_cm": -10.5,
+    "variacao_linear_cm": -7.5,
+    "xgb_entradas_faltando": [
+     "DifN-12h_86497400",
+     "DifN-14h_86125500",
+     "DifN-14h_86497400",
+     "DifN-12h_86125500"
+    ],
+    "componentes_ml": {
+     "DEP15_xgb": {
+      "variacao_cm": -10.5,
+      "entradas_faltando": [
+       "DifN-12h_86497400",
+       "DifN-14h_86125500",
+       "DifN-14h_86497400",
+       "DifN-12h_86125500"
+      ]
+     }
+    },
+    "hora_modelo": "2026-11-25T18:00",
+    "hora_alvo": "2026-11-25T22:00",
+    "nivel_base_cm": 922.0,
+    "nivel_previsto_cm": 912.8,
+    "antecedencia_efetiva_h": 3.07,
+    "faixa_incerteza": {
+     "min_cm": 841,
+     "max_cm": 985,
+     "e95_cm": 72.3,
+     "situacao": "rio subindo"
+    },
+    "fora_do_treino": false,
+    "status": "ok"
+   },
+   "motivo": null,
+   "niveis": [
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_CTRL__15inputs_31hiddens_20261006",
+     "nivel_hierarquia": 0,
+     "papel": "controle",
+     "nome_exibicao": "RNA MATLAB · entradas do 4 h no ar hoje (controle)",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 933.6,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 850,
+      "max_cm": 1017,
+      "e95_cm": 83.5,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "LINEAR__MUCUM__04h__ALT__V4_RESERVA_CHUVA__10inputs_20261118",
+     "nivel_hierarquia": 0,
+     "papel": "registro_reserva_v4",
+     "nome_exibicao": "ridge de chuva (v4)",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 923.5,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 816,
+      "max_cm": 1031,
+      "e95_cm": 107.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V4_4H_CTRL__19inputs_39hiddens_20261118_s0",
+     "nivel_hierarquia": 0,
+     "papel": "registro_v4",
+     "nome_exibicao": "RNA MATLAB v4 (Muçum + LJJ + chuva)",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 918.3,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 849,
+      "max_cm": 988,
+      "e95_cm": 69.4,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4T_FINAL_DEP15_RIDGE__20261125",
+     "nivel_hierarquia": 1,
+     "papel": "principal",
+     "nome_exibicao": "xgboost + ridge · todos os postos (principal)",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "linear_usado": "CTRL",
+     "variacao_xgb_cm": -10.5,
+     "variacao_linear_cm": -7.5,
+     "xgb_entradas_faltando": [
+      "DifN-12h_86497400",
+      "DifN-14h_86125500",
+      "DifN-14h_86497400",
+      "DifN-12h_86125500"
+     ],
+     "componentes_ml": {
+      "DEP15_xgb": {
+       "variacao_cm": -10.5,
+       "entradas_faltando": [
+        "DifN-12h_86497400",
+        "DifN-14h_86125500",
+        "DifN-14h_86497400",
+        "DifN-12h_86125500"
+       ]
+      }
+     },
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 912.8,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 841,
+      "max_cm": 985,
+      "e95_cm": 72.3,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4T_FINAL_DEP15_RIDGE__20261125::DEP15_xgb",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "xgboost raso sozinho (todos os postos)",
+     "horizonte_h": 4,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 911.5,
+     "antecedencia_efetiva_h": 3.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4T_FINAL_DEP15_RIDGE__20261125::RIDGE",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha",
+     "horizonte_h": 4,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 914.5,
+     "antecedencia_efetiva_h": 3.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4_XGB_RIDGE__35inputs_20261124",
+     "nivel_hierarquia": 2,
+     "papel": "reserva",
+     "nome_exibicao": "xgboost + ridge · só ANA (v4)",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "linear_usado": "CTRL",
+     "variacao_xgb_cm": -13.8,
+     "variacao_linear_cm": -7.5,
+     "xgb_entradas_faltando": [
+      "DifN-12h_86497400",
+      "DifN-14h_86125500",
+      "DifN-14h_86497400",
+      "DifN-12h_86125500"
+     ],
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 911.0,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 838,
+      "max_cm": 984,
+      "e95_cm": 72.5,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4_XGB_RIDGE__35inputs_20261124::xgb",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "xgboost raso sozinho (só ANA)",
+     "horizonte_h": 4,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 908.2,
+     "antecedencia_efetiva_h": 3.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__04h__ALT__V4_XGB_RIDGE__35inputs_20261124::RIDGE",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha · só ANA",
+     "horizonte_h": 4,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 914.5,
+     "antecedencia_efetiva_h": 3.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_N1__23inputs_47hiddens_20261006",
+     "nivel_hierarquia": 3,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N1 · LJJ 86472000 + Caçador 86489000 + chuva local/alta bacia",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 921.0,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 858,
+      "max_cm": 984,
+      "e95_cm": 63.3,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_N2__22inputs_45hiddens_20261006",
+     "nivel_hierarquia": 4,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N2 · Santa Tereza + Caçador + chuva",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 894.4,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 806,
+      "max_cm": 983,
+      "e95_cm": 88.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_N3__17inputs_35hiddens_20261006",
+     "nivel_hierarquia": 5,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N3 · Santa Tereza + chuva",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 896.9,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 800,
+      "max_cm": 993,
+      "e95_cm": 96.5,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_N4__22inputs_45hiddens_20261006",
+     "nivel_hierarquia": 6,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N4 · Caçador + Pezzi + chuva",
+     "horizonte_h": 4,
+     "disponivel": false,
+     "hora_modelo": "2026-11-25T16:00",
+     "hora_alvo": "2026-11-25T20:00",
+     "nivel_base_cm": 902.0,
+     "nivel_previsto_cm": 910.7,
+     "antecedencia_efetiva_h": 1.07,
+     "faixa_incerteza": {
+      "min_cm": 810,
+      "max_cm": 1011,
+      "e95_cm": 100.3,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "base desatualizada (antecedência 1.1 h)"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__04h__ALT__V2_4H_N5__11inputs_23hiddens_20261006",
+     "nivel_hierarquia": 7,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N5 · só Muçum + chuva local",
+     "horizonte_h": 4,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T22:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 927.7,
+     "antecedencia_efetiva_h": 3.07,
+     "faixa_incerteza": {
+      "min_cm": 803,
+      "max_cm": 1052,
+      "e95_cm": 124.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    }
+   ]
+  },
+  "5h": {
+   "horizonte_h": 5,
+   "nivel_usado": 1,
+   "modelo_usado": "RNAPREV__MUCUM__05h__ALT__V2_5H_N1__23inputs_47hiddens_20261006",
+   "previsao": {
+    "modelo": "RNAPREV__MUCUM__05h__ALT__V2_5H_N1__23inputs_47hiddens_20261006",
+    "nivel_hierarquia": 1,
+    "papel": "sombra_horizonte",
+    "nome_exibicao": "RNA MATLAB v2 N1 · igual ao 4h N1 com alvo +5 h",
+    "horizonte_h": 5,
+    "disponivel": true,
+    "hora_modelo": "2026-11-25T18:00",
+    "hora_alvo": "2026-11-25T23:00",
+    "nivel_base_cm": 922.0,
+    "nivel_previsto_cm": 910.2,
+    "antecedencia_efetiva_h": 4.07,
+    "faixa_incerteza": {
+     "min_cm": 826,
+     "max_cm": 994,
+     "e95_cm": 84.2,
+     "situacao": "rio subindo"
+    },
+    "fora_do_treino": false,
+    "status": "ok"
+   },
+   "motivo": null,
+   "niveis": [
+    {
+     "modelo": "RNAPREV__MUCUM__05h__ALT__V2_5H_N1__23inputs_47hiddens_20261006",
+     "nivel_hierarquia": 1,
+     "papel": "sombra_horizonte",
+     "nome_exibicao": "RNA MATLAB v2 N1 · igual ao 4h N1 com alvo +5 h",
+     "horizonte_h": 5,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-25T23:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 910.2,
+     "antecedencia_efetiva_h": 4.07,
+     "faixa_incerteza": {
+      "min_cm": 826,
+      "max_cm": 994,
+      "e95_cm": 84.2,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    }
+   ]
+  },
+  "8h": {
+   "horizonte_h": 8,
+   "nivel_usado": 1,
+   "modelo_usado": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+   "previsao": {
+    "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+    "nivel_hierarquia": 1,
+    "papel": "principal",
+    "nome_exibicao": "xgboost + GRU + ridge · todos os postos (principal)",
+    "horizonte_h": 8,
+    "disponivel": true,
+    "linear_usado": "CTRL",
+    "variacao_xgb_cm": -85.4,
+    "variacao_linear_cm": -68.6,
+    "xgb_entradas_faltando": [
+     "DifN-8h_86497400",
+     "DifN-10h_86497400",
+     "DifN-6h_86497400",
+     "DifN-12h_86497400",
+     "DifN-5h_86497400",
+     "DifN-10h_86125500"
+    ],
+    "componentes_ml": {
+     "XQ50_NOW": {
+      "variacao_cm": -82.4,
+      "entradas_faltando": [
+       "DifN-8h_86497400",
+       "DifN-10h_86497400",
+       "DifN-6h_86497400",
+       "DifN-12h_86497400",
+       "DifN-5h_86497400",
+       "DifN-10h_86125500"
+      ]
+     },
+     "GRU3_L1": {
+      "variacao_cm": -88.4,
+      "entradas_faltando": []
+     }
+    },
+    "hora_modelo": "2026-11-25T18:00",
+    "hora_alvo": "2026-11-26T02:00",
+    "nivel_base_cm": 922.0,
+    "nivel_previsto_cm": 839.9,
+    "antecedencia_efetiva_h": 7.07,
+    "faixa_incerteza": {
+     "min_cm": 688,
+     "max_cm": 992,
+     "e95_cm": 151.8,
+     "situacao": "rio subindo"
+    },
+    "fora_do_treino": false,
+    "status": "ok"
+   },
+   "motivo": null,
+   "niveis": [
+    {
+     "modelo": "LINEAR__MUCUM__08h__ALT__V4_RESERVA_CHUVA__10inputs_20261118",
+     "nivel_hierarquia": 0,
+     "papel": "registro_reserva_v4",
+     "nome_exibicao": "ridge de chuva (v4)",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 892.7,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 681,
+      "max_cm": 1104,
+      "e95_cm": 211.6,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V4_8H_CTRL__19inputs_39hiddens_20261118_s0",
+     "nivel_hierarquia": 0,
+     "papel": "registro_v4",
+     "nome_exibicao": "RNA MATLAB v4 (Muçum + LJJ + chuva)",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 863.3,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 670,
+      "max_cm": 1056,
+      "e95_cm": 192.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+     "nivel_hierarquia": 1,
+     "papel": "principal",
+     "nome_exibicao": "xgboost + GRU + ridge · todos os postos (principal)",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "linear_usado": "CTRL",
+     "variacao_xgb_cm": -85.4,
+     "variacao_linear_cm": -68.6,
+     "xgb_entradas_faltando": [
+      "DifN-8h_86497400",
+      "DifN-10h_86497400",
+      "DifN-6h_86497400",
+      "DifN-12h_86497400",
+      "DifN-5h_86497400",
+      "DifN-10h_86125500"
+     ],
+     "componentes_ml": {
+      "XQ50_NOW": {
+       "variacao_cm": -82.4,
+       "entradas_faltando": [
+        "DifN-8h_86497400",
+        "DifN-10h_86497400",
+        "DifN-6h_86497400",
+        "DifN-12h_86497400",
+        "DifN-5h_86497400",
+        "DifN-10h_86125500"
+       ]
+      },
+      "GRU3_L1": {
+       "variacao_cm": -88.4,
+       "entradas_faltando": []
+      }
+     },
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 839.9,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 688,
+      "max_cm": 992,
+      "e95_cm": 151.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::XQ50_NOW",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "xgboost de mediana + nowcast sozinho",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 839.6,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::GRU3_L1",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "GRU sozinha (rede de sequência)",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 833.6,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::RIDGE",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 853.4,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::ML",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "média xgboost + GRU (sem ridge)",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 836.6,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4_XGB_RIDGE__60inputs_20261124",
+     "nivel_hierarquia": 2,
+     "papel": "reserva",
+     "nome_exibicao": "xgboost + ridge · só ANA (v4)",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "linear_usado": "CTRL",
+     "variacao_xgb_cm": -80.5,
+     "variacao_linear_cm": -68.6,
+     "xgb_entradas_faltando": [
+      "DifN-8h_86497400",
+      "DifN-10h_86497400",
+      "DifN-6h_86497400",
+      "DifN-12h_86497400",
+      "DifN-5h_86497400",
+      "DifN-12h_86430900"
+     ],
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 846.8,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 679,
+      "max_cm": 1015,
+      "e95_cm": 167.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4_XGB_RIDGE__60inputs_20261124::xgb",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "xgboost raso sozinho (só ANA)",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 841.5,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__08h__ALT__V4_XGB_RIDGE__60inputs_20261124::RIDGE",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha · só ANA",
+     "horizonte_h": 8,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 853.4,
+     "antecedencia_efetiva_h": 7.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V2_8H_N1__21inputs_43hiddens_20261006",
+     "nivel_hierarquia": 3,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N1 · LJJ + chuva local/alta bacia",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 864.6,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 668,
+      "max_cm": 1061,
+      "e95_cm": 196.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V2_8H_N2__32inputs_65hiddens_20261006",
+     "nivel_hierarquia": 4,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N2",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T16:00",
+     "hora_alvo": "2026-11-26T00:00",
+     "nivel_base_cm": 902.0,
+     "nivel_previsto_cm": 838.7,
+     "antecedencia_efetiva_h": 5.07,
+     "faixa_incerteza": {
+      "min_cm": 602,
+      "max_cm": 1075,
+      "e95_cm": 236.6,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V2_8H_N3__17inputs_35hiddens_20261006",
+     "nivel_hierarquia": 5,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N3 · Santa Tereza + chuva",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 870.2,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 622,
+      "max_cm": 1118,
+      "e95_cm": 248.0,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V2_8H_N4__28inputs_57hiddens_20261006",
+     "nivel_hierarquia": 6,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N4 · Caçador + Pezzi + Cavalinhos II + Pezzi barr. + chuva",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T16:00",
+     "hora_alvo": "2026-11-26T00:00",
+     "nivel_base_cm": 902.0,
+     "nivel_previsto_cm": 857.7,
+     "antecedencia_efetiva_h": 5.07,
+     "faixa_incerteza": {
+      "min_cm": 632,
+      "max_cm": 1083,
+      "e95_cm": 225.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__08h__ALT__V2_8H_N5__11inputs_23hiddens_20261006",
+     "nivel_hierarquia": 7,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v2 N5 · só Muçum + chuva local",
+     "horizonte_h": 8,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T02:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 943.1,
+     "antecedencia_efetiva_h": 7.07,
+     "faixa_incerteza": {
+      "min_cm": 706,
+      "max_cm": 1180,
+      "e95_cm": 236.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    }
+   ]
+  },
+  "9h": {
+   "horizonte_h": 9,
+   "nivel_usado": 1,
+   "modelo_usado": "RNAPREV__MUCUM__09h__ALT__V2_9H_N1__21inputs_43hiddens_20261006",
+   "previsao": {
+    "modelo": "RNAPREV__MUCUM__09h__ALT__V2_9H_N1__21inputs_43hiddens_20261006",
+    "nivel_hierarquia": 1,
+    "papel": "sombra_horizonte",
+    "nome_exibicao": "RNA MATLAB v2 N1 · igual ao 8h N1 com alvo +9 h",
+    "horizonte_h": 9,
+    "disponivel": true,
+    "hora_modelo": "2026-11-25T18:00",
+    "hora_alvo": "2026-11-26T03:00",
+    "nivel_base_cm": 922.0,
+    "nivel_previsto_cm": 848.6,
+    "antecedencia_efetiva_h": 8.07,
+    "faixa_incerteza": {
+     "min_cm": 614,
+     "max_cm": 1083,
+     "e95_cm": 234.1,
+     "situacao": "rio subindo"
+    },
+    "fora_do_treino": false,
+    "status": "ok"
+   },
+   "motivo": null,
+   "niveis": [
+    {
+     "modelo": "RNAPREV__MUCUM__09h__ALT__V2_9H_N1__21inputs_43hiddens_20261006",
+     "nivel_hierarquia": 1,
+     "papel": "sombra_horizonte",
+     "nome_exibicao": "RNA MATLAB v2 N1 · igual ao 8h N1 com alvo +9 h",
+     "horizonte_h": 9,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T03:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 848.6,
+     "antecedencia_efetiva_h": 8.07,
+     "faixa_incerteza": {
+      "min_cm": 614,
+      "max_cm": 1083,
+      "e95_cm": 234.1,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    }
+   ]
+  },
+  "12h": {
+   "horizonte_h": 12,
+   "nivel_usado": 1,
+   "modelo_usado": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+   "previsao": {
+    "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+    "nivel_hierarquia": 1,
+    "papel": "principal",
+    "nome_exibicao": "xgboost + GRU + ridge · todos os postos (principal)",
+    "horizonte_h": 12,
+    "disponivel": true,
+    "linear_usado": "HID",
+    "variacao_xgb_cm": -151.1,
+    "variacao_linear_cm": -198.7,
+    "xgb_entradas_faltando": [
+     "DifN-5h_86497400",
+     "DifN-6h_86497400",
+     "DifN-8h_86497400",
+     "DifN-10h_86125500",
+     "DifN-12h_86125500"
+    ],
+    "componentes_ml": {
+     "XQ50_NOW": {
+      "variacao_cm": -157.5,
+      "entradas_faltando": [
+       "DifN-5h_86497400",
+       "DifN-6h_86497400",
+       "DifN-8h_86497400",
+       "DifN-10h_86125500",
+       "DifN-12h_86125500"
+      ]
+     },
+     "GRU3_L1": {
+      "variacao_cm": -144.7,
+      "entradas_faltando": []
+     }
+    },
+    "hora_modelo": "2026-11-25T18:00",
+    "hora_alvo": "2026-11-26T06:00",
+    "nivel_base_cm": 922.0,
+    "nivel_previsto_cm": 756.6,
+    "antecedencia_efetiva_h": 11.07,
+    "faixa_incerteza": {
+     "min_cm": 533,
+     "max_cm": 980,
+     "e95_cm": 223.8,
+     "situacao": "rio subindo"
+    },
+    "fora_do_treino": false,
+    "status": "ok"
+   },
+   "motivo": null,
+   "niveis": [
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125",
+     "nivel_hierarquia": 1,
+     "papel": "principal",
+     "nome_exibicao": "xgboost + GRU + ridge · todos os postos (principal)",
+     "horizonte_h": 12,
+     "disponivel": true,
+     "linear_usado": "HID",
+     "variacao_xgb_cm": -151.1,
+     "variacao_linear_cm": -198.7,
+     "xgb_entradas_faltando": [
+      "DifN-5h_86497400",
+      "DifN-6h_86497400",
+      "DifN-8h_86497400",
+      "DifN-10h_86125500",
+      "DifN-12h_86125500"
+     ],
+     "componentes_ml": {
+      "XQ50_NOW": {
+       "variacao_cm": -157.5,
+       "entradas_faltando": [
+        "DifN-5h_86497400",
+        "DifN-6h_86497400",
+        "DifN-8h_86497400",
+        "DifN-10h_86125500",
+        "DifN-12h_86125500"
+       ]
+      },
+      "GRU3_L1": {
+       "variacao_cm": -144.7,
+       "entradas_faltando": []
+      }
+     },
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 756.6,
+     "antecedencia_efetiva_h": 11.07,
+     "faixa_incerteza": {
+      "min_cm": 533,
+      "max_cm": 980,
+      "e95_cm": 223.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::XQ50_NOW",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "xgboost de mediana + nowcast sozinho",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 764.5,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::GRU3_L1",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "GRU sozinha (rede de sequência)",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 777.3,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::RIDGE",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 723.3,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4T_FINAL_XQ50NOW_GRU_RIDGE__20261125::ML",
+     "nivel_hierarquia": 1,
+     "papel": "componente",
+     "nome_exibicao": "média xgboost + GRU (sem ridge)",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 770.9,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4_XGB_RIDGE__60inputs_20261124",
+     "nivel_hierarquia": 2,
+     "papel": "reserva",
+     "nome_exibicao": "xgboost + ridge · só ANA (v4)",
+     "horizonte_h": 12,
+     "disponivel": true,
+     "linear_usado": "CTRL5",
+     "variacao_xgb_cm": -142.4,
+     "variacao_linear_cm": -127.1,
+     "xgb_entradas_faltando": [
+      "DifN-5h_86497400",
+      "DifN-6h_86497400",
+      "DifN-8h_86497400",
+      "DifN-1h_86306000"
+     ],
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 786.5,
+     "antecedencia_efetiva_h": 11.07,
+     "faixa_incerteza": {
+      "min_cm": 524,
+      "max_cm": 1049,
+      "e95_cm": 262.1,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4_XGB_RIDGE__60inputs_20261124::xgb",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "xgboost raso sozinho (só ANA)",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 779.6,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "MISTURA__MUCUM__12h__ALT__V4_XGB_RIDGE__60inputs_20261124::RIDGE",
+     "nivel_hierarquia": 2,
+     "papel": "componente",
+     "nome_exibicao": "ridge em cascata sozinha · só ANA",
+     "horizonte_h": 12,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 794.9,
+     "antecedencia_efetiva_h": 11.07,
+     "status": "ok",
+     "disponivel": true
+    },
+    {
+     "modelo": "RNAPREV__MUCUM__12h__ALT__V4_12H_CTRL__19inputs_39hiddens_20261118_s0",
+     "nivel_hierarquia": 3,
+     "papel": "reserva",
+     "nome_exibicao": "RNA MATLAB v4 (Muçum + LJJ + chuva)",
+     "horizonte_h": 12,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 793.7,
+     "antecedencia_efetiva_h": 11.07,
+     "faixa_incerteza": {
+      "min_cm": 412,
+      "max_cm": 1175,
+      "e95_cm": 381.7,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    },
+    {
+     "modelo": "LINEAR__MUCUM__12h__ALT__V4_RESERVA_CHUVA__10inputs_20261118",
+     "nivel_hierarquia": 4,
+     "papel": "reserva",
+     "nome_exibicao": "ridge de chuva (v4)",
+     "horizonte_h": 12,
+     "disponivel": true,
+     "hora_modelo": "2026-11-25T18:00",
+     "hora_alvo": "2026-11-26T06:00",
+     "nivel_base_cm": 922.0,
+     "nivel_previsto_cm": 845.6,
+     "antecedencia_efetiva_h": 11.07,
+     "faixa_incerteza": {
+      "min_cm": 553,
+      "max_cm": 1138,
+      "e95_cm": 292.8,
+      "situacao": "rio subindo"
+     },
+     "fora_do_treino": false,
+     "status": "ok"
+    }
+   ]
+  }
+ },
+ "historico_registros": 41
+}
