@@ -76,6 +76,20 @@ ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 2
 ANA_RETRIES_CHUVA = 2
 HORIZONTES_AO_VIVO = {"2h", "4h", "8h", "8h_versao_b"}
+# Antecedência efetiva mínima (horário-alvo menos agora) para publicar como
+# "ok". Em 29/09/2026 a ANA devolveu Muçum só até a véspera e o robô publicou,
+# como "ok", uma base 6 h atrasada cujo alvo já tinha passado. O 2 h só exige
+# alvo no futuro; 4 h e 8 h exigem a antecedência que torna o aviso útil
+# (a telemetria chega com ~1 h de atraso, então o normal é ~2,5 h e ~6,5 h).
+ANTECEDENCIA_MINIMA_H = {2: 0.0, 4: 2.0, 8: 5.0}
+
+
+def antecedencia_efetiva(cfg, t, agora=None):
+    """(antecedência em horas do horário-alvo em relação a agora, publicável?)."""
+    agora = agora or agora_brt()
+    horas = ((t + dt.timedelta(hours=cfg["horizonte_h"])) - agora).total_seconds() / 3600
+    minimo = ANTECEDENCIA_MINIMA_H.get(int(cfg["horizonte_h"]), 0.0)
+    return horas, horas > minimo
 HOURLY_BASE_WARN_LAG_H = 1.0
 HOURLY_BASE_STALE_LAG_H = 2.0
 LIVE_WARN_MAE_24H_CM = 30.0
@@ -1070,6 +1084,24 @@ def _hora_previsao_mais_recente(d):
     return max(candidatos) if candidatos else None
 
 
+def expirar_previsoes_vencidas(pacote, agora=None):
+    """Marca como indisponível toda previsão cujo horário-alvo já passou."""
+    agora = agora or agora_brt()
+    motivo = "previsão anterior expirada: o horário-alvo já passou; aguardando telemetria nova"
+    itens = [pacote] + [v for v in (pacote.get("horizontes") or {}).values() if isinstance(v, dict)]
+    for item in itens:
+        if item.get("nivel_previsto_cm") is None:
+            continue
+        alvo = _parse_hora(str(item.get("hora_alvo") or ""))
+        if alvo is None or alvo <= agora:
+            item["nivel_previsto_cm"] = None
+            item["disponivel"] = False
+            item["status"] = motivo
+            item.pop("delta_previsto_cm", None)
+            item.pop("passos", None)
+    return pacote
+
+
 def escrever(top, horizontes, max_stale_h=6):
     top = dict(top)
     if horizontes:
@@ -1098,6 +1130,10 @@ def escrever(top, horizontes, max_stale_h=6):
                     or item.get("formula_contract_version") == FORMULA_SEGUNDA_DIFERENCA
                     for item in ant_horizontes.values() if isinstance(item, dict)
                 )
+            # Uma previsão preservada cujo horário-alvo já passou não pode
+            # continuar aparecendo como previsão: vira indisponível.
+            if contrato_atual:
+                expirar_previsoes_vencidas(ant)
             if contrato_atual and _tem_previsao(ant) and hm:
                 idade_h = (agora_brt() - hm).total_seconds() / 3600
                 if idade_h <= max_stale_h:
@@ -1243,6 +1279,18 @@ def main():
             print(f"[{horizonte}] {cfg['modelo']} incompleto; saída explícita sem previsão")
             continue
         t, x = mh
+        antecedencia_h, publicavel = antecedencia_efetiva(cfg, t)
+        if not publicavel:
+            horizontes[horizonte] = base_saida(
+                cfg, nivel_agora, None, t,
+                f"base desatualizada ({t.isoformat(timespec='minutes')}): antecedência efetiva "
+                f"{antecedencia_h:.1f} h abaixo do mínimo de "
+                f"{ANTECEDENCIA_MINIMA_H.get(int(cfg['horizonte_h']), 0.0):.1f} h; previsão não publicada",
+                nivel_base=nivel_exato(series[ALVO], t, ALVO),
+                input_values=x,
+            )
+            print(f"[{horizonte}] {cfg['modelo']} base {t.isoformat()} desatualizada ({antecedencia_h:.1f} h)")
+            continue
         try:
             variacao = prever(cfg["mat"], x)
             nivel_base = nivel_exato(series[ALVO], t, ALVO)
@@ -1257,6 +1305,8 @@ def main():
                 print(f"[{horizonte}] {cfg['modelo']} rejeitado por faixa plausivel: {nivel_prev:.1f} cm")
                 continue
             out = base_saida(cfg, nivel_agora, nivel_prev, t, "ok", nivel_base=nivel_base, input_values=x)
+            out["antecedencia_efetiva_h"] = round(antecedencia_h, 2)
+            out["antecedencia_minima_h"] = ANTECEDENCIA_MINIMA_H.get(int(cfg["horizonte_h"]), 0.0)
             out["proxima_base_diagnostico"] = diagnosticar_proxima_base(cfg, series, t, limite_alvo)
             horizontes[horizonte] = out
             print(f"[{horizonte}] {cfg['modelo']} OK base={t.isoformat()} previsão={round(nivel_prev, 1)} cm")
