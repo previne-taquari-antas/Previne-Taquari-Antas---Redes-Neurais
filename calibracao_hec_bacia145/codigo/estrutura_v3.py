@@ -80,21 +80,113 @@ PARAMS_LRIC = {k: v for k, v in PARAMS.items() if k not in ("rec", "thr", "s0")}
 PARAMS_LRIC.update({"ia_max": (0.0, 90.0, "lin"), "f": (0.5, 20.0, "log"), "imp": (0.0, 0.15, "lin"), **PARAMS_LR})
 PARAMS_LRDC = {k: v for k, v in PARAMS_DC.items() if k not in ("rec", "thr")}
 PARAMS_LRDC.update(PARAMS_LR)
-# Multiplicadores regionais de volume (família lrdcr, branch cursor/hec-bacia145-volume): três grupos, T = tainhas,
-# A = alto+medio (valores globais), B = carreiro+guapore+baixo. dmax, perc e fb de T e B = valor global x multiplicador
-# (fb limitado a 1); multiplicadores = 1 reproduzem o lrdc.
+
+# Clark variável (09/10, família lrdcv): Tc e R de cada intervalo variam com a intensidade do excesso i (HEC-HMS
+# "Clark Method: Variable"). Tc e R do candidato valem na intensidade-índice ie (mm/h); fora dela, por curvas
+# percentuais iguais para todas as sub-bacias: Tc(i) = Tc * (i/ie)^-atc e R(i) = R * (i/ie)^-ar (onda cinemática:
+# expoente ~0,4), limitadas a [VC_MIN, VC_MAX]%. atc = ar = 0 reproduz o Clark padrão.
+PARAMS_LRDCV = dict(PARAMS_LRDC, ie=(0.5, 20.0, "log"), atc=(0.0, 0.6, "lin"), ar=(0.0, 0.6, "lin"))
+VC_X = [0, 5, 10, 25, 50, 100, 200, 400, 800, 1600, 5000]   # % da intensidade-índice
+VC_MIN, VC_MAX = 20.0, 400.0
+
+# Seção de 8 pontos no Muskingum-Cunge (09/10, rotas mc8st / mc8): seções de dados/secoes_mc.json, extraídas do MDT de
+# Santa Tereza (mosaico 2 m; R_208, R_256, R_201) e do SRTM 30 m (demais trechos da calha), com o leito abaixo da
+# lâmina ajustado à curva-chave de LJJ (_analise_modelo/secoes). mc8st: só os 3 trechos do mosaico; mc8: os 17.
+# n da calha entre os pontos 3 e 6 = N_BASE*mn; nas encostas = nob vezes isso (família lrdc8; sem nob, 1).
+PARAMS_LRDC8 = dict(PARAMS_LRDC, nob=(0.7, 3.0, "log"))
+PARAMS_LRDCV8 = dict(PARAMS_LRDCV, nob=PARAMS_LRDC8["nob"])
+# Multiplicadores regionais de volume (09/10, família lrdcr; _analise_volume/balanco.py): o coeficiente de escoamento
+# observado é menor em Tainhas (Campos de Cima da Serra) e cresce com o tamanho do evento nos vales, enquanto o simulado
+# fica em ~0,5 em toda a bacia. Três grupos: T = tainhas, A = alto+medio (usa os valores globais), B = carreiro+guapore+baixo.
+# dmax, perc e fb de T e B = valor global x multiplicador (fb limitado a 1); multiplicadores = 1 reproduzem o lrdc.
 GRUPO_VOL = {"tainhas": "T", "alto": "A", "medio": "A", "carreiro": "B", "guapore": "B", "baixo": "B"}
 PARAMS_LRDCR = dict(PARAMS_LRDC, **{f"x{k}_{g}": (lo, hi, "log") for g in ("T", "B")
                                     for k, lo, hi in (("dmax", 1 / 3, 3.0), ("perc", 0.2, 5.0), ("fb", 0.5, 2.0))})
-FAMILIAS = {"dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcr": PARAMS_LRDCR}
+# Perda que cresce com o tamanho da cheia (09/10 noite, _analise_perda): no balanço, o coeficiente de escoamento observado
+# cresce com o evento (Muçum 0,52 -> 0,63; ENC-MUC 0,49 -> 1,02) e o simulado fica em ~0,5. Com perc ~10 mm/h a perda
+# Deficit Constant quase nunca satura e a vazão vira fb x infiltração. Todas com base em reservatório linear e fb regional.
+#   lrdcf  controle: lrdc + só os multiplicadores regionais de fb (xfb_T, xfb_B), como o vo-rp5-c041 só fb.
+#   lrscsf SCS Curve Number: a fração escoada Pe/P = (P-Ia)^2/((P-Ia+S)P) cresce com a chuva acumulada do evento; a
+#          infiltração vai para o reservatório linear (fb). S = s0*exp(-q0/q*) (piso CN 98), Ia = iar*S.
+#   lrsmaf Soil Moisture Accounting: infiltração = finf*(1 - solo/capacidade) cai à medida que o solo enche, e a percolação
+#          para GW1/GW2 cai quando eles enchem (escoamento por saturação); o solo seca pela ET entre as chuvas. Os GW do SMA
+#          (k1, k2) alimentam o reservatório linear (quase sem amortecimento, K_LR_SMA h). dmax = zona de tensão,
+#          sup = zona gravitacional; a perda profunda (pdeep, saída do GW2) faz o papel de 1 - fb, com multiplicadores
+#          regionais xpdeep_T/xpdeep_B.
+PARAMS_XFB = {f"xfb_{g}": PARAMS_LRDCR[f"xfb_{g}"] for g in ("T", "B")}
+PARAMS_LRDCF = dict(PARAMS_LRDC, **PARAMS_XFB)
+PARAMS_LRSCSF = {k: v for k, v in PARAMS_LRDCF.items() if k not in ("dmax", "perc")}
+PARAMS_LRSCSF.update(s0=(20.0, 1000.0, "log"), iar=(0.01, 0.3, "log"))
+PARAMS_LRSMAF = {k: v for k, v in PARAMS_LRDC.items() if k not in ("perc", "fb", "p1")}
+PARAMS_LRSMAF.update(dmax=(10.0, 300.0, "log"), sup=(5.0, 300.0, "log"), finf=(1.0, 60.0, "log"),
+                     psoil=(0.2, 30.0, "log"), g1=(5.0, 300.0, "log"), p12=(0.02, 10.0, "log"),
+                     g2=(20.0, 1500.0, "log"), pdeep=(0.002, 3.0, "log"),   # HEC: camada <= 1500 mm (ERROR 42001)
+                     xpdeep_T=(0.2, 5.0, "log"), xpdeep_B=(0.2, 5.0, "log"))
+K_LR_SMA = 1.0
+#   lrsmar lrsmaf + multiplicadores regionais (T e B, como no lrdcr) da zona de tensão, zona gravitacional, infiltração
+#          máxima e percolação do solo (a pdeep já era regional): no lrsmaf, Tainhas produz volume demais (+15% a +36%)
+#          com o mesmo solo do resto da bacia.
+PARAMS_LRSMAR = dict(PARAMS_LRSMAF, **{f"x{k}_{g}": (lo, hi, "log") for g in ("T", "B")
+                                       for k, lo, hi in (("dmax", 1 / 3, 3.0), ("sup", 1 / 3, 3.0),
+                                                         ("finf", 0.2, 5.0), ("psoil", 0.2, 5.0))})
+SOLO_MAX_SMA = 1499.0   # HEC: camada <= 1500 mm (ERROR 42001); vale para dmax + sup depois dos multiplicadores
+# Percolação baixa (24/11/2026, Claude): no pc-f8-c025 perc = 12 mm/h (teto) e só 0–5 % da chuva passa da percolação,
+# então quase tudo vira base (GW-1, k1 ~28 h) e o pico das cheias grandes sai pela metade com o volume certo
+# (pico_por_porte.py). Com perc 0,5–5 mm/h o excesso superficial cresce com a cheia (perc 4: 25–33 % da chuva nas
+# janelas grandes, 2–15 % nas pequenas). lrdcfb = lrdcf com perc nessa faixa; lrdcfvb = lrdcfb + Clark variável (com
+# excesso superficial de verdade o Clark variável passa a agir).
+PARAMS_LRDCFB = dict(PARAMS_LRDCF, perc=(0.5, 5.0, "log"))
+PARAMS_LRDCFVB = dict(PARAMS_LRDCFB, ie=PARAMS_LRDCV["ie"], atc=PARAMS_LRDCV["atc"], ar=PARAMS_LRDCV["ar"])
+
+FAMILIAS = {"lrdcfb": PARAMS_LRDCFB, "lrdcfvb": PARAMS_LRDCFVB, "dc": PARAMS_DC, "lric": PARAMS_LRIC, "lrdc": PARAMS_LRDC, "lrdcv": PARAMS_LRDCV, "lrdc8": PARAMS_LRDC8,
+            "lrdcv8": PARAMS_LRDCV8, "lrdcr": PARAMS_LRDCR, "lrdcf": PARAMS_LRDCF, "lrscsf": PARAMS_LRSCSF,
+            "lrsmaf": PARAMS_LRSMAF, "lrsmar": PARAMS_LRSMAR}
 
 
 def p_regional(p, reg):
-    """Parâmetros de volume do grupo da região (família lrdcr); sem multiplicadores devolve p."""
+    """Parâmetros de volume do grupo da região (famílias com multiplicadores x<k>_<grupo>); sem eles devolve p."""
     g = GRUPO_VOL[reg]
-    if f"xdmax_{g}" not in p:
+    x = {k: p[f"x{k}_{g}"] for k in ("dmax", "perc", "fb", "pdeep", "sup", "finf", "psoil") if f"x{k}_{g}" in p}
+    if not x:
         return p
-    return dict(p, dmax=p["dmax"] * p[f"xdmax_{g}"], perc=p["perc"] * p[f"xperc_{g}"], fb=min(1.0, p["fb"] * p[f"xfb_{g}"]))
+    out = dict(p, **{k: p[k] * v for k, v in x.items()})
+    if "fb" in x:
+        out["fb"] = min(1.0, out["fb"])
+    if "sup" in out and out["dmax"] + out["sup"] > SOLO_MAX_SMA:
+        f = SOLO_MAX_SMA / (out["dmax"] + out["sup"])
+        out["dmax"], out["sup"] = out["dmax"] * f, out["sup"] * f
+    return out
+ROTAS_8PT = {"mc8st": ("R_208", "R_256", "R_201"), "mc8": None}
+_SECOES = None
+
+
+def secoes():
+    global _SECOES
+    if _SECOES is None:
+        _SECOES = json.loads((MDT.parent / "secoes_mc.json").read_text(encoding="utf-8"))["trechos"]
+    return _SECOES
+
+
+def usa_8pt(r, rota):
+    return rota in ROTAS_8PT and r in MC_REACHES and (ROTAS_8PT[rota] is None or r in ROTAS_8PT[rota])
+
+
+def curva_vc(a):
+    return [min(VC_MAX, max(VC_MIN, 100.0 * (max(x, VC_X[1]) / 100.0) ** (-a))) for x in VC_X]
+
+
+def tabelas_v3(p, rota="mc"):
+    """Tabelas (paired data) que a bacia do candidato usa: seções de 8 pontos e curvas do Clark variável."""
+    tab = {}
+    if rota in ROTAS_8PT:
+        for r in MC_REACHES:
+            if usa_8pt(r, rota):
+                pts = secoes()[r]["pontos"]
+                tab["XS_" + r] = dict(hec.TIPO_SECAO, x=[q[0] for q in pts], y=[q[1] for q in pts])
+    if "ie" in p:
+        tab["VC_TC"] = dict(hec.TIPO_PERCENTUAL, x=VC_X, y=curva_vc(p["atc"]))
+        tab["VC_R"] = dict(hec.TIPO_PERCENTUAL, x=VC_X, y=curva_vc(p["ar"]))
+    return tab
 
 
 def bloco_lr(p, qloc):
@@ -109,16 +201,47 @@ def bloco_lr(p, qloc):
     return "\n".join(linhas) + "\n"
 
 
-def bloco_dc(p, qloc, imp_pct):
-    d0 = p["dmax"] * math.exp(-qloc / p["qstar"])
+def bloco_lr_sma(p, qloc):
+    """Reservoir linear depois do SMA: recebe a saída lateral do GW1/GW2 do SMA (sem fração de base)."""
+    linhas = ["     Baseflow: Linear Reservoir"]
+    for i, q in enumerate((qloc * p["s1"], qloc * (1 - p["s1"])), 1):
+        linhas += [f"     Groundwater Layer: {i}", f"     GW-{i} Number Reservoirs: 1",
+                   f"     GW-{i} Routing Coefficient: {K_LR_SMA:.4f}", f"     GW-{i} Initial Flow/Area Ratio: {q:.6f}"]
+    return "\n".join(linhas) + "\n"
+
+
+def _dossel_superficie():
     return ("     Canopy: Simple\n     Allow Simultaneous Precip Et: No\n     Plant Uptake Method: Simple\n"
             f"     Initial Canopy Storage Percent: 0\n     Canopy Storage Capacity: {CANOPY_MM}\n"
             "     Crop Coefficient: 1.0\n     End Canopy:\n\n"
             f"     Surface: Simple\n     Initial Surface Storage Percent: 0\n     Surface Storage Capacity: {SUPERFICIE_MM}\n"
-            "     Surface Albedo: 0.20\n     End Surface:\n\n"
-            f"     LossRate: Deficit Constant\n     Percent Impervious Area: {imp_pct}\n"
+            "     Surface Albedo: 0.20\n     End Surface:\n\n")
+
+
+def bloco_dc(p, qloc, imp_pct):
+    d0 = p["dmax"] * math.exp(-qloc / p["qstar"])
+    return (_dossel_superficie() + f"     LossRate: Deficit Constant\n     Percent Impervious Area: {imp_pct}\n"
             f"     Initial Deficit: {d0:.4f}\n     Maximum Deficit: {p['dmax']:.4f}\n"
             f"     Percolation Rate: {p['perc']:.4f}\n     Recovery Factor: 1.0\n")
+
+
+def bloco_sma(p, qloc, imp_pct):
+    """Estado inicial: zona de tensão com o mesmo déficit das outras perdas (dmax*exp(-q0/q*)), zona gravitacional vazia;
+    GW1/GW2 com o armazenamento que dá a vazão inicial (s1*q0 e (1-s1)*q0; mm = q [m³/s/km²] * 3,6 * k)."""
+    d0 = p["dmax"] * math.exp(-qloc / p["qstar"])
+    cap = p["dmax"] + p["sup"]
+    pct = [100 * (p["dmax"] - d0) / cap,
+           min(100.0, 100 * qloc * p["s1"] * 3.6 * p["k1"] / p["g1"]),
+           min(100.0, 100 * qloc * (1 - p["s1"]) * 3.6 * p["k2"] / p["g2"])]
+    return (_dossel_superficie() + f"     LossRate: Soil Moisture Account\n     Percent Impervious Area: {imp_pct}\n"
+            f"     Initial Soil Storage Percent: {pct[0]:.3f}\n     Initial Gw1 Storage Percent: {pct[1]:.3f}\n"
+            f"     Initial Gw2 Storage Percent: {pct[2]:.3f}\n     Soil Maximum Infiltration: {p['finf']:.4f}\n"
+            f"     Soil Storage Capacity: {cap:.4f}\n     Soil Tension Capacity: {p['dmax']:.4f}\n"
+            f"     Soil Maximum Percolation: {p['psoil']:.4f}\n"
+            f"     Groundwater 1 Storage Capacity: {p['g1']:.4f}\n     Groundwater 1 Routing Coefficient: {p['k1']:.4f}\n"
+            f"     Groundwater 1 Maximum Percolation: {p['p12']:.4f}\n"
+            f"     Groundwater 2 Storage Capacity: {p['g2']:.4f}\n     Groundwater 2 Routing Coefficient: {p['k2']:.4f}\n"
+            f"     Groundwater 2 Maximum Percolation: {p['pdeep']:.5f}\n")
 
 
 def _topologia():
@@ -194,8 +317,23 @@ def bloco_mc(r, mn):
             f"     Index Flow: {QIDX[reg]}\n     Space-Time Method: Automatic DX and DT\n     Channel Loss: None\n")
 
 
+def bloco_mc8(r, p):
+    reg = bi.REG[r]
+    L_m = float(ATT[r]["length_km"]) * 1000 / 1.10
+    sec = secoes()[r]
+    S = sec["decl_m_km"] / 1000 if sec.get("decl_m_km") else max(float(ATT[r]["slope_m_per_km"]) / 1000, S_MIN[reg])
+    n = N_BASE * p["mn"]
+    nob = n * p.get("nob", 1.0)
+    return ("     Route: Muskingum Cunge\n     Initial Variable: Combined Inflow\n     Channel: 8-point\n"
+            f"     Length: {L_m:.1f}\n     Energy Slope: {S:.6f}\n     Mannings n: {n:.4f}\n"
+            f"     Left Mannings n: {nob:.4f}\n     Right Mannings n: {nob:.4f}\n     Cross Section Name: XS_{r}\n"
+            "     Index Parameter Type: Index Flow\n"
+            f"     Index Flow: {QIDX[reg]}\n     Space-Time Method: Automatic DX and DT\n     Channel Loss: None\n")
+
+
 def bacia_v3(p, sim, rota="mc"):
     q0 = q0_controles(sim)
+
     p_glob = p
 
     def sub(m):
@@ -209,8 +347,9 @@ def bacia_v3(p, sim, rota="mc"):
         v *= min(4.0, max(0.25, (md["S"] / S_REF) ** (-p.get("ks", 0.0))))
         qloc = q0[CTRL_DE[nome]]
         scs = "s0" in p
-        dc = "dmax" in p
-        ia = 0.0 if (scs or dc) else p["ia_max"] * math.exp(-qloc / p["qstar"])
+        sma = "sup" in p
+        dc = "dmax" in p and not sma
+        ia = 0.0 if (scs or dc or sma) else p["ia_max"] * math.exp(-qloc / p["qstar"])
 
         def rep(label, val):
             nonlocal corpo
@@ -222,12 +361,18 @@ def bacia_v3(p, sim, rota="mc"):
             corpo, n = re.subn(r"(?ms)^\s*Canopy: None\n.*?^\s*Constant Loss Rate: [^\n]+\n",
                                lambda mm: bloco_dc(p, qloc, f"{100 * p['imp']:.3f}"), corpo, count=1)
             assert n == 1, (nome, "bloco de perda")
+        elif sma:
+            corpo, n = re.subn(r"(?ms)^\s*Canopy: None\n.*?^\s*Constant Loss Rate: [^\n]+\n",
+                               lambda mm: bloco_sma(p, qloc, f"{100 * p['imp']:.3f}"), corpo, count=1)
+            assert n == 1, (nome, "bloco de perda SMA")
         elif scs:
             S = max(5.3, p["s0"] * math.exp(-qloc / p["qstar"]))   # piso: o HEC-HMS recusa CN >= 99 (testado: todas as falhas tinham CN >= 99)
             CN = 25400.0 / (S + 254.0)
             corpo, n1 = re.subn(r"(?m)^(\s*)LossRate: Initial\+Constant\n", lambda mm: mm[1] + "LossRate: SCS\n", corpo)
             corpo, n2 = re.subn(r"(?m)^\s*Initial Loss: [^\n]+\n", "", corpo)
-            corpo, n3 = re.subn(r"(?m)^(\s*)Constant Loss Rate: [^\n]+", lambda mm: mm[1] + f"Curve Number: {CN:.4f}", corpo)
+            ia_scs = f"\n{{0}}Initial Abstraction: {p['iar'] * S:.4f}" if "iar" in p else ""
+            corpo, n3 = re.subn(r"(?m)^(\s*)Constant Loss Rate: [^\n]+",
+                                lambda mm: mm[1] + f"Curve Number: {CN:.4f}" + ia_scs.format(mm[1]), corpo)
             assert (n1, n2, n3) == (1, 1, 1), (nome, n1, n2, n3)
         else:
             rep("Initial Loss", f"{ia:.4f}")
@@ -235,9 +380,15 @@ def bacia_v3(p, sim, rota="mc"):
         rep("Percent Impervious Area", f"{100 * p['imp']:.3f}")
         rep("Time of Concentration", f"{tc * v:.5f}")
         rep("Storage Coefficient", f"{r * v * p['mr']:.5f}")
+        if "ie" in p:
+            rep("Clark Method", "Variable")
+            corpo, n = re.subn(r"(?m)^(\s*)(Time Area Method: [^\n]+\n)",
+                               lambda mm: (f"{mm[1]}Index Excess: {p['ie']:.4f}\n{mm[1]}Excess-Tc Percentage Curve: VC_TC\n"
+                                           f"{mm[1]}Excess-R Percentage Curve: VC_R\n{mm[1]}{mm[2]}"), corpo)
+            assert n == 1, (nome, "Clark variável")
         if "k1" in p:
             corpo, n = re.subn(r"(?ms)^[ \t]*Baseflow: Recession\n.*?^[ \t]*Threshold Flow to Peak Ratio: [^\n]+\n",
-                               lambda mm: bloco_lr(p, qloc), corpo, count=1)
+                               lambda mm: (bloco_lr_sma if sma else bloco_lr)(p, qloc), corpo, count=1)
             assert n == 1, (nome, "bloco de base")
         else:
             rep("Recession Factor", f"{p['rec']:.4f}")
@@ -247,8 +398,9 @@ def bacia_v3(p, sim, rota="mc"):
 
     def rea(m):
         nome, corpo = m[1].strip(), m[2]
-        if rota == "mc" and nome in MC_REACHES:
-            corpo = re.sub(r"(?ms)^\s*Route: Muskingum\n.*?^\s*Channel Loss: None\n", bloco_mc(nome, p["mn"]), corpo)
+        if rota in ("mc", *ROTAS_8PT) and nome in MC_REACHES:
+            bloco = bloco_mc8(nome, p) if usa_8pt(nome, rota) else bloco_mc(nome, p["mn"])
+            corpo = re.sub(r"(?ms)^\s*Route: Muskingum\n.*?^\s*Channel Loss: None\n", lambda mm: bloco, corpo)
             assert "Muskingum Cunge" in corpo, nome
             return f"Reach: {m[1]}\n{corpo}End:"
         reg = bi.REG[nome]

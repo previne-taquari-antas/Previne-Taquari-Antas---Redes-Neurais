@@ -53,6 +53,12 @@ def gerar_bacia(parametros, sim):
     return getattr(_MOD.get(mod) or importlib.import_module(mod), fn)(parametros["p"], sim, parametros.get("rota", "mc"))
 
 
+def gerar_tabelas(parametros):
+    """Tabelas (paired data) do conjunto: curvas do Clark variável (família lrdcfvb) e seções de 8 pontos."""
+    e3 = _MOD["estrutura_v3"]
+    return e3.tabelas_v3(parametros["p"], parametros.get("rota", "mc")) if hasattr(e3, "tabelas_v3") else {}
+
+
 def diretorio(sim, cenario):
     return _MOD["comum"].RUNS / sim / cenario
 
@@ -79,17 +85,19 @@ def rodar(sim, ini, fim, observados, forcamentos, parametros, paralelo=None, sal
     hec.NOS_EXTRA = sorted({c[1] for c in bi.CONTROLES.values()})
     t = time.time()
     txt = gerar_bacia(parametros, sim)          # o q0 vem dos observados da janela-base (iguais em todos os cenários)
+    tab = gerar_tabelas(parametros)             # paired data (Clark variável); {} nos conjuntos sem tabela
     t_bacia = time.time() - t
     t = time.time()
     original = hec.escrever_projeto
 
-    def escrever(d, nome, texto):
-        original(d, nome, texto)
+    def escrever(d, nome, texto, tabelas=None):
+        original(d, nome, texto, tabelas)
         estado.configurar(d, hec, salvar_em, estado_inicial)
 
     hec.escrever_projeto = escrever if (salvar_em is not None or estado_inicial is not None) else original
     try:
-        res = hec.rodar_lote([(d, nome, txt) for d, nome in jobs], paralelo=paralelo or len(jobs), por_jvm=por_jvm)
+        res = hec.rodar_lote([(d, nome, txt, tab) for d, nome in jobs], paralelo=paralelo or len(jobs),
+                             por_jvm=por_jvm)
     finally:
         hec.escrever_projeto = original
     t_hec = time.time() - t

@@ -32,6 +32,7 @@ sys.path.insert(0, str(AQUI))
 
 import chuva_observada as co   # noqa: E402
 import chuva_rede              # noqa: E402
+import combinacao              # noqa: E402
 import estado                  # noqa: E402
 import chuva_prevista as cp    # noqa: E402
 import executor                # noqa: E402
@@ -88,6 +89,9 @@ def args():
     ap.add_argument("--porte", default=os.environ.get("HEC_PORTE", "auto"),
                     help="sombra da regra por porte (porte.py): auto (com --pos hibrido), nao, sempre (roda o G robusto "
                          "mesmo abaixo do limiar; teste de custo) ou um arquivo")
+    ap.add_argument("--combinacao", default=os.environ.get("HEC_COMBINACAO", "auto"),
+                    help="sombra da combinação 0,2·titular + 0,8·pb-g12-c036 com d_piv próprio (combinacao.py): auto "
+                         "(com --pos hibrido), nao, ou um arquivo; só acrescenta pontos.*.combinacao_sombra")
     ap.add_argument("--trabalho", default=str(Path.home() / "hec_aovivo_trabalho"))
     ap.add_argument("--cache-prev", default=None, help="cache das rodadas (padrão: <trabalho>/cache_prev)")
     ap.add_argument("--saida", default=str(AQUI / "saida"))
@@ -431,6 +435,34 @@ def main():
                     info_porte["pontos"].append(nome)
         info_porte["tempo_s"] = round(time.time() - t, 1)
         T["porte_sombra_s"] = info_porte["tempo_s"]
+
+    # ---------------- sombra da combinação titular + Clark variável
+    ccfg, motivo_cb = combinacao.carregar(a.combinacao, a.pos, par)
+    if ccfg and (achado or a.assimilar != "nao"):
+        ccfg, motivo_cb = None, "desligado: a combinação foi avaliada com partida a frio e sem assimilação"
+    info_cb = dict(estado=motivo_cb, arquivo=ccfg and ccfg["arquivo"], pontos=[])
+    if ccfg:
+        t = time.time()
+        try:
+            resM, thM, _ = executor.rodar(f"{sim}M", ini, fim, regs, forc, ccfg["membro"])
+            errM = {c: str(r)[:300] for c, r in resM.items() if isinstance(r, Exception)}
+            resM = {c: r for c, r in resM.items() if not isinstance(r, Exception)}
+            if errM:
+                avisos.append(f"sombra da combinação: HEC do membro falhou em {sorted(errM)}")
+            mix = combinacao.misturar(res, resM, ccfg["w_titular"])
+            info_cb.update(conjunto=ccfg["conjunto"], membro=ccfg["membro"]["id"], w_titular=ccfg["w_titular"],
+                           cenarios=sorted(mix), hec_s=thM["hec_s"])
+            for nome, (_, no, _, _) in pp.PONTOS.items():
+                blk = combinacao.bloco_ponto(pontos[nome], nome, horas, t0, {c: r.get(no, {}) for c, r in mix.items()},
+                                             *obs_pt[nome], curvas, ccfg)
+                if blk:
+                    pontos[nome]["combinacao_sombra"] = blk
+                    info_cb["pontos"].append(nome)
+        except Exception as exc:  # noqa: BLE001 — a sombra nunca derruba o ciclo publicado
+            info_cb.update(estado=f"falhou: {exc!r}"[:300])
+            avisos.append(f"sombra da combinação falhou: {exc!r}"[:300])
+        info_cb["tempo_s"] = round(time.time() - t, 1)
+        T["combinacao_sombra_s"] = info_cb["tempo_s"]
     t = time.time()
     if a.modo == "retro" and a.janela_arquivo:           # verificação: observado DEPOIS de t0 (só no retroativo)
         fv = vo.ArquivoObservados(a.janela_arquivo, CAL / "dados" / "observados")
@@ -487,6 +519,8 @@ def main():
         saida["pos_processamento"] = info_pos
     if a.pos == "hibrido" or a.porte != "auto":
         saida["porte_sombra"] = info_porte
+    if a.pos == "hibrido" or a.combinacao != "auto":
+        saida["combinacao_sombra"] = info_cb
     if a.modo == "retro":
         saida["observados_controles_falhas"] = falhas_q
     out = Path(a.saida)
@@ -512,6 +546,13 @@ def main():
         for c, r in mu.get("porte_sombra", {}).get("pico", {}).items():
             print(f"  porte Muçum {c}: pico {r['pico_nivel_cm']} cm ({r['pico_vazao_m3s']} m³/s) em {r['t_pico']}"
                   + ("; curva extrapolada" if r["curva_extrapolada"] else ""))
+    if "combinacao_sombra" in saida:
+        print("combinação:", {k: v for k, v in info_cb.items() if k != "pontos"}, info_cb["pontos"])
+        for var, r in mu.get("combinacao_sombra", {}).get("variantes", {}).items():
+            for c, pk in r["pico"].items():
+                c15 = r.get("cotas", {}).get(c, {}).get("15m", {})
+                print(f"  combinação {var} Muçum {c}: pico {pk['pico_nivel_cm']} cm ({pk['pico_vazao_m3s']} m³/s) em "
+                      f"{pk['t_pico']}; 15 m: {c15.get('primeiro_cruzamento') or 'não'}")
     print("avisos:", avisos)
     return 0
 

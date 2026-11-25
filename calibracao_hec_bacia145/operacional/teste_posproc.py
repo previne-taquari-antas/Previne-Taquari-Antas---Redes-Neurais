@@ -10,6 +10,7 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 
+import combinacao  # noqa: E402
 import geo  # noqa: E402
 import porte  # noqa: E402
 import posproc as pp  # noqa: E402
@@ -137,6 +138,31 @@ def test_porte_carregar_e_indice_s():
     ch = {n: [1.0 if n in subs else 50.0] * len(horas) for n in geo.nomes()}
     S, s24, s48 = porte.indice_s(dict(chuva_por_subbacia=ch), horas, t0, cfg)
     assert (S, s24, s48) == (72.0, 24.0, 48.0)
+
+
+def test_combinacao_carregar_so_com_o_titular():
+    tit = json.loads((AQUI / "parametros" / "pc-f8-c025.json").read_text(encoding="utf-8"))
+    assert combinacao.carregar("nao", "hibrido", tit)[0] is None
+    assert combinacao.carregar("auto", "aditiva", tit)[0] is None
+    cfg, motivo = combinacao.carregar("auto", "hibrido", tit)
+    assert motivo == "ligado" and cfg["w_titular"] == 0.2 and cfg["membro"]["id"] == "pb-g12-c036"
+    m = cfg["membro"]
+    assert hashlib.sha256(json.dumps(m["p"], sort_keys=True).encode()).hexdigest()[:16] == m["sha256_p"]
+    assert {"ie", "atc", "ar"} <= set(m["p"])
+    assert set(cfg["variantes"]["so_curva"]["pontos"]) == {"MUCUM", "ENCANTADO", "LJJ"}
+    rb = json.loads((AQUI / "parametros" / "md-val2-c002.json").read_text(encoding="utf-8"))
+    assert combinacao.carregar("auto", "hibrido", rb)[0] is None     # rollback: sem combinação
+
+
+def test_combinacao_misturar_e_cotas():
+    t = [datetime(2026, 11, 25) + timedelta(hours=i) for i in range(4)]
+    a = {"ecmwf": {"J_201": {h: 100.0 for h in t}}, "gfs": {"J_201": {h: 1.0 for h in t}}}
+    b = {"ecmwf": {"J_201": {h: 200.0 for h in t[:3]}}}
+    m = combinacao.misturar(a, b, 0.2)
+    assert set(m) == {"ecmwf"} and set(m["ecmwf"]["J_201"]) == set(t[:3])
+    assert all(math.isclose(v, 180.0) for v in m["ecmwf"]["J_201"].values())
+    c = combinacao.cotas({"ecmwf": [900, 1200, 1600, 1400]}, t, t[0])
+    assert c["ecmwf"]["10m"]["primeiro_cruzamento"] == str(t[1]) and c["ecmwf"]["15m"]["cruza"]
 
 
 if __name__ == "__main__":

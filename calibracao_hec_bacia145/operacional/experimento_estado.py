@@ -66,8 +66,8 @@ class Lab:
         self.cfg = {}
         original = self.hec.escrever_projeto
 
-        def escrever(d, nome, texto):
-            original(d, nome, texto)
+        def escrever(d, nome, texto, tabelas=None):
+            original(d, nome, texto, tabelas)
             c = self.cfg.get(Path(d))
             if c:
                 estado.configurar(Path(d), self.hec, c.get("salvar"), c.get("inicial"))
