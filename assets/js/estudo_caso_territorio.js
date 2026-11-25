@@ -616,7 +616,7 @@
       marker.bindPopup(
         '<strong>' + esc(m.name) + '</strong><br>' +
         'Marca de onde a água chegou' + (elev !== 'cota não informada' ? ' · ' + esc(elev) : '') + '<br>' +
-        '<em>registro histórico · não é alerta de agora</em>'
+        '<em>registro histórico</em>'
       );
       marker.addTo(state.layers.marks);
     });
@@ -1078,7 +1078,7 @@
       '<div class="rota-line"><span>Abrigo</span><b>' + esc(nome) + '</b></div>' +
       '<div class="rota-line"><span>Caminho</span><b>' + esc(km) + '</b></div>' +
       '<div class="rota-line"><span>Sob água</span><b>' + esc(agua) + '</b></div>' +
-      '<p class="rota-caveat">Estimativa de estudo — não é ordem de saída.</p>';
+      '<p class="rota-caveat">Trajeto de referência para o cenário selecionado.</p>';
     if (sheetRota) {
       sheetRota.hidden = false;
       sheetRota.innerHTML = metrics.innerHTML;
@@ -1394,7 +1394,7 @@
         'Proveniência: ' + eid + ' · ' + source +
         (caso.dataset_role ? ' · papel na modelagem: ' + caso.dataset_role : '') +
         (caso.reconstruction && caso.reconstruction.source ? ' · espacial: ' + caso.reconstruction.source : '') +
-        '. Uso de pesquisa; não é alerta nem ordem operacional.';
+        '. Cenário de pesquisa com limitações espaciais.';
     }
     renderEventHydrograph(caso);
   }
@@ -1955,7 +1955,7 @@
         ? '<p>' + fmtInt(state.streetHits) + ' trechos de rua do grafo OSM tocam este quadradinho — inclusive trechos que só atravessam a célula.</p>'
         : '<p>As ruas OSM do estudo aparecem no mapa; clique no quadradinho para destacar os trechos que o cruzam.</p>') +
       (next.length
-        ? '<p>Próximos quadradinhos a observar neste recorte (não é ordem de saída): ' +
+        ? '<p>Próximas células a examinar no cenário: ' +
           next.map(function (c) { return esc(String(c.id).replace(/^200M/, '')); }).join(', ') + '.</p>'
         : '');
     setChain('pessoas');
@@ -2007,7 +2007,7 @@
       copyHtml = document.body.classList.contains('is-sitroom')
         ? ('Linha verde no mapa' + esc(aguaBit) + '.')
         : ('Caminho marcado em verde: <strong>' + esc(km) + '</strong>' + esc(aguaBit) +
-          '. Estudo — não é ordem de saída.');
+          '. Trajeto de referência para análise.');
     } else if (!cell) {
       titleText = latlng ? 'Ponto no mapa' : 'Toque o mapa ou uma rua laranja';
       copyHtml = 'Aqui aparece o caminho até o abrigo seco.';

@@ -15,10 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FEED = ROOT / "previsao_ao_vivo_mucum.json"
 HISTORY = ROOT / "historico_previsoes_ao_vivo_mucum.json"
-REQUIRED = {"2h", "4h", "4h_versao_b", "8h", "8h_versao_b"}
+REQUIRED = {"2h", "4h", "8h", "8h_versao_b"}
+MUCUM_4H_MODEL = "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31"
 REQUIRED_FIELDS = {"horizonte", "horizonte_h", "modelo", "tipo", "status", "modelo_papel", "disponivel"}
-EXPECTED_HOURS = {"2h": 2, "4h": 4, "4h_versao_b": 4, "8h": 8, "8h_versao_b": 8}
-EXPECTED_INPUTS = {"2h": 14, "4h": 15, "4h_versao_b": 15, "8h": 26, "8h_versao_b": 28}
+EXPECTED_HOURS = {"2h": 2, "4h": 4, "8h": 8, "8h_versao_b": 8}
+EXPECTED_INPUTS = {"2h": 14, "4h": 15, "8h": 26, "8h_versao_b": 28}
 
 
 def validate_data(data: dict) -> None:
@@ -39,8 +40,19 @@ def validate_data(data: dict) -> None:
     if telemetria_publicada is not None and not (-500 <= float(telemetria_publicada) <= 5000):
         raise SystemExit("telemetria publicada de Muçum fora da faixa plausível")
     ultima_feed = str(data.get("telemetria_ultima_em") or "")[:16]
-    if str(serie_observada[-1].get("hora") or "")[:16] != ultima_feed:
-        raise SystemExit("último ponto observado de Muçum não coincide com a telemetria publicada")
+    if ultima_feed:
+        if str(serie_observada[-1].get("hora") or "")[:16] != ultima_feed:
+            raise SystemExit("último ponto observado de Muçum não coincide com a telemetria publicada")
+    else:
+        # Falha de coleta atual: manter o historico ANA observado com horario
+        # original, mas jamais permitir previsao enquanto nao houver leitura
+        # atual confirmada. Nao fabricar o carimbo de uma telemetria nova.
+        horizontes_sem_telemetria = data.get("horizontes") or {}
+        if data.get("nivel_previsto_cm") is not None or any(
+            isinstance(item, dict) and item.get("nivel_previsto_cm") is not None
+            for item in horizontes_sem_telemetria.values()
+        ):
+            raise SystemExit("Muçum sem telemetria atual nao pode publicar previsao")
     if data.get("serie_observada_ana_n") != len(serie_observada):
         raise SystemExit("contador da série observada ANA de Muçum inconsistente")
 
@@ -58,15 +70,17 @@ def validate_data(data: dict) -> None:
             raise SystemExit(f"horizonte inconsistente em {key}")
         if not str(item.get("modelo") or "").strip() or not str(item.get("tipo") or "").strip():
             raise SystemExit(f"modelo/tipo ausente em {key}")
+        if key == "4h" and item.get("modelo") != MUCUM_4H_MODEL:
+            raise SystemExit("RNA 4h de Muçum precisa ser exclusivamente a versão B 015")
         if item.get("nivel_previsto_cm") is not None and not item.get("status"):
             raise SystemExit(f"status ausente em {key} com previsão publicada")
         if key in {"4h", "8h"} and item.get("modelo_papel") != "principal":
             raise SystemExit(f"{key} precisa ser o modelo principal")
-        if key in {"4h_versao_b", "8h_versao_b"} and item.get("modelo_papel") != "comparativo":
+        if key == "8h_versao_b" and item.get("modelo_papel") != "comparativo":
             raise SystemExit(f"{key} precisa ser o modelo comparativo")
         if key in {"4h", "8h"} and item.get("selection_rank") != 1:
             raise SystemExit(f"{key} precisa declarar selection_rank=1")
-        if key in {"4h_versao_b", "8h_versao_b"} and item.get("selection_rank") != 2:
+        if key == "8h_versao_b" and item.get("selection_rank") != 2:
             raise SystemExit(f"{key} precisa declarar selection_rank=2")
         if item.get("inputs_total") is not None and int(item["inputs_total"]) <= 0:
             raise SystemExit(f"inputs_total inválido em {key}")

@@ -259,7 +259,7 @@ svg.mini-chart { width:100%; height:168px; display:block; }
 <div class="wrap">
   <header class="hero">
     <div class="kicker">
-      <span class="pill ok">pesquisa · não é alerta oficial</span>
+      <span class="pill ok">cenário hidrológico · pesquisa</span>
       <span class="pill">{{STATUS}}</span>
       <span class="pill ok">G040 · {{BASIN_KM2}} km²</span>
       <span class="pill ok">7 UGs</span>

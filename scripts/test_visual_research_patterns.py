@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import unittest
 from pathlib import Path
+from datetime import datetime, timezone
+from unittest.mock import patch
+from scripts import build_visual_research_patterns as builder
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +19,23 @@ def load(name: str) -> dict:
 
 
 class VisualResearchPatternFeedTests(unittest.TestCase):
+    def test_mucum_source_age_not_output_age_controls_probability(self):
+        for stamp, available in [(datetime.now(timezone.utc).isoformat(), True),
+                                 ("2020-01-01T00:00:00Z", False),
+                                 ("2099-01-01T00:00:00Z", False), (None, False)]:
+            def source(name):
+                if "research_probability_" in name:
+                    return {"generated_at_utc": stamp, "horizons": [{"hours": 24, "flood_probability_percent": 12}]}
+                if "research_binary_" in name:
+                    return {"decisions": [{"hours": 24, "decision": "NAO_VAI"}]}
+                return {}
+            with patch.object(builder, "load", side_effect=source):
+                feed = builder.build_mucum()
+            row = feed["horizons"][0]
+            self.assertEqual(row["probability_percent"], 12 if available else None)
+            self.assertEqual(row["decision"], "NAO_VAI" if available else None)
+            self.assertEqual(feed["source_quality"]["probability"]["generated_at_utc"], stamp)
+
     def test_mucum_feed_contains_events_and_comparable_horizons(self) -> None:
         feed = load("research_visual_patterns_mucum_latest.json")
         self.assertEqual(feed["location"], "mucum")

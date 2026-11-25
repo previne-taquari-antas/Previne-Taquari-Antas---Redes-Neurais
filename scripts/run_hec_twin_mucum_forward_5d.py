@@ -32,6 +32,7 @@ HEC = OUT / "hec_twin_stz_mucum_v1_latest.json"
 ESTRUTURA = OUT / "estrutura_stz_mucum_latest.json"
 CURVA_HUNT = OUT / "curva_chave_86472600" / "curva_chave_hunt_86472600_latest.json"
 LIVE_MUCUM = ROOT / "previsao_ao_vivo_mucum.json"
+RATING_SAFETY = ROOT / "config" / "mucum_rating_curve_safety_v1.json"
 
 SUBBASINS = [
     "SB_PRATA_7868",
@@ -123,20 +124,30 @@ def infer_forcing_wetness(
     aw = forcing.get("area_weighted_mean_mm") or {}
     hourly = list(aw.get("hourly") or [])
     past_mm = aw.get("past_mm")
-    if past_mm is None and hourly:
+    win = forcing.get("window") or {}
+    past_hours = int(win.get("past_hours") or 0)
+    if past_mm is None and hourly and past_hours > 0:
         if now_index is None:
-            # Heuristic: if window metadata exists use it, else assume first half is past.
-            win = forcing.get("window") or {}
-            past_h = int(win.get("past_hours") or max(1, len(hourly) // 2))
-            now_index = min(max(past_h - 1, 0), len(hourly) - 1)
-        past_mm = float(sum(hourly[: now_index + 1]))
+            now_index = min(past_hours - 1, len(hourly) - 1)
+        # Only pre-forecast hours count. Do not recast first future hour as rain already observed.
+        past_mm = float(sum(hourly[:min(now_index + 1, past_hours)]))
     total = float(aw.get("total_mm") or sum(hourly) or 0.0)
-    return bacia.infer_wetness_state(
+    wet = bacia.infer_wetness_state(
         forecast_aw_mm=total,
         past_aw_mm=None if past_mm is None else float(past_mm),
         stage_cm=stage_cm,
         stage_rising=stage_rising,
     )
+    ante = forcing.get("antecedent_rain") or {}
+    wet["antecedent_quality"] = ante.get("status", "not_provided")
+    wet["antecedent_representative_hours"] = ante.get("representative_hours")
+    wet["antecedent_expected_hours"] = ante.get("window_hours")
+    wet["antecedent_status"] = (
+        "wet_supported_by_rain_or_stage" if wet["is_wet"]
+        else "dry_not_confirmed" if past_mm is None
+        else "limited_evidence_of_wetness"
+    )
+    return wet
 
 
 def scale_params_to_observed_q0(
@@ -191,9 +202,27 @@ def mucum_curve_segments() -> list[dict[str, Any]]:
     return segs
 
 
+def rating_curve_safety() -> dict[str, Any]:
+    if not RATING_SAFETY.exists():
+        raise RuntimeError("Muçum rating-curve safety contract missing")
+    cfg = json.loads(RATING_SAFETY.read_text(encoding="utf-8"))
+    if str(cfg.get("station_code")) != MUCUM_CODE:
+        raise RuntimeError("Muçum rating-curve safety contract station mismatch")
+    if str(cfg.get("policy")) != "fail_closed":
+        raise RuntimeError("Muçum rating-curve safety contract must be fail_closed")
+    return cfg
+
+
 def q_to_stage_cm(q_m3s: float, segments: list[dict[str, Any]]) -> dict[str, Any]:
+    """Convert Q->stage only inside the official segment AND conservative safety limit.
+
+    No nearest-segment extrapolation is allowed. Above the frozen review limit the
+    diagnostic candidate stage may be reported, but stage_cm stays None and ok=False.
+    """
     if q_m3s is None or q_m3s != q_m3s or q_m3s < 0:
         return {"stage_cm": None, "ok": False, "reason": "invalid_q"}
+    cfg = rating_curve_safety()
+    limit = float(cfg["publishable_q_to_stage_max_cm"])
     candidates: list[dict[str, Any]] = []
     for seg in segments:
         a = float(seg["a"])
@@ -216,32 +245,75 @@ def q_to_stage_cm(q_m3s: float, segments: list[dict[str, Any]]) -> dict[str, Any
             }
         )
     if not candidates:
-        return {"stage_cm": None, "ok": False, "reason": "no_segment"}
+        return {"stage_cm": None, "ok": False, "reason": "no_segment", "safety_limit_cm": limit}
     inside = [c for c in candidates if c["inside"]]
-    pick = inside[0] if inside else min(
-        candidates,
-        key=lambda c: abs(c["stage_cm"] - (c["stage_min_cm"] + c["stage_max_cm"]) / 2),
-    )
+    if not inside:
+        diagnostic = min(
+            candidates,
+            key=lambda c: abs(c["stage_cm"] - (c["stage_min_cm"] + c["stage_max_cm"]) / 2),
+        )
+        return {
+            "stage_cm": None,
+            "diagnostic_stage_cm": round(float(diagnostic["stage_cm"]), 2),
+            "ok": False,
+            "reason": "q_outside_official_curve_segments",
+            "inside_segment": False,
+            "extrapolated": True,
+            "safety_limit_cm": limit,
+        }
+    pick = inside[0]
+    computed = float(pick["stage_cm"])
+    if computed > limit + 1e-6:
+        return {
+            "stage_cm": None,
+            "diagnostic_stage_cm": round(computed, 2),
+            "ok": False,
+            "reason": "above_frozen_rating_curve_safety_limit",
+            "segment_number": pick["segment_number"],
+            "inside_segment": True,
+            "extrapolated": False,
+            "safety_limit_cm": limit,
+        }
     return {
-        "stage_cm": round(float(pick["stage_cm"]), 2),
+        "stage_cm": round(computed, 2),
         "ok": True,
         "segment_number": pick["segment_number"],
-        "inside_segment": bool(pick["inside"]),
-        "extrapolated": not bool(pick["inside"]),
+        "inside_segment": True,
+        "extrapolated": False,
+        "safety_limit_cm": limit,
     }
 
 
 def stage_to_q_m3s(stage_cm: float, segments: list[dict[str, Any]]) -> dict[str, Any]:
     if stage_cm is None or stage_cm != stage_cm:
         return {"q_m3s": None, "ok": False, "reason": "invalid_stage"}
+    cfg = rating_curve_safety()
+    limit = float(cfg["publishable_q_to_stage_max_cm"])
+    if float(stage_cm) > limit + 1e-6:
+        return {
+            "q_m3s": None,
+            "ok": False,
+            "reason": "above_frozen_rating_curve_safety_limit",
+            "safety_limit_cm": limit,
+        }
     for seg in segments:
         lo = float(seg["stage_min_cm"])
         hi = float(seg["stage_max_cm"])
         if lo - 1e-6 <= stage_cm <= hi + 1e-6:
             h_m = stage_cm / 100.0
             q = float(seg["a"]) * max(h_m - float(seg["h0_m"]), 0.0) ** float(seg["n"])
-            return {"q_m3s": round(q, 3), "ok": True, "segment_number": seg.get("segment_number")}
-    return {"q_m3s": None, "ok": False, "reason": "stage_outside_curve"}
+            return {
+                "q_m3s": round(q, 3),
+                "ok": True,
+                "segment_number": seg.get("segment_number"),
+                "safety_limit_cm": limit,
+            }
+    return {
+        "q_m3s": None,
+        "ok": False,
+        "reason": "stage_outside_official_curve_segments",
+        "safety_limit_cm": limit,
+    }
 
 
 def _parse_ana_levels(xml_bytes: bytes) -> list[tuple[datetime, float]]:
@@ -321,6 +393,29 @@ def member_rise(
     now_index: int = 0,
 ) -> dict[str, Any]:
     n_series = member["series"]["n_mucum_cm"]
+    meta_series = list(member["series"].get("n_mucum_meta") or [])
+    unsafe_future = [
+        {"index": i, **m}
+        for i, m in enumerate(meta_series)
+        if i >= int(now_index) and not bool(m.get("ok"))
+    ]
+    if unsafe_future:
+        first = unsafe_future[0]
+        return {
+            "n_model_t0_cm": n_series[now_index] if n_series and now_index < len(n_series) else None,
+            "n_model_peak_cm": None,
+            "rise_model_cm": None,
+            "level_now_cm": level_now_cm,
+            "peak_anchored_cm": None,
+            "n_anchored_cm": None,
+            "peak_time_utc": None,
+            "now_index": now_index,
+            "status": "blocked_rating_curve_safety",
+            "reason": first.get("reason"),
+            "first_unsafe_index": first.get("index"),
+            "diagnostic_stage_cm": first.get("diagnostic_stage_cm"),
+            "safety_limit_cm": first.get("safety_limit_cm"),
+        }
     if not n_series:
         return {
             "n_model_t0_cm": None,
@@ -749,7 +844,13 @@ def build_package(
     return {
         "schema_version": "hec_twin_mucum_forward_5d_v5",
         "generated_at_utc": utc_now(),
-        "status": "research_forward_5d_ready",
+        "status": (
+            "research_forward_5d_antecedent_incomplete"
+            if (forcing.get("antecedent_rain") or {}).get("status") not in (None, "representative")
+            else "research_forward_5d_ready"
+        ),
+        "publishable": False,
+        "research_only": True,
         "label": (
             "PESQUISA — com a chuva prevista, quanto sobe Muçum (~5 dias, gêmeo HEC + IFS). "
             "NÃO é alerta oficial."
@@ -759,6 +860,7 @@ def build_package(
             "RNA permanece no curto prazo e não é alterada aqui."
         ),
         "quanto_sobe": quanto_sobe,
+        "rating_curve_safety": rating_curve_safety(),
         "decision_alignment": {
             "primary_for_multiday": "HEC_twin_plus_IFS_QPF",
             "short_horizon_complement": "RNA_nivel_2h_4h_8h",
@@ -780,6 +882,12 @@ def build_package(
             "spatial_field_full": bool(forcing.get("spatial_field_full", False)),
             "zone_artifact": forcing.get("zone_artifact"),
             "subbasin_overlap_audit": forcing.get("subbasin_overlap_audit"),
+            "antecedent_rain": forcing.get("antecedent_rain"),
+            "warning": (
+                "Antecedent rainfall is not complete enough to classify basin wetness or validate this simulation."
+                if (forcing.get("antecedent_rain") or {}).get("status") not in (None, "representative")
+                else None
+            ),
         },
         "param_selection": {
             "method": "analog_basin_calibrated_aw_fingerprint_wetness_blend_v4" if event_id is None else "forced_event_id",

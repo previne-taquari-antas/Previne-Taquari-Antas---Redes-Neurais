@@ -1,0 +1,94 @@
+name: Auditoria CNEFE Porto Alegre
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/porto-alegre-cnefe.yml'
+      - 'scripts/vincular_cnefe_edificacoes_porto_alegre.py'
+      - 'scripts/gerar_edificacoes_revisao_poa.py'
+      - 'tests/test_vincular_cnefe_porto_alegre.py'
+  push:
+    branches:
+      - main
+      - 'feature/porto-alegre-cnefe-edificacoes-20261024'
+    paths:
+      - '.github/workflows/porto-alegre-cnefe.yml'
+      - 'scripts/vincular_cnefe_edificacoes_porto_alegre.py'
+      - 'tests/test_vincular_cnefe_porto_alegre.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: poa-cnefe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  auditoria:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar GIS e ambiente Python
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y osmium-tool
+          python -m pip install --upgrade pip
+          python -m pip install 'shapely>=2.0,<3' 'pyproj>=3.4,<4'
+      - name: Testar casos de esquina e galpao
+        run: python -m unittest discover -s tests -p test_vincular_cnefe_porto_alegre.py -v
+      - name: Baixar CNEFE oficial de Porto Alegre
+        run: |
+          mkdir -p /tmp/poa-cnefe
+          curl --fail --location --retry 4 --retry-delay 15 --connect-timeout 45 --output /tmp/poa-cnefe/4314902_PORTO_ALEGRE.zip \
+            'https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/Censo_Demografico_2022/Arquivos_CNEFE/CSV/Municipio/43_RS/4314902_PORTO_ALEGRE.zip'
+          unzip -t /tmp/poa-cnefe/4314902_PORTO_ALEGRE.zip | tail -2
+          sha256sum /tmp/poa-cnefe/4314902_PORTO_ALEGRE.zip > /tmp/poa-cnefe/ibge_sha256.txt
+      - name: Preparar footprints OpenStreetMap
+        run: |
+          curl --fail --location --retry 3 --retry-delay 25 --connect-timeout 60 --output /tmp/poa-cnefe/sul.osm.pbf \
+            'https://download.geofabrik.de/south-america/brazil/sul-261022.osm.pbf'
+          sha256sum /tmp/poa-cnefe/sul.osm.pbf > /tmp/poa-cnefe/osm_sha256.txt
+          osmium extract -s complete_ways -b '-51.40,-30.33,-51.02,-29.90' /tmp/poa-cnefe/sul.osm.pbf -o /tmp/poa-cnefe/recorte.osm.pbf
+          osmium tags-filter /tmp/poa-cnefe/recorte.osm.pbf w/building r/building -o /tmp/poa-cnefe/predios.osm.pbf
+          osmium export /tmp/poa-cnefe/predios.osm.pbf -o /tmp/poa-cnefe/predios.geojson -f geojson
+          test -s /tmp/poa-cnefe/predios.geojson
+      - name: Auditar integralmente sem mover nenhum domicilio automaticamente
+        run: |
+          python scripts/vincular_cnefe_edificacoes_porto_alegre.py \
+            --cnefe /tmp/poa-cnefe/4314902_PORTO_ALEGRE.zip \
+            --osm /tmp/poa-cnefe/predios.geojson \
+            --revisao-max 2500 --saida /tmp/poa-cnefe/resultado
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/poa-cnefe/resultado/resumo.json')
+          r=json.loads(p.read_text())
+          assert r['domicilios_particulares_cnefe']>100_000, 'Falha: poucos domicilios'
+          assert r['edificacoes_osm_candidatas']>30_000, 'OSM incompleto para Porto Alegre'
+          assert r['enderecos_aprovados_por_revisao_humana']==0, 'Nao aprovar automaticamente'
+          print('RESUMO_CONSOLIDADO=' + json.dumps(r,ensure_ascii=False))
+          PY
+      - name: Extrair polígonos de edificações para revisão visual
+        run: |
+          python scripts/gerar_edificacoes_revisao_poa.py \
+            --osm /tmp/poa-cnefe/predios.geojson \
+            --fila /tmp/poa-cnefe/resultado/revisao_street_view.csv \
+            --saida /tmp/poa-cnefe/resultado/edificacoes_revisao.geojson
+      - name: Registrar fontes e limites
+        if: always()
+        run: |
+          mkdir -p /tmp/poa-cnefe/resultado
+          printf '%s\n' 'CNEFE IBGE 2022: 4314902_PORTO_ALEGRE.zip' 'OSM Geofabrik sul-261022.osm.pbf' \
+            'Nenhuma relocalizacao confirmada sem revisao humana de endereco, fachada e uso.' \
+            > /tmp/poa-cnefe/resultado/LEIA_ME_FONTES_E_LIMITES.txt
+          cat /tmp/poa-cnefe/ibge_sha256.txt /tmp/poa-cnefe/osm_sha256.txt > /tmp/poa-cnefe/resultado/SHA256_fontes.txt || true
+      - name: Salvar resultados como artefato de auditoria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnefe-porto-alegre-auditoria-${{ github.run_id }}
+          path: /tmp/poa-cnefe/resultado/
+          if-no-files-found: warn
+          retention-days: 30

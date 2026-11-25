@@ -18,6 +18,7 @@ ST = os.path.join(RAIZ, "santa_tereza_previsao_inundacao.html")
 MANUAL = os.path.join(RAIZ, "mucum_inundacao.html")
 SAIDA = os.path.join(RAIZ, "mucum_previsao_inundacao.html")
 sys.path.insert(0, os.path.dirname(__file__))
+from ajustes_publicos import aplicar_ajustes_publicos  # noqa: E402
 from mucum_eventos_payload import COTA_INUND_CM, eventos_payload_json  # noqa: E402
 
 ESTACAO = {"lat": -29.1672, "lon": -51.8686, "code": "86510000"}
@@ -50,6 +51,11 @@ def eventos_payload():
 
 
 def main():
+    if "--so-ajustes" in sys.argv:  # aplica só os ajustes públicos no HTML já publicado
+        antes = open(SAIDA, encoding="utf-8").read()
+        open(SAIDA, "w", encoding="utf-8", newline="").write(aplicar_ajustes_publicos(antes))
+        print("ajustes públicos aplicados em", SAIDA)
+        return
     html = open(ST, encoding="utf-8").read()
 
     # 1) troca o bloco de relevo (hand-data)
@@ -112,9 +118,27 @@ def main():
     html = html.replace('liveFromEvent("mai24_2h","ALT")', 'liveFromEvent("ev27_2h","ALT")')
     html = html.replace("mai24_2h", "ev27_2h")
 
+    # Ao usar o template de Santa Tereza, restaurar a calibração de Muçum:
+    # régua de referência da mancha = 5,00 m (não 1,60 m) e NoData = 250.
+    # Os valores são específicos da cidade, mesmo com interface padronizada.
+    html = html.replace("const HAND_ZERO_DEFAULT_CM=160;", "const HAND_ZERO_DEFAULT_CM=500;")
+    html = html.replace("if(value===255) return null;", "if(value===255||value===250) return null;")
+
+    # Preservar o texto amigável do popup ao regenerar Muçum a partir
+    # do template de Santa Tereza: o HAND permanece apenas no cálculo.
+    html = html.replace(
+        "      html+='<div><b>HAND:</b> '+handTxt+'</div>';",
+        "",
+    )
+    html = html.replace(
+        "Régua para a água chegar aqui:</b>",
+        "Nível da régua para a água chegar aqui:</b>",
+    )
+
     html = html.replace('      <button data-live-hz="8h">8h</button>\n', "")
     html = html.replace('      <button data-live-hz="12h">12h</button>\n', "")
 
+    html = aplicar_ajustes_publicos(html)
     open(SAIDA, "w", encoding="utf-8").write(html)
     ev = json.loads(re.search(r'<script id="event-data" type="application/json">(.*?)</script>', html, re.DOTALL).group(1))
     print(f"escrito {SAIDA} | eventos: {len(ev)} ({', '.join(list(ev)[:8])})")

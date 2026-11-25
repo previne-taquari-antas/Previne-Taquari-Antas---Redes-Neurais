@@ -38,6 +38,7 @@ MODELOS_AO_VIVO_JSON = os.path.join(RAIZ, "assets", "data", "mucum_modelos_ao_vi
 MAT_DIR = os.path.join(RAIZ, "assets", "mat")
 SAIDA = os.path.join(RAIZ, "previsao_ao_vivo_mucum.json")
 HISTORICO_SAIDA = os.path.join(RAIZ, "historico_previsoes_ao_vivo_mucum.json")
+ANA_NIVEIS_CACHE_SAIDA = os.path.join(RAIZ, "assets", "data", "mucum_niveis_observados_cache.json")
 AUDITORIA_MAX_GAP = dt.timedelta(minutes=30)
 BANKFULL_CM = 500            # nível normal / zero da mancha (régua 86510000)
 ALVO = "86510000"
@@ -74,7 +75,7 @@ ANA_TIMEOUT_NIVEL_S = 15
 ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 2
 ANA_RETRIES_CHUVA = 2
-HORIZONTES_AO_VIVO = {"2h", "4h", "4h_versao_b", "8h", "8h_versao_b"}
+HORIZONTES_AO_VIVO = {"2h", "4h", "8h", "8h_versao_b"}
 # Antecedência efetiva mínima (horário-alvo menos agora) para publicar como
 # "ok". Em 29/09/2026 a ANA devolveu Muçum só até a véspera e o robô publicou,
 # como "ok", uma base 6 h atrasada cujo alvo já tinha passado. O 2 h só exige
@@ -89,6 +90,25 @@ def antecedencia_efetiva(cfg, t, agora=None):
     horas = ((t + dt.timedelta(hours=cfg["horizonte_h"])) - agora).total_seconds() / 3600
     minimo = ANTECEDENCIA_MINIMA_H.get(int(cfg["horizonte_h"]), 0.0)
     return horas, horas > minimo
+HOURLY_BASE_WARN_LAG_H = 1.0
+HOURLY_BASE_STALE_LAG_H = 2.0
+LIVE_WARN_MAE_24H_CM = 30.0
+LIVE_WARN_MAX_24H_CM = 100.0
+
+
+# Contrato demonstrado nas planilhas operacionais e no Ptot dos respectivos
+# MAT. O V001 de 2h usa a mudanca da variacao de UMA hora: nao altera-lo.
+MODELOS_SEGUNDA_DIFERENCA = {
+    "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31",
+    "032_alt_MUC_H08_V24_RAIN24_UPSTREAM_R00_T31-33-34-35-37_V18-20-21",
+    "034_alt_MUC_H08_V24_RAIN18_24_48_R00_T31-33-34-35-37_V18-20-21",
+}
+FORMULA_SEGUNDA_DIFERENCA = "mucum_excel_second_difference_step_v2"
+
+
+def formula_contrato(modelo):
+    return (FORMULA_SEGUNDA_DIFERENCA if modelo in MODELOS_SEGUNDA_DIFERENCA
+            else "hourly_change_v1")
 
 
 # ---------- configuração dos modelos (a partir do JSON) ----------
@@ -126,6 +146,7 @@ def _cfg(m, hh):
         "contrato_chuva": m.get("contrato_chuva"),
         "input_contract_version": m.get("input_contract_version", "hourly_exact_v1"),
         "input_grade": m.get("input_grade", "hourly_exact"),
+        "formula_contract_version": formula_contrato(mid),
         "mat": os.path.join(RAIZ, mat) if mat.startswith("assets") else os.path.join(MAT_DIR, os.path.basename(mat)),
         "inputs": ins,
         "estacoes": sorted({str(i["estacao"]) for i in ins if not str(i.get("tipo", "")).startswith("chuva")}),
@@ -148,7 +169,7 @@ def _cfg(m, hh):
     return cfg
 
 def carregar_modelos():
-    """Carrega 2h e os dois melhores 4h/8h com chave própria no feed.
+    """Carrega 2h, somente a RNA B em 4h e os dois candidatos de 8h.
 
     O arquivo separado é deliberadamente uma lista operacional auditável: os
     candidatos possuem MAT, Excel e séries ponto a ponto reconciliados. Os
@@ -300,15 +321,14 @@ def _obter_xml_ana(cod, dias, timeout_s, tentativas_rede, parser, prefixo):
     return None
 
 
-def buscar_ana(cod, dias=6, tentativas_rede=ANA_RETRIES_NIVEL):
-    """Telemetria da ANA com janela ampliada na estação-alvo.
+def buscar_ana(cod, dias=3, tentativas_rede=ANA_RETRIES_NIVEL):
+    """Consulta curta de 3 dias para nivel observado real.
 
-    Muçum carrega 8 dias para o painel poder desenhar 7 dias de nível
-    observado diretamente da ANA/SGB, sem depender dos pares usados na
-    auditoria das RNAs. As estações auxiliares mantêm a janela curta.
+    A maior janela de chuva exige 48h e a maior defasagem de nivel e menor.
+    Requisitar 8 dias na estacao-alvo sobrecarregava o servico legado ANA.
+    O panorama de 7 dias e preservado juntando apenas observacoes anteriores.
     """
-    if cod == ALVO:
-        dias = max(int(dias or 0), 8)
+    dias = max(3, int(dias or 3))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_NIVEL_S, tentativas_rede, _serie_de_xml, "ANA")
     if xml is None:
         return {}
@@ -321,10 +341,9 @@ def buscar_ana(cod, dias=6, tentativas_rede=ANA_RETRIES_NIVEL):
     return serie
 
 
-def buscar_ana_chuva(cod, dias=6, tentativas_rede=ANA_RETRIES_CHUVA):
-    """Busca chuva observada e devolve somente acumulados horários reais."""
-    if cod == ALVO:
-        dias = max(int(dias or 0), 8)
+def buscar_ana_chuva(cod, dias=3, tentativas_rede=ANA_RETRIES_CHUVA):
+    """Consulta 3 dias: 48h de chuva mais margem e reuso do XML de nivel."""
+    dias = max(3, int(dias or 3))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_CHUVA_S, tentativas_rede, _serie_chuva_de_xml, "ANA chuva")
     if xml is None:
         return {}
@@ -342,6 +361,99 @@ def buscar_series_paralelo(codigos, funcao, max_workers=ANA_MAX_CONCORRENCIA):
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ana-live") as executor:
         resultados = list(executor.map(funcao, codigos))
     return dict(zip(codigos, resultados))
+
+def complementar_niveis_cache_observado(series, caminho=ANA_NIVEIS_CACHE_SAIDA):
+    """Recupera lags de leituras REAIS previamente vistas pela ANA, sem interpolar.
+
+    A fonte ANA tem falhas intermitentes/series parciais. O cache conserva o
+    instante original de cada leitura por estacao e nunca transforma uma
+    previsao, lacuna ou zero sintetico em observacao.
+    """
+    agora = agora_brt()
+    corte = agora - dt.timedelta(days=4)
+    cache = {"schema_version": 1, "estacoes": {}}
+    if os.path.isfile(caminho):
+        with open(caminho, encoding="utf-8") as arq:
+            anterior = json.load(arq)
+        if anterior.get("schema_version") != 1 or not isinstance(anterior.get("estacoes"), dict):
+            raise ValueError("cache ANA de Muçum com contrato invalido")
+        cache = anterior
+    elif os.path.isfile(SAIDA):
+        # Semente auditavel: somente a serie explicitamente OBSERVADA no
+        # ultimo feed de Muçum. Nunca usar 'passos' ou previsoes da RNA.
+        try:
+            with open(SAIDA, encoding="utf-8") as arq:
+                feed_antigo = json.load(arq)
+            pontos = feed_antigo.get("serie_observada_ana") or []
+            if isinstance(pontos, list):
+                pares = []
+                for p in pontos:
+                    if not isinstance(p, dict):
+                        continue
+                    try:
+                        hora = dt.datetime.fromisoformat(str(p["hora"]))
+                        valor = float(p["nivel_cm"])
+                    except (ValueError, TypeError, KeyError):
+                        continue
+                    if hora.tzinfo is not None:
+                        hora = hora.astimezone(BRT).replace(tzinfo=None)
+                    if corte <= hora <= agora and nivel_plausivel(valor, ALVO):
+                        pares.append([hora.isoformat(timespec="seconds"), valor])
+                if pares:
+                    cache["estacoes"][ALVO] = pares
+        except (OSError, ValueError, TypeError) as exc:
+            print("[MUC cache] sem semente valida:", exc)
+
+    resultado = {}
+    houve_mudanca = not os.path.isfile(caminho)
+    for cod, atuais in list(series.items()):
+        if not isinstance(atuais, dict) or str(cod).startswith("__"):
+            continue
+        cod = str(cod)
+        previos = cache["estacoes"].get(cod, [])
+        mescla = {}
+        for item in previos:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                continue
+            try:
+                hora = dt.datetime.fromisoformat(str(item[0]))
+                valor = float(item[1])
+            except (TypeError, ValueError):
+                continue
+            if hora.tzinfo is not None:
+                hora = hora.astimezone(BRT).replace(tzinfo=None)
+            if corte <= hora <= agora and nivel_plausivel(valor, cod):
+                mescla[hora] = valor
+
+        n_anterior = len(mescla)
+        for hora, valor in atuais.items():
+            if (isinstance(hora, dt.datetime) and hora.tzinfo is None
+                    and corte <= hora <= agora and nivel_plausivel(valor, cod)):
+                mescla[hora] = float(valor)
+        # Lags sao exatos: a leitura preservada tem a propria hora ANA.
+        series[cod] = dict(sorted(mescla.items()))
+        pontos = [[h.isoformat(timespec="seconds"), v] for h, v in sorted(mescla.items())]
+        if pontos != previos:
+            houve_mudanca = True
+        cache["estacoes"][cod] = pontos
+        resultado[cod] = {
+            "observacoes_reais": len(pontos),
+            "recuperadas_do_cache": sum(h not in atuais for h in mescla),
+            "novas_ou_atualizadas": max(0, len(pontos) - n_anterior),
+        }
+        if mescla:
+            hora_ultima = max(mescla)
+            raw = ULTIMA_RAW.get(cod)
+            if raw is None or raw[0] < hora_ultima:
+                ULTIMA_RAW[cod] = (hora_ultima, mescla[hora_ultima])
+
+    if houve_mudanca:
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        with open(caminho, "w", encoding="utf-8") as arq:
+            json.dump(cache, arq, ensure_ascii=False, separators=(",", ":"))
+            arq.write("\n")
+    return resultado
+
 
 def nivel_plausivel(valor, estacao=None):
     try:
@@ -405,7 +517,8 @@ def montar_inputs(cfg, series, t):
     """Monta os inputs de um modelo na hora t, na ordem exata (campo `ordem`).
        nivel -> n(t - defasagem_h);
        vel_nivel -> n(t) - n(t - defasagem_h);
-       acel_nivel -> [n(t)-n(t-1h)] - [n(t-h)-n(t-(h+1)h)]."""
+       acel_nivel -> contrato do modelo: N(t)-2*N(t-h)+N(t-2h) para
+       as receitas operacionais 4h/8h; mudanca da variacao horaria no V001 2h."""
     def n(cod, h=0):
         s = series.get(str(cod))
         return None if s is None else nivel_exato(s, t - dt.timedelta(hours=h), cod)
@@ -418,9 +531,13 @@ def montar_inputs(cfg, series, t):
             a, b = n(cod, 0), n(cod, h)
             x.append(None if None in (a, b) else a - b)
         elif tipo in ("acel_nivel", "aceleracao"):
-            a, b = n(cod, 0), n(cod, 1)
-            c, d = n(cod, h), n(cod, h + 1)
-            x.append(None if None in (a, b, c, d) else (a - b) - (c - d))
+            if formula_contrato(cfg["modelo"]) == FORMULA_SEGUNDA_DIFERENCA:
+                a, b, c = n(cod, 0), n(cod, h), n(cod, 2 * h)
+                x.append(None if None in (a, b, c) else a - 2 * b + c)
+            else:
+                a, b = n(cod, 0), n(cod, 1)
+                c, d = n(cod, h), n(cod, h + 1)
+                x.append(None if None in (a, b, c, d) else (a - b) - (c - d))
         elif tipo == "chuva_acum":
             x.append(_chuva_acumulada(inp, series, t))
         elif tipo == "chuva_diferenca":
@@ -547,6 +664,7 @@ def base_saida(cfg, nivel_agora, nivel_prev, t, status, faltantes=None, nivel_ba
         "inputs_total": cfg["n_inputs"], "inputs_faltantes_n": len(faltantes or []),
         "inputs_faltantes": faltantes or [], "estacoes_status": [],
         "input_contract_version": cfg.get("input_contract_version", "hourly_exact_v1"),
+        "formula_contract_version": formula_contrato(cfg["modelo"]),
         "input_grade": cfg.get("input_grade", "hourly_exact"),
         "disponivel": nivel_prev is not None,
         "auditoria_inputs": {
@@ -589,17 +707,129 @@ def base_saida(cfg, nivel_agora, nivel_prev, t, status, faltantes=None, nivel_ba
     return out
 
 def serie_observada_ana_publica(series, dias=7):
-    """Série observada real de Muçum, independente da auditoria das RNAs."""
-    serie = (series or {}).get(ALVO, {}) or {}
+    """Une observacoes ANA de ciclos anteriores ao intervalo consultado.
+
+    O historico em SAIDA e exclusivamente de leituras reais anteriormente
+    publicadas, nao interpoladas. Nao retroalimenta os modelos nem altera
+    ULTIMA_RAW: nenhuma observacao velha vira nivel "agora".
+    """
+    serie = {}
+    if os.path.exists(SAIDA):
+        try:
+            with open(SAIDA, encoding="utf-8") as arq:
+                anterior = json.load(arq)
+            for item in anterior.get("serie_observada_ana", []):
+                hora = _parse_hora(item.get("hora"))
+                valor = item.get("nivel_cm")
+                if hora is not None and nivel_plausivel(valor, ALVO):
+                    serie[hora] = float(valor)
+        except (ValueError, TypeError, OSError, AttributeError) as exc:
+            print("[Mucum historico observado] nao foi possivel reaproveitar:", exc)
+    serie.update((series or {}).get(ALVO, {}) or {})
     if not serie:
         return []
-    ultimo = max(serie)
-    inicio = ultimo - dt.timedelta(days=dias)
+    # A janela e definida pelo horario de consulta, nunca pelo dado velho.
+    inicio = agora_brt() - dt.timedelta(days=dias)
     return [
         {"hora": hora.isoformat(timespec="minutes"), "nivel_cm": round(float(valor), 3)}
         for hora, valor in sorted(serie.items())
         if hora >= inicio and nivel_plausivel(valor, ALVO)
     ]
+
+
+def aplicar_guardrail_qualidade_horizontes(horizontes, historico):
+    """Expõe no feed o desempenho recente de cada RNA ativa."""
+    for hz, out in horizontes.items():
+        audit = resumo_auditoria(historico, hz)
+        out["auditoria"] = audit
+        mae24 = audit.get("mae_24h_cm")
+        max24 = audit.get("maior_erro_abs_24h_cm")
+        revalidando = (out.get("modelo") in MODELOS_SEGUNDA_DIFERENCA
+                       and audit.get("n_conferidas", 0) < 6)
+        if str(out.get("status") or "").startswith("ok") and (
+            revalidando or (mae24 is not None and mae24 > LIVE_WARN_MAE_24H_CM)
+            or (max24 is not None and max24 > LIVE_WARN_MAX_24H_CM)
+        ):
+            out["qualidade_ao_vivo"] = {
+                "status": "REVALIDANDO_FORMULA" if revalidando else "ATENCAO",
+                "regra": "6 pares prospectivos da formula atual; MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
+                "mae_24h_cm": mae24,
+                "maior_erro_abs_24h_cm": max24,
+                "modelo": out.get("modelo"),
+            }
+            # Falha no guardrail: manter o candidato somente para auditoria,
+            # sem permitir que a interface pública o interprete como previsão.
+            if out.get("nivel_previsto_cm") is not None:
+                out["previsao_reprovada_qualidade_cm"] = out["nivel_previsto_cm"]
+            if out.get("passos"):
+                out["passos_reprovados_qualidade"] = out["passos"]
+            out["nivel_previsto_cm"] = None
+            out["passos"] = []
+            out["disponivel"] = False
+            out["bloqueio_publicacao"] = ("revalidacao_formula_corrigida" if revalidando
+                                           else "erro_recente_acima_guardrail")
+            out["status"] = (
+                "indisponivel: aguardando 6 pares prospectivos da formula corrigida "
+                "(candidato preservado apenas para auditoria)" if revalidando else
+                "indisponivel: erro recente do modelo ativo acima do guardrail "
+                "(candidato preservado apenas para auditoria)"
+            )
+        else:
+            out["qualidade_ao_vivo"] = {
+                "status": "NORMAL" if audit.get("n_conferidas") else "SEM_VALIDACAO_HISTORICA",
+                "regra": "MAE_24H_CM > 30 ou MAIOR_ERRO_ABS_24H_CM > 100",
+                "mae_24h_cm": mae24,
+                "maior_erro_abs_24h_cm": max24,
+                "modelo": out.get("modelo"),
+            }
+    return horizontes
+
+
+def aplicar_guardrail_frescor_horizontes(horizontes, telemetria_em):
+    """Não publica como previsão ao vivo uma RNA horária com base velha."""
+    # A telemetria pode estar defasada (ou ausente) em relacao ao relogio real.
+    # Comparar apenas base x ultima telemetria permitiria publicar previsoes
+    # para horarios ja passados depois de uma longa falha ANA.
+    agora = agora_brt()
+    for out in horizontes.values():
+        hm = _parse_hora(out.get("hora_modelo") or "")
+        if hm is None or out.get("nivel_previsto_cm") is None:
+            continue
+        if out.get("input_grade") != "hourly_exact":
+            continue
+        atraso_telemetria_h = ((telemetria_em - hm).total_seconds() / 3600.0
+                               if telemetria_em is not None else 0.0)
+        atraso_relogio_h = max(0.0, (agora - hm).total_seconds() / 3600.0)
+        atraso_h = max(atraso_telemetria_h, atraso_relogio_h)
+        out["atraso_base_telemetria_h"] = round(atraso_telemetria_h, 3)
+        out["idade_base_relogio_h"] = round(atraso_relogio_h, 3)
+        if atraso_h >= HOURLY_BASE_STALE_LAG_H:
+            out["previsao_stale_candidata_cm"] = out.get("nivel_previsto_cm")
+            if out.get("passos"):
+                out["passos_stale_candidatos"] = out.get("passos")
+            out["nivel_previsto_cm"] = None
+            out["passos"] = []
+            out["disponivel"] = False
+            out["status"] = (
+                f"indisponivel: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
+                "aguardando conjunto completo de entradas na mesma hora cheia"
+            )
+            audit = dict(out.get("auditoria_inputs") or {})
+            audit["status"] = "ATENCAO"
+            audit["motivo_publicacao"] = (
+                f"base horaria {atraso_h:.1f}h anterior a telemetria recente"
+            )
+            out["auditoria_inputs"] = audit
+            out["qualidade_ao_vivo"] = {
+                "status": "BASE_DESATUALIZADA",
+                "regra": "base horaria >=2 h atras da telemetria recente",
+            }
+        elif atraso_h >= HOURLY_BASE_WARN_LAG_H and str(out.get("status") or "").startswith("ok"):
+            out["status"] = (
+                f"{out['status']} - atencao: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
+                "aguardando conjunto completo de entradas na mesma hora cheia"
+            )
+    return horizontes
 
 
 def diagnosticar_proxima_base(cfg, series, hora_modelo, limite_alvo=None):
@@ -648,15 +878,42 @@ def carregar_historico():
         return []
 
 
+# Carimbos que só registram a passagem do robô pelo registro. Quando o resto do registro
+# não mudou, os carimbos anteriores são mantidos e o arquivo não é regravado: antes, o
+# histórico inteiro era reescrito (e versionado) a cada ciclo de 5 min só por eles.
+CARIMBOS_HISTORICO = ("auditado_em", "criado_em", "criado_em_utc")
+
+
+def preservar_carimbos(registros, anteriores):
+    """Mantém os carimbos anteriores dos registros cujo conteúdo não mudou."""
+    def sem_carimbo(r):
+        return {k: v for k, v in r.items() if k not in CARIMBOS_HISTORICO}
+
+    por_id = {r.get("id"): r for r in anteriores if isinstance(r, dict) and r.get("id")}
+    saida = []
+    for reg in registros:
+        velho = por_id.get(reg.get("id"))
+        if velho is not None and sem_carimbo(reg) == sem_carimbo(velho):
+            reg = {**reg, **{k: velho[k] for k in CARIMBOS_HISTORICO if k in velho and k in reg}}
+        saida.append(reg)
+    return saida
+
 def salvar_historico(registros):
+    """Grava o histórico; devolve False quando nada além dos carimbos mudou (arquivo intacto).
+    Mesma regra de previne/robo/gerar_previsao_ao_vivo.py."""
+    anteriores = carregar_historico()
+    registros = preservar_carimbos(registros[-1200:], anteriores)
+    if os.path.exists(HISTORICO_SAIDA) and registros == anteriores[-1200:]:
+        return False
     pacote = {
         "atualizado_em": agora_brt().isoformat(timespec="seconds"),
         "local": LOCAL,
         "estacao": ALVO,
-        "registros": registros[-1200:],
+        "registros": registros,
     }
     with open(HISTORICO_SAIDA, "w", encoding="utf-8") as f:
         json.dump(pacote, f, ensure_ascii=False, indent=1)
+    return True
 
 
 def hora_cheia(value):
@@ -693,6 +950,7 @@ def upsert_previsao_historico(registros, saida):
         "horizonte_h": saida["horizonte_h"],
         "tipo": saida.get("tipo"),
         "modelo": saida["modelo"],
+        "formula_contract_version": saida.get("formula_contract_version"),
         "hora_modelo": saida["hora_modelo"],
         "hora_modelo_utc": saida.get("hora_modelo_utc"),
         "hora_alvo": saida["hora_alvo"],
@@ -711,7 +969,8 @@ def upsert_previsao_historico(registros, saida):
                 for k in ("observado_cm", "observado_em", "erro_cm", "erro_abs_cm", "status_auditoria", "auditado_em")
                 if k in reg
             }
-            novo.update(preservados)
+            if reg.get("formula_contract_version") == saida.get("formula_contract_version"):
+                novo.update(preservados)
             registros[i] = novo
             return registros
     registros.append(novo)
@@ -768,6 +1027,9 @@ def media(vals):
 
 def resumo_auditoria(registros, horizonte):
     regs = [r for r in registros if r.get("horizonte") == horizonte]
+    # Mantem o historico antigo auditavel, sem mistura-lo com a formula corrigida.
+    regs = [r for r in regs if r.get("modelo") not in MODELOS_SEGUNDA_DIFERENCA
+            or r.get("formula_contract_version") == FORMULA_SEGUNDA_DIFERENCA]
     conferidos = sorted(
         [r for r in regs if r.get("status_auditoria") == "conferido"],
         key=lambda r: r.get("hora_alvo") or ""
@@ -847,7 +1109,11 @@ def escrever(top, horizontes, max_stale_h=6):
     # Resiliência: se este ciclo NÃO tem previsão (telemetria da ANA falhou),
     # preserva a última previsão boa (se ainda recente) em vez de apagá-la —
     # assim a página não "cai" para o replay num hiccup transitório da ANA.
-    if not _tem_previsao(top) and os.path.exists(SAIDA):
+    reprovacao_explicita = any(
+        isinstance(item, dict) and item.get("bloqueio_publicacao")
+        for item in (horizontes or {}).values()
+    )
+    if not _tem_previsao(top) and not reprovacao_explicita and os.path.exists(SAIDA):
         try:
             ant = json.load(open(SAIDA, encoding="utf-8"))
             hm = _hora_previsao_mais_recente(ant)
@@ -858,6 +1124,12 @@ def escrever(top, horizontes, max_stale_h=6):
             # O teste da hora-base precisa considerar os horizontes aninhados:
             # 2h pode estar sem inputs enquanto 4h/8h ainda têm previsoes boas.
             contrato_atual = isinstance(ant_horizontes, dict) and set(ant_horizontes) == HORIZONTES_AO_VIVO
+            if contrato_atual:
+                contrato_atual = all(
+                    item.get("modelo") not in MODELOS_SEGUNDA_DIFERENCA
+                    or item.get("formula_contract_version") == FORMULA_SEGUNDA_DIFERENCA
+                    for item in ant_horizontes.values() if isinstance(item, dict)
+                )
             # Uma previsão preservada cujo horário-alvo já passou não pode
             # continuar aparecendo como previsão: vira indisponível.
             if contrato_atual:
@@ -920,9 +1192,17 @@ def filtrar_historico_modelos(registros, modelos):
     ativos = {}
     for cfg in modelos:
         ativos.setdefault(cfg["horizonte"], set()).add(cfg["modelo"])
+    # A versão B passou da chave comparativa para a única saída de 4h.
+    # Migra os confrontos prospectivos já auditados, sem perder o MAE histórico.
+    modelo_b = next((cfg["modelo"] for cfg in modelos if cfg["horizonte"] == "4h"), None)
+    for r in registros:
+        if r.get("horizonte") == "4h_versao_b" and r.get("modelo") == modelo_b:
+            r["horizonte"] = "4h"
+            r["id"] = f"{r.get('local', 'Muçum')}|4h|{modelo_b}|{r.get('hora_modelo', '')}"
+    # Não misturar nem exibir o modelo 006 retirado ou o antigo alias comparativo.
     return [
         r for r in registros
-        if r.get("horizonte") not in ativos or r.get("modelo") in ativos[r.get("horizonte")]
+        if r.get("horizonte") in ativos and r.get("modelo") in ativos[r["horizonte"]]
     ]
 
 
@@ -950,6 +1230,11 @@ def main():
         + sorted(todas_chuvas - {ALVO})
     )
     series = buscar_series_paralelo(estacoes, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA)
+    try:
+        print("[MUC cache] leituras observadas", complementar_niveis_cache_observado(series))
+    except Exception as exc:
+        # Falha do cache nao pode impedir consulta/uso de dados ANA atuais.
+        print("[MUC cache] indisponivel; mantendo somente ANA deste ciclo:", exc)
     series["__chuva_postos__"] = buscar_series_paralelo(
         estacoes_chuva, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
     )
@@ -1036,6 +1321,11 @@ def main():
     historico = conferir_historico(historico, series)
     salvar_historico(historico)
 
+    aplicar_guardrail_qualidade_horizontes(horizontes, historico)
+    aplicar_guardrail_frescor_horizontes(
+        horizontes,
+        raw_mucum[0] if raw_mucum else None,
+    )
     escrever_pacote(horizontes, historico, series)
 
 

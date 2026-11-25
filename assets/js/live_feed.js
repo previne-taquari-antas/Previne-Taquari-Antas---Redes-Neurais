@@ -5,23 +5,40 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const REPO = 'julianacarolinoreis/Previne-Taquari-Antas---Redes-Neurais';
+  const apiAttempts = new Map();
+  const LIVE_FILES = new Set(['previsao_ao_vivo.json','previsao_ao_vivo_mucum.json']);
+  const MAX_REVISION_AGE_MS=15*60000;
+  const API_COOLDOWN_MS=60000;
+
+  const REPO = 'previne-taquari-antas/Previne-Taquari-Antas---Redes-Neurais';
 
   function withCacheBust(url) {
     return url + (String(url).includes('?') ? '&' : '?') + 'cb=' + Date.now();
   }
 
   function stampMs(data) {
-    const value = data && (data.ultima_tentativa_em || data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo);
+    // Tentativa malsucedida NAO torna uma previsao anterior mais recente.
+    const failed = data && data.ultima_tentativa_status === 'falha';
+    const value = data && (failed
+      ? (data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo)
+      : (data.ultima_tentativa_em || data.consultado_em || data.gerado_em || data.atualizado_em || data.hora_modelo));
     if (!value) return NaN;
     const raw = String(value);
     return Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + '-03:00');
   }
 
   function pickNewest(feeds) {
-    const ok = (feeds || []).filter(Boolean);
+    const ok = (feeds || []).filter(data => data && typeof data === 'object' && !Array.isArray(data) && Number.isFinite(stampMs(data)) && stampMs(data) <= Date.now()+5*60000);
     if (!ok.length) return null;
-    ok.sort(function (a, b) { return (stampMs(b) || 0) - (stampMs(a) || 0); });
+    // Empate na hora da previsão: vale a revisão que registra a tentativa mais recente (mesmo que tenha
+    // falhado), para o site mostrar que o robô tentou de novo. A tentativa falha só desempata; não faz
+    // uma previsão antiga passar na frente de uma mais nova.
+    function attemptMs(data) {
+      const raw = data && data.ultima_tentativa_em ? String(data.ultima_tentativa_em) : '';
+      const ms = raw ? Date.parse(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + '-03:00') : NaN;
+      return Number.isFinite(ms) ? ms : (stampMs(data) || 0);
+    }
+    ok.sort(function (a, b) { return ((stampMs(b) || 0) - (stampMs(a) || 0)) || (attemptMs(b) - attemptMs(a)); });
     return ok[0];
   }
 
@@ -33,7 +50,7 @@
     const file = fileName(path);
     if (!file) return [];
     return [
-      { label: 'arquivo publicado', url: file },
+      ...(!LIVE_FILES.has(file) ? [{ label: 'arquivo publicado', url: file }] : []),
       { label: 'arquivo Raw', url: 'https://raw.githubusercontent.com/' + REPO + '/main/' + file },
       { label: 'CDN jsDelivr', url: 'https://cdn.jsdelivr.net/gh/' + REPO + '@main/' + file },
       { label: 'API GitHub', url: 'https://api.github.com/repos/' + REPO + '/contents/' + file + '?ref=main', kind: 'github-api' }
@@ -84,18 +101,109 @@
     return newest;
   }
 
+  // Um único modelo +4h para Muçum (versão B), nas interfaces pública e do usuário.
+  // Feeds legados ainda possuem ambas as RNAs: normalizar sem reativar a antiga.
+  function selectPublicMucum4h(feed, isMucum) {
+    if (!isMucum || !feed || !feed.horizontes) return feed;
+    const versionB = feed.horizontes['4h_versao_b'];
+    if (!versionB) return feed; // O feed novo já traz a versão B na chave 4h.
+    const horizons = Object.assign({}, feed.horizontes);
+    horizons['4h'] = Object.assign({}, versionB, {
+      horizonte: '4h',
+      rotulo: '4h · versão B',
+      modelo_papel: 'principal',
+      selection_rank: 1,
+      origem_horizonte: '4h_versao_b'
+    });
+    delete horizons['4h_versao_b'];
+    // Se B estiver sem previsão, manter indisponível: nunca voltar à RNA 006.
+    return Object.assign({}, feed, { horizontes: horizons });
+  }
+
+  function isPublicMucumPage(path) {
+    // Ambas as páginas consomem este feed; nenhuma deve mostrar a RNA 006.
+    return fileName(path) === 'previsao_ao_vivo_mucum.json';
+  }
+
+  // A coleta das RNAs de 8h e isolada para nao atrasar os ciclos 2h/4h.
+  // Nunca transformar uma previsao com inputs incompletos em valor publicado.
+  let stz8hRequest = null;
+  let stz8hRequestAt = 0;
+
+  async function fetchStz8h() {
+    const now = Date.now();
+    if (stz8hRequest && now - stz8hRequestAt < 60000) return stz8hRequest;
+    stz8hRequestAt = now;
+    stz8hRequest = fetchNewest([
+      {label:'arquivo 8h publicado', url:'previsao_stz_8h.json'},
+      {label:'RNA 8h GitHub Raw', url:'https://raw.githubusercontent.com/' + REPO + '/main/previsao_stz_8h.json'}
+    ]).catch(function () { return null; });
+    return stz8hRequest;
+  }
+
+  async function mergeStz8h(feed, path) {
+    if (fileName(path) !== 'previsao_ao_vivo.json' || !feed || !feed.horizontes) return feed;
+    const extra = await fetchStz8h();
+    const revision = stampMs(extra);
+    const age = Date.now() - revision;
+    if (!extra || extra.schema_version !== 1 || extra.estacao !== '86472600' ||
+        !Number.isFinite(revision) || age < -5*60000 || age > 90*60000) return feed;
+    const horizons = Object.assign({}, feed.horizontes);
+    ['8h','8h_v002'].forEach(function (key) {
+      const value = extra.horizontes && extra.horizontes[key];
+      if (!value || value.horizonte !== key || value.horizonte_h !== 8 || value.hand_zero_cm !== 160) return;
+      const item = Object.assign({}, value);
+      if (item.disponivel) {
+        const base = stampMs({hora_modelo:item.hora_modelo});
+        const target = stampMs({hora_modelo:item.hora_alvo});
+        const now = Date.now();
+        if (!Number.isFinite(base) || !Number.isFinite(target) ||
+            now - base >= 2*3600000 || target <= now || base > now+5*60000) {
+          item.disponivel = false;
+          item.nivel_previsto_cm = null;
+          item.passos = [];
+          item.status = 'indisponivel: previsao de 8h fora da janela valida';
+        }
+      }
+      horizons[key] = item;
+    });
+    return Object.assign({}, feed, {horizontes:horizons});
+  }
+
+  function needsRefresh(feed) {
+    const revision=stampMs(feed);
+    if(!Number.isFinite(revision)||Date.now()-revision>MAX_REVISION_AGE_MS) return true;
+    const observation=feed && (feed.telemetria_ultima_em_utc||feed.telemetria_ultima_em||feed.nivel_rio_agora_em);
+    if(!observation) return false; // Histories need only a valid revision timestamp.
+    const time=stampMs({gerado_em:observation});
+    return !Number.isFinite(time)||Date.now()-time>60*60000;
+  }
+
   async function fetchLive(path) {
     const sources = sourcesFor(path);
-    try {
-      return await fetchNewest(primarySources(sources));
-    } catch (primaryError) {
-      const fallback = apiSources(sources);
-      if (!fallback.length) throw primaryError;
-      return fetchNewest(fallback);
+    let feed, primaryError;
+    try { feed=await fetchNewest(primarySources(sources)); }
+    catch(error) { primaryError=error; }
+    const fallback=apiSources(sources);
+    const key=fileName(path), now=Date.now();
+    const cached=apiAttempts.get(key);
+    if(!feed||needsRefresh(feed)) {
+      if(cached && now-cached.at<API_COOLDOWN_MS) {
+        // Reuse the API response across consumers without repeating the request.
+        const recovered=await cached.promise;
+        feed=pickNewest([feed,recovered]);
+      } else if(fallback.length) {
+        const promise=fetchNewest(fallback).catch(()=>null);
+        apiAttempts.set(key,{at:now,promise});
+        feed=pickNewest([feed,await promise]);
+      }
     }
+    if(!feed) throw primaryError||new Error('fontes indisponíveis');
+    return await mergeStz8h(selectPublicMucum4h(feed, isPublicMucumPage(path)), path);
   }
 
   return {
+    needsRefresh: needsRefresh,
     stampMs: stampMs,
     pickNewest: pickNewest,
     sourcesFor: sourcesFor,
@@ -103,6 +211,8 @@
     apiSources: apiSources,
     withCacheBust: withCacheBust,
     fetchNewest: fetchNewest,
-    fetchLive: fetchLive
+    fetchLive: fetchLive,
+    selectPublicMucum4h: selectPublicMucum4h
   };
 });
+

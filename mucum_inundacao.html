@@ -114,7 +114,7 @@
     <div class="tl">
       <div class="q" style="margin-top:2px">Quando isso pode acontecer?</div>
       <div class="head"><button class="play" id="play">▶</button>
-        <div style="flex:1"><div class="tlab" id="tlab">—</div><input type="range" id="time" min="0" max="1" value="0"></div></div>
+        <div style="flex:1"><div class="tlab" id="tlab">—</div><input type="range" id="time" min="0" max="1" value="0" aria-label="Momento da cheia na linha do tempo"></div></div>
       <div class="hint">Arraste a linha do tempo (ou dê play) para ver a água avançar. Clique em um ponto do mapa para a profundidade ali.</div>
     </div>
 
@@ -134,13 +134,6 @@
         <div class="conf">Confiança da previsão: <span class="dot" id="s-confdot"></span><b id="s-conf">—</b></div>
       </div>
 
-      <div class="tl">
-        <div class="q" style="margin-top:14px">Quando isso pode acontecer?</div>
-        <div class="head"><button class="play" id="play">▶</button>
-          <div><div class="tlab" id="tlab">—</div><input type="range" id="time" min="0" max="1" value="0"></div></div>
-        <div class="hint">Arraste a linha do tempo (ou dê play) para ver a água avançar. Clique em um ponto do mapa para a profundidade ali.</div>
-      </div>
-
       <details class="card"><summary>Como esta previsão é feita?</summary><div class="body">
         <div class="method">
           <div class="step" data-exp="A estação 86510000 informa o nível atual do rio em Muçum; a montante 86472600 (Santa Tereza) entra na RNA."><b>Nível atual</b> do rio</div>
@@ -158,7 +151,7 @@
 
       <details class="card"><summary>Legenda e confiança</summary><div class="body">
         <div class="legend">
-          <div class="row2"><span class="sw a"></span>área já alagada (nível atual)</div>
+          <div class="row2"><span class="sw a"></span>área já inundada (nível atual)</div>
           <div class="row2"><span class="sw b"></span><b>alcance previsto pela RNA</b> (laranja)</div>
           <div class="row2"><span class="sw u"></span>faixa de incerteza (a borda pode variar)</div>
         </div>
@@ -169,13 +162,13 @@
     <!-- ===== MODO TÉCNICO ===== -->
     <div class="tech-only">
       <div id="evinfo" class="disc" style="margin-top:0"></div>
-      <h4>Leitura <span class="info" title="Nível do rio informado pela estação 86510000, na escala local da estação. A referência técnica é a régua local, mas para leitura pública o valor representa o nível do rio em Muçum. PERS: ganho contra persistência. Área: superfície alagada estimada pelo HAND.">ⓘ</span></h4>
+      <h4>Leitura <span class="info" title="Nível do rio informado pela estação 86510000, na escala local da estação. A referência técnica é a régua local, mas para leitura pública o valor representa o nível do rio em Muçum. PERS: ganho contra persistência. Área: superfície inundada estimada pelo HAND.">ⓘ</span></h4>
       <div class="read"><span class="now">Nível do rio agora</span><b class="now" id="r-now">—</b></div>
       <div class="read"><span class="fore">Nível previsto do rio (+<span id="hz">?</span>)</span><b class="fore" id="r-fore">—</b></div>
       <div class="read"><span>Δ nível (previsto − atual)</span><b id="r-dnivel">—</b></div>
       <div class="read"><span>Observado (+<span id="hz2">?</span>)</span><b id="r-obs">—</b></div>
       <div class="read"><span>Erro de nível (prev − obs)</span><b id="r-errniv">—</b></div>
-      <div class="read"><span class="now">Área alagada agora</span><b class="now" id="r-anow">—</b></div>
+      <div class="read"><span class="now">Área inundada agora</span><b class="now" id="r-anow">—</b></div>
       <div class="read"><span class="fore">Área prevista</span><b class="fore" id="r-afore">—</b></div>
       <div class="read"><span class="add">Nova área (avanço)</span><b class="add" id="r-anew">—</b></div>
       <div class="read"><span class="add">Crescimento</span><b class="add" id="r-growth">—</b></div>
@@ -192,7 +185,7 @@
 
       <h4>Calibração · nível normal ↔ terreno</h4>
       <p class="disc" style="margin-top:2px"><b>Nível normal / zero operacional da régua</b>: leitura adotada como início da mancha no leito do rio (HAND 0). Padrão provisório adotado em <b>5,0 m</b>; ajuste apenas para auditoria visual. Atual: <b id="bfval">—</b> · registrado: <b id="bfevent">—</b></p>
-      <input type="range" id="bankfull" min="100" max="900" step="10" value="500" style="width:100%">
+      <input type="range" id="bankfull" min="100" max="900" step="10" value="500" style="width:100%" aria-label="Nível normal da régua (HAND 0), em centímetros">
       <div class="disc"><b>Prova de conceito — não validado em nível de rua.</b> Terreno: mosaico 2&nbsp;m (drone + ANADEM). O nível normal (HAND 0) adotado é <b>500 cm</b> na régua 86510000. A cota de inundação oficial é <b>18 m</b> (SGB/CPRM). Fora do footprint do drone a borda segue a resolução do ANADEM.</div>
     </div>
   </aside>
@@ -470,3 +463,4 @@ init();
 </script>
 </body>
 </html>
+

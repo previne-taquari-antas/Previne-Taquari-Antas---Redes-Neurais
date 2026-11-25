@@ -14,6 +14,7 @@ on:
     branches: [main]
     paths:
       - "scripts/ai_lab_shadow_live_infer.py"
+      - "scripts/test_ai_lab_shadow_history.py"
       - "previne/robo/ai_lab_shadow_tcn.py"
       - ".github/workflows/ai-lab-shadow-live.yml"
 
@@ -38,6 +39,7 @@ jobs:
           filter: blob:none
           sparse-checkout: |
             scripts/ai_lab_shadow_live_infer.py
+            scripts/test_ai_lab_shadow_history.py
             previne/robo/ai_lab_shadow_tcn.py
             assets/data/ai_lab
             previsao_ao_vivo.json
@@ -70,6 +72,9 @@ jobs:
           curl --fail-with-body --location --silent --show-error             --header "Authorization: Bearer ${GH_TOKEN}"             --header "Accept: application/vnd.github+json"             "$URL" -o shadow_bundle.zip
           unzip -q shadow_bundle.zip -d shadow_artifact
           find shadow_artifact -maxdepth 5 -type f -print
+
+      - name: Test shadow history persistence
+        run: python -B scripts/test_ai_lab_shadow_history.py
 
       - name: Run research-only live shadow inference
         run: |

@@ -1,0 +1,125 @@
+name: Frontend quality
+on:
+  pull_request:
+    paths: ['**/*.html', 'inventario/**', 'assets/js/**', 'assets/css/**', 'assets/previsao*', 'scripts/*site*', 'scripts/apply_institutional_logos.py', 'scripts/test_*.js', 'tests/frontend/**', '.github/workflows/frontend-quality.yml']
+  push:
+    branches: [main]
+    paths: ['**/*.html', 'inventario/**', 'assets/js/**', 'assets/css/**', 'assets/previsao*', 'scripts/*site*', 'scripts/apply_institutional_logos.py', 'scripts/test_*.js', 'tests/frontend/**', '.github/workflows/frontend-quality.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*.html
+            /**/*.html
+            /pesquisas/**/*.html
+            /inventario/*.html
+            /assets/js/
+            /assets/css/
+            /assets/*.js
+            /assets/*.css
+            /scripts/test_*.js
+            /scripts/test_site_feeds.py
+            /scripts/audit_site_feeds.py
+            /scripts/test_binary_research_decision.py
+            /scripts/build_binary_research_decision.py
+            /scripts/validate_site_frontend.py
+            /scripts/optimize_static_site.py
+            /scripts/test_static_site_optimization.py
+            /scripts/test_site_accessibility.py
+            /scripts/apply_institutional_logos.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate active pages and scripts
+        run: python scripts/validate_site_frontend.py
+      - name: Regression tests
+        run: |
+          python -m unittest scripts.test_site_feeds scripts.test_binary_research_decision
+          python scripts/test_static_site_optimization.py
+          python scripts/test_site_accessibility.py
+          for test in scripts/test_*.js; do node "$test"; done
+
+  browser:
+    # o Playwright fixado em tests/frontend (1.51) não instala o Chromium no ubuntu-latest (26.04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*.html
+            /assets/js/
+            /assets/css/
+            /assets/*.js
+            /assets/*.css
+            /tests/frontend/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/frontend/package-lock.json
+      - name: Install pinned browser dependencies
+        working-directory: tests/frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Test mobile and desktop interactions
+        run: node tests/frontend/browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-interaction-report
+          path: /tmp/previne-browser-report.json
+          retention-days: 14
+
+  municipal:
+    # Página do cenário municipal: exemplo, importação de arquivos, terreno, bloqueios, celular.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /cenario_municipal.html
+            /assets/js/
+            /assets/data/rota_fuga/santa_tereza_pontos_encontro_hand.json
+            /tests/frontend/
+            /tests/fixtures/brasil_osm/
+            /tests/test_cenario_*.cjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/frontend/package-lock.json
+      - name: Install pinned browser dependencies
+        working-directory: tests/frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Cálculo e bases abertas
+        run: node --test tests/test_cenario_engine.cjs tests/test_cenario_osm_mundial.cjs tests/test_cenario_idiomas.cjs
+      - name: Exemplo, salvar e reabrir, celular
+        working-directory: tests/frontend
+        run: node municipal.cjs
+      - name: Entradas inválidas, desenhos e bloqueios
+        working-directory: tests/frontend
+        run: node municipal_audit.cjs
+      - name: Terreno (MDT) grande e mancha pelo terreno
+        working-directory: tests/frontend
+        run: node mdt_audit.cjs
+      - name: Bases de cidades brasileiras e arquivos Shapefile
+        working-directory: tests/frontend
+        run: node brasil_audit.cjs

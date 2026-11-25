@@ -25,6 +25,26 @@ LIVE_SPEC.loader.exec_module(LIVE)
 
 
 class MucumFeedContractTests(unittest.TestCase):
+    def test_history_is_not_rewritten_when_only_stamps_change(self) -> None:
+        import tempfile
+        live = LIVE
+        reg = {"id": "a", "hora_alvo": "2026-10-21T10:00:00-03:00", "nivel_previsto_cm": 300,
+               "status_auditoria": "sem_dado_ana", "criado_em": "2026-10-21T08:05:00-03:00",
+               "auditado_em": "2026-10-21T10:30:00-03:00"}
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(live, "HISTORICO_SAIDA", str(Path(d) / "h.json")):
+            self.assertTrue(live.salvar_historico([dict(reg)]))
+            antes = Path(live.HISTORICO_SAIDA).read_bytes()
+            # novo ciclo: mesmo conteúdo, carimbos novos -> arquivo intacto
+            self.assertFalse(live.salvar_historico([dict(reg, criado_em="x", auditado_em="y")]))
+            self.assertEqual(Path(live.HISTORICO_SAIDA).read_bytes(), antes)
+            # conferência real: grava, com o novo carimbo
+            conferido = dict(reg, status_auditoria="conferido", observado_cm=310, auditado_em="z")
+            self.assertTrue(live.salvar_historico([conferido]))
+            salvo = json.loads(Path(live.HISTORICO_SAIDA).read_text(encoding="utf-8"))["registros"]
+            self.assertEqual(salvo, [dict(conferido, criado_em=reg["criado_em"])])
+            # registro novo também grava
+            self.assertTrue(live.salvar_historico([conferido, dict(reg, id="b")]))
+
     def setUp(self) -> None:
         self.data = {
             "telemetria_ultima_em": "2026-08-28T18:15:00",
@@ -38,7 +58,6 @@ class MucumFeedContractTests(unittest.TestCase):
                 for key, hours, inputs, role, rank in (
                     ("2h", 2, 14, "principal", None),
                     ("4h", 4, 15, "principal", 1),
-                    ("4h_versao_b", 4, 15, "comparativo", 2),
                     ("8h", 8, 26, "principal", 1),
                     ("8h_versao_b", 8, 28, "comparativo", 2),
                 )
@@ -50,7 +69,7 @@ class MucumFeedContractTests(unittest.TestCase):
         item = {
             "horizonte": key,
             "horizonte_h": hours,
-            "modelo": "fixture_" + key,
+            "modelo": ("015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31" if key == "4h" else "fixture_" + key),
             "tipo": "ALT",
             "status": "ok",
             "modelo_papel": role,
@@ -76,6 +95,37 @@ class MucumFeedContractTests(unittest.TestCase):
     def test_current_feed_schema(self) -> None:
         validate_data(self.data)
 
+    def test_single_4h_model_is_version_b(self) -> None:
+        modelos = LIVE.carregar_modelos()
+        quatro = [m for m in modelos if m["horizonte_h"] == 4]
+        self.assertEqual(len(quatro), 1)
+        self.assertEqual(quatro[0]["modelo"], "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31")
+        self.assertEqual(quatro[0]["horizonte"], "4h")
+        self.assertEqual(quatro[0]["papel"], "principal")
+
+    def test_old_primary_is_rejected(self) -> None:
+        data = copy.deepcopy(self.data)
+        data["horizontes"]["4h"]["modelo"] = "006_MUC_H04_STZ_RECORTE_CONTROLE_15INPUTS_NH32_S06"
+        with self.assertRaises(SystemExit):
+            validate_data(data)
+
+    def test_version_b_history_is_preserved_under_4h(self) -> None:
+        model = "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31"
+        records = [
+            {"local": "Muçum", "horizonte": "4h_versao_b", "modelo": model,
+             "hora_modelo": "2026-10-10T04:00:00", "status_auditoria": "conferido",
+             "erro_abs_cm": 3.0, "id": "legacy-b"},
+            {"local": "Muçum", "horizonte": "4h", "modelo": "006_MUC_H04_STZ_RECORTE_CONTROLE_15INPUTS_NH32_S06",
+             "hora_modelo": "2026-10-10T04:00:00", "status_auditoria": "conferido",
+             "erro_abs_cm": 44.0, "id": "legacy-old"},
+        ]
+        active = [m for m in LIVE.carregar_modelos() if m["horizonte"] == "4h"]
+        kept = LIVE.filtrar_historico_modelos(records, active)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["horizonte"], "4h")
+        self.assertEqual(kept[0]["modelo"], model)
+        self.assertEqual(kept[0]["erro_abs_cm"], 3.0)
+
     def test_explicit_missing_prediction_is_valid(self) -> None:
         data = copy.deepcopy(self.data)
         data["horizontes"]["8h_versao_b"]["nivel_previsto_cm"] = None
@@ -98,6 +148,73 @@ class MucumFeedContractTests(unittest.TestCase):
             LIVE._hora_previsao_mais_recente(data),
             dt.datetime(2026, 8, 28, 18, 0),
         )
+
+    def test_live_quality_guard_marks_recent_high_error(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        data = {"4h": item}
+        audit = {
+            "n_total": 10,
+            "n_conferidas": 10,
+            "n_aguardando": 0,
+            "mae_ultimas_6_cm": 40.0,
+            "mae_24h_cm": 45.2,
+            "maior_erro_abs_24h_cm": 79.0,
+            "ultima_conferida": None,
+            "ultimas_conferidas": [],
+        }
+        with mock.patch.object(LIVE, "resumo_auditoria", return_value=audit):
+            LIVE.aplicar_guardrail_qualidade_horizontes(data, [])
+        out = data["4h"]
+        self.assertEqual(out["qualidade_ao_vivo"]["status"], "ATENCAO")
+        self.assertIn("erro recente do modelo ativo acima do guardrail", out["status"])
+        self.assertEqual(out["bloqueio_publicacao"], "erro_recente_acima_guardrail")
+        self.assertFalse(out["disponivel"])
+        self.assertIsNone(out["nivel_previsto_cm"])
+        self.assertEqual(out["previsao_reprovada_qualidade_cm"], 100.0)
+
+    def test_normal_error_does_not_block_version_b(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        audit = {
+            "n_conferidas": 10,
+            "mae_24h_cm": 8.0,
+            "maior_erro_abs_24h_cm": 19.0,
+        }
+        with mock.patch.object(LIVE, "resumo_auditoria", return_value=audit):
+            LIVE.aplicar_guardrail_qualidade_horizontes({"4h": item}, [])
+        self.assertTrue(item["disponivel"])
+        self.assertEqual(item["nivel_previsto_cm"], 100.0)
+        self.assertNotIn("bloqueio_publicacao", item)
+
+    def test_live_freshness_guard_hides_two_hour_old_base(self) -> None:
+        item = self._item("8h", 8, 26, "principal", 1)
+        item["hora_modelo"] = "2026-08-28T16:00:00"
+        item["passos"] = [["2026-08-28T16:00:00", 100, 101, 120]]
+        data = {"8h": item}
+        with mock.patch.object(LIVE, "agora_brt", return_value=dt.datetime(2026, 8, 28, 18, 15)):
+            LIVE.aplicar_guardrail_frescor_horizontes(
+                data,
+                dt.datetime(2026, 8, 28, 18, 15),
+            )
+        out = data["8h"]
+        self.assertFalse(out["disponivel"])
+        self.assertIsNone(out["nivel_previsto_cm"])
+        self.assertEqual(out["previsao_stale_candidata_cm"], 100.0)
+        self.assertEqual(out["qualidade_ao_vivo"]["status"], "BASE_DESATUALIZADA")
+        self.assertEqual(out["auditoria_inputs"]["status"], "ATENCAO")
+
+    def test_live_freshness_guard_warns_between_one_and_two_hours(self) -> None:
+        item = self._item("4h", 4, 15, "principal", 1)
+        item["hora_modelo"] = "2026-08-28T17:00:00"
+        data = {"4h": item}
+        with mock.patch.object(LIVE, "agora_brt", return_value=dt.datetime(2026, 8, 28, 18, 15)):
+            LIVE.aplicar_guardrail_frescor_horizontes(
+                data,
+                dt.datetime(2026, 8, 28, 18, 15),
+            )
+        out = data["4h"]
+        self.assertTrue(out["disponivel"])
+        self.assertIsNotNone(out["nivel_previsto_cm"])
+        self.assertIn("atencao: base da RNA 1.2h", out["status"])
 
     def test_implausible_observed_level_is_rejected(self) -> None:
         data = copy.deepcopy(self.data)
@@ -173,6 +290,60 @@ class MucumFeedContractTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertTrue(levels)
         self.assertTrue(rain)
+
+
+    def test_missing_current_ana_allows_historical_levels_but_not_forecast(self) -> None:
+        data = copy.deepcopy(self.data)
+        data["telemetria_ultima_em"] = None
+        for item in data["horizontes"].values():
+            item["nivel_previsto_cm"] = None
+            item["disponivel"] = False
+            item["status"] = "sem dado recente em Muçum"
+        validate_data(data)
+        data["horizontes"]["2h"]["nivel_previsto_cm"] = 640
+        data["horizontes"]["2h"]["disponivel"] = True
+        with self.assertRaises(SystemExit):
+            validate_data(data)
+
+    def test_ana_query_uses_three_days_for_target_and_rain(self) -> None:
+        with mock.patch.object(LIVE, "_obter_xml_ana", return_value=None) as request:
+            LIVE.buscar_ana(LIVE.ALVO)
+            self.assertEqual(request.call_args.args[1], 3)
+            LIVE.buscar_ana_chuva(LIVE.ALVO)
+            self.assertEqual(request.call_args.args[1], 3)
+
+    def test_wall_clock_blocks_prediction_when_ana_telemetry_is_old(self) -> None:
+        base = dt.datetime(2026, 11, 4, 22)
+        item = self._item("2h", 2, 14, "principal", None)
+        item["hora_modelo"] = base.isoformat()
+        item["status"] = "ok"
+        with mock.patch.object(LIVE, "agora_brt", return_value=base + dt.timedelta(hours=8)):
+            LIVE.aplicar_guardrail_frescor_horizontes({"2h": item}, base)
+        self.assertIsNone(item["nivel_previsto_cm"])
+        self.assertFalse(item["disponivel"])
+        self.assertGreaterEqual(item["idade_base_relogio_h"], 8)
+
+    def test_previous_observed_ana_levels_are_retained_only_as_history(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "mucum.json"
+            path.write_text(json.dumps({"serie_observada_ana": [
+                {"hora": "2026-11-05T06:00", "nivel_cm": 575},
+                {"hora": "2026-11-05T07:00", "nivel_cm": 579},
+            ]}), encoding="utf-8")
+            with mock.patch.object(LIVE, "SAIDA", str(path)), mock.patch.object(
+                LIVE, "agora_brt", return_value=dt.datetime(2026, 11, 5, 9)
+            ):
+                vals = LIVE.serie_observada_ana_publica({
+                    LIVE.ALVO: {dt.datetime(2026, 11, 5, 7): 581,
+                                dt.datetime(2026, 11, 5, 8): 590}
+                })
+        self.assertEqual(
+            vals,
+            [{"hora": "2026-11-05T06:00", "nivel_cm": 575.0},
+             {"hora": "2026-11-05T07:00", "nivel_cm": 581.0},
+             {"hora": "2026-11-05T08:00", "nivel_cm": 590.0}],
+        )
 
 
 if __name__ == "__main__":

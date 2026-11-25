@@ -93,9 +93,11 @@
 <div id="map"></div>
 <div class="hud">
   <h1>Rota de fuga · <span id="cid"></span></h1>
+  <div class="aviso-versao" style="background:#fdecea;border:1px solid #f2b8b2;color:#8f2a20;border-radius:8px;padding:7px 10px;font-size:13px;margin:6px 0"><b>Versão antiga:</b> os números do cenário de 22/07 usam a calibração da régua já abandonada (zero 4,0 m). As rotas atuais estão no <a href="../santa_tereza_painel_casas.html#rotas">painel casa a casa</a>.</div>
+  <div class="canais-oficiais" style="font-size:12px;color:#4a5a52;padding:0 0 6px">Em emergência: <b>193</b> (Bombeiros) · <b>199</b> (Defesa Civil) · alertas por SMS: envie seu CEP para <b>40199</b>.</div>
    <div class="sub">Imagem aérea · ruas do OpenStreetMap · hipótese de caminho</div>
    <div class="sub" id="meta"></div>
-   <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Não é alerta, rota liberada, autorização de evacuação ou despacho. A captura hidrológica e os acessos precisam ser atualizados antes de qualquer conclusão.</span></div>
+   <div class="safety-gate" id="safetyGate" role="status" aria-live="polite"><strong><span id="freshnessBadge">STALE · SNAPSHOT</span> · PESQUISA / EXERCÍCIO</strong><span id="freshnessNote">Registro histórico · confira a data dos dados e as condições de acesso.</span></div>
    <section class="decision-board" aria-label="Sequência do estudo de resposta">
      <div class="decision-kicker">Painel de resposta · antes do evento</div>
      <strong>Organizar antes para decidir melhor quando a água subir.</strong>
@@ -130,8 +132,8 @@
      <h2>Primeiro organizar, depois responder</h2>
      <p>A RNA informa horizonte temporal. A camada espacial só é desenhada quando existe ligação documentada com o terreno.</p>
      <div class="scenario-switch" role="tablist" aria-label="Cenários da pesquisa"><button id="scenarioKnown" class="active" type="button" aria-selected="true">22/07 · cenário espacial</button><button id="scenarioRna8" type="button" aria-selected="false">RNA · 8h</button><button id="scenarioRna12" type="button" aria-selected="false">RNA · 12h</button></div>
-     <div class="scenario-summary" id="scenarioSummary"><div class="scenario-metric"><b>64</b><span>quadras alagadas no exercício</span></div><div class="scenario-metric"><b>42</b><span>quadras críticas</span></div><div class="scenario-metric"><b>14</b><span>com margem apertada</span></div><div class="scenario-metric"><b>258</b><span>quadras na grade de 30 m</span></div></div>
-     <div class="scenario-status" id="scenarioStatus"><strong>Cenário conhecido · 22/07</strong><br>Referência de cheia com subida aproximada de 40 cm/h, nível registrado no arquivo: 4,24 m. A lista abaixo organiza a ordem de conferência do exercício; não é ordem de evacuação.</div>
+     <div class="scenario-summary" id="scenarioSummary"><div class="scenario-metric"><b>64</b><span>quadras inundadas no exercício</span></div><div class="scenario-metric"><b>42</b><span>quadras críticas</span></div><div class="scenario-metric"><b>14</b><span>com margem apertada</span></div><div class="scenario-metric"><b>258</b><span>quadras na grade de 30 m</span></div></div>
+     <div class="scenario-status" id="scenarioStatus"><strong>Cenário conhecido · 22/07</strong><br>Referência de cheia com subida aproximada de 40 cm/h, nível registrado no arquivo: 4,24 m. A lista abaixo organiza a ordem de conferência do exercício.</div>
      <label class="scenario-window" for="scenarioWindow">Janela para ordenar a conferência<select id="scenarioWindow"><option value="0">agora · cenário completo</option><option value="8">próximas 8 horas</option><option value="12">próximas 12 horas</option></select></label>
      <div class="priority-list" id="priorityList" aria-live="polite"></div>
    </section>
@@ -178,13 +180,13 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
  (function(){const nv=D.meta.nivel||{};const at=Number(nv.nivel_atual_cm);const atTxt=Number.isFinite(at)?(at/100).toFixed(2)+' m':'nível não informado';
   document.getElementById('meta').textContent=`STALE · ${nv.rotulo||'captura histórica'} · rio ${atTxt} · sensor ${nv.telemetria_em||'data não informada'} · ${D.meta.n_nos} pontos da rede · mapa gerado ${D.meta.gerado_em}`;
   byId('freshnessBadge').textContent='STALE · SNAPSHOT';
-  byId('freshnessNote').textContent=`Não é alerta, rota liberada, autorização de evacuação ou despacho. Registro de pesquisa: ${nv.telemetria_em||'data não informada'} · confirme a fonte atual antes de qualquer decisão.`;
+  byId('freshnessNote').textContent=`Registro histórico da pesquisa: ${nv.telemetria_em||'data não informada'} · confirme a fonte atual antes de qualquer decisão.`;
  })();
   const b=L.latLngBounds(),routeLayer=L.layerGroup(),handLayerGroup=L.layerGroup().addTo(map),priorityLayer=L.layerGroup().addTo(map);
  const routeLines=[];
  D.edges.forEach(([a,c,ag])=>{const A=D.nos[a],C=D.nos[c];
    const line=L.polyline([A,C],{color:ag?'#b3382c':'#8fa7b8',weight:ag?2.5:1.5,opacity:ag?.7:.5}).addTo(routeLayer);routeLines.push(line);b.extend(A);b.extend(C);});
- D.abrigos.forEach(a=>L.marker([a.lat,a.lon]).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
+ D.abrigos.forEach(a=>L.marker([a.lat,a.lon],{title:a.nome,alt:a.nome}).addTo(map).bindPopup('<b>'+a.nome+'</b><br>ponto de encontro / abrigo'));
  let handGeo=null,handVisible=true,scenarioData=null,priorityVisible=true,priorityMarkerRefs=[],selectedScenario='known';
  const handLevelLabel=value=>Number(value).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
  const minutesLabel=value=>Number.isFinite(Number(value))?Math.round(Number(value))+' min':'não calculado';
@@ -216,8 +218,8 @@ document.getElementById('basemapToggle').addEventListener('click',()=>{
    target.querySelectorAll('[data-priority-index]').forEach(button=>button.addEventListener('click',()=>{const ref=priorityMarkerRefs[Number(button.dataset.priorityIndex)];if(ref){map.setView([ref.q.lat,ref.q.lon],16);ref.marker.openPopup();}}));
  }
  function renderKnownSummary(){
-   const c=scenarioData&&scenarioData.resumo||{};byId('scenarioSummary').innerHTML='<div class="scenario-metric"><b>'+esc(c.alagada||0)+'</b><span>quadras alagadas no exercício</span></div><div class="scenario-metric"><b>'+esc(c.critica||0)+'</b><span>quadras críticas</span></div><div class="scenario-metric"><b>'+esc(c.apertada||0)+'</b><span>com margem apertada</span></div><div class="scenario-metric"><b>'+esc((scenarioData&&scenarioData.quadras||[]).length)+'</b><span>quadras na grade de 30 m</span></div>';
-   byId('scenarioStatus').innerHTML='<strong>Cenário conhecido · '+esc(scenarioData.meta.cenario_rotulo||'22/07')+'</strong><br>Referência de cheia com nível no arquivo: <b>'+esc(scenarioData.meta.nivel_txt||'não informado')+'</b>. A lista organiza a ordem de conferência do exercício; não é ordem de evacuação nem estimativa de moradores.';
+   const c=scenarioData&&scenarioData.resumo||{};byId('scenarioSummary').innerHTML='<div class="scenario-metric"><b>'+esc(c.alagada||0)+'</b><span>quadras inundadas no exercício</span></div><div class="scenario-metric"><b>'+esc(c.critica||0)+'</b><span>quadras críticas</span></div><div class="scenario-metric"><b>'+esc(c.apertada||0)+'</b><span>com margem apertada</span></div><div class="scenario-metric"><b>'+esc((scenarioData&&scenarioData.quadras||[]).length)+'</b><span>quadras na grade de 30 m</span></div>';
+   byId('scenarioStatus').innerHTML='<strong>Cenário conhecido · '+esc(scenarioData.meta.cenario_rotulo||'22/07')+'</strong><br>Referência de cheia com nível no arquivo: <b>'+esc(scenarioData.meta.nivel_txt||'não informado')+'</b>. A lista organiza a ordem de conferência do exercício; quantitativos dependem de verificação local.';
  }
  const RNA_REFERENCE={rna8:{label:'RNA 8h',model:'C0217',nash:'0,951',val:'0,940',pers:'0,786',e95:'121,8',note:'MAT com série temporal, métricas e partições; sem coordenadas por quadra.'},rna12:{label:'RNA 12h',model:'C0065',nash:'0,939',val:'0,888',pers:'0,840',e95:'132,0',note:'MAT com série temporal, métricas e partições; sem coordenadas por quadra.'}};
  function setScenario(kind){

@@ -447,14 +447,14 @@ D.casas.forEach(c=>{
   orig[c.id]=L.polyline(c.rota||[[c.lat,c.lon]],{color:'#ffffff',weight:3,opacity:0,dashArray:'7 8'}).addTo(map);
   rotas[c.id]=L.polyline(c.rota||[[c.lat,c.lon]],{color:'#0f8b46',weight:6,opacity:0}).addTo(map);
   const ic=L.divIcon({className:'',html:'<div class="dot" style="background:#1b7a5a"></div>',iconSize:[22,22],iconAnchor:[11,11]});
-  dots[c.id]=L.marker([c.lat,c.lon],{icon:ic,zIndexOffset:900}).addTo(map).bindTooltip(c.nome,{permanent:true,direction:'right',offset:[12,0],className:'casa-tip'});
+  dots[c.id]=L.marker([c.lat,c.lon],{icon:ic,zIndexOffset:900,title:c.nome}).addTo(map).bindTooltip(c.nome,{permanent:true,direction:'right',offset:[12,0],className:'casa-tip'});
 });
 map.fitBounds(b,{paddingTopLeft:[16,16],paddingBottomRight:[470,90]});
 setTimeout(()=>map.invalidateSize(),200);
 document.getElementById('pills').innerHTML=ALARMES.map(a=>`<span class="pill" data-id="${a.id}">${a.l}</span>`).join('');
 document.getElementById('leg').innerHTML='<b>Leitura do mapa</b>'+
   '<div><i style="background:#1b7a5a"></i>fora da mancha prevista</div>'+
-  '<div><i style="background:#e3b100"></i>prevista para alagar</div>'+
+  '<div><i style="background:#e3b100"></i>prevista para inundar</div>'+
   '<div><i style="background:#e8730c"></i>pouca margem de saída</div>'+
   '<div><i style="background:#1e5fbf"></i>já alcançada no observado</div>'+
   '<div><i style="background:#0f8b46"></i>rota seca até abrigo</div>'+
@@ -509,14 +509,14 @@ function render(i){
     const naFila=(k!=='seguro'&&k!=='alto')||rotaFecha;
     if(naFila) nFila+=1;
     const vis=rr.kind==='isolada'?'isolada':(rr.kind==='fuga'?'fuga':k);
-    const lab={seguro:'ainda seguro',atencao:'sair — RNA alcança',urgente:'SAIR AGORA',alagada:'já alagou',alto:'ponto alto',isolada:'ROTA CORTADA',fuga:'só pela água'}[vis];
+    const lab={seguro:'ainda seguro',atencao:'sair — RNA alcança',urgente:'SAIR AGORA',alagada:'já inundou',alto:'ponto alto',isolada:'ROTA CORTADA',fuga:'só pela água'}[vis];
     const ord=naFila?nFila+'º':'—';
     const cor=CORES[vis]||CORES[k];
     return `<div class="casa ${naFila?vis:'seguro'}">
       <div class="ord">${ord}</div>
       <div><span class="tag" style="background:${cor}">${lab}</span>
       <div class="nm">${c.nome}</div>
-      <div class="bl">alaga em HAND ${c.cota_hand_m} m</div>
+      <div class="bl">inunda em HAND ${c.cota_hand_m} m</div>
       <div class="bl">${txtRota(c,naFila?k:'seguro',rr)}</div></div></div>`;
   }).join('');
   const fc=document.getElementById('filaCount');

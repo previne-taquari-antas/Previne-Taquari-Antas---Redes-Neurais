@@ -42,7 +42,8 @@ def age_hours(timestamp: Any, reference: datetime | None = None) -> float | None
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         ref = reference or datetime.now(timezone.utc)
-        return max(0.0, (ref - parsed.astimezone(timezone.utc)).total_seconds() / 3600.0)
+        age = (ref - parsed.astimezone(timezone.utc)).total_seconds() / 3600.0
+        return None if age < -0.1 else max(0.0, age)
     except (TypeError, ValueError):
         return None
 
@@ -69,6 +70,8 @@ def build_mucum() -> dict[str, Any]:
     probability = load("assets/data/research_probability_mucum_latest.json")
     weather = load("assets/data/research_weather_mucum_latest.json")
     binary = load("assets/data/research_binary_decision_mucum_latest.json")
+    probability_age = age_hours(probability.get("generated_at_utc"))
+    probability_fresh = probability_age is not None and probability_age <= 36.0
     events = evidence.get("candidate_catalog", {}).get("events", [])
     rain_by_id = {row.get("event_id"): row for row in evidence.get("antecedent_conditions", [])}
     binary_by_h = {str(row.get("hours")): row for row in binary.get("decisions", [])}
@@ -104,8 +107,8 @@ def build_mucum() -> dict[str, Any]:
                 "ifs_proxy_mm": current.get("rain_ifs_proxy_mm"),
                 "gefs_proxy_mm": current.get("rain_gefs_proxy_mm"),
                 "soil_moisture_m3m3": current.get("soil_moisture_model_mean_m3m3"),
-                "probability_percent": row.get("flood_probability_percent"),
-                "decision": decision.get("decision"),
+                "probability_percent": row.get("flood_probability_percent") if probability_fresh else None,
+                "decision": decision.get("decision") if probability_fresh else None,
                 "coverage_hours": current.get("rain_hours_available"),
             }
         )
@@ -126,6 +129,11 @@ def build_mucum() -> dict[str, Any]:
         "schema_version": 1,
         "generated_at_utc": now(),
         "location": "mucum",
+        "source_quality": {"probability": {
+            "state": "fresh" if probability_fresh else ("stale" if probability_age is not None else "unknown"),
+            "generated_at_utc": probability.get("generated_at_utc"),
+            "age_hours": probability_age, "max_age_hours": 36.0,
+        }},
         "station_name": "Muçum",
         "threshold_cm": evidence.get("thresholds_cm", {}).get("flood"),
         "summary": summary,

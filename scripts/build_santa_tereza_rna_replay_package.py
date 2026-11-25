@@ -132,7 +132,7 @@ code {{ color:#1f5774; }}
 <main>
   <section class="hero">
     <div><span class="eyebrow">PESQUISA · REPLAY HISTÓRICO</span><h1>Santa Tereza · RNA de 2 horas</h1><p>Escolha um evento para comparar o nível observado com a saída da rede neural.</p></div>
-    <div class="notice">Não é alerta, ordem de evacuação, rota ou despacho. É uma ferramenta de estudo e validação.</div>
+    <div class="notice">Replay histórico para comparar observações e previsões da RNA.</div>
   </section>
   <section class="toolbar">
     <label for="event-select">Evento histórico<select id="event-select"></select></label>

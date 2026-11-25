@@ -60,11 +60,18 @@ MODELO_2H_B_ID = "STZ_2H_ALT_VFINAL_B_20260731"
 MODELO_2H_B_SHA256 = "6E605B3DE4FD5AC53298EF9C82942EC9C7B53B21A43AB377C75989AFFFB258D0"
 MODELO_2H_B_WORKBOOK = "assets/audit_workbooks/modelo_2h_novo.xlsx"
 MODELO_2H_B_WORKBOOK_SHA256 = "8F14E108498EC614953BBA347057E3E82BFC6B7CF5EC7BE5C532B3769A31474A"
-MODELO_4H_PRO_MAT = "assets/mat/4H_ALT__V01_R00_BASELINE_nh52_nit10_cic100000.mat"
-MODELO_4H_PRO_ID = "4H_ALT__V01_R00_BASELINE_nh52_nit10_cic100000"
-MODELO_4H_PRO_MAT_SHA256 = "951394B8B8B3F2C45EE90379F85FE79EC274069692467DFDCF8222B58E281632"
-MODELO_4H_PRO_WORKBOOK = "assets/audit_workbooks/4H_ALT__V01_R00_BASELINE_nh52_nit10_cic100000.xlsx"
-MODELO_4H_PRO_WORKBOOK_SHA256 = "EE1E3B4A06C35A61C7EAEFBB1128D61C47FC4582113C5CB65EA53BB5EBF57724"
+MODELO_4H_V11_MAT = "previne/assets/mat/RNAPREV__SANTA_TEREZA__04h__ALT__18inputs_37hiddens_VFINAL_20260806__V11.mat"
+MODELO_4H_V11_ID = "STZ_4H_V11_CASCATA"
+MODELO_4H_V11_SHA256 = "97DD30036C6434AC615520276EBB16686ADD485FCE8F01DF8C8589FE39840829"
+MODELO_4H_V11_CONTRATO = "assets/data/stz_v11_sombra_contrato.json"
+# (nome, janela_h, postos): soma das medias horarias dos postos observados.
+# Grupo Carreiro somente com ANA 2851044 (INMET A894 em Pane; CEMADEN
+# 432040401A retirado por decisao de 2026-10-08).
+CHUVAS_4H_V11 = (
+    ("Psoma12h_LOCAL", 12, ("86472600", "86472000")),
+    ("Psoma15h_CARREIRO_2851044", 15, ("2851044",)),
+)
+POSTOS_CHUVA_4H_V11 = ("86472600", "86472000", "2851044")
 MODELO_8H_MAT = "previne/assets/mat/RNAPREV__SANTA_TEREZA__08h__ALT__V001__31inputs_63hiddens_20260821.mat"
 MODELO_8H_ID = "STZ_H8_ALT_V001_31IN_63NH"
 MODELO_8H_MAT_SHA256 = "CDA80F39A2A81644F7969984AD6AF262694508D5D56C3EB00CE4BF12B67A9571"
@@ -97,6 +104,7 @@ HAND_ZERO_CM = 160
 SAIDA = "previsao_ao_vivo.json"   # na RAIZ: é onde o simulador publicado lê
 HISTORICO_SAIDA = "historico_previsoes_ao_vivo.json"
 AI_LAB_SHADOW_INPUTS_SAIDA = "assets/data/ai_lab/live_inputs_stz_2h.json"
+ANA_NIVEIS_CACHE_SAIDA = "assets/data/stz_ana_niveis_observados_cache.json"
 AI_LAB_2H_FEATURE_NAMES = [
     "input_01_Nivel_86472600", "input_02_DifN-1h_86472600",
     "input_03_DifN-2h_86472600", "input_04_DifN-4h_86472600",
@@ -111,6 +119,18 @@ AI_LAB_2H_FEATURE_NAMES = [
 # nÃ£o substituem a validaÃ§Ã£o offline nem alteram a previsÃ£o do MAT.
 LIVE_WARN_MAE_24H_CM = 30.0
 LIVE_WARN_MAX_24H_CM = 100.0
+
+
+# Bloqueio operacional temporario solicitado em 2026-10-07.
+# A telemetria usada pelo horizonte de 8 h esta sob suspeita e nao deve
+# alimentar/publicar a RNA ate revisao explicita. O bloqueio vale para
+# V001, V002 e seus fallbacks; 2 h e 4 h permanecem inalterados.
+SUSPENSAO_STZ_8H_ATIVA = True
+SUSPENSAO_STZ_8H_HORIZONTES = {"8h", "8h_v002"}
+SUSPENSAO_STZ_8H_MOTIVO = (
+    "suspenso temporariamente: telemetria de Santa Tereza 86472600 "
+    "considerada invalida para a previsao de 8 h; nao publicar ate revisao"
+)
 ANA = "https://telemetriaws1.ana.gov.br/ServiceANA.asmx/DadosHidrometeorologicos"
 # Espelho oficial do mesmo servico: o host telemetriaws1 pode oscilar por
 # ciclo, enquanto o host www continua respondendo.
@@ -133,8 +153,8 @@ METADADOS_ESTACOES = {
     "86125130": {"lat": -28.5919, "lon": -51.3247, "papel": "Montante"},
     "86306000": {"lat": -29.0133, "lon": -51.3675, "papel": "Montante"},
     "86448000": {"lat": -29.0292, "lon": -51.5219, "papel": "Montante"},
-    "86125500": {"lat": None, "lon": None, "papel": "Montante - input 4h PRO / 8h V001-V002"},
-    "86298000": {"lat": None, "lon": None, "papel": "Montante - input 4h PRO / 8h V001-V002"},
+    "86125500": {"lat": None, "lon": None, "papel": "Montante - input 8h V001-V002"},
+    "86298000": {"lat": None, "lon": None, "papel": "Montante - input 8h V001-V002"},
     "86430900": {"lat": None, "lon": None, "papel": "Montante - input 8h V001"},
     "86447000": {"lat": None, "lon": None, "papel": "Montante - input 8h V002"},
     "86505500": {"lat": None, "lon": None, "papel": "Montante - input 8h V002"},
@@ -152,8 +172,12 @@ POSTOS_CHUVA_36H = ["2851072"]
 # 240 s do workflow. O timeout menor mantém a tentativa no espelho, mas deixa
 # a rodada terminar e publicar o estado honesto de dado ausente quando uma
 # estação realmente não responde.
-ANA_TIMEOUT_NIVEL_S = 8
-ANA_TIMEOUT_CHUVA_S = 6
+# O WS legado da ANA tem respostas lentas/intermitentes. A janela de
+# dados operacionais foi reduzida para 48h; permitir ate 15s por rota
+# antes do espelho evita descartar respostas validas de 9-14 segundos.
+# O limite global do processo no GitHub continua impedindo travamento.
+ANA_TIMEOUT_NIVEL_S = 15
+ANA_TIMEOUT_CHUVA_S = 12
 ANA_RETRIES_NIVEL = 1
 ANA_RETRIES_CHUVA = 1
 ULTIMA_RAW = {}
@@ -165,8 +189,8 @@ NOMES_ESTACOES = {
     "86306000": "Nova Roma do Sul / Rio das Antas",
     "86448000": "Veranopolis / Rio das Antas",
     "86507000": "Carreiro",
-    "86125500": "Estacao 86125500 - montante (input 4h PRO)",
-    "86298000": "Estacao 86298000 - montante (input 4h PRO)",
+    "86125500": "Estacao 86125500 - montante (input 8h V001/V002)",
+    "86298000": "Estacao 86298000 - montante (input 8h V001/V002)",
     "86430900": "Estacao 86430900",
     "86447000": "Estacao 86447000",
     "A894": "INMET Serafina Correa A894",
@@ -237,31 +261,38 @@ MODELOS = [
     },
     {
         "horizonte": "4h",
+        "rotulo": "4h V11 cascata",
         "horizonte_h": 4,
         "tipo": "ALT",
-        "modelo": MODELO_4H_PRO_ID,
-        "mat": MODELO_4H_PRO_MAT,
-        "inputs_total": 26,
-        "montador": "4h_alt_v01_26",
+        "modelo": MODELO_4H_V11_ID,
+        "mat": MODELO_4H_V11_MAT,
+        "inputs_total": 18,
+        "montador": "4h_v11_cascata",
         "principal": True,
-        "versao": "PRO",
+        "versao": "V11 cascata 2h -> 4h",
+        "status_publicacao": "principal",
         "ativo_ao_vivo": True,
         "input_contract_version": "hourly_exact_v1",
         "input_grade": "hourly_exact",
-        "modelo_sha256": MODELO_4H_PRO_MAT_SHA256,
-        "referencia_auditavel": MODELO_4H_PRO_WORKBOOK,
-        "referencia_auditavel_sha256": MODELO_4H_PRO_WORKBOOK_SHA256,
+        "modelo_sha256": MODELO_4H_V11_SHA256,
+        "referencia_auditavel": MODELO_4H_V11_CONTRATO,
+        "proveniencia_nota": (
+            "V11 (18 inputs, 37 neuronios ocultos). x17 e o delta previsto pela RNA "
+            "principal de 2 h na mesma hora-base e x18 = N(t) + x17; nenhuma leitura "
+            "futura observada entra na RNA. O MAT foi treinado com nivel/delta "
+            "observados em t+2h nessas duas entradas, por isso o desempenho ao vivo "
+            "e acompanhado prospectivamente."
+        ),
         "input_labels": [
             "Santa Tereza - nivel atual (D0h)", "Santa Tereza - D-1h", "Santa Tereza - D-2h",
             "Santa Tereza - D-4h", "Santa Tereza - aceleracao A-1h", "Santa Tereza - aceleracao A-4h",
             "Santa Tereza - aceleracao A-12h", "Linha Jose Julio - nivel atual", "Linha Jose Julio - D-1h",
             "Linha Jose Julio - D-2h", "Linha Jose Julio - D-4h", "Linha Jose Julio - aceleracao A-2h",
             "Linha Jose Julio - aceleracao A-8h", "Linha Jose Julio - aceleracao A-16h",
-            "86125500 - nivel atual", "86125500 - D-2h", "86125500 - D-6h", "86125500 - D-10h", "86125500 - D-14h",
-            "86298000 - nivel atual", "86298000 - D-2h", "86298000 - D-6h", "86298000 - D-10h", "86298000 - aceleracao A-2h",
-            "86298000 - aceleracao A-8h", "86298000 - aceleracao A-16h",
+            "Chuva 12h local (86472600 + 86472000)", "Chuva 15h Carreiro (ANA 2851044)",
+            "RNA 2h - delta previsto (mesma base)", "RNA 2h - nivel previsto (N(t) + delta)",
         ],
-        "input_anchor_note": "NIVEL_ATUAL_CM e a ancora de reconstrução e persistência; os 26 sinais acima (incluindo os dois níveis-âncora montantes) são enviados ao MAT.",
+        "input_anchor_note": "NIVEL_ATUAL_CM e a ancora de reconstrução; os 18 sinais acima são enviados ao MAT e a saída é o delta de 4 h.",
     },
     {
         "horizonte": "8h",
@@ -275,7 +306,7 @@ MODELOS = [
         "input_contract_version": "hourly_exact_v1",
         "input_grade": "hourly_exact",
         "principal": False,
-        "ativo_ao_vivo": True,
+        "ativo_ao_vivo": False,
         "versao": "V001",
         "status_publicacao": "experimental",
         "modelo_sha256": MODELO_8H_MAT_SHA256,
@@ -295,7 +326,7 @@ MODELOS = [
         "input_contract_version": "hourly_exact_v1",
         "input_grade": "hourly_exact",
         "principal": False,
-        "ativo_ao_vivo": True,
+        "ativo_ao_vivo": False,
         "shadow_only": True,
         "versao": "V002",
         "status_publicacao": "sombra_experimental",
@@ -310,33 +341,6 @@ MODELOS = [
 # base recente por indisponibilidade de uma dependencia. Mantem o mesmo
 # horizonte publico com contrato horario exato, sem reutilizar dado velho.
 FALLBACKS_HORIZONTE = {
-    "4h": {
-        "horizonte": "4h",
-        "horizonte_h": 4,
-        "tipo": "ALT",
-        "modelo": "4H_ALT_PRIO_12478",
-        "mat": "previne/assets/mat/RNAPREV__SANTA_TEREZA__04h__ALT__prio_12478.mat",
-        "inputs_total": 5,
-        "montador": "4h_prio_12478_exato",
-        "principal": True,
-        "ativo_ao_vivo": True,
-        "versao": "fallback prio_12478 / MAT operacional",
-        "status_publicacao": "fallback_operacional_experimental",
-        "input_contract_version": "hourly_exact_v1",
-        "input_grade": "hourly_exact",
-        "proveniencia_nota": (
-            "Fallback operacional 4h prio_12478, treinado com cinco sinais "
-            "de Santa Tereza, Ituim e Linha Jose Julio. Nao depende de 86125500/86298000 "
-            "e so e ativado se o 4h preferencial nao possui alvo futuro/base recente."
-        ),
-        "input_labels": [
-            "Santa Tereza - nivel atual",
-            "Santa Tereza - D-1h",
-            "Santa Tereza - aceleracao A-12h",
-            "Ituim - D-12h",
-            "Linha Jose Julio - D-4h",
-        ],
-    },
     "8h": {
         "horizonte": "8h",
         "rotulo": "8h fallback C0217",
@@ -347,7 +351,7 @@ FALLBACKS_HORIZONTE = {
         "inputs_total": 10,
         "montador": "8h_alt_c0217",
         "principal": False,
-        "ativo_ao_vivo": True,
+        "ativo_ao_vivo": False,
         "shadow_only": False,
         "versao": "fallback C0217 / T2_V1_3_NH_075",
         "status_publicacao": "fallback_operacional_experimental",
@@ -375,7 +379,7 @@ FALLBACKS_HORIZONTE = {
         "inputs_total": 10,
         "montador": "8h_alt_c0217",
         "principal": False,
-        "ativo_ao_vivo": True,
+        "ativo_ao_vivo": False,
         "shadow_only": True,
         "versao": "fallback comparativo C0217 / T3_V1_2_NH_075",
         "status_publicacao": "fallback_operacional_experimental",
@@ -395,6 +399,12 @@ FALLBACKS_HORIZONTE = {
         ],
     },
 }
+
+FORMULA_2H_4H_VERSION = "stz_excel_a20_ljj_19_20_v2"
+for _cfg_formula in MODELOS:
+    if _cfg_formula["horizonte"] in {"2h", "2h_versao_b", "4h"}:
+        _cfg_formula["formula_contract_version"] = FORMULA_2H_4H_VERSION
+
 
 def _local(tag):                          # remove {namespace} do nome da tag
     return tag.rsplit("}", 1)[-1]
@@ -540,19 +550,70 @@ def _obter_xml_ana(cod, dias, timeout_s, tentativas_rede, parser, prefixo):
     return None
 
 
-def buscar_ana(cod, dias=5, tentativas_rede=ANA_RETRIES_NIVEL):
-    """Retorna dict {timestamp_da_leitura: nivel_cm}.
+def _recuperar_horas_ana(cod, serie):
+    """Tenta preencher buracos recentes apenas com leituras observadas da ANA.
 
-    A estação-alvo de Santa Tereza carrega 8 dias para o painel poder desenhar
-    a série observada ANA de 7 dias sem depender dos pontos de auditoria da RNA.
-    As demais estações continuam com a janela curta usada pelos modelos.
+    Faz uma consulta independente, de janela curta, nos dois hosts oficiais.
+    Nunca interpola, arredonda timestamps ou substitui leituras existentes.
+    Se a hora exata nao estiver em nenhum endpoint, a auditoria continua
+    bloqueando a RNA normalmente.
     """
-    if cod == "86472600":
-        dias = max(int(dias or 0), 8)
+    if cod not in ("86472600", "86472000") or not serie:
+        return serie
+    ultima = max(serie)
+    if agora_brt() - ultima > dt.timedelta(hours=2):
+        return serie
+    base = ultima.replace(minute=0, second=0, microsecond=0)
+    faltantes = {
+        base - dt.timedelta(hours=h) for h in range(7)
+        if base - dt.timedelta(hours=h) not in serie
+    }
+    if not faltantes:
+        return serie
+    inicio = min(faltantes) - dt.timedelta(days=1)
+    fim = agora_brt()
+    for endpoint in (ANA_ESPELHO, ANA):
+        url = (
+            f"{endpoint}?codEstacao={cod}&dataInicio={inicio:%d/%m/%Y}"
+            f"&dataFim={fim:%d/%m/%Y}"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "previne-robo/1.0"})
+            with ANA_HTTP_SEMA:
+                with urllib.request.urlopen(req, timeout=5) as resposta:
+                    xml = resposta.read()
+            observadas, _, _ = _serie_de_xml(xml)
+            recuperadas = []
+            for hora in sorted(faltantes):
+                valor = observadas.get(hora)
+                if valor is not None and _nivel_plausivel(valor, cod):
+                    serie[hora] = valor
+                    recuperadas.append(hora)
+            faltantes.difference_update(recuperadas)
+            print(
+                f"[ANA lacunas {cod}] endpoint={endpoint.split('/')[2]} "
+                f"horas_recuperadas={len(recuperadas)} horas_pendentes={len(faltantes)}"
+            )
+            if not faltantes:
+                break
+        except Exception as exc:
+            print(f"[ANA lacunas {cod}] consulta complementar falhou: {exc}")
+    return serie
+
+
+def buscar_ana(cod, dias=2, tentativas_rede=ANA_RETRIES_NIVEL):
+    """Consulta somente 48 h do legado ANA para conseguir respostas em tempo.
+
+    A RNA usa lags ate 21 h; o cache de observacoes reais preserva ate 8
+    dias para panorama e para preencher lags recebidos em ciclos anteriores.
+    Nunca completa lacunas com interpolacao ou previsao.
+    """
+    dias = max(2, int(dias or 2))
     xml = _obter_xml_ana(cod, dias, ANA_TIMEOUT_NIVEL_S, tentativas_rede, _serie_de_xml, "ANA")
     if xml is None:
         return {}
     serie, _, ultima_raw = _serie_de_xml(xml)
+    serie = _recuperar_horas_ana(cod, serie)
     if ultima_raw:
         ULTIMA_RAW[cod] = ultima_raw
     chuva, _, ultima_chuva = _serie_chuva_de_xml(xml)
@@ -715,6 +776,69 @@ def buscar_chuvas_8h(series):
     }
     series["__chuva8h_fontes__"] = fontes
     return postos
+
+
+def complementar_niveis_cache_observado(series, caminho=ANA_NIVEIS_CACHE_SAIDA):
+    """Une leituras reais de ciclos anteriores sem preencher horarios sinteticamente.
+
+    Somente observacoes ja recebidas e plausiveis entram. O retorno da ANA neste
+    ciclo prevalece quando houver duplicidade. O cache nao e fonte de telemetria
+    nova: nao alteramos ULTIMA_RAW nem o horario consultado.
+    """
+    codigos = ("86472600", "86472000")
+    if not any(len(series.get(cod) or {}) >= 10 for cod in codigos):
+        return {"cache_lido": False, "horas_resgatadas": {}, "cache_escrito": False}
+    anterior = {}
+    try:
+        with open(caminho, encoding="utf-8") as arquivo:
+            anterior = json.load(arquivo)
+    except (OSError, ValueError) as exc:
+        print(f"[ANA cache] sem cache anterior legivel: {exc}")
+    gravado = (anterior.get("estacoes") or {}) if isinstance(anterior, dict) else {}
+    agora = agora_brt()
+    inicio = agora - dt.timedelta(days=8)
+    novas = {}
+    resgatadas = {}
+    for cod in codigos:
+        atual = dict(series.get(cod) or {})
+        registros = {}
+        for item in (gravado.get(cod) or []):
+            if not isinstance(item, dict):
+                continue
+            ts = _parse_hora(str(item.get("hora") or ""))
+            val = item.get("nivel_cm")
+            try:
+                nivel_cm = float(val)
+            except (TypeError, ValueError):
+                continue
+            if ts and inicio <= ts <= agora and _nivel_plausivel(nivel_cm, cod):
+                registros[ts] = nivel_cm
+        resgatadas[cod] = len([ts for ts in registros if ts not in atual])
+        registros.update({
+            ts: float(val) for ts, val in atual.items()
+            if inicio <= ts <= agora and _nivel_plausivel(val, cod)
+        })
+        # O cache serve para completar lags passados. Uma leitura salva de outro
+        # ciclo nunca transforma uma consulta atual vazia em dado novo.
+        if atual:
+            series[cod] = {**registros, **atual}
+        novas[cod] = [
+            {"hora":ts.isoformat(timespec="minutes"), "nivel_cm": val}
+            for ts, val in sorted(registros.items())
+        ]
+    if any(len(v) >= 10 for v in novas.values()):
+        os.makedirs(os.path.dirname(caminho), exist_ok=True)
+        payload = {
+            "schema_version": "stz_ana_observacoes_exatas_v1",
+            "atualizado_em": agora.isoformat(timespec="seconds"),
+            "nota": "leituras reais ANA, sem interpolacao; cache nao substitui consulta atual",
+            "estacoes": novas,
+        }
+        with open(caminho, "w", encoding="utf-8") as arquivo:
+            json.dump(payload, arquivo, ensure_ascii=False, separators=(",", ":"))
+        print(f"[ANA cache] { {cod: len(v) for cod, v in novas.items()} }")
+        return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": True}
+    return {"cache_lido": bool(gravado), "horas_resgatadas": resgatadas, "cache_escrito": False}
 
 
 def buscar_series_paralelo(codigos, funcao, max_workers=ANA_MAX_CONCORRENCIA):
@@ -939,7 +1063,7 @@ def _D_exato(series, cod, t, h):
 
 
 def _A_exato(series, cod, t, h):
-    vals = [_n_exato(series, cod, t, k) for k in (0, 1, h, h + 1)]
+    vals = [_n_exato(series, cod, t, k) for k in _acel_offsets_excel(cod, h)]
     return None if any(v is None for v in vals) else (vals[0] - vals[1]) - (vals[2] - vals[3])
 
 
@@ -956,8 +1080,10 @@ def _D(series, cod, t, h):
 
 def _acel_offsets_excel(cod, h):
     """Retorna os quatro offsets usados pela planilha-base para uma aceleração."""
-    # A-20h da planilha-base usa a janela t-20h/t-21h, assim como a regra
-    # geral: [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)].
+    # DADOS_FORM!U100=(P100-P99)-(P81-P80), confirmado no Ptot
+    # dos dois MAT 2h: o rotulo A-20h usa t-19h/t-20h.
+    if str(cod) == "86472000" and h == 20:
+        return (0, 1, 19, 20)
     return (0, 1, h, h + 1)
 
 def _A_curv(series, cod, t, h):
@@ -1005,141 +1131,15 @@ def montar_inputs(series, t):
     ]
     return inputs, st0
 
-def montar_inputs_4h(series, t):
-    """Monta os 5 inputs do 4h ALT prio_12478 conforme planilha auditavel."""
-    def n(cod, h=0):
-        return nivel(series.get(cod, {}), t - dt.timedelta(hours=h), estacao=cod)
-    def D(cod, h):
-        a, b = n(cod, 0), n(cod, h)
-        return None if None in (a, b) else a - b
-    def A(cod, h):
-        a, b, c, d = n(cod, 0), n(cod, 1), n(cod, h), n(cod, h + 1)
-        return None if None in (a, b, c, d) else (a - b) - (c - d)
-    st0 = n("86472600", 0)
-    inputs = [
-        n("86472600", 0),      # inp01 ST nivel atual
-        D("86472600", 1),      # inp02 ST D-1h
-        A("86472600", 12),     # inp03 ST A-12h
-        D("86125130", 12),     # inp04 Ituim D-12h
-        D("86472000", 4),      # inp05 Linha Jose Julio / Antas D-4h
-    ]
-    return inputs, st0
-
-def montar_inputs_4h_v01_r10(series, t):
-    """Monta os 24 inputs do 4h PRO V01_R10 na ordem do MAT auditavel.
-
-    A ordem e a convencao sao as da aba DADOS do Excel do modelo: nivel atual,
-    diferencas para tras e aceleracoes (diferenca de velocidades) em Santa
-    Tereza e Linha Jose Julio, seguidas das diferencas/aceleracoes das estacoes
-    86125500 e 86298000. O NIVEL_ATUAL_CM e a ancora de reconstruÃ§ao, nao uma
-    segunda coluna escondida: o MAT recebe exatamente os 24 valores abaixo.
-    """
-    def n(cod, h=0):
-        return nivel(series.get(cod, {}), t - dt.timedelta(hours=h), estacao=cod)
-    def D(cod, h):
-        a, b = n(cod, 0), n(cod, h)
-        return None if None in (a, b) else a - b
-    def A(cod, h):
-        a, b, c, d = n(cod, 0), n(cod, 1), n(cod, h), n(cod, h + 1)
-        return None if None in (a, b, c, d) else (a - b) - (c - d)
-
-    st0 = n("86472600", 0)
-    inputs = [
-        n("86472600", 0),      # input_01_Nivel_86472600
-        D("86472600", 1),      # input_02_DifN-1h_86472600
-        D("86472600", 2),      # input_03_DifN-2h_86472600
-        D("86472600", 4),      # input_04_DifN-4h_86472600
-        A("86472600", 1),      # input_05_Acel-1h_86472600
-        A("86472600", 4),      # input_07_Acel-4h_86472600
-        A("86472600", 12),     # input_09_Acel-12h_86472600
-        n("86472000", 0),      # input_10_Nivel_86472000
-        D("86472000", 1),      # input_11_DifN-1h_86472000
-        D("86472000", 2),      # input_12_DifN-2h_86472000
-        D("86472000", 4),      # input_13_DifN-4h_86472000
-        A("86472000", 2),      # input_15_Acel-2h_86472000
-        A("86472000", 8),      # input_15_Acel-8h_86472000
-        A("86472000", 16),     # input_16_Acel-16h_86472000
-        D("86125500", 2),      # input_12_DifN-2h_86125500
-        D("86125500", 6),      # input_14_DifN-6h_86125500
-        D("86125500", 10),     # input_14_DifN-10h_86125500
-        D("86125500", 14),     # input_14_DifN-14h_86125500
-        D("86298000", 2),      # input_12_DifN-2h_86298000
-        D("86298000", 6),      # input_14_DifN-6h_86298000
-        D("86298000", 10),     # input_14_DifN-10h_86298000
-        A("86298000", 2),      # input_15_Acel-2h_86298000
-        A("86298000", 8),      # input_15_Acel-8h_86298000
-        A("86298000", 16),     # input_16_Acel-16h_86298000
-    ]
-    return inputs, st0
-
-
-def montar_inputs_4h_v01_26(series, t):
-    """Monta os 26 sinais H:AG da V01 R00 baseline.
-
-    A aceleração segue a segunda diferença discreta da base, sem divisão por
-    horas: A_h(t) = [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)].
-    """
-    def n(cod, h=0):
-        return nivel(series.get(cod, {}), t - dt.timedelta(hours=h), estacao=cod)
-    def D(cod, h):
-        a, b = n(cod, 0), n(cod, h)
-        return None if None in (a, b) else a - b
-    def A(cod, h):
-        a, b, c, d = n(cod, 0), n(cod, 1), n(cod, h), n(cod, h + 1)
-        return None if None in (a, b, c, d) else (a - b) - (c - d)
-    st0 = n("86472600", 0)
-    inputs = [
-        n("86472600", 0), D("86472600", 1), D("86472600", 2), D("86472600", 4),
-        A("86472600", 1), A("86472600", 4), A("86472600", 12),
-        n("86472000", 0), D("86472000", 1), D("86472000", 2), D("86472000", 4),
-        A("86472000", 2), A("86472000", 8), A("86472000", 16),
-        n("86125500", 0), D("86125500", 2), D("86125500", 6),
-        D("86125500", 10), D("86125500", 14),
-        n("86298000", 0), D("86298000", 2), D("86298000", 6),
-        D("86298000", 10), A("86298000", 2), A("86298000", 8), A("86298000", 16),
-    ]
-    return inputs, st0
-
-
-def montar_inputs_4h_prio_12478_exato(series, t):
-    """Cinco sinais do prio_12478, todos em hora cheia exata."""
-    st0 = _n_exato(series, "86472600", t, 0)
-    inputs = [
-        st0,
-        _D_exato(series, "86472600", t, 1),
-        _A_exato(series, "86472600", t, 12),
-        _D_exato(series, "86125130", t, 12),
-        _D_exato(series, "86472000", t, 4),
-    ]
-    return inputs, st0
-
-
-def auditoria_inputs_4h_v01_r10(series, t, valores=None, specs_override=None, labels_override=None):
-    """Audita a origem temporal e a formula dos 24 inputs do V01.
+def auditoria_inputs_niveis_exatos(series, t, specs, valores=None, labels=None):
+    """Audita a origem temporal e a formula dos inputs de nivel.
 
     ``A_h`` nao e uma aceleracao fisica em cm/s2: e a convencao discreta
     usada na base de treinamento, isto e, a diferenca entre duas variacoes
     de nivel de uma hora separadas por ``h`` horas.  Manter essa convencao e
     necessario para que o input ao vivo seja identico ao input do MAT.
     """
-    specs = specs_override or [
-        ("nivel", "86472600", 0),
-        ("dif", "86472600", 1), ("dif", "86472600", 2), ("dif", "86472600", 4),
-        ("acel", "86472600", 1), ("acel", "86472600", 4), ("acel", "86472600", 12),
-        ("nivel", "86472000", 0),
-        ("dif", "86472000", 1), ("dif", "86472000", 2), ("dif", "86472000", 4),
-        ("acel", "86472000", 2), ("acel", "86472000", 8), ("acel", "86472000", 16),
-        ("dif", "86125500", 2), ("dif", "86125500", 6),
-        ("dif", "86125500", 10), ("dif", "86125500", 14),
-        ("dif", "86298000", 2), ("dif", "86298000", 6),
-        ("dif", "86298000", 10),
-        ("acel", "86298000", 2), ("acel", "86298000", 8), ("acel", "86298000", 16),
-    ]
-    labels = labels_override if labels_override is not None else next(
-        (cfg.get("input_labels") for cfg in MODELOS
-         if cfg.get("modelo") == MODELO_4H_PRO_ID),
-        None,
-    ) or []
+    labels = labels or []
     entradas = []
     idades = []
     n_atrasados = 0
@@ -1230,64 +1230,297 @@ def auditoria_inputs_4h_v01_r10(series, t, valores=None, specs_override=None, la
         "idade_max_input_min": (max(idades) if idades else None),
         "regra_atraso": "ATENCAO quando qualquer dependencia nao e EXATO na mesma hora-base; INVALIDO quando falta ou sai da faixa plausivel qualquer dependencia",
         "faixa_plausivel_cm": [NIVEL_PLAUSIVEL_MIN_CM, NIVEL_PLAUSIVEL_MAX_CM],
-        "contrato_temporal": "24 inputs do V01 em grade horaria exata, todos na mesma hora-base; interpolacao/vizinho nao entra na selecao do modelo",
+        "contrato_temporal": f"{len(specs)} inputs de nivel em grade horaria exata, todos na mesma hora-base; interpolacao/vizinho nao entra na selecao do modelo",
         "definicao_aceleracao": {
             "formula": "A_h(t) = [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)]",
             "interpretacao": "segunda diferenca discreta / mudanca da variacao horaria",
             "unidade_na_RNA": "cm na convencao da base; nao e cm/s2",
-            "divisao_por_horas": "nao aplicada, exatamente como na base V01",
+            "divisao_por_horas": "nao aplicada, exatamente como na base de treinamento",
         },
         "inputs": entradas,
     }
 
 
-def auditoria_inputs_4h_v01_26(series, t, valores=None):
-    specs = [
-        ("nivel", "86472600", 0),
-        ("dif", "86472600", 1), ("dif", "86472600", 2), ("dif", "86472600", 4),
-        ("acel", "86472600", 1), ("acel", "86472600", 4), ("acel", "86472600", 12),
-        ("nivel", "86472000", 0),
-        ("dif", "86472000", 1), ("dif", "86472000", 2), ("dif", "86472000", 4),
-        ("acel", "86472000", 2), ("acel", "86472000", 8), ("acel", "86472000", 16),
-        ("nivel", "86125500", 0),
-        ("dif", "86125500", 2), ("dif", "86125500", 6),
-        ("dif", "86125500", 10), ("dif", "86125500", 14),
-        ("nivel", "86298000", 0),
-        ("dif", "86298000", 2), ("dif", "86298000", 6),
-        ("dif", "86298000", 10),
-        ("acel", "86298000", 2), ("acel", "86298000", 8), ("acel", "86298000", 16),
+SPECS_NIVEL_4H_V11 = (
+    ("nivel", "86472600", 0),
+    ("dif", "86472600", 1), ("dif", "86472600", 2), ("dif", "86472600", 4),
+    ("acel", "86472600", 1), ("acel", "86472600", 4), ("acel", "86472600", 12),
+    ("nivel", "86472000", 0),
+    ("dif", "86472000", 1), ("dif", "86472000", 2), ("dif", "86472000", 4),
+    ("acel", "86472000", 2), ("acel", "86472000", 8), ("acel", "86472000", 16),
+)
+SPECS_NIVEL_CASCATA_2H = (
+    ("nivel", "86472600", 0),
+    ("dif", "86472600", 1), ("dif", "86472600", 2), ("dif", "86472600", 4),
+    ("acel", "86472600", 1), ("acel", "86472600", 2), ("acel", "86472600", 4),
+    ("acel", "86472600", 8), ("acel", "86472600", 12),
+    ("nivel", "86472000", 0),
+    ("dif", "86472000", 1), ("dif", "86472000", 2), ("dif", "86472000", 5),
+    ("acel", "86472000", 12), ("acel", "86472000", 20),
+)
+
+
+def _valor_nivel_exato(series, spec, t):
+    tipo, cod, h = spec
+    if tipo == "nivel":
+        return _n_exato(series, cod, t, h)
+    if tipo == "dif":
+        return _D_exato(series, cod, t, h)
+    return _A_exato(series, cod, t, h)
+
+
+def _chuva_horaria_fim_intervalo(xml):
+    """Chuva horaria do V11: o rotulo H soma (H-1h, H].
+
+    Com telemetria de 15 min, a hora so existe quando os quatro passos
+    (H-45, H-30, H-15, H) estao presentes; valor invalido ou leitura
+    duplicada com valores diferentes descartam a hora inteira.
+    """
+    root = ET.fromstring(xml)
+    if (root.text or "").strip().startswith("<"):
+        root = ET.fromstring(root.text)
+    vistos, soma, invalidas, leituras = {}, {}, set(), set()
+    for row in root.iter():
+        campos = {_local(c.tag): (c.text or "").strip() for c in row}
+        bruto = campos.get("Chuva")
+        if bruto in (None, ""):
+            continue
+        t = _parse_hora(campos.get("DataHora") or campos.get("Data_Hora") or "")
+        if t is None:
+            continue
+        hora = t if _eh_hora_cheia(t) else (
+            t.replace(minute=0, second=0, microsecond=0) + dt.timedelta(hours=1)
+        )
+        leituras.add(t)
+        try:
+            valor = float(bruto.replace(",", "."))
+        except ValueError:
+            invalidas.add(hora)
+            continue
+        if not np.isfinite(valor) or not 0 <= valor <= 100:
+            invalidas.add(hora)
+            continue
+        if t in vistos:
+            if vistos[t] != valor:
+                invalidas.add(hora)
+            continue
+        vistos[t] = valor
+        soma[hora] = soma.get(hora, 0.0) + valor
+    quartos = (0, 15, 30, 45) if any(t.minute for t in leituras) else (0,)
+    return {
+        hora: valor for hora, valor in soma.items()
+        if hora not in invalidas and valor <= 100
+        and all(hora - dt.timedelta(minutes=m) in leituras for m in quartos)
+    }
+
+
+def buscar_chuvas_4h_v11(series=None):
+    """Chuva ANA V11 e recuperação de níveis reais do mesmo XML oficial.
+
+    Se a consulta principal de nível falhou mas o endpoint respondeu à
+    consulta de chuva, o XML contém os dois campos: nenhum dado observado
+    deve ser descartado. Nunca cria medições sintéticas.
+    """
+    postos = {}
+    for cod in POSTOS_CHUVA_4H_V11:
+        # Janela V11 maxima = 15 h, com margem de 48 h.
+        # Para ST/LJJ preferir o mesmo XML que ja foi obtido pelo nivel;
+        # se a chuva nao estiver preenchida, ainda aproveitamos o nivel real.
+        dias = 2
+        parser = _serie_de_xml if cod in ("86472600", "86472000") else _serie_chuva_de_xml
+        try:
+            xml = _obter_xml_ana(
+                cod, dias, ANA_TIMEOUT_CHUVA_S, ANA_RETRIES_CHUVA,
+                parser, "ANA chuva 4h V11",
+            )
+            postos[cod] = _chuva_horaria_fim_intervalo(xml) if xml else {}
+            if xml and series is not None and cod in ("86472600", "86472000"):
+                observados, _, raw = _serie_de_xml(xml)
+                serie_atual = series.setdefault(cod, {})
+                novos = 0
+                for hora, nivel_cm in observados.items():
+                    if hora not in serie_atual and _nivel_plausivel(nivel_cm, cod):
+                        serie_atual[hora] = nivel_cm
+                        novos += 1
+                if raw and _nivel_plausivel(raw[1], cod):
+                    anterior = ULTIMA_RAW.get(cod)
+                    if anterior is None or raw[0] > anterior[0]:
+                        ULTIMA_RAW[cod] = raw
+                if novos:
+                    print(f"[ANA niveis via chuva V11 {cod}] leituras_reais_recuperadas={novos}")
+        except Exception as exc:
+            print(f"[ANA chuva 4h V11 {cod}] erro: {exc}")
+            postos[cod] = {}
+    return postos
+
+
+def _cobertura_chuva_4h_v11(series, nome, janela_h, estacoes, t):
+    """Soma das medias horarias dos postos observados; hora sem posto anula a janela."""
+    postos = series.get("__chuva4h_v11_postos__") or {}
+    total = 0.0
+    horas_sem_posto = []
+    horas_por_posto = {cod: 0 for cod in estacoes}
+    for i in range(janela_h):
+        hora = t - dt.timedelta(hours=i)
+        observados = [
+            (cod, (postos.get(cod) or {}).get(hora)) for cod in estacoes
+        ]
+        observados = [(cod, v) for cod, v in observados if v is not None]
+        for cod, _ in observados:
+            horas_por_posto[cod] += 1
+        if not observados:
+            horas_sem_posto.append(hora.isoformat(timespec="minutes"))
+            continue
+        total += sum(v for _, v in observados) / len(observados)
+    completa = not horas_sem_posto
+    return {
+        "nome": nome,
+        "janela_h": janela_h,
+        "estacoes": list(estacoes),
+        "valor_mm": (round(total, 3) if completa else None),
+        "horas_por_posto": horas_por_posto,
+        "horas_sem_posto": horas_sem_posto,
+        "completa": completa,
+        "parcial": completa and any(n < janela_h for n in horas_por_posto.values()),
+    }, (total if completa else None)
+
+
+def cascata_2h_4h_v11(series, t):
+    """Inferencia da RNA principal de 2 h na mesma hora-base do V11."""
+    x2 = [_valor_nivel_exato(series, spec, t) for spec in SPECS_NIVEL_CASCATA_2H]
+    if t is None or any(v is None for v in x2):
+        return None
+    delta2 = prever(MODELO_MAT, x2)
+    nivel2 = x2[0] + delta2
+    if not _nivel_plausivel(nivel2, "86472600"):
+        return None
+    return {
+        "modelo": COMBO,
+        "modelo_sha256": MODELO_MAT_SHA256,
+        "hora_modelo": t.isoformat(),
+        "hora_alvo": (t + dt.timedelta(hours=2)).isoformat(),
+        "delta_previsto_cm": delta2,
+        "nivel_previsto_cm": nivel2,
+        "input_values_cm": [round(float(v), 3) for v in x2],
+        "origem": "inferencia_2h_mesma_base_sem_observacao_futura",
+    }
+
+
+def montar_inputs_4h_v11_cascata(series, t):
+    """18 inputs do V11: 14 niveis exatos, 2 chuvas e a cascata da RNA 2h."""
+    st0 = _n_exato(series, "86472600", t, 0)
+    niveis = [_valor_nivel_exato(series, spec, t) for spec in SPECS_NIVEL_4H_V11]
+    chuvas = [
+        _cobertura_chuva_4h_v11(series, nome, janela, estacoes, t)[1]
+        for nome, janela, estacoes in CHUVAS_4H_V11
     ]
+    cascata = cascata_2h_4h_v11(series, t)
+    if cascata is None:
+        return niveis + chuvas + [None, None], st0
+    return niveis + chuvas + [cascata["delta_previsto_cm"], cascata["nivel_previsto_cm"]], st0
+
+
+def auditoria_inputs_4h_v11_cascata(series, t, valores=None):
     labels = next((cfg.get("input_labels") for cfg in MODELOS
-                   if cfg.get("modelo") == MODELO_4H_PRO_ID), None) or []
-    out = auditoria_inputs_4h_v01_r10(
-        series, t, valores=valores, specs_override=specs, labels_override=labels
+                   if cfg.get("modelo") == MODELO_4H_V11_ID), None) or []
+    n_niveis = len(SPECS_NIVEL_4H_V11)
+    out = auditoria_inputs_niveis_exatos(
+        series, t, SPECS_NIVEL_4H_V11,
+        valores=(valores[:n_niveis] if valores is not None else None),
+        labels=labels[:n_niveis],
     )
-    out["contrato_temporal"] = "26 inputs em grade horaria exata, todos na mesma hora-base; interpolacao/vizinho nao entra na selecao do modelo"
-    out["input_grade"] = "hourly_exact"
-    return out
-
-
-def auditoria_inputs_4h_prio_12478_exato(series, t, valores=None):
-    specs = [
-        ("nivel", "86472600", 0),
-        ("dif", "86472600", 1),
-        ("acel", "86472600", 12),
-        ("dif", "86125130", 12),
-        ("dif", "86472000", 4),
+    cobertura = [
+        _cobertura_chuva_4h_v11(series, nome, janela, estacoes, t)[0]
+        for nome, janela, estacoes in CHUVAS_4H_V11
     ]
-    cfg = FALLBACKS_HORIZONTE["4h"]
-    out = auditoria_inputs_4h_v01_r10(
-        series, t, valores=valores, specs_override=specs,
-        labels_override=cfg.get("input_labels") or [],
-    )
-    out["n_inputs"] = 5
-    out["contrato_temporal"] = (
-        "5 inputs do fallback 4h prio_12478 em hora cheia exata; "
-        "Santa Tereza, Ituim e Linha Jose Julio; sem interpolacao/vizinho "
-        "e sem dependencia das estacoes 86125500/86298000"
-    )
-    out["input_grade"] = "hourly_exact"
+    calculados, _ = montar_inputs_4h_v11_cascata(series, t)
+    extras = calculados[n_niveis:]
+    formula_ok = bool(out["formula_conferida_com_montador"])
+    if valores is not None:
+        if len(valores) != len(calculados):
+            formula_ok = False
+        else:
+            for esperado, recebido in zip(extras, valores[n_niveis:]):
+                if (esperado is None) != (recebido is None):
+                    formula_ok = False
+                elif esperado is not None and abs(float(esperado) - float(recebido)) > 1e-9:
+                    formula_ok = False
+    ausentes_extras = sum(v is None for v in extras)
+    status = out["status"]
+    if ausentes_extras:
+        status = "INVALIDO"
+    out.update({
+        "status": status,
+        "formula_conferida_com_montador": formula_ok,
+        "n_inputs": n_niveis + len(extras),
+        "n_exatos": out["n_exatos"] + len(extras) - ausentes_extras,
+        "n_inputs_ausentes": out["n_inputs_ausentes"] + ausentes_extras,
+        "input_grade": "hourly_exact",
+        "contrato_temporal": (
+            "18 inputs do V11 na mesma hora cheia: 14 niveis exatos, chuva ANA "
+            "com rotulo H = (H-1h, H] e a saida da RNA 2h principal nessa base"
+        ),
+        "regra_chuva": (
+            "soma das medias horarias dos postos observados; hora sem nenhum posto "
+            "deixa o input ausente; quartos de hora ANA incompletos descartam a hora"
+        ),
+        "ausencia_chuva_vira_zero": False,
+        "janela_incompleta_vira_ausente": True,
+        "fontes_chuva": {nome: list(estacoes) for nome, _, estacoes in CHUVAS_4H_V11},
+        "cobertura_chuva": cobertura,
+        "chuva_parcial": any(c["parcial"] for c in cobertura),
+        "regra_cascata": (
+            "x17 = delta previsto pela RNA 2h principal na mesma hora-base; "
+            "x18 = N(t) + x17; nunca leitura futura observada"
+        ),
+        "cascata_2h_disponivel": calculados[-1] is not None,
+    })
     return out
+
+
+def diagnosticar_inputs_faltantes_4h_v11(series, t, inputs):
+    rotulos = {"nivel": "nivel atual", "dif": "nivel D-{h}h", "acel": "aceleracao A-{h}h"}
+    nomes = {"86472600": "Santa Tereza", "86472000": "Linha Jose Julio"}
+    especificacoes = []
+    for i, (tipo, cod, h) in enumerate(SPECS_NIVEL_4H_V11, start=1):
+        atrasos = [0] if tipo == "nivel" else ([0, h] if tipo == "dif" else [0, 1, h, h + 1])
+        especificacoes.append((
+            f"inp{i:02d}", f"{nomes[cod]} - {rotulos[tipo].format(h=h)}", cod, atrasos,
+        ))
+    n_niveis = len(SPECS_NIVEL_4H_V11)
+    faltantes = diagnosticar_inputs_por_especificacoes(
+        series, t, inputs[:n_niveis], especificacoes
+    )
+    for i, (nome, janela, estacoes) in enumerate(CHUVAS_4H_V11, start=n_niveis + 1):
+        if inputs[i - 1] is not None:
+            continue
+        cobertura, _ = _cobertura_chuva_4h_v11(series, nome, janela, estacoes, t)
+        faltantes.append({
+            "input": f"inp{i:02d}",
+            "descricao": f"Chuva {nome}",
+            "estacao": "+".join(estacoes),
+            "estacao_nome": f"Chuva acumulada {janela}h",
+            "horarios_necessarios": [
+                (t - dt.timedelta(hours=h)).isoformat(timespec="minutes") for h in range(janela)
+            ],
+            "horarios_faltantes": cobertura["horas_sem_posto"],
+            "postos_chuva": list(estacoes),
+        })
+    if inputs[-1] is None:
+        x2 = [_valor_nivel_exato(series, spec, t) for spec in SPECS_NIVEL_CASCATA_2H]
+        for item in diagnosticar_inputs_faltantes(series, t, x2):
+            item["input"] = "inp17-18/RNA2h-" + str(item.get("input"))
+            faltantes.append(item)
+        if all(v is not None for v in x2):
+            faltantes.append({
+                "input": "inp17-18",
+                "descricao": "RNA 2h da cascata fora da faixa plausivel",
+                "estacao": "86472600",
+                "estacao_nome": NOMES_ESTACOES.get("86472600", "86472600"),
+                "horarios_necessarios": [t.isoformat(timespec="minutes")],
+                "horarios_faltantes": [],
+            })
+    return faltantes
 
 
 def auditoria_inputs_8h_c0217(series, t, valores=None):
@@ -1356,9 +1589,7 @@ def auditoria_inputs_2h(series, t, valores=None, grade=None):
          if cfg.get("montador") == "2h_alt_15inputs" and cfg.get("input_grade") == "hourly_exact"),
         None,
     ) or []
-    out = auditoria_inputs_4h_v01_r10(
-        series, t, valores=valores, specs_override=specs, labels_override=labels
-    )
+    out = auditoria_inputs_niveis_exatos(series, t, specs, valores=valores, labels=labels)
     out["n_inputs"] = 15
     out["contrato_temporal"] = (
         "15 inputs do modelo 2h em grade horaria exata, todos na mesma hora-base; "
@@ -1367,7 +1598,7 @@ def auditoria_inputs_2h(series, t, valores=None, grade=None):
     out["definicao_diferenca"] = "D_h(t) = N(t) - N(t-h)"
     out["definicao_aceleracao"] = {
         "padrao": "A_h(t) = [N(t)-N(t-1h)] - [N(t-h)-N(t-(h+1)h)]",
-        "input_15_excel": "A-20h LJ = [N(t)-N(t-1h)] - [N(t-20h)-N(t-21h)]",
+        "input_15_excel": "A-20h LJ = [N(t)-N(t-1h)] - [N(t-19h)-N(t-20h)]",
         "fonte": "modelo_2h_novo.xlsx / DADOS_FORM",
     }
     out["input_grade"] = grade or "hourly_exact"
@@ -1570,14 +1801,8 @@ def montar_inputs_12h_alt_c0065(series, t):
 def montar_inputs_modelo(cfg, series, t):
     if cfg["montador"] in ("2h_alt_15inputs", "2h_alt_vfinal"):
         return montar_inputs(series, t)
-    if cfg["montador"] == "4h_alt_v01_26":
-        return montar_inputs_4h_v01_26(series, t)
-    if cfg["montador"] == "4h_prio_12478_exato":
-        return montar_inputs_4h_prio_12478_exato(series, t)
-    if cfg["montador"] == "4h_alt_v01_r10":
-        return montar_inputs_4h_v01_r10(series, t)
-    if cfg["montador"] == "4h_alt_prio_12478":
-        return montar_inputs_4h(series, t)
+    if cfg["montador"] == "4h_v11_cascata":
+        return montar_inputs_4h_v11_cascata(series, t)
     if cfg["montador"] == "8h_alt_v001":
         return montar_inputs_8h_alt_v001(series, t)
     if cfg["montador"] == "8h_alt_v002":
@@ -1615,7 +1840,7 @@ def diagnosticar_inputs_faltantes(series, t, inputs):
         ("inp12", "Linha Jose Julio / Rio das Antas - nivel D-2h", "86472000", [0, 2]),
         ("inp13", "Linha Jose Julio / Rio das Antas - nivel D-5h", "86472000", [0, 5]),
         ("inp14", "Linha Jose Julio / Rio das Antas - aceleracao A-12h", "86472000", [0, 1, 12, 13]),
-        ("inp15", "Linha Jose Julio / Rio das Antas - aceleracao A-20h (regra Excel: t-20h/t-21h)", "86472000", list(_acel_offsets_excel("86472000", 20))),
+        ("inp15", "Linha Jose Julio / Rio das Antas - aceleracao A-20h (regra Excel: t-19h/t-20h)", "86472000", list(_acel_offsets_excel("86472000", 20))),
     ]
     faltantes = []
     for valor, (codigo_input, descricao, cod_estacao, atrasos) in zip(inputs, especificacoes):
@@ -1645,67 +1870,6 @@ def diagnosticar_inputs_faltantes(series, t, inputs):
             "limites_plausiveis_cm": list(_limites_plausiveis(cod_estacao)),
         })
     return faltantes
-
-def diagnosticar_inputs_faltantes_4h(series, t, inputs):
-    especificacoes = [
-        ("inp01", "Santa Tereza - nivel atual", "86472600", [0]),
-        ("inp02", "Santa Tereza - nivel D-1h", "86472600", [0, 1]),
-        ("inp03", "Santa Tereza - aceleracao A-12h", "86472600", [0, 1, 12, 13]),
-        ("inp04", "Ituim - nivel D-12h", "86125130", [0, 12]),
-        ("inp05", "Linha Jose Julio / Rio das Antas - nivel D-4h", "86472000", [0, 4]),
-    ]
-    faltantes = []
-    for valor, (codigo_input, descricao, cod_estacao, atrasos) in zip(inputs, especificacoes):
-        if valor is not None:
-            continue
-        horarios = []
-        for h in dict.fromkeys(atrasos):
-            hora = t - dt.timedelta(hours=h)
-            disponivel = hora in series.get(cod_estacao, {})
-            horarios.append({
-                "atraso_h": h,
-                "hora": hora.isoformat(timespec="minutes"),
-                "disponivel": disponivel,
-            })
-        faltantes.append({
-            "input": codigo_input,
-            "descricao": descricao,
-            "estacao": cod_estacao,
-            "estacao_nome": NOMES_ESTACOES.get(cod_estacao, cod_estacao),
-            "horarios_necessarios": [h["hora"] for h in horarios],
-            "horarios_faltantes": [h["hora"] for h in horarios if not h["disponivel"]],
-        })
-    return faltantes
-
-def diagnosticar_inputs_faltantes_4h_v01_r10(series, t, inputs):
-    """Explica a falta de qualquer um dos 24 lags do 4h PRO."""
-    especificacoes = [
-        ("inp01", "Santa Tereza - nivel atual", "86472600", [0]),
-        ("inp02", "Santa Tereza - nivel D-1h", "86472600", [0, 1]),
-        ("inp03", "Santa Tereza - nivel D-2h", "86472600", [0, 2]),
-        ("inp04", "Santa Tereza - nivel D-4h", "86472600", [0, 4]),
-        ("inp05", "Santa Tereza - aceleracao A-1h", "86472600", [0, 1, 2]),
-        ("inp06", "Santa Tereza - aceleracao A-4h", "86472600", [0, 1, 4, 5]),
-        ("inp07", "Santa Tereza - aceleracao A-12h", "86472600", [0, 1, 12, 13]),
-        ("inp08", "Linha Jose Julio - nivel atual", "86472000", [0]),
-        ("inp09", "Linha Jose Julio - nivel D-1h", "86472000", [0, 1]),
-        ("inp10", "Linha Jose Julio - nivel D-2h", "86472000", [0, 2]),
-        ("inp11", "Linha Jose Julio - nivel D-4h", "86472000", [0, 4]),
-        ("inp12", "Linha Jose Julio - aceleracao A-2h", "86472000", [0, 1, 2, 3]),
-        ("inp13", "Linha Jose Julio - aceleracao A-8h", "86472000", [0, 1, 8, 9]),
-        ("inp14", "Linha Jose Julio - aceleracao A-16h", "86472000", [0, 1, 16, 17]),
-        ("inp15", "Estacao 86125500 - nivel D-2h", "86125500", [0, 2]),
-        ("inp16", "Estacao 86125500 - nivel D-6h", "86125500", [0, 6]),
-        ("inp17", "Estacao 86125500 - nivel D-10h", "86125500", [0, 10]),
-        ("inp18", "Estacao 86125500 - nivel D-14h", "86125500", [0, 14]),
-        ("inp19", "Estacao 86298000 - nivel D-2h", "86298000", [0, 2]),
-        ("inp20", "Estacao 86298000 - nivel D-6h", "86298000", [0, 6]),
-        ("inp21", "Estacao 86298000 - nivel D-10h", "86298000", [0, 10]),
-        ("inp22", "Estacao 86298000 - aceleracao A-2h", "86298000", [0, 1, 2, 3]),
-        ("inp23", "Estacao 86298000 - aceleracao A-8h", "86298000", [0, 1, 8, 9]),
-        ("inp24", "Estacao 86298000 - aceleracao A-16h", "86298000", [0, 1, 16, 17]),
-    ]
-    return diagnosticar_inputs_por_especificacoes(series, t, inputs, especificacoes)
 
 def diagnosticar_inputs_por_especificacoes(series, t, inputs, especificacoes):
     faltantes = []
@@ -1881,53 +2045,9 @@ def diagnosticar_inputs_faltantes_12h(series, t, inputs):
     ]
     return diagnosticar_inputs_por_especificacoes(series, t, inputs, especificacoes)
 
-def diagnosticar_inputs_faltantes_4h_v01_26(series, t, inputs):
-    especificacoes = [
-        ("inp01", "Santa Tereza - nivel atual", "86472600", [0]),
-        ("inp02", "Santa Tereza - nivel D-1h", "86472600", [0, 1]),
-        ("inp03", "Santa Tereza - nivel D-2h", "86472600", [0, 2]),
-        ("inp04", "Santa Tereza - nivel D-4h", "86472600", [0, 4]),
-        ("inp05", "Santa Tereza - aceleracao A-1h", "86472600", [0, 1, 2]),
-        ("inp06", "Santa Tereza - aceleracao A-4h", "86472600", [0, 1, 4, 5]),
-        ("inp07", "Santa Tereza - aceleracao A-12h", "86472600", [0, 1, 12, 13]),
-        ("inp08", "Linha Jose Julio - nivel atual", "86472000", [0]),
-        ("inp09", "Linha Jose Julio - nivel D-1h", "86472000", [0, 1]),
-        ("inp10", "Linha Jose Julio - nivel D-2h", "86472000", [0, 2]),
-        ("inp11", "Linha Jose Julio - nivel D-4h", "86472000", [0, 4]),
-        ("inp12", "Linha Jose Julio - aceleracao A-2h", "86472000", [0, 1, 2, 3]),
-        ("inp13", "Linha Jose Julio - aceleracao A-8h", "86472000", [0, 1, 8, 9]),
-        ("inp14", "Linha Jose Julio - aceleracao A-16h", "86472000", [0, 1, 16, 17]),
-        ("inp15", "86125500 - nivel atual", "86125500", [0]),
-        ("inp16", "86125500 - nivel D-2h", "86125500", [0, 2]),
-        ("inp17", "86125500 - nivel D-6h", "86125500", [0, 6]),
-        ("inp18", "86125500 - nivel D-10h", "86125500", [0, 10]),
-        ("inp19", "86125500 - nivel D-14h", "86125500", [0, 14]),
-        ("inp20", "86298000 - nivel atual", "86298000", [0]),
-        ("inp21", "86298000 - nivel D-2h", "86298000", [0, 2]),
-        ("inp22", "86298000 - nivel D-6h", "86298000", [0, 6]),
-        ("inp23", "86298000 - nivel D-10h", "86298000", [0, 10]),
-        ("inp24", "86298000 - aceleracao A-2h", "86298000", [0, 1, 2, 3]),
-        ("inp25", "86298000 - aceleracao A-8h", "86298000", [0, 1, 8, 9]),
-        ("inp26", "86298000 - aceleracao A-16h", "86298000", [0, 1, 16, 17]),
-    ]
-    return diagnosticar_inputs_por_especificacoes(series, t, inputs, especificacoes)
-
-
 def diagnosticar_inputs_modelo(cfg, series, t, inputs):
-    if cfg["montador"] == "4h_prio_12478_exato":
-        return diagnosticar_inputs_por_especificacoes(series, t, inputs, [
-            ("inp01", "Santa Tereza - nivel atual", "86472600", [0]),
-            ("inp02", "Santa Tereza - D-1h", "86472600", [0, 1]),
-            ("inp03", "Santa Tereza - A-12h", "86472600", [0, 1, 12, 13]),
-            ("inp04", "Ituim - D-12h", "86125130", [0, 12]),
-            ("inp05", "Linha Jose Julio - D-4h", "86472000", [0, 4]),
-        ])
-    if cfg["montador"] == "4h_alt_v01_26":
-        return diagnosticar_inputs_faltantes_4h_v01_26(series, t, inputs)
-    if cfg["montador"] == "4h_alt_v01_r10":
-        return diagnosticar_inputs_faltantes_4h_v01_r10(series, t, inputs)
-    if cfg["montador"] == "4h_alt_prio_12478":
-        return diagnosticar_inputs_faltantes_4h(series, t, inputs)
+    if cfg["montador"] == "4h_v11_cascata":
+        return diagnosticar_inputs_faltantes_4h_v11(series, t, inputs)
     if cfg["montador"] == "8h_alt_v001":
         return diagnosticar_inputs_faltantes_8h_v001(series, t, inputs)
     if cfg["montador"] == "8h_alt_v002":
@@ -2045,50 +2165,6 @@ def sha256_arquivo(path):
             h.update(bloco)
     return h.hexdigest().upper()
 
-def escrever(nivel_atual, nivel_prev, t, status, aviso, inputs_faltantes=None, estacoes_status=None):
-    consultado_em = agora_brt()
-    raw_st = ULTIMA_RAW.get("86472600")
-    idade_min = None
-    status_dados = None
-    if raw_st:
-        idade_min = round((consultado_em - raw_st[0]).total_seconds() / 60)
-        status_dados = (
-            "telemetria recente"
-            if idade_min <= TELEMETRY_WARN_MAX_AGE.total_seconds() / 60
-            else f"telemetria atrasada ({idade_min} min)"
-        )
-    out = {
-        "modo": "ao_vivo",
-        "gerado_em": (t.isoformat() if t else consultado_em.isoformat()),
-        "hora_modelo": (t.isoformat() if t else None),
-        "consultado_em": consultado_em.isoformat(timespec="seconds"),
-        "telemetria_ultima_em": (raw_st_valido[0].isoformat() if raw_st_valido else None),
-        "telemetria_ultima_nivel_cm": (round(raw_st_valido[1]) if raw_st_valido else None),
-        "telemetria_raw_rejeitada": (
-            {"hora": raw_st[0].isoformat(), "nivel_cm": round(raw_st[1]), "motivo": "fora_faixa_plausivel"}
-            if raw_st and not raw_st_valido else None
-        ),
-        "idade_telemetria_min": idade_min,
-        "status_dados": status_dados,
-        "estacao": "86472600", "local": "Santa Tereza",
-        "horizonte": HORIZONTE, "modelo": COMBO, "bankfull_cm": BANKFULL_CM,
-        "hand_zero_cm": HAND_ZERO_CM,
-        "nivel_modelo_cm": (round(nivel_atual) if nivel_atual is not None else None),
-        "nivel_rio_agora_cm": (round(raw_st_valido[1]) if raw_st_valido else (round(nivel_atual) if nivel_atual is not None else None)),
-        "nivel_rio_agora_em": (raw_st_valido[0].isoformat() if raw_st_valido else (t.isoformat() if t else None)),
-        "nivel_atual_cm": (round(nivel_atual) if nivel_atual is not None else None),
-        "nivel_previsto_cm": (round(nivel_prev) if nivel_prev is not None else None),
-        "disponivel": nivel_prev is not None,
-        "inputs_total": 15,
-        "inputs_faltantes_n": len(inputs_faltantes or []),
-        "inputs_faltantes": inputs_faltantes or [],
-        "estacoes_status": estacoes_status or [],
-        "status": status,
-        "aviso": aviso,
-    }
-    with open(SAIDA, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, indent=1)
-    print("escrito", SAIDA, "->", out["nivel_atual_cm"], "->", out["nivel_previsto_cm"], status)
 
 def _base_saida(cfg, nivel_atual, nivel_prev, t, status, aviso, inputs_faltantes=None, estacoes_status=None):
     consultado_em = agora_brt()
@@ -2177,13 +2253,39 @@ def carregar_historico():
         print("historico invalido, reiniciando:", e)
         return []
 
+# Carimbos que só registram a passagem do robô pelo registro. Quando o resto do registro
+# não mudou, os carimbos anteriores são mantidos e o arquivo não é regravado: antes, o
+# histórico inteiro era reescrito (e versionado) a cada ciclo de 5 min só por eles.
+CARIMBOS_HISTORICO = ("auditado_em", "criado_em", "criado_em_utc")
+
+def preservar_carimbos(registros, anteriores):
+    """Mantém os carimbos anteriores dos registros cujo conteúdo não mudou."""
+    def sem_carimbo(r):
+        return {k: v for k, v in r.items() if k not in CARIMBOS_HISTORICO}
+
+    por_id = {r.get("id"): r for r in anteriores if isinstance(r, dict) and r.get("id")}
+    saida = []
+    for reg in registros:
+        velho = por_id.get(reg.get("id"))
+        if velho is not None and sem_carimbo(reg) == sem_carimbo(velho):
+            reg = {**reg, **{k: velho[k] for k in CARIMBOS_HISTORICO if k in velho and k in reg}}
+        saida.append(reg)
+    return saida
+
 def salvar_historico(registros):
+    """Grava o histórico; devolve False quando nada além dos carimbos mudou (arquivo intacto).
+    Mesma regra de codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py."""
+    anteriores = carregar_historico()
+    registros = preservar_carimbos(registros[-1200:], anteriores)
+    if os.path.exists(HISTORICO_SAIDA) and registros == anteriores[-1200:]:
+        return False
     pacote = {
         "atualizado_em": agora_brt().isoformat(timespec="seconds"),
-        "registros": registros[-1200:],
+        "registros": registros,
     }
     with open(HISTORICO_SAIDA, "w", encoding="utf-8") as f:
         json.dump(pacote, f, ensure_ascii=False, indent=1)
+    return True
 
 def upsert_previsao_historico(registros, saida):
     if saida.get("status") != "ok" or saida.get("nivel_previsto_cm") is None or not saida.get("hora_modelo"):
@@ -2205,6 +2307,7 @@ def upsert_previsao_historico(registros, saida):
         "status_auditoria": "aguardando",
         "auditoria_versao": AUDITORIA_VERSAO,
         "input_contract_version": saida.get("input_contract_version"),
+        "formula_contract_version": saida.get("formula_contract_version"),
         "criado_em": saida.get("consultado_em"),
     }
     for i, reg in enumerate(registros):
@@ -2213,7 +2316,8 @@ def upsert_previsao_historico(registros, saida):
             # voltar para aguardando; os erros antigos podem ter usado uma
             # leitura vizinha e não são comparáveis aos novos.
             preservados = {}
-            if reg.get("auditoria_versao") == AUDITORIA_VERSAO:
+            if (reg.get("auditoria_versao") == AUDITORIA_VERSAO
+                    and reg.get("formula_contract_version") == saida.get("formula_contract_version")):
                 preservados = {k: reg.get(k) for k in ("observado_cm", "observado_em", "erro_cm", "erro_abs_cm", "status_auditoria", "auditado_em") if k in reg}
             novo.update(preservados)
             registros[i] = novo
@@ -2266,6 +2370,10 @@ def media(vals):
 def resumo_auditoria(registros, horizonte, modelo=None):
     regs = [r for r in registros if r.get("horizonte") == horizonte]
     excluidas_grade = 0
+    formula = next((c.get("formula_contract_version") for c in MODELOS
+                    if c["horizonte"] == horizonte and c["modelo"] == modelo), None)
+    if formula:
+        regs = [r for r in regs if r.get("formula_contract_version") == formula]
     if modelo:
         # Ao trocar a RNA ativa, o histÃ³rico antigo continua Ãºtil para
         # auditoria, mas nÃ£o pode contaminar o erro recente do modelo novo.
@@ -2329,6 +2437,79 @@ def _anexar_fontes_chuva_8h(out, cfg, series):
     return out
 
 
+def horizonte_stz_8h_suspenso(cfg):
+    return bool(
+        SUSPENSAO_STZ_8H_ATIVA
+        and cfg.get("horizonte") in SUSPENSAO_STZ_8H_HORIZONTES
+    )
+
+
+def _fontes_chuva_8h_suspensa():
+    """Mantem a proveniencia do contrato sem fingir que houve entrada valida."""
+    return {
+        "contrato_formula": FORMULA_8H_CONTRATO,
+        "regra_ausencia": (
+            "horizonte suspenso; nenhuma leitura de nivel ou chuva e usada "
+            "para gerar previsao enquanto o bloqueio operacional estiver ativo"
+        ),
+        "alinhamento_a894": "nao aplicado durante a suspensao operacional",
+        "grupo_18h_24h": ["2851072", "A894", "432040401A"],
+        "grupo_6h": ["A894", "432040401A"],
+        "estacoes": {},
+    }
+
+
+def saida_suspensa_stz_8h(cfg, aviso, estacoes_status=None):
+    """Publica estado indisponivel sem executar MAT nem fallback do horizonte 8 h."""
+    out = _base_saida(
+        cfg, None, None, None,
+        SUSPENSAO_STZ_8H_MOTIVO,
+        aviso, [], estacoes_status or [],
+    )
+    out["ativo_ao_vivo"] = False
+    out["disponivel"] = False
+    out["nivel_previsto_cm"] = None
+    out["delta_previsto_cm"] = None
+    out["input_values_cm"] = []
+    out["passos"] = []
+    out["status_dados"] = (
+        "telemetria de Santa Tereza sinalizada como invalida; "
+        "RNA 8h bloqueada para publicacao"
+    )
+    out["auditoria_inputs"] = {
+        "status": "INVALIDO",
+        "motivo": SUSPENSAO_STZ_8H_MOTIVO,
+        "motivo_publicacao": SUSPENSAO_STZ_8H_MOTIVO,
+        "n_inputs": cfg.get("inputs_total"),
+        "n_inputs_nao_exatos": 0,
+        "input_grade": cfg.get("input_grade"),
+        "contrato_temporal": cfg.get("input_contract_version"),
+        "bloqueio_operacional": True,
+    }
+    out["qualidade_ao_vivo"] = {
+        "status": "SUSPENSO_TELEMETRIA_INVALIDA",
+        "regra": "bloqueio operacional manual do horizonte 8 h",
+        "modelo": cfg.get("modelo"),
+    }
+    out["suspensao_operacional"] = {
+        "ativa": True,
+        "estacao": "86472600",
+        "escopo": "Santa Tereza - RNA 8h",
+        "motivo": SUSPENSAO_STZ_8H_MOTIVO,
+    }
+    out["proxima_base_diagnostico"] = {
+        "hora": None,
+        "pronta": False,
+        "inputs_faltantes_n": None,
+        "inputs_faltantes": [],
+        "auditoria_status": "SUSPENSO",
+        "motivo": SUSPENSAO_STZ_8H_MOTIVO,
+    }
+    if cfg.get("montador") in ("8h_alt_v001", "8h_alt_v002"):
+        out["fontes_chuva_8h"] = _fontes_chuva_8h_suspensa()
+    return out
+
+
 def gerar_saida_modelo(cfg, series, t, aviso, estacoes_status):
     if t is None:
         out = _base_saida(
@@ -2337,25 +2518,7 @@ def gerar_saida_modelo(cfg, series, t, aviso, estacoes_status):
             aviso, [], estacoes_status,
         )
         out["disponivel"] = False
-        if cfg.get("montador") == "4h_alt_v01_r10":
-            qc_estacoes = [
-                {
-                    "estacao": item.get("estacao"),
-                    "nome": item.get("nome"),
-                    "qc_status": item.get("qc_status"),
-                    "qc_ultima_fora_faixa": item.get("qc_ultima_fora_faixa"),
-                }
-                for item in (estacoes_status or [])
-                if item.get("qc_status") == "ATENCAO_FORA_FAIXA"
-            ]
-            out["auditoria_inputs"] = {
-                "status": "INVALIDO",
-                "motivo": "nenhuma hora-base passou a auditoria de cobertura, atraso e faixa plausivel",
-                "n_inputs": cfg.get("inputs_total"),
-                "faixa_plausivel_cm": [NIVEL_PLAUSIVEL_MIN_CM, NIVEL_PLAUSIVEL_MAX_CM],
-                "estacoes_fora_faixa": qc_estacoes,
-            }
-        elif cfg.get("input_grade") in ("hourly_exact", "quarter_hour_exact"):
+        if cfg.get("input_grade") in ("hourly_exact", "quarter_hour_exact"):
             out["auditoria_inputs"] = {
                 "status": "INVALIDO",
                 "motivo": "nenhuma hora-base passou a auditoria da grade temporal e cobertura dos inputs",
@@ -2374,10 +2537,8 @@ def gerar_saida_modelo(cfg, series, t, aviso, estacoes_status):
         inputs_faltantes = diagnosticar_inputs_modelo(cfg, series, t, x)
         out = _base_saida(cfg, st0, None, t, f"inputs incompletos ({faltando}/{cfg['inputs_total']} faltando) - sem previsao nesta hora", aviso, inputs_faltantes, estacoes_status)
         out["disponivel"] = False
-        if cfg.get("montador") == "4h_alt_v01_r10":
-            out["auditoria_inputs"] = auditoria_inputs_4h_v01_r10(series, t, valores=x)
-        elif cfg.get("montador") == "4h_prio_12478_exato":
-            out["auditoria_inputs"] = auditoria_inputs_4h_prio_12478_exato(series, t, valores=x)
+        if cfg.get("montador") == "4h_v11_cascata":
+            out["auditoria_inputs"] = auditoria_inputs_4h_v11_cascata(series, t, valores=x)
         elif cfg.get("montador") in ("8h_alt_v001", "8h_alt_v002"):
             out["auditoria_inputs"] = auditoria_inputs_8h(cfg, t, x)
         elif cfg.get("montador") == "8h_alt_c0217":
@@ -2416,31 +2577,16 @@ def gerar_saida_modelo(cfg, series, t, aviso, estacoes_status):
                     f"({auditoria_inputs['n_inputs_atrasados']} input(s), "
                     f"idade maxima {auditoria_inputs['idade_max_input_min']:.0f} min)"
                 )
-        elif cfg.get("montador") == "4h_alt_v01_26":
-            auditoria_inputs = auditoria_inputs_4h_v01_26(series, t, valores=x)
+        elif cfg.get("montador") == "4h_v11_cascata":
+            auditoria_inputs = auditoria_inputs_4h_v11_cascata(series, t, valores=x)
             out["auditoria_inputs"] = auditoria_inputs
-            out["input_anchor_note"] = (
-                "NIVEL_ATUAL_CM e a ancora de reconstrução e persistência; "
-                "os 26 sinais são enviados ao MAT. A aceleração segue a "
-                "segunda diferença discreta da base, sem divisão por horas."
-            )
+            out["cascata_2h"] = cascata_2h_4h_v11(series, t)
             if auditoria_inputs["status"] == "ATENCAO":
                 out["status"] = (
                     "ok - atencao: dependencia de input atrasada "
                     f"({auditoria_inputs['n_inputs_atrasados']} input(s), "
                     f"idade maxima {auditoria_inputs['idade_max_input_min']:.0f} min)"
                 )
-        elif cfg.get("montador") == "4h_alt_v01_r10":
-            auditoria_inputs = auditoria_inputs_4h_v01_r10(series, t, valores=x)
-            out["auditoria_inputs"] = auditoria_inputs
-            if auditoria_inputs["status"] == "ATENCAO":
-                out["status"] = (
-                    "ok - atencao: dependencia de input atrasada "
-                    f"({auditoria_inputs['n_inputs_atrasados']} input(s), "
-                    f"idade maxima {auditoria_inputs['idade_max_input_min']:.0f} min)"
-                )
-        elif cfg.get("montador") == "4h_prio_12478_exato":
-            out["auditoria_inputs"] = auditoria_inputs_4h_prio_12478_exato(series, t, valores=x)
         elif cfg.get("montador") in ("8h_alt_v001", "8h_alt_v002"):
             out["auditoria_inputs"] = auditoria_inputs_8h(cfg, t, x)
             _anexar_fontes_chuva_8h(out, cfg, series)
@@ -2461,6 +2607,9 @@ def escolher_hora_modelo(cfg, series, horas_st):
         # a janela: esperar a próxima hora-base completa é mais auditável.
         if not hora_na_grade_do_modelo(cfg, cand):
             continue
+        # A cascata so vale enquanto o alvo intermediario de 2 h ainda e futuro.
+        if cfg.get("montador") == "4h_v11_cascata" and agora_brt() >= cand + dt.timedelta(hours=2):
+            break
         try:
             x, st0 = montar_inputs_modelo(cfg, series, cand)
         except Exception:
@@ -2475,16 +2624,8 @@ def escolher_hora_modelo(cfg, series, horas_st):
                 audit = auditoria_inputs_2h(series, cand, valores=x, grade=cfg.get("input_grade"))
                 if audit["status"] != "NORMAL":
                     continue
-            elif cfg.get("montador") == "4h_alt_v01_26":
-                audit = auditoria_inputs_4h_v01_26(series, cand, valores=x)
-                if audit["status"] != "NORMAL":
-                    continue
-            elif cfg.get("montador") == "4h_alt_v01_r10":
-                audit = auditoria_inputs_4h_v01_r10(series, cand, valores=x)
-                if audit["status"] != "NORMAL":
-                    continue
-            elif cfg.get("montador") == "4h_prio_12478_exato":
-                audit = auditoria_inputs_4h_prio_12478_exato(series, cand, valores=x)
+            elif cfg.get("montador") == "4h_v11_cascata":
+                audit = auditoria_inputs_4h_v11_cascata(series, cand, valores=x)
                 if audit["status"] != "NORMAL":
                     continue
             elif cfg.get("montador") in ("8h_alt_v001", "8h_alt_v002"):
@@ -2511,12 +2652,8 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
         audit = None
         if cfg.get("montador") == "2h_alt_15inputs":
             audit = auditoria_inputs_2h(series, candidata, valores=valores, grade=cfg.get("input_grade"))
-        elif cfg.get("montador") == "4h_alt_v01_26":
-            audit = auditoria_inputs_4h_v01_26(series, candidata, valores=valores)
-        elif cfg.get("montador") == "4h_alt_v01_r10":
-            audit = auditoria_inputs_4h_v01_r10(series, candidata, valores=valores)
-        elif cfg.get("montador") == "4h_prio_12478_exato":
-            audit = auditoria_inputs_4h_prio_12478_exato(series, candidata, valores=valores)
+        elif cfg.get("montador") == "4h_v11_cascata":
+            audit = auditoria_inputs_4h_v11_cascata(series, candidata, valores=valores)
         elif cfg.get("montador") in ("8h_alt_v001", "8h_alt_v002"):
             audit = auditoria_inputs_8h(cfg, candidata, valores)
         elif cfg.get("montador") == "8h_alt_c0217":
@@ -2526,6 +2663,22 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             and all(v is not None for v in valores)
             and (not audit or audit.get("status") == "NORMAL")
         )
+        # Um input interpolado nao aparece em "inputs_faltantes", pois tem
+        # valor numerico, mas NAO e um input horario exato da RNA. Exibir
+        # explicitamente a estacao e o horario que precisam ser recuperados.
+        dependencias_nao_exatas = {}
+        for entrada in (audit or {}).get("inputs") or []:
+            for dep in entrada.get("dependencias") or []:
+                if dep.get("metodo") == "EXATO":
+                    continue
+                chave = (str(entrada.get("estacao") or ""), str(dep.get("horario_solicitado") or ""))
+                dependencias_nao_exatas[chave] = {
+                    "estacao": chave[0],
+                    "hora": chave[1],
+                    "metodo_usado_apenas_para_diagnostico": dep.get("metodo"),
+                    "horarios_vizinhos": dep.get("horarios_usados") or [],
+                    "nao_aceito_pela_rna": True,
+                }
         return {
             "hora": candidata.isoformat(timespec="minutes"),
             "pronta": bool(pronta),
@@ -2533,6 +2686,8 @@ def diagnosticar_proxima_base(cfg, series, hora_modelo):
             "inputs_faltantes": faltantes[:12],
             "auditoria_status": (audit or {}).get("status"),
             "n_inputs_nao_exatos": (audit or {}).get("n_inputs_nao_exatos"),
+            "leituras_horarias_nao_exatas_n": len(dependencias_nao_exatas),
+            "leituras_horarias_nao_exatas": list(dependencias_nao_exatas.values())[:24],
         }
     except Exception as e:
         return {
@@ -2549,9 +2704,10 @@ def escrever_pacote(horizontes, historico, aviso, series=None):
     pacote = dict(principal)
     pacote["horizontes"] = horizontes
     observada = serie_observada_ana_publica(series)
+    pacote["serie_observada_ana"] = observada
+    pacote["serie_observada_ana_n"] = len(observada)
+    pacote["serie_observada_ana_status"] = "DISPONIVEL" if observada else "INDISPONIVEL"
     if observada:
-        pacote["serie_observada_ana"] = observada
-        pacote["serie_observada_ana_n"] = len(observada)
         pacote["serie_observada_ana_fonte"] = (
             "ANA/SGB Hidrotelemetria · estação 86472600 · série observada recente; "
             "independente dos pares usados na auditoria da RNA"
@@ -2620,6 +2776,7 @@ def escrever_janela_inputs_ai_lab(series, hora_modelo):
     pacote = {
         "schema_version": 1,
         "artifact_id": "previne_ai_lab_live_inputs_stz_2h",
+        "formula_contract_version": FORMULA_2H_4H_VERSION,
         "gerado_em": agora_brt().isoformat(timespec="seconds"),
         "estacao": "86472600",
         "horizonte_h": 2,
@@ -2656,12 +2813,92 @@ def carregar_saida_atual():
     return None
 
 
+def bloquear_previsao_com_alvo_vencido(out, agora=None):
+    """Nunca exibe previsao cujo horario-alvo ja passou como se fosse futura."""
+    if out.get("nivel_previsto_cm") is None:
+        return out
+    agora = agora or agora_brt()
+    alvo = _parse_hora(out.get("hora_alvo") or "")
+    if alvo is not None and alvo > agora:
+        return out
+    out["previsao_stale_candidata_cm"] = out.get("nivel_previsto_cm")
+    if out.get("passos"):
+        out["passos_stale_candidatos"] = out["passos"]
+    out["nivel_previsto_cm"] = None
+    out["passos"] = []
+    out["disponivel"] = False
+    out["status"] = "indisponivel: horario-alvo da previsao ja passou; aguardando base horaria nova"
+    out["bloqueio_publicacao"] = "hora_alvo_vencida"
+    audit = dict(out.get("auditoria_inputs") or {})
+    audit["status"] = "ATENCAO"
+    audit["motivo_publicacao"] = "previsao sem alvo futuro"
+    out["auditoria_inputs"] = audit
+    return out
+
+
+def recuperar_ultima_4h_emitida(cfg, indisponivel):
+    """Conserva uma previsao 4h JA EMITIDA enquanto seu alvo ainda e futuro.
+
+    Nunca calcula retroativamente a rede a partir de dados posteriores a t0.
+    Reaproveita somente o pacote completo ja publicado, com a emissao,
+    os 18 inputs e a auditoria originais. Sem isso, permanece indisponivel.
+    """
+    if indisponivel.get("nivel_previsto_cm") is not None:
+        return indisponivel
+    anterior = carregar_saida_atual()
+    if not isinstance(anterior, dict):
+        return indisponivel
+    prev = (anterior.get("horizontes") or {}).get("4h")
+    if not isinstance(prev, dict) or not prev.get("disponivel") or prev.get("nivel_previsto_cm") is None:
+        return indisponivel
+    if (prev.get("modelo") != cfg.get("modelo")
+            or prev.get("modelo_sha256") != cfg.get("modelo_sha256")
+            or prev.get("formula_contract_version") != cfg.get("formula_contract_version")
+            or prev.get("input_contract_version") != "hourly_exact_v1"
+            or prev.get("input_grade") != "hourly_exact"
+            or len(prev.get("input_values_cm") or []) != 18
+            or (prev.get("auditoria_inputs") or {}).get("status") != "NORMAL"
+            or (prev.get("qualidade_ao_vivo") or {}).get("status") != "NORMAL"):
+        return indisponivel
+
+    emitida = _parse_hora(prev.get("consultado_em") or "")
+    base = _parse_hora(prev.get("hora_modelo") or "")
+    alvo = _parse_hora(prev.get("hora_alvo") or "")
+    agora = agora_brt()
+    if (not emitida or not _eh_hora_cheia(base) or not alvo
+            or emitida > agora or emitida < base
+            or emitida >= base + dt.timedelta(hours=2)
+            or agora - emitida > dt.timedelta(minutes=90)
+            or alvo <= agora or alvo != base + dt.timedelta(hours=4)):
+        return indisponivel
+
+    copia = dict(prev)
+    copia["status"] = (
+        "ok - ultima previsao 4h emitida em "
+        + emitida.isoformat(timespec="minutes")
+        + "; aguardando entradas horarias para nova rodada"
+    )
+    copia["ultima_previsao_reaproveitada"] = True
+    copia["emissao_original_em"] = emitida.isoformat(timespec="seconds")
+    copia["ultima_tentativa_em"] = agora.isoformat(timespec="seconds")
+    copia["ultima_tentativa_status"] = "sem_base_atual"
+    copia["base_nova_status"] = indisponivel.get("status")
+    copia["proxima_base_diagnostico"] = indisponivel.get("proxima_base_diagnostico")
+    print("[STZ 4h] preservada emissao anterior valida, sem refazer RNA:", emitida, "->", alvo)
+    return copia
+
+
 def saida_respeita_contrato_horario_atual(atual):
     horizontes = (atual or {}).get("horizontes") or {}
     if set(horizontes) != {cfg["horizonte"] for cfg in MODELOS}:
         return False
     for cfg in MODELOS:
         item = horizontes.get(cfg["horizonte"]) or {}
+        fallback = FALLBACKS_HORIZONTE.get(cfg["horizonte"]) or {}
+        if item.get("modelo") not in {cfg["modelo"], fallback.get("modelo")}:
+            return False
+        if cfg.get("formula_contract_version") and item.get("formula_contract_version") != cfg["formula_contract_version"]:
+            return False
         if item.get("input_grade") != "hourly_exact":
             return False
         if item.get("input_contract_version") != "hourly_exact_v1":
@@ -2682,20 +2919,23 @@ def escrever_pacote_indisponivel(motivo, aviso):
     historico = carregar_historico()
     horizontes = {}
     for cfg in MODELOS:
-        out = _base_saida(cfg, None, None, None, motivo, aviso, [], resumo_estacoes({}))
-        out["disponivel"] = False
-        out["auditoria_inputs"] = {
-            "status": "INVALIDO",
-            "motivo": motivo,
-            "n_inputs": cfg["inputs_total"],
-            "input_grade": "hourly_exact",
-            "contrato_temporal": "hourly_exact_v1",
-        }
+        if horizonte_stz_8h_suspenso(cfg):
+            out = saida_suspensa_stz_8h(cfg, aviso, [])
+        else:
+            out = _base_saida(cfg, None, None, None, motivo, aviso, [], resumo_estacoes({}))
+            out["disponivel"] = False
+            out["auditoria_inputs"] = {
+                "status": "INVALIDO",
+                "motivo": motivo,
+                "n_inputs": cfg["inputs_total"],
+                "input_grade": "hourly_exact",
+                "contrato_temporal": "hourly_exact_v1",
+            }
+            out["qualidade_ao_vivo"] = {
+                "status": "DADO_INDISPONIVEL",
+                "modelo": cfg["modelo"],
+            }
         out["auditoria"] = resumo_auditoria(historico, cfg["horizonte"], cfg["modelo"])
-        out["qualidade_ao_vivo"] = {
-            "status": "DADO_INDISPONIVEL",
-            "modelo": cfg["modelo"],
-        }
         horizontes[cfg["horizonte"]] = out
     escrever_pacote(horizontes, historico, aviso)
 
@@ -2708,7 +2948,8 @@ def preservar_saida_valida_em_falha(motivo, aviso):
     """
     atual = carregar_saida_atual()
     if saida_respeita_contrato_horario_atual(atual):
-        agora = agora_brt().isoformat(timespec="seconds")
+        agora_dt = agora_brt()
+        agora = agora_dt.isoformat(timespec="seconds")
         # consultado_em é a hora da última consulta BEM-SUCEDIDA que gerou
         # estes dados. Não avançá-la numa falha: isso mascararia um feed velho
         # como se o robô tivesse acabado de publicar dados novos.
@@ -2725,6 +2966,45 @@ def preservar_saida_valida_em_falha(motivo, aviso):
                 item["status"] = "aguardando nova telemetria"
                 item["status_dados"] = "consulta ANA instavel; exibindo ultima previsao valida"
                 item["erro_robo_ultima_consulta"] = motivo
+                # Se o alvo ja passou, guardar somente o valor para auditoria.
+                # Uma falha ANA nunca deve manter previsao vencida como disponivel.
+                alvo = _parse_hora(item.get("hora_alvo") or "")
+                if alvo is None or alvo <= agora_dt:
+                    item["previsao_stale_candidata_cm"] = item["nivel_previsto_cm"]
+                    if item.get("passos"):
+                        item["passos_stale_candidatos"] = item["passos"]
+                    item["nivel_previsto_cm"] = None
+                    item["passos"] = []
+                    item["disponivel"] = False
+                    item["status"] = "indisponivel: horario-alvo vencido; aguardando nova telemetria"
+                    auditoria = dict(item.get("auditoria_inputs") or {})
+                    auditoria["status"] = "ATENCAO"
+                    auditoria["motivo_publicacao"] = "ultima previsao vencida durante falha de consulta ANA"
+                    item["auditoria_inputs"] = auditoria
+                    qualidade = dict(item.get("qualidade_ao_vivo") or {})
+                    qualidade["status"] = "BASE_DESATUALIZADA"
+                    item["qualidade_ao_vivo"] = qualidade
+        # O horizonte 8 h nunca herda uma previsao antiga durante a suspensao.
+        for cfg in MODELOS:
+            if horizonte_stz_8h_suspenso(cfg):
+                anterior = (atual.get("horizontes") or {}).get(cfg["horizonte"]) or {}
+                suspenso = saida_suspensa_stz_8h(
+                    cfg, aviso, anterior.get("estacoes_status") or []
+                )
+                suspenso["ultima_tentativa_em"] = agora
+                suspenso["ultima_tentativa_status"] = "falha"
+                suspenso["erro_robo_ultima_consulta"] = motivo
+                atual["horizontes"][cfg["horizonte"]] = suspenso
+        # Os campos da raiz alimentam paineis legados: sincronizar com 2h.
+        principal = (atual.get("horizontes") or {}).get("2h") or {}
+        if principal.get("nivel_previsto_cm") is None:
+            atual["nivel_previsto_cm"] = None
+            atual["passos"] = []
+            atual["disponivel"] = False
+            atual["status"] = principal.get("status") or "indisponivel: sem nova telemetria"
+            atual["qualidade_ao_vivo"] = principal.get("qualidade_ao_vivo") or {}
+            if "previsao_stale_candidata_cm" in principal:
+                atual["previsao_stale_candidata_cm"] = principal["previsao_stale_candidata_cm"]
         with open(SAIDA, "w", encoding="utf-8") as f:
             json.dump(atual, f, ensure_ascii=False, indent=1)
         print("mantida ultima previsao valida:", motivo)
@@ -2791,19 +3071,36 @@ def aplicar_fallback_operacional(cfg, preferencial, series, horas, aviso, estaco
 
 
 def main():
-    aviso = "EXPERIMENTAL - nao e alerta oficial. Teste interno da previsao de RNA (2h principal, 2h versao B em sombra, 4h, 8h V001 e 8h V002), em paralelo ao SGB/SACE. A versao B e o 8h V002 sao comparativos."
+    aviso = "EXPERIMENTAL - nao e alerta oficial. RNA 4h V11 em cascata com a RNA 2h principal, acompanhada prospectivamente. RNA 2h em teste; 8h V001/V002 suspensas. Em paralelo ao SGB/SACE."
     try:
         CHUVA_ANA_CACHE.clear()
         ANA_XML_CACHE.clear()
         # O endpoint ANA é consultado de forma serializada; um XML é suficiente
         # para extrair nível e chuva da mesma estação neste ciclo.
+        # Os modelos 8h permanecem suspensos: nao gastar minutos consultando
+        # nove estacoes adicionais e chuvas que nao podem gerar previsao.
+        # Os horizontes ativos 2h/4h exigem ST e Linha Jose Julio.
+        estacoes_ativas = (
+            ESTACOES if not SUSPENSAO_STZ_8H_ATIVA
+            else ("86472600", "86472000")
+        )
         series = buscar_series_paralelo(
-            ESTACOES, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
+            estacoes_ativas, buscar_ana, max_workers=ANA_MAX_CONCORRENCIA
         )
-        series["__chuva36h_postos__"] = buscar_series_paralelo(
-            POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
-        )
-        series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
+        if SUSPENSAO_STZ_8H_ATIVA:
+            series["__chuva36h_postos__"] = {}
+            series["__chuva8h_postos__"] = {}
+        else:
+            series["__chuva36h_postos__"] = buscar_series_paralelo(
+                POSTOS_CHUVA_36H, buscar_ana_chuva, max_workers=ANA_MAX_CONCORRENCIA
+            )
+            series["__chuva8h_postos__"] = buscar_chuvas_8h(series)
+        series["__chuva4h_v11_postos__"] = buscar_chuvas_4h_v11(series)
+        try:
+            cache_meta = complementar_niveis_cache_observado(series)
+            print("[ANA cache] resumo", cache_meta)
+        except Exception as exc:
+            print("[ANA cache] contingencia nao bloqueante:", exc)
     except Exception as e:
         preservar_saida_valida_em_falha(f"falha na telemetria: {e}", aviso); return
 
@@ -2815,15 +3112,27 @@ def main():
 
     horizontes = {}
     for cfg in MODELOS:
+        if horizonte_stz_8h_suspenso(cfg):
+            horizontes[cfg["horizonte"]] = saida_suspensa_stz_8h(
+                cfg, aviso, estacoes_status
+            )
+            continue
         t_modelo = escolher_hora_modelo(cfg, series, horas)
         out = gerar_saida_modelo(cfg, series, t_modelo, aviso, estacoes_status)
         out["proxima_base_diagnostico"] = diagnosticar_proxima_base(cfg, series, t_modelo)
         out = aplicar_fallback_operacional(cfg, out, series, horas, aviso, estacoes_status)
+        if cfg["horizonte"] == "4h" and out.get("nivel_previsto_cm") is None:
+            out = recuperar_ultima_4h_emitida(cfg, out)
         horizontes[cfg["horizonte"]] = out
 
+    for out in horizontes.values():
+        bloquear_previsao_com_alvo_vencido(out)
+
+    # Mesmo sem RNA valida, publicar a telemetria observada deste ciclo.
+    # O painel precisa mostrar a medicao recente e os motivos de indisponibilidade,
+    # sem trocar a hora da consulta nem reaproveitar uma previsao vencida.
     if not algum_horizonte_com_previsao(horizontes):
-        preservar_saida_valida_em_falha("inputs incompletos por consulta instavel das estacoes a montante", aviso)
-        return
+        print("[STZ] nenhuma RNA valida neste ciclo; publicando observacoes e diagnosticos")
 
     historico = carregar_historico()
     for out in horizontes.values():
@@ -2836,6 +3145,8 @@ def main():
     tel = ULTIMA_RAW.get("86472600")
     for hz, out in horizontes.items():
         out["auditoria"] = resumo_auditoria(historico, hz, out.get("modelo"))
+        if (out.get("suspensao_operacional") or {}).get("ativa"):
+            continue
         audit = out["auditoria"]
         mae24 = audit.get("mae_24h_cm")
         max24 = audit.get("maior_erro_abs_24h_cm")
@@ -2856,6 +3167,8 @@ def main():
         else:
             if out.get("fallback_ativo"):
                 qualidade_status = "FALLBACK_OPERACIONAL"
+            elif out.get("bloqueio_publicacao") == "hora_alvo_vencida":
+                qualidade_status = "BASE_DESATUALIZADA"
             elif out.get("nivel_previsto_cm") is None and (out.get("auditoria_inputs") or {}).get("status") == "INVALIDO":
                 qualidade_status = "DADO_INVALIDO_REVISAR"
             else:
@@ -2910,6 +3223,13 @@ def main():
                     f"{out['status']} - atencao: base da RNA {atraso_h:.1f}h anterior a telemetria recente; "
                     "aguardando conjunto completo de entradas na mesma hora cheia"
                 )
+    for valor in horizontes.values():
+        if valor.get("ultima_previsao_reaproveitada") and valor.get("disponivel"):
+            qualidade = valor.setdefault("qualidade_ao_vivo", {})
+            # Mantem o estado ATENCAO reconhecido pelo painel, inclusive quando
+            # os erros recentes tambem pedem revisao.
+            qualidade["status"] = "ATENCAO"
+            qualidade["base_reaproveitada"] = True
     escrever_pacote(horizontes, historico, aviso, series)
     try:
         escrever_janela_inputs_ai_lab(series, (horizontes.get("2h") or {}).get("hora_modelo"))

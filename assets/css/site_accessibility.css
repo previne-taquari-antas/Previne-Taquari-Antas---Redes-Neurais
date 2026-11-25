@@ -1,0 +1,17 @@
+/* Keep reports readable without shrinking tables or hiding their columns. */
+body { overflow-wrap: anywhere; }
+.previne-table-scroll { max-width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
+.previne-table-scroll:focus-visible { outline: 3px solid #155c47; outline-offset: 2px; }
+.previne-skip-link { position: fixed; top: 8px; left: 8px; z-index: 10000; padding: 12px 18px; background: #fff; color: #123e31; border: 2px solid currentColor; transform: translateY(-200%); }
+.previne-skip-link:focus { transform: translateY(0); }
+body.has-site-chrome.has-gestor-chrome .gestor-chrome { top: var(--previne-nav-height, 64px); }
+main, main > *, .grid > *, .card { min-width: 0; }
+.card { overflow-wrap: anywhere; }
+main :is(section, article, .card, .grid, .grid > *, .kpis, .kpis > *) { min-width: 0; }
+main :is(p, li, h1, h2, h3, code, .card) { overflow-wrap: anywhere; }
+main pre { max-width: 100%; overflow-x: auto; }
+main [id] { scroll-margin-top: calc(var(--previne-nav-height, 0px) + 16px); }
+@media print {
+  .previne-skip-link { display: none; }
+  .previne-table-scroll { overflow: visible; }
+}

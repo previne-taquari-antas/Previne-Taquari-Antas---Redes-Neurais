@@ -1,0 +1,73 @@
+name: Mancha do mapa único (MUP RS) e pontos de encontro
+
+# Baixa a Área Diretamente Atingida das cheias de 2024 (Mapa Único do Plano Rio Grande,
+# publicada pela FEPAM), recorta para Santa Tereza e Muçum, recalcula os pontos de encontro
+# (codigo_python/09_rota_fuga/pontos_encontro.py) e grava no próprio branch.
+# Manual (Actions > este workflow > Run workflow): rodar de novo quando a FEPAM publicar outra versão.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mancha-mup-rs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mancha:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dependências
+        run: python -m pip install numpy pillow shapely pyogrio pyproj
+      - name: Baixar a área diretamente atingida 2024 (FEPAM ou cópia no Internet Archive)
+        run: |
+          set -euo pipefail
+          python codigo_python/09_rota_fuga/baixar_mancha_mup.py /tmp/mup
+          mkdir -p /tmp/mup/ada && unzip -o -q /tmp/mup/ada.zip -d /tmp/mup/ada
+          find /tmp/mup/ada -type f | sed 's/^/ARQ: /'
+      - name: Recortar a mancha para Santa Tereza e Muçum
+        run: |
+          set -euo pipefail
+          mapfile -t SHPS < <(find /tmp/mup/ada -iname '*.shp' | sort)
+          printf 'SHP: %s\n' "${SHPS[@]}"
+          python - "${SHPS[@]}" <<'PY'
+          import sys, pyogrio
+          for p in sys.argv[1:]:
+              i = pyogrio.read_info(p)
+              print(p, "| feições:", i["features"], "| CRS:", i["crs"], "| campos:", list(i["fields"]), "| tipo:", i["geometry_type"])
+          PY
+          python codigo_python/09_rota_fuga/preparar_mancha.py "${SHPS[@]}"
+      - name: Pontos de encontro
+        run: |
+          set -euo pipefail
+          for c in santa_tereza mucum; do
+            if [ -f "assets/data/rota_fuga/mup_rs_ada_${c}.geojson" ]; then
+              python codigo_python/09_rota_fuga/pontos_encontro.py "$c" --gravar
+            fi
+          done
+          python tests/test_pontos_encontro.py -v
+      - name: Gravar no branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/data/rota_fuga/mup_rs_ada_*.geojson assets/data/rota_fuga/*_pontos_encontro_mup.json
+          if git diff --cached --quiet; then echo "nada mudou"; exit 0; fi
+          git commit -m "dados: mancha do MUP RS (FEPAM, área diretamente atingida 2024) e pontos de encontro" \
+            -m "$(cat /tmp/mup/origem.txt)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mancha-mup-rs
+          path: |
+            /tmp/mup/origem.txt
+            assets/data/rota_fuga/mup_rs_ada_*.geojson
+            assets/data/rota_fuga/*_pontos_encontro_mup.json
+          if-no-files-found: warn

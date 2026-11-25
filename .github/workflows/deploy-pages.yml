@@ -5,6 +5,19 @@ on:
     branches:
       - main
     paths:
+      - "**/*.html"
+      - "assets/previsao_fila.js"
+      - "scripts/validate_site_frontend.py"
+      - "scripts/optimize_static_site.py"
+      - "scripts/test_static_site_optimization.py"
+      - "scripts/test_site_accessibility.py"
+      - "scripts/test_site_recovery.js"
+      - "scripts/test_gt_page.js"
+      - "scripts/test_live_feed.js"
+      - "scripts/test_ai_lab.js"
+      - "scripts/test_research_patterns.js"
+      - "scripts/test_range_controls.js"
+      - "scripts/test_public_forecast.js"
       - "index.html"
       - "projeto.html"
       - "pesquisas.html"
@@ -13,8 +26,13 @@ on:
       - "vulnerabilidade.html"
       - "santa_tereza_inundacao.html"
       - "santa_tereza_previsao_inundacao.html"
+      - "santa_tereza_previsao_inundacao_usuario.html"
+      - "santa_tereza_painel_evacuacao.html"
+      - "santa_tereza_painel_casas.html"
+      - "mucum_painel_casas.html"
       - "santa_tereza_rota_fuga*.html"
       - "mucum_previsao_inundacao.html"
+      - "mucum_previsao_inundacao_usuario.html"
       - "plataforma_hec_twin.html"
       - "plataforma_bacia.html"
       - "pesquisa_status*.html"
@@ -22,6 +40,7 @@ on:
       - "inventario/**"
       - "assets/css/**"
       - "assets/js/**"
+      - "assets/logos/**"
       - "assets/previsao_panorama.js"
       - "assets/previsao_panorama.css"
       - "assets/data/research_*.json"
@@ -34,6 +53,9 @@ on:
       - "assets/data/basin_station_forecast_latest.json"
       - "assets/data/agenda_pesquisas.json"
       - "scripts/validate_osm_tiles.py"
+      - "codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py"
+      - "scripts/test_contornos_por_nivel.py"
+      - "scripts/apply_institutional_logos.py"
       - "scripts/validar_panorama_site.py"
       - "scripts/validate_santa_tereza_lidar_contract.py"
       - "codigo_python/02_mdt_hand_mancha/refinar_mdt_santa_tereza.py"
@@ -42,6 +64,9 @@ on:
       - "assets/data/estudo_caso_resposta_v002.json"
       - "assets/data/estudo_caso_territorio/**"
       - "assets/data/rota_fuga_santa_tereza*.json"
+      # Dados das páginas de rotas (ex.: santa_tereza_rotas_altas_set2023.json); antes
+      # só o publish-pages.yml, agora manual, publicava JSON fora destas pastas.
+      - "assets/data/rota_fuga/**"
       # HAND/MDT LiDAR de Santa Tereza: qualquer derivado publicado deve
       # disparar Pages imediatamente, sem depender do cron de 2 h.
       - "assets/data/santa_tereza_inundacao/**"
@@ -55,6 +80,7 @@ on:
       - "assets/data/santa_tereza_eventwise_replay_rna_2h/**"
       - "assets/data/servicos/**"
       - "assets/data/vulnerabilidade/**"
+      - "assets/data/porto_alegre/**"
       - ".github/workflows/deploy-pages.yml"
   schedule:
     # Republica o HTML/assets a cada 2 h. O JSON do robô não vai no
@@ -73,6 +99,11 @@ on:
       - "QA automatizada da pesquisa"
       - "Sincroniza contrato espacial LiDAR da pesquisa"
       - "PREVINE AI Lab - treinamento automatico"
+      - "G040 adaptive eventwise selector"
+      - "G040 Stage-2 readiness"
+      - "Serviços públicos — dados IEDE (bacia Taquari-Antas)"
+      - "Vulnerabilidade — dados IBGE (bacia Taquari-Antas)"
+      - "Publicar dados cartográficos Porto Alegre"
     types:
       - completed
 
@@ -82,9 +113,10 @@ permissions:
   id-token: write
 
 concurrency:
-  # Separar push de workflow_run evita que a fila frequente dos robôs cancele
-  # uma publicação manual de interface antes mesmo de o job começar.
-  group: github-pages-site-${{ github.event_name }}
+  # Todos os eventos publicam o MESMO site: um único deploy por vez.
+  # A fila mantém a rodada pendente mais recente; o checkout lê main atual,
+  # inclusive mudanças manuais anteriores, sem criar um backlog de builds.
+  group: github-pages-site-recovery-20261024
   cancel-in-progress: false
 
 jobs:
@@ -121,12 +153,20 @@ jobs:
             !*.md
             !*.yml
             !*.yaml
+            scripts/validate_site_frontend.py
+            scripts/optimize_static_site.py
+            scripts/test_static_site_optimization.py
+            scripts/test_site_accessibility.py
+            scripts/test_contornos_por_nivel.py
+            scripts/test_*.js
             scripts/validate_osm_tiles.py
+            scripts/apply_institutional_logos.py
             scripts/validar_panorama_site.py
             scripts/validate_santa_tereza_lidar_contract.py
             codigo_python/02_mdt_hand_mancha/gerar_mosaico_mdt.py
             codigo_python/02_mdt_hand_mancha/gerar_mancha_mosaico.py
             codigo_python/02_mdt_hand_mancha/gerar_contornos_vetoriais.py
+            codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py
             codigo_python/02_mdt_hand_mancha/refinar_mdt_santa_tereza.py
             codigo_python/09_rota_fuga/gerar_rota_fuga_santa_tereza.py
             .github/workflows/deploy-pages.yml
@@ -143,6 +183,27 @@ jobs:
             assets/data/vulnerabilidade/metadados/ESPECIFICACAO_FICHA_TRIAGEM_CENARIOS.md
             assets/data/vulnerabilidade/brutos/FONTES.md
           sparse-checkout-cone-mode: false
+
+      - name: Validate frontend syntax, DOM and recovery contracts
+        run: |
+          python scripts/validate_site_frontend.py
+          python scripts/test_static_site_optimization.py
+          python scripts/test_site_accessibility.py
+          python scripts/test_contornos_por_nivel.py
+          node scripts/test_contornos_por_nivel.js
+          node scripts/test_live_feed.js
+          node scripts/test_ai_lab.js
+          node scripts/test_research_patterns.js
+          node scripts/test_range_controls.js
+          node scripts/test_public_forecast.js
+          node scripts/test_site_recovery.js
+          node scripts/test_fmt_quando.js
+          node scripts/test_basin_level_display.js
+          node scripts/test_stz_shadow_ui.js
+          node scripts/test_stz_v11_ui.js
+
+      - name: Smoke test GT map for Santa Tereza and Mucum
+        run: node scripts/test_gt_page.js
 
       - name: Validate OpenStreetMap tile contract
         run: python scripts/validate_osm_tiles.py
@@ -183,7 +244,7 @@ jobs:
                 mkdir -p "_site/$(dirname "$file")"
                 cp -p -- "$file" "_site/$file"
                 ;;
-              .github/*|scripts/*|*.tif|*.py|*.md|*.yml|*.yaml|Gemfile|Gemfile.lock)
+              .github/*|scripts/*|tests/*|docs/*|*.tif|*.py|*.md|*.yml|*.yaml|Gemfile|Gemfile.lock)
                 continue
                 ;;
               *.mat)
@@ -198,6 +259,17 @@ jobs:
 
           touch _site/.nojekyll
 
+      - name: Dividir contornos de extravasamento por nível
+        # As páginas de previsão baixam um índice leve e só os níveis desenhados
+        # (assets/js/contornos_por_nivel.js); sem isto, voltam ao arquivo completo.
+        run: python -B codigo_python/02_mdt_hand_mancha/dividir_contornos_por_nivel.py --site-dir _site
+
+      - name: Aplicar logos PREVINE, UFRGS e LAGAM nas páginas públicas
+        run: python -B scripts/apply_institutional_logos.py --site-dir _site
+
+      - name: Optimize cacheable static assets
+        run: python scripts/optimize_static_site.py --site-dir _site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -206,3 +278,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
