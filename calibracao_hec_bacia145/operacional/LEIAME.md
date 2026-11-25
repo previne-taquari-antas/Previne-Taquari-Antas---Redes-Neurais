@@ -172,6 +172,19 @@ conferir com `validar_parametros.py` e mudar o padrão de `--modelo` no `ciclo.p
   limiar → nada extra (só o bloco `porte_sombra` do topo com S e a decisão). Desligada com estado salvo ou
   assimilação. Custo quando dispara: +1 rodada do HEC (≈ +19 s ao vivo com 3 cenários; +32 s no retro maio/2024).
   `--porte sempre` força a rodada (teste), `--porte nao` desliga.
+- **Sombra da combinação** (`combinacao.py`, 25/11/2026; frente de calibração `claude/hec-bacia145-chuva-v4`,
+  ESTADO_ATUAL §0f): em todo ciclo com `--pos hibrido` e o titular, roda também o HEC com `pb-g12-c036` (família
+  lrdcfvb: perc baixa + Clark variável, Index Excess + curvas percentuais VC_TC/VC_R em paired data), mistura
+  Q = 0,2·Q(pc-f8-c025) + 0,8·Q(pb-g12-c036) em todos os nós e cenários, e aplica o `d_piv` reajustado só na
+  calibração sobre a combinação (`parametros/combinacao_cb.json`; Muçum `so_curva` q0 2404, b 0,91, qmax 4544, τd 24;
+  Encantado 2768 / 1,20 / 5238 / 24; LJJ 1887 / 1,30 / 3484 / 12) → `pontos.*.combinacao_sombra` (simulado
+  combinado, variantes `so_curva`/`todos_picos` com série, nível, pico e, em Muçum, cruzamento de 10 m e 15 m).
+  Por que só em sombra: na calibração e validação a combinação reproduz melhor os hidrogramas (J_pico val 5,52 contra
+  5,91), e o MAE de +6/+12 h em Muçum cai (206/333 → 197/326 m³/s), mas depois do `d_piv` o alarme de 15 m em Muçum
+  piorou (ECMWF 11/0 → 9/0 acertos/falsos; GFS 11/1 → 10/5). Desligada com estado salvo ou assimilação; uma falha
+  dela vira aviso e não derruba o ciclo. `--combinacao nao` (ou `HEC_COMBINACAO=nao`) desliga. O código do modelo
+  (`codigo/estrutura_v3.py`, `hec.py`) veio da frente de calibração; o `.basin` de pc-f8-c025, md-val2-c002 e
+  po-r4-c008 sai idêntico ao do código anterior (sha256 conferido).
 
 ## Híbrido `d_piv` em sombra
 
