@@ -10,6 +10,7 @@
   const nf = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const n0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
   const ORDEM = { principal: 0, reserva: 2, componente: 1, registro_reserva_v4: 3, registro_v4: 3, sombra_horizonte: 4, controle: 5 };
+  const HORIZONTES = [4, 8, 12];
   let dados = null, hzSel = null;
 
   const css = `
@@ -61,7 +62,8 @@
     const box = document.getElementById('rs-box');
     if (!box) return;
     const lista = robos();
-    const hs = [...new Set(lista.map(g => g.h))].sort((a, b) => a - b);
+    // só os horizontes calibrados; +5 h e +9 h (teste antigo de compensação do atraso) seguem só no histórico do robô
+    const hs = [...new Set(lista.map(g => g.h))].filter(h => HORIZONTES.includes(h)).sort((a, b) => a - b);
     if (!hs.length) { box.hidden = true; return; }
     box.hidden = false;
     if (!hs.includes(hzSel)) hzSel = hs.includes(8) ? 8 : hs[0];
