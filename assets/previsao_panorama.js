@@ -577,8 +577,25 @@
       svg.appendChild(svgNode('line',{x1:m.l,y1:y,x2:W-m.r,y2:y,stroke:'var(--panorama-grid, #dfe7e2)','stroke-width':1}));
       svg.appendChild(svgNode('text',{x:m.l-10,y:y+4,'text-anchor':'end','font-size':11,fill:'var(--muted, #6c7a72)'},nf1.format(v/100)+' m'));
     }
-    for(let i=0;i<tickCount;i++){
-      const t=xMin+(xMax-xMin)*i/(tickCount-1),x=X(t),d=new Date(t);
+    const ticks=[];
+    if(nuvem.length){
+      // Horas cheias (BRT): a cada 6 h no celular, 3 h no computador; meia-noite mostra a data.
+      const passo=(compact?6:3)*36e5, brt=3*36e5;
+      for(let t=Math.ceil((xMin-brt)/passo)*passo+brt;t<=xMax;t+=passo) if(X(t)>=m.l-1&&X(t)<=W-m.r+1) ticks.push(t);
+    }else{
+      for(let i=0;i<tickCount;i++) ticks.push(xMin+(xMax-xMin)*i/(tickCount-1));
+    }
+    function rotuloHora(t){
+      const d=new Date(t-3*36e5), h=d.getUTCHours();
+      return h===0?`${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`:`${h}h`;
+    }
+    for(const t of ticks){
+      const x=X(t),d=new Date(t);
+      if(nuvem.length){
+        svg.appendChild(svgNode('line',{x1:x,y1:m.t,x2:x,y2:H-m.b,stroke:'var(--panorama-grid-soft, #edf2ef)','stroke-width':1}));
+        svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':11,'font-weight':rotuloHora(t).includes('/')?700:400,fill:'var(--muted, #6c7a72)'},rotuloHora(t)));
+        continue;
+      }
       svg.appendChild(svgNode('line',{x1:x,y1:m.t,x2:x,y2:H-m.b,stroke:'var(--panorama-grid-soft, #edf2ef)','stroke-width':1}));
       svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},axisTimeLabel(d,spanHours,crossDay)));
     }
@@ -690,11 +707,33 @@
               ?[[.50,-44],[.58,-72],[.42,44],[-.46,-44]]
               :[[.46,44],[.56,72],[-.42,44],[.38,-44]];
         // No celular com a nuvem, os valores ficam na legenda: sem balões sobre o gráfico.
-        if(!(compact&&nuvem.length)) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
+        if(!nuvem.length) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
 
       });
     }
     labels.forEach((entry,index)=>drawPointLabel(svg,entry,index,occupied,{left:m.l+2,right:W-m.r-2,top:m.t+2,bottom:H-m.b-2}));
+    // Com a nuvem: valores previstos numa coluna, na área vazia do gráfico (abaixo ou acima da linha observada),
+    // com o mesmo marcador do ponto. Nada é desenhado por cima das curvas.
+    if(nuvem.length&&items.length){
+      const lista=items.slice().sort((a,b)=>a.hours-b.hours);
+      const bw=compact?112:124,bh=22,gap=5,stackH=lista.length*bh+(lista.length-1)*gap;
+      const x0=m.l+8, xr=x0+bw;
+      const obsY=points.filter(p=>X(p.time.getTime())<=xr+6).map(p=>Y(p.cm));
+      const baixoTopo=H-m.b-6-stackH, cimaFundo=m.t+6+stackH;
+      let topo=null;
+      if(!obsY.length||Math.max(...obsY)<baixoTopo-8) topo=baixoTopo;
+      else if(Math.min(...obsY)>cimaFundo+8) topo=m.t+6;
+      if(topo!==null){
+        lista.forEach((p,i)=>{
+          const y=topo+i*(bh+gap), cor=forecastStyle(p.hours).color;
+          svg.appendChild(svgNode('rect',{x:x0,y,width:bw,height:bh,rx:6,fill:'var(--panel, #fff)',stroke:cor,'stroke-width':1.2,opacity:.96}));
+          const mk=forecastMark(p,x0+13,y+bh/2,cor); svg.appendChild(mk);
+          svg.appendChild(svgNode('text',{x:x0+26,y:y+bh/2+3.8,'font-size':11,'font-weight':750,fill:'var(--ink, #1b2c24)'},`+${p.hours} h · ${fmtLevel(p.cm)}`));
+        });
+      }else{
+        lista.forEach((p,index)=>drawPointLabel(svg,{x:X(p.time.getTime()),y:Y(p.cm),color:forecastStyle(p.hours).color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`},index,occupied,{left:m.l+2,right:W-m.r-2,top:m.t+2,bottom:H-m.b-2}));
+      }
+    }
   }
 
   function legendEntry(label,className,kind='line'){
@@ -715,7 +754,7 @@
       box.appendChild(legendEntry(`Outros ${nuvemN} modelos em teste`,'nuvem'));
     }
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
-    items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
+    if(!nuvemN) items.forEach(point=>box.appendChild(legendEntry(`Previsão +${point.hours} h${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
     box.appendChild(legendEntry('Cota oficial, quando próxima da escala','threshold'));
   }
 
