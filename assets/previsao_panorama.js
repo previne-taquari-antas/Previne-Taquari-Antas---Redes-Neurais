@@ -628,7 +628,7 @@
       if(anchor&&centro.length){
         const seq=[anchor,...centro];
         const d=seq.map((p,i)=>`${i?'L':'M'}${X(p.time.getTime()).toFixed(1)},${Y(p.cm).toFixed(1)}`).join(' ');
-        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #1d5b44)','stroke-width':2.4,opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
+        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #1b1f1d)','stroke-width':2.4,opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
         linha.appendChild(svgNode('title',{},'Melhor modelo de cada horizonte'));
         svg.appendChild(linha);
       }
