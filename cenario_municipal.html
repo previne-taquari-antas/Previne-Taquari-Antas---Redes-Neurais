@@ -486,6 +486,22 @@
             casas, o relevo e os rios, e mostra quantas pessoas chegam a pé a um
             lugar seguro no tempo escolhido.
           </p>
+          <fieldset id="terrainStart">
+            <legend>Terreno (modelo de elevação, MDT)</legend>
+            <label
+              >Importar meu MDT / modelo de elevação (GeoTIFF)<input
+                id="terrainFile"
+                type="file"
+                accept=".tif,.tiff"
+            /></label>
+            <button id="copernicus" class="primary">
+              Buscar o relevo da área (automático)
+            </button>
+            <button id="downloadTerrain">Salvar o relevo em arquivo</button>
+            <p id="terrainInfo" class="muted" role="status" aria-live="polite">
+              Nenhum terreno carregado.
+            </p>
+          </fieldset>
           <ol class="passos">
             <li id="passo1">
               <b>Onde fica?</b>
@@ -593,12 +609,6 @@
               ler somente o recorte de um arquivo grande, desenhe ou importe a
               área de interesse primeiro.
             </p>
-            <label
-              >Importar meu MDT / modelo de elevação (GeoTIFF)<input
-                id="terrainFile"
-                type="file"
-                accept=".tif,.tiff"
-            /></label>
             <p id="terrainLimits" class="muted">
               GeoTIFF sem limite fixo de 25 MB ou 100 MB. Leitura por partes,
               com recorte pela área selecionada e uso de versões reduzidas
@@ -606,19 +616,13 @@
               navegador e da organização do arquivo. Use EPSG:4326 e alturas em
               metros.
             </p>
-            <button id="copernicus" class="primary">
-              Buscar o relevo da área (automático)
-            </button>
-            <button id="downloadTerrain">Salvar o relevo em arquivo</button>
             <p class="muted">
               O relevo é carregado direto na página, sem baixar nem importar
               arquivo. Vem de bases abertas que cobrem o mundo (cerca de 30 m
               por ponto); se o município tem um MDT melhor, importe acima. Ao
               gerar a mancha na etapa 5, o relevo também é buscado sozinho.
             </p>
-            <p id="terrainInfo" class="muted" role="status" aria-live="polite">
-              Nenhum terreno carregado.
-            </p>
+
           </fieldset>
           <fieldset>
             <legend>2 · Mapas do município (ruas, edificações, mancha)</legend>
@@ -915,3 +919,4 @@
     <script src="assets/js/cenario_municipal.js"></script>
   </body>
 </html>
+

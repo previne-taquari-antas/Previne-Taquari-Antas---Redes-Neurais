@@ -68,13 +68,6 @@ const server = http.createServer((req, res) => {
   if (!process.env.MDT_ORIGIN)
     await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
   await page.goto(origin + "/cenario_municipal.html?verify=mdt-20261113");
-  // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
-  await page.evaluate(() =>
-    document
-      .querySelectorAll("#avancado, #avancado details.etapa")
-      .forEach((d) => (d.open = true)),
-  );
-
   const os = require("os"),
     T = require("../../assets/js/cenario_terreno.js");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "previne-mdt-"));
@@ -92,10 +85,10 @@ const server = http.createServer((req, res) => {
       return full.call(this);
     };
   });
-  const first = page.locator("#avancado > fieldset").first();
+  const first = page.locator("#terrainStart");
   assert.equal(await first.locator("#terrainFile").count(), 1);
   assert.equal(await first.locator("#copernicus").count(), 1);
-  assert.equal(await first.locator("#areaUpload").count(), 1);
+  assert.equal(await page.locator("#areaUpload").count(), 1);
   assert(await page.locator("#terrainFile").isVisible());
   await page.locator("#copernicus").click();
   await page.waitForFunction(
@@ -122,6 +115,14 @@ const server = http.createServer((req, res) => {
       .getElementById("terrainInfo")
       .textContent.includes("mdt_sem_municipio.tif"),
   );
+  // Advanced controls are opened only after checking the initial terrain choices.
+  // as etapas detalhadas ficam em "Opções avançadas", fechadas para quem chega pela primeira vez
+  await page.evaluate(() =>
+    document
+      .querySelectorAll("#avancado, #avancado details.etapa")
+      .forEach((d) => (d.open = true)),
+  );
+
   const aoi = {
     type: "Polygon",
     coordinates: [
@@ -273,3 +274,4 @@ const server = http.createServer((req, res) => {
   server.close();
   process.exit(1);
 });
+
