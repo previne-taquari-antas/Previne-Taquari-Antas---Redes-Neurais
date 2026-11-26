@@ -191,6 +191,29 @@
     render();
   }
 
+  // Robôs calibrados em sombra (previsao_sombra_<local>_recente.json, gravado de hora em hora pelo robô-sombra):
+  // entram no mesmo relatório de erros, cada um com seu nome. Sem o arquivo, nada muda.
+  async function loadShadow(){
+    if(!state.config) return;
+    for(const url of [state.config.shadowRawUrl,state.config.shadowFile].filter(Boolean)){
+      try{
+        const fetched=await fetchJson(url);
+        if(fetched&&Array.isArray(fetched.registros)){state.shadow=fetched;render();return;}
+      }catch(e){}
+    }
+  }
+
+  const SHADOW_ORDER={principal:0,componente:1,reserva:2};
+  function shadowErrorRows(shadow){
+    return (shadow&&shadow.registros||[]).filter(r=>[4,8,12].includes(Number(r.horizonte_h))).map(r=>({
+      id:`sombra|${r.modelo}|${r.hora_alvo}`,horizonte:`${r.horizonte_h}h_sombra`,horizonte_h:r.horizonte_h,
+      modelo:`sombra · ${r.nome_exibicao||r.modelo}`,hora_modelo:r.hora_modelo,hora_alvo:r.hora_alvo,
+      nivel_previsto_cm:r.nivel_previsto_cm,observado_cm:r.observado_cm,
+      status_auditoria:number(r.observado_cm)!==null?'conferido':'aguardando',auditado_em:shadow.gerado_em||'',
+      _source:'sombra',_order:SHADOW_ORDER[r.papel]??3
+    }));
+  }
+
   async function loadAuditCatalog(){
     if(!state.config||!state.config.auditCatalogUrl) return;
     try{
@@ -752,6 +775,7 @@
 
   function errorHorizonLabel(key,hours,model){
     const normalized=String(key||'').toLowerCase();
+    if(/_sombra$/.test(normalized)) return `${hours} h · robô calibrado (sombra)`;
     if(normalized==='2h_versao_b') return '2 h B';
     if(normalized==='4h'&&model===FOUR_HOUR_MODEL) return '4 h V11 cascata';
     if(normalized==='4h_versao_b') return '4 h comparativo';
@@ -768,7 +792,7 @@
     const rows=Array.isArray(historyOrRows)?historyOrRows:(historyOrRows&&Array.isArray(historyOrRows.registros)?historyOrRows.registros:[]);
     const unique=new Map();
     rows.forEach(row=>{
-      if(!row||typeof row!=='object'||(row._source!=='catalog'&&isLegacyCascade(row))) return;
+      if(!row||typeof row!=='object'||(row._source!=='catalog'&&row._source!=='sombra'&&isLegacyCascade(row))) return;
       const target=parseWhen(row.hora_alvo), predicted=number(row.nivel_previsto_cm);
       const hours=horizonHours(row.horizonte,row), model=String(row.modelo||'').trim();
       if(!target||predicted===null||hours===null||!model) return;
@@ -777,6 +801,7 @@
       const item={
         row,target,predicted,observed,hours,model,status,
         error:status==='conferido'&&observed!==null?predicted-observed:null,
+        order:row._order??(row._source==='sombra'?3:-1),
         groupKey:`${String(row.horizonte||hours)}|${model}`,
         horizonKey:String(row.horizonte||`${hours}h`)
       };
@@ -823,7 +848,7 @@
     rows.forEach(item=>{
       let group=groups.get(item.groupKey);
       if(!group){
-        group={key:item.groupKey,horizonKey:item.horizonKey,hours:item.hours,model:item.model,label:errorHorizonLabel(item.horizonKey,item.hours,item.model),rows:[]};
+        group={key:item.groupKey,horizonKey:item.horizonKey,hours:item.hours,model:item.model,order:item.order??-1,label:errorHorizonLabel(item.horizonKey,item.hours,item.model),rows:[]};
         groups.set(item.groupKey,group);
       }
       group.rows.push(item);
@@ -833,7 +858,7 @@
       const windowRows=group.rows.filter(item=>item.target.getTime()>=cutoff&&item.target.getTime()<=referenceTime.getTime()).sort((a,b)=>a.target-b.target);
       const points=windowRows.filter(item=>item.error!==null);
       return {...group,windowRows,points,pending:windowRows.filter(item=>item.error===null)};
-    }).sort((a,b)=>a.hours-b.hours||a.label.localeCompare(b.label,'pt-BR')||a.model.localeCompare(b.model,'pt-BR'));
+    }).sort((a,b)=>a.hours-b.hours||(a.order??-1)-(b.order??-1)||a.label.localeCompare(b.label,'pt-BR')||a.model.localeCompare(b.model,'pt-BR'));
   }
 
   function errorSummary(points){
@@ -1075,7 +1100,7 @@
       const on=Number(button.dataset.errorWindow)===hours;
       button.classList.toggle('on',on);button.setAttribute('aria-pressed',on?'true':'false');
     });
-    const liveRows=state.history?errorReportRows(state.history):[];
+    const liveRows=state.history?errorReportRows(state.history).concat(state.shadow?errorReportRows(shadowErrorRows(state.shadow)):[]):[];
     renderErrorPanel(liveRows,!state.history, state.historyError, {grid:'rna-error-grid',summary:'rna-error-summary',source:'rna-error-source'}, 'live');
     renderWindowComparison(liveRows,!state.history,state.historyError);
     const catalogRows=state.auditCatalog?errorReportRows(catalogErrorRows(state.auditCatalog)):[];
@@ -1388,8 +1413,9 @@
     setMode('simple');
     loadHistory();
     loadAuditCatalog();
+    loadShadow();
     clearInterval(state.historyTimer);
-    state.historyTimer=setInterval(loadHistory,5*60*1000);
+    state.historyTimer=setInterval(()=>{loadHistory();loadShadow();},5*60*1000);
     loadResearchRisk();
     loadResearchReview();
     clearInterval(state.researchTimer);
