@@ -1280,7 +1280,15 @@
     const trend=trendInfo(points);
     const flood=floodInfo(current,items,state.config.cotaInundCm);
     const N=publicView&&window.PREVINE_NUVEM&&Array.isArray(window.PREVINE_NUVEM.curvas)?window.PREVINE_NUVEM.curvas:[];
-    const nuvem=N.map(c=>({nome:c.nome,pts:(c.pts||[]).map(p=>({time:new Date(p.t),cm:Number(p.cm)})).filter(p=>Number.isFinite(p.time.getTime())&&Number.isFinite(p.cm))}));
+    // Revalida no relógio atual: a nuvem pode ter vindo de uma consulta antiga (falha de rede depois).
+    // Descarta rodadas com base > 3 h e alvos já vencidos; o 1º ponto de cada curva é a hora-base.
+    const agoraMs=Date.now();
+    const nuvem=N.map(c=>{
+      const pts=(c.pts||[]).map(p=>({time:new Date(p.t),cm:Number(p.cm)})).filter(p=>Number.isFinite(p.time.getTime())&&Number.isFinite(p.cm));
+      if(pts.length<2||agoraMs-pts[0].time.getTime()>3*36e5) return null;
+      const futuros=pts.slice(1).filter(p=>p.time.getTime()>agoraMs);
+      return futuros.length?{nome:c.nome,pts:[pts[0],...futuros]}:null;
+    }).filter(Boolean);
     // Com a nuvem: 12 h de histórico e até 12 h de previsão, metade do gráfico para cada lado.
     const janelaH=nuvem.length?12:24;
     const titulo=document.getElementById('overview-title');
