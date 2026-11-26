@@ -567,6 +567,7 @@
     const times=all.map(p=>p.time.getTime()).filter(Number.isFinite);
     let xMin=opts.windowHours&&anchor?anchor.time.getTime()-opts.windowHours*36e5:Math.min(...times);
     let xMax=Math.max(...times);
+    if(opts.fixedMucum&&anchor) xMax=Math.max(xMax,anchor.time.getTime()+12*36e5);
     if(xMax<=xMin) xMax=xMin+4*36e5;
     // Deixa respiro à direita para o último horizonte não ficar colado na borda
     // e para o rótulo poder se posicionar sem cobrir os demais.
@@ -605,7 +606,7 @@
       svg.appendChild(svgNode('line',{x1:x,y1:m.t,x2:x,y2:H-m.b,stroke:'var(--panorama-grid-soft, #edf2ef)','stroke-width':1}));
       svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},axisTimeLabel(d,spanHours,crossDay)));
     }
-    if(!(compact&&nuvem.length)) svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
+    if(!(compact&&(nuvem.length||opts.fixedMucum))) svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
 
     if(showThreshold){
       const y=Y(cota);
@@ -713,7 +714,7 @@
               ?[[.50,-44],[.58,-72],[.42,44],[-.46,-44]]
               :[[.46,44],[.56,72],[-.42,44],[.38,-44]];
         // No celular com a nuvem, os valores ficam na legenda: sem balões sobre o gráfico.
-        if(!(compact&&nuvem.length)) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
+        if(!(compact&&(nuvem.length||opts.fixedMucum))) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
 
       });
     }
@@ -728,17 +729,23 @@
     return span;
   }
 
-  function renderLegend(items,hasPrevious,nuvemN){
+  function renderLegend(items,hasPrevious,nuvemN,fixedMucum=false){
     const box=document.getElementById('overview-legend');
     if(!box) return;
     box.replaceChildren(legendEntry('Nível observado','observed'));
-    box.classList.toggle('com-nuvem',!!nuvemN);
+    box.classList.toggle('com-nuvem',!!nuvemN||fixedMucum);
     if(nuvemN){
       box.appendChild(legendEntry('Melhor modelo de cada horizonte','central'));
       box.appendChild(legendEntry(`Outros ${nuvemN} modelos em teste`,'nuvem'));
     }
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
-    items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
+    if(fixedMucum){
+      [2,4,8,12].forEach(h=>{
+        const point=items.find(p=>p.hours===h&&!p.stale);
+        box.appendChild(legendEntry(`+${h} h · ${point?fmtLevel(point.cm):'indisponível'}`,point?`forecast horizon-${h}`:'nuvem','point'));
+      });
+      if(!nuvemN) box.appendChild(legendEntry('Modelos em teste: sem rodada recente','nuvem'));
+    }else items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
     box.appendChild(legendEntry('Cota de inundação, quando próxima da escala','threshold'));
   }
 
@@ -1315,10 +1322,11 @@
       return futuros.length?{nome:c.nome,pts:[pts[0],...futuros]}:null;
     }).filter(Boolean);
     // Com a nuvem: 12 h de histórico e até 12 h de previsão, metade do gráfico para cada lado.
-    const janelaH=nuvem.length?12:24;
+    const fixedMucum=publicView&&(String(state.config.stationCode)==='86510000'||/mucum_previsao_inundacao/i.test(window.location.pathname));
+    const janelaH=(fixedMucum||nuvem.length)?12:24;
     const titulo=document.getElementById('overview-title');
-    if(titulo&&publicView) titulo.textContent=nuvem.length?'O rio nas últimas 12 h e nas próximas 12 h':'O rio nas últimas 24 horas';
-    drawChart(nuvem.length?pointsInWindow(allPoints,janelaH):points,published,state.config.cotaInundCm,{windowHours:janelaH,periodLabel:nuvem.length?'últimas 12 horas':'últimas 24 horas',previous:previous24,nuvem});
+    if(titulo&&publicView) titulo.textContent=janelaH===12?'O rio nas últimas 12 h e nas próximas 12 h':'O rio nas últimas 24 horas';
+    drawChart(janelaH===12?pointsInWindow(allPoints,janelaH):points,published,state.config.cotaInundCm,{windowHours:janelaH,periodLabel:janelaH===12?'últimas 12 horas':'últimas 24 horas',previous:previous24,nuvem,fixedMucum});
     if(!publicView) drawChart(weekPoints,[],state.config.cotaInundCm,{
       svgId:'river-week-chart',
       emptyId:'overview-week-empty',
@@ -1328,7 +1336,7 @@
       emptyText:'Ainda não há histórico observável para os últimos sete dias.',
       previous:previousWeek
     });
-    renderLegend(published,previous24.length>0||previousWeek.length>0,nuvem.length);
+    renderLegend(published,previous24.length>0||previousWeek.length>0,nuvem.length,fixedMucum);
     if(publicView){
       const badge=document.getElementById('overview-trend-badge');
       if(badge){badge.textContent=trend.label;badge.className='trend-badge '+(flood.alert?'alert':trend.className);}
