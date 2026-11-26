@@ -33,7 +33,7 @@ on:
 jobs:
   sombra:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     concurrency:
       group: previsao-sombra-mucum
       cancel-in-progress: false
@@ -69,19 +69,22 @@ jobs:
           git pull --rebase --autostash origin main
           python -B -m unittest scripts.test_previsao_sombra_mucum
           # cada alvo é independente: falha em um não impede o outro
-          timeout --signal=TERM --kill-after=20s 600s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py || echo "falha na sombra de Muçum"
-          timeout --signal=TERM --kill-after=20s 600s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py --contrato assets/data/santa_tereza_modelos_sombra.json || echo "falha na sombra de Santa Tereza"
+          mucum_rc=0
+          # V4T consulta dezenas de postos ANA e CEMADEN; preserve os controles de qualidade.
+          timeout --signal=TERM --kill-after=20s 1200s python -u -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py || mucum_rc=$?
+          if [ "$mucum_rc" -ne 0 ]; then echo "::error::Falha na sombra de Muçum (exit=$mucum_rc)"; fi
+          timeout --signal=TERM --kill-after=20s 600s python -u -B codigo_python/01_previsao_ao_vivo/gerar_previsao_sombra_mucum.py --contrato assets/data/santa_tereza_modelos_sombra.json || echo "falha na sombra de Santa Tereza"
           for f in previsao_sombra_mucum.json historico_previsao_sombra_mucum.jsonl previsao_sombra_mucum_recente.json estado_chuva_subbacias_mucum.csv previsao_sombra_santa_tereza.json historico_previsao_sombra_santa_tereza.jsonl previsao_sombra_santa_tereza_recente.json; do
             if [ -f "$f" ]; then git add "$f"; fi
           done
           if git diff --staged --quiet; then
             echo "sem mudanca neste ciclo"
-            exit 0
+            exit "$mucum_rc"
           fi
           git commit -m "bot: previsao em sombra Mucum e Santa Tereza v2 [skip ci]"
           for tentativa in 1 2 3 4 5; do
             if git pull --rebase --autostash origin main && git push; then
-              exit 0
+              exit "$mucum_rc"
             fi
             echo "push rejeitado (${tentativa}), rebase..."
             sleep 3
