@@ -135,6 +135,47 @@ def baixar(cod, dias=None):
     return series_da_resposta(xml)
 
 
+
+def recuperar_niveis_reais_mucum(niveis, agora):
+    """Recupera somente observações reais de hora cheia, nunca interpola."""
+    import urllib.request
+    cod = "86510000"
+    if ALVO != cod:
+        return []
+    serie = niveis.setdefault(cod, {})
+    fim = agora.replace(minute=0, second=0, microsecond=0)
+    horas = {fim - dt.timedelta(hours=k) for k in range(1, 25)}
+    recuperadas = []
+    def incorporar(pares, origem):
+        for t, v in pares:
+            if t in horas and t not in serie and R.nivel_plausivel(v, cod):
+                serie[t] = float(v)
+                recuperadas.append({"hora": t.isoformat(timespec="minutes"), "fonte": origem})
+    try:
+        with open(R.ANA_NIVEIS_CACHE_SAIDA, encoding="utf-8") as f:
+            cache = json.load(f)
+        if cache.get("schema_version") == 1:
+            incorporar(((dt.datetime.fromisoformat(t), float(v))
+                        for t, v in cache.get("estacoes", {}).get(cod, [])), "cache ANA observado")
+    except (OSError, ValueError, TypeError) as e:
+        print(f"[MUC sombra] cache observado indisponível: {e}")
+    faltam = horas - set(serie)
+    if faltam:
+        inicio = min(faltam)
+        url = (f"{R.ANA_ESPELHO}?codEstacao={cod}&dataInicio={inicio:%d/%m/%Y}"
+               f"&dataFim={fim:%d/%m/%Y}")
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "previne-robo/1.0"})
+            with urllib.request.urlopen(req, timeout=R.ANA_TIMEOUT_NIVEL_S) as resp:
+                extras, _ = series_da_resposta(resp.read())
+            incorporar(extras.items(), "ANA espelho oficial")
+        except Exception as e:
+            print(f"[MUC sombra] espelho ANA indisponível: {e}")
+    print("[MUC sombra] observações recuperadas:", recuperadas,
+          "| horas ainda ausentes:", sorted(t.isoformat(timespec="minutes") for t in horas - set(serie)))
+    return recuperadas
+
+
 def series_cemaden(d):
     """Resposta do mapa interativo do CEMADEN -> chuva por hora (BRT). Como no treino (10_CHUVA_TODAS): hora do dado =
     data + horário (UTC, fim da hora) - 3 h."""
@@ -890,6 +931,7 @@ def main(argv=None):
         print("chuva v4t:", resumo_v4t)
     if contrato.get("qc_chuva_postos"):
         chuva = qc_chuva_postos(chuva, [p for p in contrato["qc_chuva_postos"] if p in chuva])
+    recuperadas_nivel = recuperar_niveis_reais_mucum(niveis, agora)
     niveis[ALVO] = qc_niveis(ALVO, niveis.get(ALVO, {}), limites)
     for cod in estacoes:
         if cod != ALVO:
@@ -897,6 +939,7 @@ def main(argv=None):
     horas_alvo = sorted(niveis[ALVO])
     saida = {"gerado_em": agora.isoformat(timespec="seconds"), "aviso": "SOMBRA EXPERIMENTAL — não publicado no site; não é alerta oficial.",
              "contrato": os.path.relpath(CONTRATO, RAIZ), "alvo": ALVO, "ultima_hora_alvo": horas_alvo[-1].isoformat() if horas_alvo else None,
+             "observacoes_recuperadas": recuperadas_nivel,
              "estacoes_sem_dado": [c for c in estacoes if not niveis.get(c) and not chuva.get(c)], "chuva_v4t": resumo_v4t, "horizontes": {}}
     novos = []
     for chave, cfg in contrato["horizontes"].items():
