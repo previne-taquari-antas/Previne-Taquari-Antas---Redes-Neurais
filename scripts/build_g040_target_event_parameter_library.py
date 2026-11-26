@@ -61,6 +61,58 @@ def gate(m:dict[str,Any])->bool:
       and m.get("rise_fall_sign_skill") is not None and float(m["rise_fall_sign_skill"])>=0.65
     )
 
+def observed_evidence(event_id:str,code:str)->dict[str,Any]:
+    """Count real hourly station values, not long interpolations used by old HEC scores.
+
+    Completeness is independent of model fit; a model with a strong historical
+    NSE may still be unsuitable for selection if the crest is unobserved.
+    """
+    root=FORCING/event_id
+    hydro_file=root/"hydro.json"
+    rain_file=root/"rain.json"
+    if not hydro_file.exists() or not rain_file.exists():
+        return {"status":"missing_event_forcing","operational_evidence_adequate":False,
+                "blockers":["historical_forcing_not_available"]}
+    h=load(hydro_file); rain=load(rain_file)
+    window=(rain.get("window") or {})
+    expected=int(window.get("hours") or 0)
+    target=next((x for x in h.get("controls") or []
+                 if str(x.get("code"))==str(code)),None)
+    valid_hours=set()
+    for r in (target or {}).get("recent_rows") or []:
+        if r.get("flow_m3s") is None or not r.get("time_utc"):
+            continue
+        try:
+            q=float(r["flow_m3s"])
+            if math.isfinite(q) and q>=0:
+                t=datetime.fromisoformat(str(r["time_utc"]).replace("Z","+00:00"))
+                valid_hours.add(t.replace(minute=0,second=0,microsecond=0))
+        except (TypeError,ValueError):
+            continue
+    valid=sorted(valid_hours)
+    missing=max(0,expected-len(valid))
+    longest_gap=max((int(round((b-a).total_seconds()/3600))-1
+                      for a,b in zip(valid,valid[1:])),default=0)
+    coverage=(len(valid)/expected) if expected else 0.0
+    diag=rain.get("rain_diagnostics") or {}
+    median_gauges=diag.get("median_valid_station_count")
+    sparse=median_gauges is None or int(median_gauges)<4
+    blockers=[]
+    if coverage<0.70:blockers.append("observed_Q_coverage_below_70pct")
+    if longest_gap>6:blockers.append("observed_Q_gap_over_6h")
+    if sparse:blockers.append("sparse_rain_gauges_for_spatial_calibration")
+    return {
+        "status":"record_based_quality_audit",
+        "observed_Q_hours":len(valid),
+        "event_window_hours":expected,
+        "observed_Q_coverage_ratio":round(coverage,6),
+        "observed_Q_missing_hours":missing,
+        "maximum_internal_Q_gap_hours":longest_gap,
+        "rain_median_valid_gauges_per_hour":median_gauges,
+        "blockers":blockers,
+        "operational_evidence_adequate":not blockers,
+    }
+
 def rolling_max(xs:list[float],n:int)->float|None:
     if len(xs)<n:return None
     return max(sum(xs[i:i+n]) for i in range(0,len(xs)-n+1))
@@ -109,7 +161,12 @@ def fingerprint(event_id:str)->dict[str,Any]|None:
           "early_6h_delta_q_m3s":(q[min(6,len(q)-1)]-q[0]) if len(q)>1 else 0.0
         }
     ant_path=ANTECEDENT/f"{event_id}.json"
-    ant=load(ant_path).get("summary") if ant_path.exists() else {}
+    antpkg=load(ant_path) if ant_path.exists() else {}
+    ant_valid=bool(
+        (antpkg.get("window") or {}).get("strictly_pre_event")
+        and (antpkg.get("method") or {}).get("future_event_rain_used") is False
+    )
+    ant=antpkg.get("summary") or {} if ant_valid else {}
     return {
       "event_id":event_id,
       "antecedent":{
@@ -117,8 +174,8 @@ def fingerprint(event_id:str)->dict[str,Any]|None:
         "rain_72h_mm":ant.get("rain_72h_mm"),
         "rain_168h_mm":ant.get("rain_168h_mm"),
         "api_tau_72h_mm":ant.get("api_tau_72h_mm"),
-        "strictly_pre_event":bool(ant_path.exists()),
-        "source":str(ant_path.relative_to(ROOT)) if ant_path.exists() else None,
+        "strictly_pre_event":ant_valid,
+        "source":str(ant_path.relative_to(ROOT)) if ant_valid else None,
       },
       "rain":{
         "basin_total_mm":sum(basin) if basin else None,
@@ -147,6 +204,7 @@ def main()->int:
     target_event=[]
     for eid in events:
         for code,name in TARGETS.items():
+            evidence=observed_evidence(eid,code)
             choices=[]
             for r in rows:
                 ev=next((e for e in (r.get("events") or []) if e.get("event_id")==eid),None)
@@ -156,7 +214,10 @@ def main()->int:
                 if p is None:continue
                 choices.append({
                   "candidate_id":r.get("candidate_id"),"parameters":r.get("parameters"),
-                  "metrics":m,"checkpoint_gate_pass":gate(m),"penalty":p
+                  "metrics":m,
+                  "hydrograph_metric_gate_pass":gate(m),
+                  "checkpoint_gate_pass":gate(m) and evidence["operational_evidence_adequate"],
+                  "penalty":p
                 })
             if not choices:continue
             choices.sort(key=lambda x:(0 if x["checkpoint_gate_pass"] else 1,x["penalty"]))
@@ -174,15 +235,20 @@ def main()->int:
                       "candidate_id":rb.get("candidate_id"),
                       "parameters":rb.get("parameters"),
                       "metrics":rm,
-                      "checkpoint_gate_pass":bool(rb.get("gate_pass")),
+                      "hydrograph_metric_gate_pass":bool(rb.get("gate_pass")),
+                      "checkpoint_gate_pass":bool(rb.get("gate_pass")) and evidence["operational_evidence_adequate"],
                       "penalty":float(rb.get("target_loss") if rb.get("target_loss") is not None else rp),
                     }
                     # Refinement was target-specific by construction. Prefer it
                     # when it passes the gate or improves target-specific fit.
                     if (
-                        refined_choice["checkpoint_gate_pass"]
-                        or not best["checkpoint_gate_pass"]
-                        or refined_choice["penalty"] < best["penalty"]
+                        (refined_choice["checkpoint_gate_pass"]
+                         and not best["checkpoint_gate_pass"])
+                        or (
+                            refined_choice["checkpoint_gate_pass"]
+                            ==best["checkpoint_gate_pass"]
+                            and refined_choice["penalty"] < best["penalty"]
+                        )
                     ):
                         best=refined_choice
                         source="target_event_refinement"
@@ -193,6 +259,10 @@ def main()->int:
               "model_family":"hec_hms_4_13_bho6_e1",
               "fit_role":fit_role,
               "selection_source":source,
+              "observational_quality":evidence,
+              "regime_evidence_status":"historical_event_fit_only",
+              "independent_transfer_validation_passed":False,
+              "forecast_selection_eligible":False,
               **best,
               "promotion_allowed":False,
               "leakage_warning":"selected using the full historical event; must not be interpreted as pseudo-operational forecast skill"
@@ -229,6 +299,9 @@ def main()->int:
       "research_only":True,
       "policy":{
         "primary":"target x event libraries plus analog selection",
+        "multiple_models_rule":"retain distinct calibrated hypotheses by regime and target; a common fit is a comparator only",
+        "verification":"historical full-event fits are NOT evidence of forecast transfer skill",
+        "selection_status":"research-only until target-excluded replay and independently checked rainy/flow quality",
         "common_parameterization":"fallback/comparator only",
         "pseudo_operational_requirement":"target event excluded from donor library; observations after t0 forbidden",
       },
@@ -242,6 +315,8 @@ def main()->int:
         "events_with_true_antecedent_wetness":sorted(k for k,v in fps.items() if (v.get("antecedent") or {}).get("strictly_pre_event")),
         "mucum_existing_eventwise_events":[x["event_id"] for x in legacy],
         "refined_target_event_rows_used":sum(x.get("selection_source")=="target_event_refinement" for x in target_event),
+        "target_event_rows_with_insufficient_observations":sum(bool(x["observational_quality"]["blockers"]) for x in target_event),
+        "target_event_forecast_validated_rows":sum(bool(x.get("independent_transfer_validation_passed")) for x in target_event),
       }
     }
     OUT.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
