@@ -421,12 +421,12 @@
   }
 
   function floodInfo(current,items,cota){
-    if(current&&current.cm>=cota) return {label:'Acima da cota oficial',detail:`O nível observado está ${nf2.format((current.cm-cota)/100)} m acima da cota.`,alert:true};
+    if(current&&current.cm>=cota) return {label:'Acima da cota de inundação',detail:`O nível observado está ${nf2.format((current.cm-cota)/100)} m acima da cota.`,alert:true};
     const crossing=items.find(p=>p.cm>=cota);
     if(crossing) return {label:`Ultrapassagem prevista em +${crossing.hours}h`,detail:'Previsão pontual da RNA; não é uma probabilidade.',alert:true};
     const maxPoint=[current,...items].filter(Boolean).sort((a,b)=>b.cm-a.cm)[0];
     const gap=maxPoint?Math.max(0,(cota-maxPoint.cm)/100):null;
-    return {label:'Sem ultrapassagem na janela publicada',detail:gap===null?'Cota não comparável agora.':`Maior nível disponível ainda fica ${nf2.format(gap)} m abaixo da cota oficial.`,alert:false};
+    return {label:'Sem ultrapassagem na janela publicada',detail:gap===null?'Cota não comparável agora.':`Maior nível disponível ainda fica ${nf2.format(gap)} m abaixo da cota de inundação.`,alert:false};
   }
 
   function svgNode(tag,attrs,text){
@@ -591,7 +591,7 @@
         x1:m.l,y1:y,x2:W-m.r,y2:y,stroke:thresholdColor,
         'stroke-width':1.35,'stroke-dasharray':'4 6',opacity:.9
       }));
-      const thresholdText='Cota oficial · '+fmtLevel(cota);
+      const thresholdText='Cota de inundação · '+fmtLevel(cota);
       const tw=clamp(thresholdText.length*5.65+18,112,148),th=22;
       const tx=m.l+10,ty=clamp(y-28,m.t+3,H-m.b-th-3);
       const tbox={left:tx,right:tx+tw,top:ty,bottom:ty+th,cx:tx+tw/2,cy:ty+th/2,width:tw,height:th};
@@ -628,7 +628,7 @@
       if(anchor&&centro.length){
         const seq=[anchor,...centro];
         const d=seq.map((p,i)=>`${i?'L':'M'}${X(p.time.getTime()).toFixed(1)},${Y(p.cm).toFixed(1)}`).join(' ');
-        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #1d5b44)','stroke-width':2.4,opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
+        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #1b1f1d)','stroke-width':2.4,opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
         linha.appendChild(svgNode('title',{},'Melhor modelo de cada horizonte'));
         svg.appendChild(linha);
       }
@@ -716,7 +716,7 @@
     }
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
     items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
-    box.appendChild(legendEntry('Cota oficial, quando próxima da escala','threshold'));
+    box.appendChild(legendEntry('Cota de inundação, quando próxima da escala','threshold'));
   }
 
   function renderWeekCoverage(points){
@@ -1097,7 +1097,7 @@
     cards.push(`<article class="overview-metric"><span>${currentLabel}</span><strong>${fmtLevel(current&&current.cm!==undefined?current.cm:null)}</strong><small>${current?fmtWhen(current.time):'aguardando telemetria'}</small></article>`);
     items.forEach(p=>cards.push(`<article class="overview-metric forecast horizon-${p.hours}"><span>Previsão +${p.hours} h</span><strong>${fmtLevel(p.cm)}</strong><small>para ${fmtWhen(p.time)}${p.stale?' · alvo já passou':''}${p.alternate?' · modelo alternativo':''}</small></article>`));
     if(!items.length) cards.push('<article class="overview-metric forecast"><span>Previsão da RNA</span><strong>Indisponível</strong><small>Nenhum horizonte ativo foi publicado agora.</small></article>');
-    cards.push(`<article class="overview-metric ${flood.alert?'alert':''}"><span>Cota oficial</span><strong>${fmtLevel(cota)}</strong><small>${flood.label}</small></article>`);
+    cards.push(`<article class="overview-metric ${flood.alert?'alert':''}"><span>Cota de inundação</span><strong>${fmtLevel(cota)}</strong><small>${flood.label}</small></article>`);
     box.innerHTML=cards.join('');
     const badge=document.getElementById('overview-trend-badge');
     if(badge){ badge.textContent=trend.label; badge.className='trend-badge '+(flood.alert?'alert':trend.className); }
@@ -1140,7 +1140,7 @@
     if(mapSummary){
       const current=state.live&&(state.live.nivel_rio_agora_cm??state.live.telemetria_ultima_nivel_cm);
       const horizons=state.live&&state.live.horizontes?Object.keys(state.live.horizontes).filter(k=>/^(2h|4h|8h)/.test(k)).join(', '):'nenhum';
-      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota oficial configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e está em análise.`;
+      mapSummary.textContent=`Resumo acessível do mapa: nível observado ${fmtLevel(number(current))}; horizonte(s) publicado(s): ${horizons}. Cota de inundação configurada: ${fmtLevel(state.config&&state.config.cotaInundCm)}. A mancha colorida é estimativa de pesquisa e está em análise.`;
     }
   }
 
