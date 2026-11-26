@@ -350,7 +350,7 @@
       if(!target&&baseTime) target=new Date(baseTime.getTime()+hours*60*60*1000);
       if(!target) return;
       const exact=String(key).toLowerCase()===hours+'h';
-      const candidate={hours,cm,time:target,baseTime,baseCm,key,model:obj.modelo||'',exact,alternate:!!obj.alternate,stale:false};
+      const candidate={hours,cm,time:target,baseTime,baseCm,key,model:obj.modelo||'',inTest:obj.modelo_papel==='em_teste',exact,alternate:!!obj.alternate,stale:false};
       if(!candidatesByHours.has(hours)) candidatesByHours.set(hours,[]);
       candidatesByHours.get(hours).push(candidate);
     });
@@ -520,6 +520,7 @@
     const svg=document.getElementById(opts.svgId);
     const empty=document.getElementById(opts.emptyId);
     if(!svg) return;
+    const publicView=document.body.classList.contains('public-forecast');
     svg.replaceChildren();
     const previous=Array.isArray(opts.previous)?opts.previous:[];
     // Nuvem: saídas de outros modelos em teste (cinza, ao fundo). Só a página pública de Muçum a fornece.
@@ -533,8 +534,9 @@
     if(empty) empty.classList.remove('show');
 
     const measuredWidth=svg.getBoundingClientRect().width;
-    const W=clamp(Math.round(measuredWidth||960),360,960),H=360;
-    const compact=W<560,m={l:compact?54:66,r:compact?56:68,t:38,b:52};
+    const W=publicView?Math.max(260,Math.round(measuredWidth||960)):clamp(Math.round(measuredWidth||960),360,960);
+    const H=publicView?Math.round(svg.getBoundingClientRect().height||340):360;
+    const compact=W<560,m=publicView?{l:54,r:24,t:44,b:60}:{l:compact?54:66,r:compact?56:68,t:38,b:52};
     const tickCount=compact?4:opts.tickCount;
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
     const bases=items
@@ -572,17 +574,35 @@
     svg.append(desc);
     const occupied=[];
 
+    // Separa as medições das estimativas, sem balões de valores sobre as curvas.
+    if(publicView){
+      const split=anchor?X(anchor.time.getTime()):m.l;
+      if(items.length||nuvem.length){
+        svg.appendChild(svgNode('rect',{x:split,y:m.t,width:W-m.r-split,height:H-m.t-m.b,fill:'#eff7f3'}));
+        svg.appendChild(svgNode('text',{x:W-m.r,y:m.t-17,'text-anchor':'end','font-size':13,'font-weight':650,fill:'#42675a'},'Previsões'));
+      }
+      if(points.length) svg.appendChild(svgNode('text',{x:m.l,y:m.t-17,'font-size':13,'font-weight':650,fill:'#285da4'},'Observado'));
+    }
+
     for(let i=0;i<5;i++){
       const v=yMin+(yMax-yMin)*i/4,y=Y(v);
       svg.appendChild(svgNode('line',{x1:m.l,y1:y,x2:W-m.r,y2:y,stroke:'var(--panorama-grid, #dfe7e2)','stroke-width':1}));
-      svg.appendChild(svgNode('text',{x:m.l-10,y:y+4,'text-anchor':'end','font-size':11,fill:'var(--muted, #6c7a72)'},nf1.format(v/100)+' m'));
+      svg.appendChild(svgNode('text',{x:m.l-10,y:y+4,'text-anchor':'end','font-size':publicView?13:11,fill:'var(--muted, #6c7a72)'},nf1.format(v/100)+' m'));
     }
-    for(let i=0;i<tickCount;i++){
-      const t=xMin+(xMax-xMin)*i/(tickCount-1),x=X(t),d=new Date(t);
+    let ticks=Array.from({length:tickCount},(_,i)=>xMin+(xMax-xMin)*i/(tickCount-1));
+    if(publicView){
+      const target=spanHours/(compact?3:6);
+      const step=([1,2,3,4,6,12,24,48,168].filter(h=>h<=target).pop()||1)*36e5;
+      ticks=[];
+      for(let t=Math.ceil(xMin/step)*step;t<=xMax;t+=step) ticks.push(t);
+    }
+    ticks.forEach(t=>{
+      const x=X(t),d=new Date(t);
       svg.appendChild(svgNode('line',{x1:x,y1:m.t,x2:x,y2:H-m.b,stroke:'var(--panorama-grid-soft, #edf2ef)','stroke-width':1}));
-      svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},axisTimeLabel(d,spanHours,crossDay)));
-    }
-    if(!(compact&&nuvem.length)) svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
+      svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':publicView?13:11,fill:'var(--muted, #6c7a72)'},publicView?fmtClock(d):axisTimeLabel(d,spanHours,crossDay)));
+      if(publicView&&crossDay) svg.appendChild(svgNode('text',{x,y:H-m.b+40,'text-anchor':'middle','font-size':12,fill:'var(--muted, #6c7a72)'},d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit'})));
+    });
+    if(!publicView&&!(compact&&nuvem.length)) svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
 
     if(showThreshold){
       const y=Y(cota);
@@ -591,6 +611,7 @@
         x1:m.l,y1:y,x2:W-m.r,y2:y,stroke:thresholdColor,
         'stroke-width':1.35,'stroke-dasharray':'4 6',opacity:.9
       }));
+      if(!publicView){
       const thresholdText='Cota de inundação · '+fmtLevel(cota);
       const tw=clamp(thresholdText.length*5.65+18,112,148),th=22;
       const tx=m.l+10,ty=clamp(y-28,m.t+3,H-m.b-th-3);
@@ -604,6 +625,7 @@
         x:tbox.cx,y:tbox.cy+3.6,'text-anchor':'middle','font-size':10,
         'font-weight':700,fill:thresholdColor
       },thresholdText));
+      }
     }
 
     if(nuvem.length){
@@ -612,24 +634,26 @@
       nuvem.forEach(c=>{
         if(c.pts.length>1){
           const d=c.pts.map((p,i)=>`${i?'L':'M'}${X(p.time.getTime()).toFixed(1)},${Y(p.cm).toFixed(1)}`).join(' ');
-          const path=svgNode('path',{d,fill:'none',stroke:cinza,'stroke-width':1.2,opacity:.38,'stroke-linejoin':'round','stroke-linecap':'round'});
+          const path=svgNode('path',{d,fill:'none',stroke:cinza,'stroke-width':publicView?1:1.2,opacity:publicView?0.28:0.38,'stroke-linejoin':'round','stroke-linecap':'round'});
           path.appendChild(svgNode('title',{},c.nome));
           g.appendChild(path);
         }
         c.pts.slice(1).forEach(p=>{
-          const dot=svgNode('circle',{cx:X(p.time.getTime()),cy:Y(p.cm),r:2.4,fill:cinza,opacity:.5});
+          const dot=svgNode('circle',{cx:X(p.time.getTime()),cy:Y(p.cm),r:publicView?1.8:2.4,fill:cinza,opacity:publicView?0.35:0.5});
           dot.appendChild(svgNode('title',{},`${c.nome}: ${fmtLevel(p.cm)} para ${fmtWhen(p.time)}`));
           g.appendChild(dot);
         });
       });
       svg.appendChild(g);
-      // Linha central: melhor modelo de cada horizonte, partindo da leitura atual.
+    }
+    if(nuvem.length||publicView){
+      // A ligação tracejada ajuda a acompanhar os horizontes; não é uma medição.
       const centro=items.filter(p=>!p.stale).slice().sort((a,b)=>a.time-b.time);
       if(anchor&&centro.length){
         const seq=[anchor,...centro];
         const d=seq.map((p,i)=>`${i?'L':'M'}${X(p.time.getTime()).toFixed(1)},${Y(p.cm).toFixed(1)}`).join(' ');
-        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #1b1f1d)','stroke-width':2.4,opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
-        linha.appendChild(svgNode('title',{},'Melhor modelo de cada horizonte'));
+        const linha=svgNode('path',{d,fill:'none',stroke:'var(--panorama-central, #465e55)','stroke-width':2.4,'stroke-dasharray':publicView?'7 6':'none',opacity:.85,'stroke-linejoin':'round','stroke-linecap':'round'});
+        linha.appendChild(svgNode('title',{},'Previsões por horizonte'));
         svg.appendChild(linha);
       }
     }
@@ -668,7 +692,7 @@
       const dot=svgNode('circle',{cx:x,cy:y,r:5.5,fill:observedColor,stroke:'var(--panel, #fff)','stroke-width':2});
       dot.appendChild(svgNode('title',{},`${observedLabel[0].toUpperCase()+observedLabel.slice(1)}: ${fmtLevel(anchor.cm)} em ${fmtWhen(anchor.time)}`));
       svg.appendChild(dot);
-      labels.push({
+      if(!publicView) labels.push({
         x,y,color:observedColor,
         text:`${observedLabel==='agora'?'Agora':'Leitura'} · ${fmtLevel(anchor.cm)}`,
         preferred:[[-.52,-40],[-.62,-68],[.42,-40],[-.38,42]]
@@ -679,6 +703,10 @@
       items.forEach(p=>{
         const x=X(p.time.getTime()),y=Y(p.cm);
         const style=forecastStyle(p.hours);
+        if(publicView&&p.hours===opts.selectedHours){
+          svg.appendChild(svgNode('circle',{cx:x,cy:y,r:12,fill:style.color,opacity:.15}));
+          svg.appendChild(svgNode('circle',{cx:x,cy:y,r:10,fill:'none',stroke:style.color,'stroke-width':1.5}));
+        }
         const mark=forecastMark(p,x,y,style.color);
         if(p.stale) mark.setAttribute('opacity','0.72');
         svg.appendChild(mark);
@@ -689,12 +717,13 @@
             :p.hours===8
               ?[[.50,-44],[.58,-72],[.42,44],[-.46,-44]]
               :[[.46,44],[.56,72],[-.42,44],[.38,-44]];
-        // No celular com a nuvem, os valores ficam na legenda: sem balões sobre o gráfico.
-        if(!(compact&&nuvem.length)) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
+        // Na página pública, os valores ficam nos cartões abaixo do gráfico.
+        if(!publicView&&!(compact&&nuvem.length)) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
 
       });
     }
     labels.forEach((entry,index)=>drawPointLabel(svg,entry,index,occupied,{left:m.l+2,right:W-m.r-2,top:m.t+2,bottom:H-m.b-2}));
+    return {showThreshold,cota};
   }
 
   function legendEntry(label,className,kind='line'){
@@ -705,10 +734,16 @@
     return span;
   }
 
-  function renderLegend(items,hasPrevious,nuvemN){
+  function renderLegend(items,hasPrevious,nuvemN,chart){
     const box=document.getElementById('overview-legend');
     if(!box) return;
     box.replaceChildren(legendEntry('Nível observado','observed'));
+    if(document.body.classList.contains('public-forecast')){
+      if(items.length) box.appendChild(legendEntry('Previsões por horizonte','central forecast'));
+      if(nuvemN) box.appendChild(legendEntry(`${nuvemN} modelos em teste`,'nuvem'));
+      if(chart&&chart.showThreshold) box.appendChild(legendEntry('Cota de inundação · '+fmtLevel(chart.cota),'threshold'));
+      return;
+    }
     box.classList.toggle('com-nuvem',!!nuvemN);
     if(nuvemN){
       box.appendChild(legendEntry('Melhor modelo de cada horizonte','central'));
@@ -717,6 +752,30 @@
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
     items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
     box.appendChild(legendEntry('Cota de inundação, quando próxima da escala','threshold'));
+  }
+
+  function renderForecastCards(items,selectedHours){
+    const box=document.getElementById('overview-forecasts');
+    if(!box) return;
+    box.replaceChildren();
+    box.hidden=!items.length;
+    items.forEach(point=>{
+      const card=document.createElement('div');
+      card.className='overview-forecast-card';
+      card.dataset.overviewHz=point.key;
+      card.dataset.selected=String(point.hours===selectedHours);
+      card.style.setProperty('--forecast-color',forecastStyle(point.hours).color);
+      const label=legendEntry(`+${point.hours} h`,`horizon-${point.hours}`,'point');
+      const value=document.createElement('strong'); value.textContent=fmtLevel(point.cm);
+      const when=document.createElement('small'); when.textContent=`${fmtClockDate(point.time)}${point.inTest?' · em teste':''}`;
+      card.append(label,value,when);
+      if(point.hours===selectedHours){
+        const selected=document.createElement('span');
+        selected.className='sr-only'; selected.textContent='Previsão selecionada';
+        card.appendChild(selected);
+      }
+      box.appendChild(card);
+    });
   }
 
   function renderWeekCoverage(points){
@@ -1289,11 +1348,11 @@
       const futuros=pts.slice(1).filter(p=>p.time.getTime()>agoraMs);
       return futuros.length?{nome:c.nome,pts:[pts[0],...futuros]}:null;
     }).filter(Boolean);
-    // Com a nuvem: 12 h de histórico e até 12 h de previsão, metade do gráfico para cada lado.
     const janelaH=nuvem.length?12:24;
+    const selectedHours=horizonHours(state.selectedLive&&state.selectedLive.horizonte,state.selectedLive)||(published[0]&&published[0].hours);
     const titulo=document.getElementById('overview-title');
-    if(titulo&&publicView) titulo.textContent=nuvem.length?'O rio nas últimas 12 h e nas próximas 12 h':'O rio nas últimas 24 horas';
-    drawChart(nuvem.length?pointsInWindow(allPoints,janelaH):points,published,state.config.cotaInundCm,{windowHours:janelaH,periodLabel:nuvem.length?'últimas 12 horas':'últimas 24 horas',previous:previous24,nuvem});
+    if(titulo&&publicView) titulo.textContent=published.length||nuvem.length?'Nível do rio e previsões por horário':'O rio nas últimas 24 horas';
+    const chart=drawChart(pointsInWindow(allPoints,janelaH),published,state.config.cotaInundCm,{windowHours:janelaH,periodLabel:`últimas ${janelaH} horas`,previous:previous24,nuvem,selectedHours});
     if(!publicView) drawChart(weekPoints,[],state.config.cotaInundCm,{
       svgId:'river-week-chart',
       emptyId:'overview-week-empty',
@@ -1303,7 +1362,8 @@
       emptyText:'Ainda não há histórico observável para os últimos sete dias.',
       previous:previousWeek
     });
-    renderLegend(published,previous24.length>0||previousWeek.length>0,nuvem.length);
+    renderLegend(published,previous24.length>0||previousWeek.length>0,nuvem.length,chart);
+    if(publicView) renderForecastCards(published,selectedHours);
     if(publicView){
       const badge=document.getElementById('overview-trend-badge');
       if(badge){badge.textContent=trend.label;badge.className='trend-badge '+(flood.alert?'alert':trend.className);}
@@ -1339,7 +1399,7 @@
         ?'O histórico não carregou; os horizontes ao vivo continuam visíveis.'
         :'Linha azul: telemetria observada ANA/SGB, independente da auditoria da RNA. Cinza tracejada: o que a RNA previu antes. Cada horizonte ativo tem cor e marcador próprios.';
       status.textContent=publicView
-        ?(state.historyError?'O histórico não carregou. ':state.liveError?'Os dados atuais não carregaram. ':'')+'Linha azul: nível observado. Os pontos coloridos indicam as previsões disponíveis.'+(telemetryWhen?' Última leitura: '+fmtWhenWithZone(telemetryWhen)+'.':'')
+        ?(state.historyError?'O histórico não carregou. ':state.liveError?'Os dados atuais não carregaram. ':'')+`Últimas ${janelaH} h em azul.`+(published.length?' Pontos coloridos: previsões por horário.':' Sem previsão disponível no momento.')+(telemetryWhen?' Última leitura: '+fmtWhenWithZone(telemetryWhen)+'.':'')
         :prefix+(freshness?' '+freshness+'.':'');
     }
     const accessible=document.getElementById('overview-accessible');
