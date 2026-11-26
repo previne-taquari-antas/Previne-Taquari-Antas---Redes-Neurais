@@ -22,7 +22,7 @@ on:
     - cron: '41 * * * *'
   workflow_dispatch:
   # O cron do GitHub é irregular; o robô ao vivo de Muçum (ciclo de ~5 min) serve de
-  # relógio. O passo "Janela horária" deixa rodar no máximo uma vez por hora, a partir de :35 BRT,
+  # relógio. O passo "Janela horária" permite recuperar uma rodada perdida mesmo após a virada da hora,
   # quando as leituras de hora cheia da ANA já chegaram. Necessário para o +8 h/+12 h da página pública.
   workflow_run:
     workflows:
@@ -52,7 +52,9 @@ jobs:
               g = json.load(open("previsao_sombra_mucum.json"))["gerado_em"][:13]
           except Exception:
               g = ""
-          print("rodar=" + ("1" if agora.minute >= 35 and g != agora.strftime("%Y-%m-%dT%H") else "0"))
+          # Não perde uma rodada quando o disparo chega depois da virada da hora.
+          elegivel = (agora - dt.timedelta(minutes=35)).strftime("%Y-%m-%dT%H")
+          print("rodar=" + ("1" if not g or g < elegivel else "0"))
           PY
       - uses: actions/setup-python@v7
         if: steps.janela.outputs.rodar == '1'
