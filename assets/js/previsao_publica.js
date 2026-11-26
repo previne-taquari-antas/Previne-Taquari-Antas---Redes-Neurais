@@ -25,7 +25,8 @@
       const key = button.dataset.liveHz, data = horizons[key];
       const ok = ready(key, data);
       // 8 h e 12 h só aparecem quando a própria validação do feed os habilitar.
-      const optional = key === '8h' || key === '12h';
+      const mucum = /mucum_previsao_inundacao/i.test(window.location.pathname);
+      const optional = !mucum && (key === '8h' || key === '12h');
       button.style.display = (optional && !ok) ? 'none' : '';
       button.disabled = !ok;
       button.classList.toggle('on', ok && key === active);
