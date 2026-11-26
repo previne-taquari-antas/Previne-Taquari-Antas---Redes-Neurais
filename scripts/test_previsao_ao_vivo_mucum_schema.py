@@ -251,7 +251,7 @@ class MucumFeedContractTests(unittest.TestCase):
         horas, ok = LIVE.antecedencia_efetiva({"horizonte_h": 4}, dt.datetime(2026, 9, 29, 4, 0), agora)
         self.assertTrue(ok)  # alvo 08:00, 2,4 h à frente
         horas, ok = LIVE.antecedencia_efetiva({"horizonte_h": 8}, dt.datetime(2026, 9, 29, 0, 0), agora)
-        self.assertFalse(ok)  # alvo 08:00 dá só 2,4 h para o 8 h (mínimo 5 h)
+        self.assertTrue(ok)  # 26/11: só exige alvo no futuro (o mínimo de 5 h derrubava o 8 h com a ANA atrasada)
         horas, ok = LIVE.antecedencia_efetiva({"horizonte_h": 2}, dt.datetime(2026, 9, 29, 4, 0), agora)
         self.assertTrue(ok)  # 2 h só exige alvo no futuro
 

@@ -81,7 +81,8 @@ HORIZONTES_AO_VIVO = {"2h", "4h", "8h", "8h_versao_b"}
 # como "ok", uma base 6 h atrasada cujo alvo já tinha passado. O 2 h só exige
 # alvo no futuro; 4 h e 8 h exigem a antecedência que torna o aviso útil
 # (a telemetria chega com ~1 h de atraso, então o normal é ~2,5 h e ~6,5 h).
-ANTECEDENCIA_MINIMA_H = {2: 0.0, 4: 2.0, 8: 5.0}
+# 26/11/2026: mínimo zerado (só exige alvo no futuro). Com 2/5 h a ANA atrasada ~3 h derrubou 4 h e 8 h na cheia.
+ANTECEDENCIA_MINIMA_H = {2: 0.0, 4: 0.0, 8: 0.0}
 
 
 def antecedencia_efetiva(cfg, t, agora=None):
