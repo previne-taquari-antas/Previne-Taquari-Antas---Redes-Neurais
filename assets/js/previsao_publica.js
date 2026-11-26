@@ -78,7 +78,7 @@
     put('s-now-label', 'Último nível observado');
     put('s-now', level(options.nowCm));
     put('public-observed-when', telemetryWhen ? fmt().fmtClockDate(telemetryWhen) + (telemetryAge !== null ? ' · ' + fmt().fmtAge(telemetryAge) : '') : 'Horário da leitura indisponível');
-    put('s-hz', hasForecast ? '+' + options.horizon.replace('h', ' h') : 'sem previsão');
+    put('s-hz', hasForecast ? '+' + options.horizon.replace('h', ' h') + (selected.modelo_papel === 'em_teste' ? ' · modelo em teste' : '') : 'sem previsão');
     put('s-fore', hasForecast ? level(options.forecastCm) : '—');
     put('public-forecast-when', hasForecast ? 'Para ' + fmt().fmtClockDate(selected.hora_alvo) : 'Aguardando uma nova previsão');
     const observedMirror = document.getElementById('public-no-forecast-observed');

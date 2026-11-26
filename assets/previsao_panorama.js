@@ -582,7 +582,7 @@
       svg.appendChild(svgNode('line',{x1:x,y1:m.t,x2:x,y2:H-m.b,stroke:'var(--panorama-grid-soft, #edf2ef)','stroke-width':1}));
       svg.appendChild(svgNode('text',{x,y:H-m.b+22,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},axisTimeLabel(d,spanHours,crossDay)));
     }
-    svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
+    if(!(compact&&nuvem.length)) svg.appendChild(svgNode('text',{x:16,y:(m.t+H-m.b)/2,transform:`rotate(-90 16 ${(m.t+H-m.b)/2})`,'text-anchor':'middle','font-size':11,fill:'var(--muted, #6c7a72)'},'Nível do rio (m)'));
 
     if(showThreshold){
       const y=Y(cota);
@@ -689,7 +689,8 @@
             :p.hours===8
               ?[[.50,-44],[.58,-72],[.42,44],[-.46,-44]]
               :[[.46,44],[.56,72],[-.42,44],[.38,-44]];
-        labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
+        // No celular com a nuvem, os valores ficam na legenda: sem balões sobre o gráfico.
+        if(!(compact&&nuvem.length)) labels.push({x,y,color:style.color,text:`+${p.hours} h · ${fmtLevel(p.cm)}`,preferred});
 
       });
     }
@@ -708,12 +709,13 @@
     const box=document.getElementById('overview-legend');
     if(!box) return;
     box.replaceChildren(legendEntry('Nível observado','observed'));
+    box.classList.toggle('com-nuvem',!!nuvemN);
     if(nuvemN){
       box.appendChild(legendEntry('Melhor modelo de cada horizonte','central'));
       box.appendChild(legendEntry(`Outros ${nuvemN} modelos em teste`,'nuvem'));
     }
     if(hasPrevious) box.appendChild(legendEntry('O que a RNA previu antes','previous'));
-    items.forEach(point=>box.appendChild(legendEntry(`Previsão +${point.hours} h${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
+    items.forEach(point=>box.appendChild(legendEntry(`${nuvemN?'+'+point.hours+' h · '+fmtLevel(point.cm):'Previsão +'+point.hours+' h'}${point.stale?' · alvo já passou':''}`,`forecast horizon-${point.hours}`,'point')));
     box.appendChild(legendEntry('Cota oficial, quando próxima da escala','threshold'));
   }
 
@@ -1279,7 +1281,11 @@
     const flood=floodInfo(current,items,state.config.cotaInundCm);
     const N=publicView&&window.PREVINE_NUVEM&&Array.isArray(window.PREVINE_NUVEM.curvas)?window.PREVINE_NUVEM.curvas:[];
     const nuvem=N.map(c=>({nome:c.nome,pts:(c.pts||[]).map(p=>({time:new Date(p.t),cm:Number(p.cm)})).filter(p=>Number.isFinite(p.time.getTime())&&Number.isFinite(p.cm))}));
-    drawChart(points,published,state.config.cotaInundCm,{windowHours:24,previous:previous24,nuvem});
+    // Com a nuvem: 12 h de histórico e até 12 h de previsão, metade do gráfico para cada lado.
+    const janelaH=nuvem.length?12:24;
+    const titulo=document.getElementById('overview-title');
+    if(titulo&&publicView) titulo.textContent=nuvem.length?'O rio nas últimas 12 h e nas próximas 12 h':'O rio nas últimas 24 horas';
+    drawChart(nuvem.length?pointsInWindow(allPoints,janelaH):points,published,state.config.cotaInundCm,{windowHours:janelaH,periodLabel:nuvem.length?'últimas 12 horas':'últimas 24 horas',previous:previous24,nuvem});
     if(!publicView) drawChart(weekPoints,[],state.config.cotaInundCm,{
       svgId:'river-week-chart',
       emptyId:'overview-week-empty',
