@@ -21,6 +21,14 @@ on:
     # De hora em hora, longe dos minutos usados pelos robôs principais.
     - cron: '41 * * * *'
   workflow_dispatch:
+  # O cron do GitHub é irregular; o robô ao vivo de Muçum (ciclo de ~5 min) serve de
+  # relógio. O passo "Janela horária" deixa rodar no máximo uma vez por hora, a partir de :35 BRT,
+  # quando as leituras de hora cheia da ANA já chegaram. Necessário para o +8 h/+12 h da página pública.
+  workflow_run:
+    workflows:
+      - "Previsao ao vivo - Mucum"
+    types:
+      - completed
 
 jobs:
   sombra:
@@ -33,12 +41,28 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      - name: Janela horária
+        id: janela
+        run: |
+          if [ "${{ github.event_name }}" != "workflow_run" ]; then echo "rodar=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, datetime as dt
+          agora = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=3)
+          try:
+              g = json.load(open("previsao_sombra_mucum.json"))["gerado_em"][:13]
+          except Exception:
+              g = ""
+          print("rodar=" + ("1" if agora.minute >= 35 and g != agora.strftime("%Y-%m-%dT%H") else "0"))
+          PY
       - uses: actions/setup-python@v7
+        if: steps.janela.outputs.rodar == '1'
         with:
           python-version: '3.11'
       - name: Instalar dependencias
+        if: steps.janela.outputs.rodar == '1'
         run: pip install numpy==2.4.6 scipy==1.17.1 h5py==3.16.0
       - name: Testes e previsao em sombra
+        if: steps.janela.outputs.rodar == '1'
         run: |
           git config user.name  "previne-robo"
           git config user.email "previne-robo@users.noreply.github.com"

@@ -96,7 +96,7 @@
     box.innerHTML = '<h4>Robôs calibrados (em teste)</h4>'
       + '<p class="rs-sub">Cada modelo calibrado roda de hora em hora. Escolha o horizonte para comparar.</p>'
       + '<div class="rs-hz" role="group" aria-label="Horizonte dos robôs calibrados"></div><div class="rs-corpo"></div>'
-      + '<p class="rs-aviso"><span class="rs-gerado"></span>Pesquisa em sombra: não muda o mapa nem substitui os alertas da Defesa Civil.</p>';
+      + '<p class="rs-aviso"><span class="rs-gerado"></span>'+(local==='mucum'?'Em Muçum, o principal de cada horizonte também aparece acima e no mapa, marcado como em teste. ':'Pesquisa em sombra: não muda o mapa. ')+'Não substitui os alertas da Defesa Civil.</p>';
     sec.appendChild(box);
     carregar();
     setInterval(carregar, 5 * 60 * 1000);

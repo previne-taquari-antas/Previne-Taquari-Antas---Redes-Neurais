@@ -1,7 +1,7 @@
 /* Leitura pública do mesmo feed: sem modelos comparativos ou replay histórico. */
 (function () {
   'use strict';
-  const keys = ['2h', '4h', '8h'];
+  const keys = ['2h', '4h', '8h', '12h'];
   let connectionError = false;
   const fmt = () => window.PrevineFmtQuando;
   const put = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value; };
@@ -24,8 +24,9 @@
     document.querySelectorAll('#live-hz [data-live-hz]').forEach(button => {
       const key = button.dataset.liveHz, data = horizons[key];
       const ok = ready(key, data);
-      // 8 h só aparece quando a própria validação do feed a habilitar.
-      button.style.display = (key === '8h' && !ok) ? 'none' : '';
+      // 8 h e 12 h só aparecem quando a própria validação do feed os habilitar.
+      const optional = key === '8h' || key === '12h';
+      button.style.display = (optional && !ok) ? 'none' : '';
       button.disabled = !ok;
       button.classList.toggle('on', ok && key === active);
       button.setAttribute('aria-pressed', ok && key === active ? 'true' : 'false');
@@ -33,7 +34,7 @@
       const when = document.createElement('small'); when.textContent = ok ? fmt().fmtClock(data.hora_alvo) : 'indisponível';
       button.replaceChildren(label, when);
       button.title = ok ? 'Previsão para ' + fmt().fmtClockDate(data.hora_alvo) : 'Previsão de ' + key.replace('h', ' horas') + ' indisponível';
-      if (!ok && key !== '8h') {
+      if (!ok && !optional) {
         const state = String(data && data.status || '').toLowerCase();
         const hint = /base da rna|hora cheia|dependencias temporais|dependências temporais/.test(state)
           ? 'faltam leituras horárias exatas'
