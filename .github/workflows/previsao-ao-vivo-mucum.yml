@@ -94,6 +94,37 @@ jobs:
             fi
           fi
 
+      - name: Solicitar atualização dos modelos de 4h, 8h e 12h em teste
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin main --quiet
+          if python - <<'PY'
+          import json, subprocess, datetime as dt
+          agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3))).replace(tzinfo=None)
+          try:
+              sombra = json.loads(subprocess.check_output(["git", "show", "origin/main:previsao_sombra_mucum.json"]))
+              g = dt.datetime.fromisoformat(sombra["gerado_em"])
+              base = dt.datetime.fromisoformat(sombra["ultima_hora_alvo"])
+              live = json.load(open("previsao_ao_vivo_mucum.json"))
+              obs = dt.datetime.fromisoformat(live["telemetria_ultima_em"]).replace(minute=0, second=0, microsecond=0)
+              idade = (agora - g).total_seconds() / 60
+              rodar = idade >= 70 or (idade >= 35 and obs > base)
+          except (OSError, KeyError, ValueError, TypeError, subprocess.SubprocessError):
+              rodar = True
+          raise SystemExit(0 if rodar else 1)
+          PY
+          then
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --url "https://api.github.com/repos/${GITHUB_REPOSITORY}/dispatches" \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --data '{"event_type":"previne-mucum-shadow"}'
+          fi
+
       # O schedule do GitHub pode ser atrasado ou descartado. O dispatch
       # autenticado com GITHUB_TOKEN cria a proxima execucao sem depender dele.
       # Falhas transitórias (ANA/GitHub/push) não podem derrubar o robô:
