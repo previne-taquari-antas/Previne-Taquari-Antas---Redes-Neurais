@@ -19,8 +19,11 @@ on:
       - '.github/workflows/previsao-sombra-mucum.yml'
   schedule:
     # De hora em hora, longe dos minutos usados pelos robôs principais.
-    - cron: '41 * * * *'
+    - cron: '11,41 * * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types:
+      - previne-mucum-shadow
   # O cron do GitHub é irregular; o robô ao vivo de Muçum (ciclo de ~5 min) serve de
   # relógio. O passo "Janela horária" permite recuperar uma rodada perdida mesmo após a virada da hora,
   # quando as leituras de hora cheia da ANA já chegaram. Necessário para o +8 h/+12 h da página pública.
@@ -41,20 +44,28 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - name: Janela horária
         id: janela
         run: |
-          if [ "${{ github.event_name }}" != "workflow_run" ]; then echo "rodar=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          case "${{ github.event_name }}" in
+            push|workflow_dispatch) echo "rodar=1" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, datetime as dt
-          agora = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=3)
+          agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3))).replace(tzinfo=None)
           try:
-              g = json.load(open("previsao_sombra_mucum.json"))["gerado_em"][:13]
-          except Exception:
-              g = ""
-          # Não perde uma rodada quando o disparo chega depois da virada da hora.
-          elegivel = (agora - dt.timedelta(minutes=35)).strftime("%Y-%m-%dT%H")
-          print("rodar=" + ("1" if not g or g < elegivel else "0"))
+              sombra = json.load(open("previsao_sombra_mucum.json"))
+              g = dt.datetime.fromisoformat(sombra["gerado_em"])
+              base = dt.datetime.fromisoformat(sombra["ultima_hora_alvo"])
+              live = json.load(open("previsao_ao_vivo_mucum.json"))
+              obs = dt.datetime.fromisoformat(live["telemetria_ultima_em"]).replace(minute=0, second=0, microsecond=0)
+              idade = (agora - g).total_seconds() / 60
+              rodar = idade >= 70 or (idade >= 35 and obs > base)
+          except (OSError, KeyError, ValueError, TypeError):
+              rodar = True
+          print("rodar=" + ("1" if rodar else "0"))
           PY
       - uses: actions/setup-python@v7
         if: steps.janela.outputs.rodar == '1'
