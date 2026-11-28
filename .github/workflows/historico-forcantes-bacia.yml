@@ -1,0 +1,92 @@
+name: Historico de forcantes da bacia (pesquisa vai inundar ou nao)
+
+# Baixa de forma incremental e retomavel o historico que falta para o estudo
+# comparativo dos eventos e para montar casos negativos:
+#   - ANA HidroSerieHistorica: chuva diaria dos postos ANA da bacia + cota/vazao
+#     diaria das estacoes-chave (Santa Tereza, Muçum, Encantado, Estrela...)
+#   - ANA telemetria: chuva/nivel/vazao horarios de 20 estacoes-chave (2014+)
+#   - ERA5-Land (Open-Meteo Archive): chuva e umidade do solo por sub-bacia (1990+)
+# Pesquisa apenas. Nao mexe nos feeds ao vivo nem no site.
+# Cada rodada para com folga (orcamento de tempo), salva e publica o que ja
+# baixou; a proxima rodada continua de onde parou.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fonte:
+        description: 'todas | era5land | ana-diario | ana-telemetria'
+        default: 'todas'
+      inicio:
+        description: 'Data inicial AAAA-MM-DD (vazio = padrao da fonte: 1990 / 1980 / 2014)'
+        default: ''
+      orcamento_min:
+        description: 'Minutos de download antes de salvar e publicar'
+        default: '300'
+  schedule:
+    # Semanal (domingo 04:37 UTC): completa lacunas e traz o mes corrente.
+    - cron: '37 4 * * 0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: historico-forcantes-bacia
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Testes offline do robo
+        run: python -B scripts/historico_bacia/test_baixar_historico_bacia.py
+
+      - name: Baixar historico (incremental)
+        env:
+          FONTE: ${{ github.event.inputs.fonte || 'todas' }}
+          INICIO: ${{ github.event.inputs.inicio || '' }}
+          ORCAMENTO: ${{ github.event.inputs.orcamento_min || '300' }}
+        run: |
+          ARGS="--fonte $FONTE --orcamento-min $ORCAMENTO"
+          if [ -n "$INICIO" ]; then ARGS="$ARGS --inicio $INICIO"; fi
+          python -B scripts/historico_bacia/baixar_historico_bacia.py $ARGS
+
+      - name: Resumo de cobertura
+        run: |
+          python - <<'PY'
+          import json
+          m=json.load(open("assets/data/historico_bacia/manifesto_latest.json",encoding="utf-8"))
+          s=m["series"]; print("series:",len(s))
+          for k,v in sorted(s.items()):
+              cob=v.get("n_validos") or (v.get("chuva") or {}).get("n_validos") or (v.get("nivel") or {}).get("n_validos")
+              print(f"{k:45s} {str(v.get('nome',''))[:30]:30s} validos={cob} erro={'sim' if v.get('erro') else 'nao'}")
+          PY
+
+      - name: Publicar dados
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "previne-historico-bacia-bot"
+          git config user.email "previne-historico-bacia-bot@users.noreply.github.com"
+          BASE="assets/data/historico_bacia"
+          rm -rf /tmp/hist && cp -r "$BASE" /tmp/hist
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            rm -rf "$BASE" && mkdir -p "$(dirname "$BASE")" && cp -r /tmp/hist "$BASE"
+            git add -- "$BASE"
+            if git diff --cached --quiet; then echo "nada novo"; exit 0; fi
+            git commit -m "bot: historico de forcantes da bacia (ANA + ERA5-Land) [skip ci]"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((attempt*5))
+          done
+          exit 1
