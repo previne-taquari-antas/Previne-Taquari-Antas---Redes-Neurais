@@ -70,7 +70,12 @@ jobs:
           python -B -m unittest scripts.test_previsao_ao_vivo_mucum_schema scripts.test_live_input_training_contracts scripts.test_mucum_niveis_cache
           PYTHONUNBUFFERED=1 timeout --signal=TERM --kill-after=20s 540s python -B codigo_python/01_previsao_ao_vivo/gerar_previsao_ao_vivo_mucum.py
           python -B scripts/validar_previsao_ao_vivo_mucum.py
+          # Arquivo mensal permanente: o historico rolante guarda so 1.200 registros.
+          # Falha aqui nao pode impedir a publicacao da previsao.
+          python -B scripts/arquivar_historico_ao_vivo.py --local mucum \
+            || echo "::warning::arquivo permanente do historico nao atualizado"
           git add previsao_ao_vivo_mucum.json historico_previsoes_ao_vivo_mucum.json
+          git add assets/data/historico_ao_vivo_arquivo/mucum || true
           # O cache guarda apenas niveis ANA efetivamente observados, com seus horarios originais.
           if [ -f assets/data/mucum_niveis_observados_cache.json ]; then
             git add assets/data/mucum_niveis_observados_cache.json

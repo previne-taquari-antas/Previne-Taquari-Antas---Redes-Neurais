@@ -1,0 +1,628 @@
+{
+ "schema_version": "mucum_candidato_regimes_v1",
+ "generated_at_utc": "2026-11-19T20:00:37Z",
+ "research_only": true,
+ "aviso": "Pesquisa. Não altera o robô ao vivo nem constitui alerta.",
+ "metodo": {
+  "validacao": "blocos de 7 dias em 2026 com purga de 48 h + horizonte; cheias históricas sempre no treino",
+  "modelo": "RidgeCV sobre a variação do nível (StandardScaler)",
+  "alinhamento": "hora do CSV = hora_modelo do robô + 1 h; chuva atrasada mais 1 h",
+  "cheia": "nivel agora ou observado >= 500 cm (bankfull_cm do robô); subida em cheia: + >= 50 cm",
+  "regimes_cm": {
+   "subida": ">= +30",
+   "descida": "<= -30",
+   "estavel": "|delta| < 10"
+  },
+  "candidatos": {
+   "base_M_LJJ": [
+    "M",
+    "LJJ"
+   ],
+   "M_LJJ_chuva": [
+    "M",
+    "LJJ",
+    "RAIN"
+   ],
+   "M_LJJ_STZ_chuva": [
+    "M",
+    "LJJ",
+    "STZ",
+    "RAIN"
+   ]
+  }
+ },
+ "limitacoes": [
+  "Período contínuo de 2026 tem ~8 semanas e poucas cheias grandes.",
+  "Santa Tereza só existe em 2026 nas séries usadas: o candidato com STZ treina com menos cheias.",
+  "O CSV de pesquisa é média horária; o robô lê o último valor. Diferença média 2,8 cm após alinhamento.",
+  "Regime definido pelo observado; não é conhecido na hora da previsão."
+ ],
+ "resultados": [
+  {
+   "horizonte_h": 2,
+   "periodo": [
+    "2026-09-27 23:00:00",
+    "2026-11-19 11:00:00"
+   ],
+   "modelos_ao_vivo": [
+    "MUC_H2_ALT_V001_14IN_29NH_20260827"
+   ],
+   "persistencia": {
+    "geral": {
+     "n": 1015,
+     "mae_cm": 9.2,
+     "vies_cm": 0.5
+    },
+    "cheia": {
+     "n": 202,
+     "mae_cm": 12.8,
+     "vies_cm": -0.0
+    },
+    "subida_em_cheia": {
+     "n": 6,
+     "mae_cm": 60.5,
+     "vies_cm": -60.5
+    },
+    "descida": {
+     "n": 3,
+     "mae_cm": 32.3,
+     "vies_cm": 32.3
+    },
+    "estavel": {
+     "n": 676,
+     "mae_cm": 4.0,
+     "vies_cm": 2.4
+    },
+    "subida": {
+     "n": 48,
+     "mae_cm": 43.8,
+     "vies_cm": -43.8
+    },
+    "variacao_moderada": {
+     "n": 288,
+     "mae_cm": 15.3,
+     "vies_cm": 3.2
+    }
+   },
+   "rna_ao_vivo": {
+    "geral": {
+     "n": 1015,
+     "mae_cm": 8.0,
+     "vies_cm": -2.7
+    },
+    "cheia": {
+     "n": 202,
+     "mae_cm": 6.8,
+     "vies_cm": 0.1
+    },
+    "subida_em_cheia": {
+     "n": 6,
+     "mae_cm": 22.0,
+     "vies_cm": 6.7
+    },
+    "descida": {
+     "n": 3,
+     "mae_cm": 2.0,
+     "vies_cm": -0.7
+    },
+    "estavel": {
+     "n": 676,
+     "mae_cm": 5.9,
+     "vies_cm": -0.7
+    },
+    "subida": {
+     "n": 48,
+     "mae_cm": 32.5,
+     "vies_cm": -20.4
+    },
+    "variacao_moderada": {
+     "n": 288,
+     "mae_cm": 8.9,
+     "vies_cm": -4.5
+    }
+   },
+   "base_M_LJJ": {
+    "geral": {
+     "n": 1015,
+     "mae_cm": 14.3,
+     "vies_cm": 0.7
+    },
+    "cheia": {
+     "n": 202,
+     "mae_cm": 17.1,
+     "vies_cm": -2.8
+    },
+    "subida_em_cheia": {
+     "n": 6,
+     "mae_cm": 70.4,
+     "vies_cm": 70.4
+    },
+    "descida": {
+     "n": 3,
+     "mae_cm": 7.8,
+     "vies_cm": -3.7
+    },
+    "estavel": {
+     "n": 676,
+     "mae_cm": 10.8,
+     "vies_cm": -1.6
+    },
+    "subida": {
+     "n": 48,
+     "mae_cm": 35.9,
+     "vies_cm": 33.0
+    },
+    "variacao_moderada": {
+     "n": 288,
+     "mae_cm": 19.0,
+     "vies_cm": 0.8
+    }
+   },
+   "M_LJJ_chuva": {
+    "geral": {
+     "n": 1015,
+     "mae_cm": 14.0,
+     "vies_cm": -0.2
+    },
+    "cheia": {
+     "n": 202,
+     "mae_cm": 16.4,
+     "vies_cm": -5.5
+    },
+    "subida_em_cheia": {
+     "n": 6,
+     "mae_cm": 56.4,
+     "vies_cm": 56.4
+    },
+    "descida": {
+     "n": 3,
+     "mae_cm": 7.9,
+     "vies_cm": -5.6
+    },
+    "estavel": {
+     "n": 676,
+     "mae_cm": 11.4,
+     "vies_cm": -1.9
+    },
+    "subida": {
+     "n": 48,
+     "mae_cm": 30.0,
+     "vies_cm": 26.5
+    },
+    "variacao_moderada": {
+     "n": 288,
+     "mae_cm": 17.5,
+     "vies_cm": -0.6
+    }
+   },
+   "M_LJJ_STZ_chuva": {
+    "geral": {
+     "n": 1015,
+     "mae_cm": 18.4,
+     "vies_cm": -3.4
+    },
+    "cheia": {
+     "n": 202,
+     "mae_cm": 29.9,
+     "vies_cm": -13.9
+    },
+    "subida_em_cheia": {
+     "n": 6,
+     "mae_cm": 64.1,
+     "vies_cm": 64.1
+    },
+    "descida": {
+     "n": 3,
+     "mae_cm": 13.4,
+     "vies_cm": 0.9
+    },
+    "estavel": {
+     "n": 676,
+     "mae_cm": 13.7,
+     "vies_cm": -2.7
+    },
+    "subida": {
+     "n": 48,
+     "mae_cm": 33.0,
+     "vies_cm": 27.9
+    },
+    "variacao_moderada": {
+     "n": 288,
+     "mae_cm": 26.9,
+     "vies_cm": -10.1
+    }
+   }
+  },
+  {
+   "horizonte_h": 4,
+   "periodo": [
+    "2026-09-27 23:00:00",
+    "2026-11-19 09:00:00"
+   ],
+   "modelos_ao_vivo": [
+    "006_MUC_H04_STZ_RECORTE_CONTROLE_15INPUTS_NH32_S06",
+    "015_alt_MUC_H04_V15_LJJ_AUDITADO_SEM32_R07_T8-21_V11-18-31"
+   ],
+   "persistencia": {
+    "geral": {
+     "n": 1011,
+     "mae_cm": 33.5,
+     "vies_cm": -0.3
+    },
+    "cheia": {
+     "n": 212,
+     "mae_cm": 50.9,
+     "vies_cm": -6.8
+    },
+    "subida_em_cheia": {
+     "n": 46,
+     "mae_cm": 116.3,
+     "vies_cm": -116.3
+    },
+    "descida": {
+     "n": 203,
+     "mae_cm": 49.1,
+     "vies_cm": 49.1
+    },
+    "estavel": {
+     "n": 209,
+     "mae_cm": 4.5,
+     "vies_cm": 2.0
+    },
+    "subida": {
+     "n": 192,
+     "mae_cm": 80.8,
+     "vies_cm": -80.8
+    },
+    "variacao_moderada": {
+     "n": 407,
+     "mae_cm": 18.4,
+     "vies_cm": 11.7
+    }
+   },
+   "rna_ao_vivo": {
+    "geral": {
+     "n": 1011,
+     "mae_cm": 35.6,
+     "vies_cm": 8.2
+    },
+    "cheia": {
+     "n": 212,
+     "mae_cm": 29.1,
+     "vies_cm": 8.0
+    },
+    "subida_em_cheia": {
+     "n": 46,
+     "mae_cm": 49.1,
+     "vies_cm": 4.6
+    },
+    "descida": {
+     "n": 203,
+     "mae_cm": 27.3,
+     "vies_cm": 4.1
+    },
+    "estavel": {
+     "n": 209,
+     "mae_cm": 27.5,
+     "vies_cm": 11.3
+    },
+    "subida": {
+     "n": 192,
+     "mae_cm": 53.0,
+     "vies_cm": -9.0
+    },
+    "variacao_moderada": {
+     "n": 407,
+     "mae_cm": 35.6,
+     "vies_cm": 16.9
+    }
+   },
+   "base_M_LJJ": {
+    "geral": {
+     "n": 1011,
+     "mae_cm": 24.0,
+     "vies_cm": 3.6
+    },
+    "cheia": {
+     "n": 212,
+     "mae_cm": 17.1,
+     "vies_cm": -4.5
+    },
+    "subida_em_cheia": {
+     "n": 46,
+     "mae_cm": 32.4,
+     "vies_cm": 0.2
+    },
+    "descida": {
+     "n": 203,
+     "mae_cm": 24.8,
+     "vies_cm": 6.4
+    },
+    "estavel": {
+     "n": 209,
+     "mae_cm": 19.1,
+     "vies_cm": -2.6
+    },
+    "subida": {
+     "n": 192,
+     "mae_cm": 31.7,
+     "vies_cm": -1.5
+    },
+    "variacao_moderada": {
+     "n": 407,
+     "mae_cm": 22.5,
+     "vies_cm": 7.9
+    }
+   },
+   "M_LJJ_chuva": {
+    "geral": {
+     "n": 1011,
+     "mae_cm": 22.3,
+     "vies_cm": 0.9
+    },
+    "cheia": {
+     "n": 212,
+     "mae_cm": 15.1,
+     "vies_cm": -10.7
+    },
+    "subida_em_cheia": {
+     "n": 46,
+     "mae_cm": 22.3,
+     "vies_cm": -10.4
+    },
+    "descida": {
+     "n": 203,
+     "mae_cm": 20.2,
+     "vies_cm": 3.1
+    },
+    "estavel": {
+     "n": 209,
+     "mae_cm": 19.0,
+     "vies_cm": -2.9
+    },
+    "subida": {
+     "n": 192,
+     "mae_cm": 24.7,
+     "vies_cm": -5.5
+    },
+    "variacao_moderada": {
+     "n": 407,
+     "mae_cm": 23.8,
+     "vies_cm": 4.7
+    }
+   },
+   "M_LJJ_STZ_chuva": {
+    "geral": {
+     "n": 1011,
+     "mae_cm": 21.0,
+     "vies_cm": -2.6
+    },
+    "cheia": {
+     "n": 212,
+     "mae_cm": 28.5,
+     "vies_cm": -13.9
+    },
+    "subida_em_cheia": {
+     "n": 46,
+     "mae_cm": 37.5,
+     "vies_cm": -3.0
+    },
+    "descida": {
+     "n": 203,
+     "mae_cm": 25.5,
+     "vies_cm": -16.6
+    },
+    "estavel": {
+     "n": 209,
+     "mae_cm": 16.7,
+     "vies_cm": -2.8
+    },
+    "subida": {
+     "n": 192,
+     "mae_cm": 27.1,
+     "vies_cm": 7.4
+    },
+    "variacao_moderada": {
+     "n": 407,
+     "mae_cm": 18.0,
+     "vies_cm": -0.1
+    }
+   }
+  },
+  {
+   "horizonte_h": 8,
+   "periodo": [
+    "2026-10-02 09:00:00",
+    "2026-11-19 05:00:00"
+   ],
+   "modelos_ao_vivo": [
+    "032_alt_MUC_H08_V24_RAIN24_UPSTREAM_R00_T31-33-34-35-37_V18-20-21"
+   ],
+   "persistencia": {
+    "geral": {
+     "n": 837,
+     "mae_cm": 57.4,
+     "vies_cm": -1.3
+    },
+    "cheia": {
+     "n": 128,
+     "mae_cm": 88.7,
+     "vies_cm": -19.7
+    },
+    "subida_em_cheia": {
+     "n": 43,
+     "mae_cm": 156.8,
+     "vies_cm": -156.8
+    },
+    "descida": {
+     "n": 341,
+     "mae_cm": 60.4,
+     "vies_cm": 60.4
+    },
+    "estavel": {
+     "n": 94,
+     "mae_cm": 4.6,
+     "vies_cm": 1.5
+    },
+    "subida": {
+     "n": 231,
+     "mae_cm": 102.6,
+     "vies_cm": -102.6
+    },
+    "variacao_moderada": {
+     "n": 171,
+     "mae_cm": 19.7,
+     "vies_cm": 10.8
+    }
+   },
+   "rna_ao_vivo": {
+    "geral": {
+     "n": 837,
+     "mae_cm": 78.6,
+     "vies_cm": 2.0
+    },
+    "cheia": {
+     "n": 128,
+     "mae_cm": 64.9,
+     "vies_cm": -1.6
+    },
+    "subida_em_cheia": {
+     "n": 43,
+     "mae_cm": 93.2,
+     "vies_cm": 16.4
+    },
+    "descida": {
+     "n": 341,
+     "mae_cm": 59.3,
+     "vies_cm": 18.3
+    },
+    "estavel": {
+     "n": 94,
+     "mae_cm": 87.1,
+     "vies_cm": 3.3
+    },
+    "subida": {
+     "n": 231,
+     "mae_cm": 96.7,
+     "vies_cm": -14.6
+    },
+    "variacao_moderada": {
+     "n": 171,
+     "mae_cm": 88.1,
+     "vies_cm": -8.8
+    }
+   },
+   "base_M_LJJ": {
+    "geral": {
+     "n": 837,
+     "mae_cm": 38.7,
+     "vies_cm": 12.5
+    },
+    "cheia": {
+     "n": 128,
+     "mae_cm": 39.5,
+     "vies_cm": 8.3
+    },
+    "subida_em_cheia": {
+     "n": 43,
+     "mae_cm": 56.1,
+     "vies_cm": -10.4
+    },
+    "descida": {
+     "n": 341,
+     "mae_cm": 32.5,
+     "vies_cm": 10.3
+    },
+    "estavel": {
+     "n": 94,
+     "mae_cm": 38.7,
+     "vies_cm": 32.5
+    },
+    "subida": {
+     "n": 231,
+     "mae_cm": 53.2,
+     "vies_cm": 3.6
+    },
+    "variacao_moderada": {
+     "n": 171,
+     "mae_cm": 31.5,
+     "vies_cm": 17.7
+    }
+   },
+   "M_LJJ_chuva": {
+    "geral": {
+     "n": 837,
+     "mae_cm": 34.0,
+     "vies_cm": 1.0
+    },
+    "cheia": {
+     "n": 128,
+     "mae_cm": 34.3,
+     "vies_cm": -9.3
+    },
+    "subida_em_cheia": {
+     "n": 43,
+     "mae_cm": 45.3,
+     "vies_cm": -15.8
+    },
+    "descida": {
+     "n": 341,
+     "mae_cm": 28.0,
+     "vies_cm": -3.3
+    },
+    "estavel": {
+     "n": 94,
+     "mae_cm": 36.7,
+     "vies_cm": 12.8
+    },
+    "subida": {
+     "n": 231,
+     "mae_cm": 39.7,
+     "vies_cm": -0.5
+    },
+    "variacao_moderada": {
+     "n": 171,
+     "mae_cm": 36.7,
+     "vies_cm": 4.9
+    }
+   },
+   "M_LJJ_STZ_chuva": {
+    "geral": {
+     "n": 837,
+     "mae_cm": 30.8,
+     "vies_cm": 1.2
+    },
+    "cheia": {
+     "n": 128,
+     "mae_cm": 35.4,
+     "vies_cm": -4.8
+    },
+    "subida_em_cheia": {
+     "n": 43,
+     "mae_cm": 52.0,
+     "vies_cm": -5.4
+    },
+    "descida": {
+     "n": 341,
+     "mae_cm": 25.7,
+     "vies_cm": -2.7
+    },
+    "estavel": {
+     "n": 94,
+     "mae_cm": 32.5,
+     "vies_cm": 9.3
+    },
+    "subida": {
+     "n": 231,
+     "mae_cm": 36.1,
+     "vies_cm": 3.2
+    },
+    "variacao_moderada": {
+     "n": 171,
+     "mae_cm": 33.0,
+     "vies_cm": 1.7
+    }
+   }
+  }
+ ]
+}
