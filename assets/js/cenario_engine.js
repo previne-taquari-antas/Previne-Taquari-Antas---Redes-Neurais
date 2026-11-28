@@ -597,23 +597,73 @@
       return top;
     }
   }
-  function shortest(adj, start) {
-    const t = Array(adj.length).fill(Infinity),
-      next = Array(adj.length).fill(-1),
+  // t = custo (o tempo, mais caro dentro da mancha); s = tempo real a pé, em segundos.
+  // Com fast, a árvore é a do menor tempo real (t continua sendo o custo desse caminho).
+  function shortest(adj, start, fast = false) {
+    const t = new Float32Array(adj.length).fill(Infinity),
+      s = new Float64Array(adj.length).fill(Infinity),
+      next = new Int32Array(adj.length).fill(-1),
       h = new Heap();
     t[start] = 0;
+    s[start] = 0;
     h.push([0, start]);
     while (h.h.length) {
       const [v, u] = h.pop();
-      if (v !== t[u]) continue;
-      for (const [n, w] of adj[u])
-        if (v + w < t[n]) {
-          t[n] = v + w;
+      if (v !== (fast ? s : t)[u]) continue;
+      for (const [n, w, sec] of adj[u])
+        if (fast ? s[u] + sec < s[n] : t[u] + w < t[n]) {
+          t[n] = t[u] + w;
+          s[n] = s[u] + sec;
           next[n] = u;
-          h.push([t[n], n]);
+          h.push([fast ? s[n] : t[n], n]);
         }
     }
-    return { t, next };
+    return { t, s, next };
+  }
+  // Teste rápido de ponto dentro de uma camada de polígonos (grade de caixas).
+  function pointIndex(features) {
+    const items = [];
+    for (const f of features)
+      for (const poly of polygons(f.geometry)) {
+        const b = [Infinity, Infinity, -Infinity, -Infinity];
+        for (const [x, y] of poly[0]) {
+          b[0] = Math.min(b[0], x);
+          b[1] = Math.min(b[1], y);
+          b[2] = Math.max(b[2], x);
+          b[3] = Math.max(b[3], y);
+        }
+        if (b[0] <= b[2])
+          items.push({ b, g: { type: "Polygon", coordinates: poly } });
+      }
+    const size = 0.002,
+      cells = new Map(),
+      key = (i, j) => i + "," + j;
+    for (const it of items)
+      for (
+        let i = Math.floor(it.b[0] / size);
+        i <= Math.floor(it.b[2] / size);
+        i++
+      )
+        for (
+          let j = Math.floor(it.b[1] / size);
+          j <= Math.floor(it.b[3] / size);
+          j++
+        ) {
+          const k = key(i, j);
+          if (!cells.has(k)) cells.set(k, []);
+          cells.get(k).push(it);
+        }
+    return (p) =>
+      (
+        cells.get(key(Math.floor(p[0] / size), Math.floor(p[1] / size))) || []
+      ).some(
+        (it) =>
+          p[0] >= it.b[0] &&
+          p[0] <= it.b[2] &&
+          p[1] >= it.b[1] &&
+          p[1] <= it.b[3] &&
+          inside(p, it.g),
+      );
   }
   function plan(data, o) {
     for (const [kind, layer] of Object.entries(data))
@@ -664,6 +714,21 @@
       adj = g.nodes.map(() => []),
       available = [];
     let removed = 0;
+    // Andar dentro da mancha custa mais na escolha do caminho: a rota sai dela pelo caminho
+    // mais curto e não volta a entrar. O tempo mostrado continua sendo o real.
+    const pen = Number(o.floodPenalty ?? 10),
+      wetCost = Number.isFinite(pen) && pen > 1 ? pen : 1,
+      wet =
+        flood.length && !o.excludeFlood && wetCost > 1
+          ? pointIndex(flood)
+          : null;
+    function wetShare(p, q, d) {
+      if (!wet) return 0;
+      const n = Math.max(1, Math.min(50, Math.round(d / 15)));
+      let k = 0;
+      for (let i = 0; i < n; i++) if (wet(lerp(p, q, (i + 0.5) / n))) k++;
+      return k / n;
+    }
     for (const [a, b, d] of g.edges) {
       const p = g.nodes[a],
         q = g.nodes[b];
@@ -675,8 +740,10 @@
         removed++;
         continue;
       }
-      adj[a].push([b, d / speed]);
-      adj[b].push([a, d / speed]);
+      const sec = d / speed,
+        cost = sec * (1 + (wetCost - 1) * wetShare(p, q, d));
+      adj[a].push([b, cost, sec]);
+      adj[b].push([a, cost, sec]);
       available.push([a, b]);
     }
     function snap(p) {
@@ -779,6 +846,8 @@
     }
     if (destinations.length > 300)
       throw Error("Use até 300 destinos por cenário.");
+    // Cada ponto guarda a árvore do caminho de menor custo (mais seco). O tempo do caminho mais
+    // rápido só é calculado se faltar atender alguém; a árvore dele, no fim, se alguém usar.
     for (const d of destinations) {
       d.route = shortest(adj, d.node);
       d.assigned = [];
@@ -788,63 +857,157 @@
         buildings.map((b, i) => (b.required ? i : -1)).filter((i) => i >= 0),
       ),
       selected = [];
+    // Caminho da casa até o ponto: o mais seco se couber no tempo; senão, o mais rápido.
+    // Devolve null se nenhum couber.
+    function way(d, b) {
+      if (b.node < 0) return null;
+      const extra = b.d / speed + d.d / speed,
+        dry = d.route.s[b.node] + extra;
+      if (dry <= limit)
+        return { via: "route", sec: dry, cost: d.route.t[b.node] + extra };
+      const quick = d.quick ? d.quick.s[b.node] + extra : Infinity;
+      return quick <= limit
+        ? { via: "fast", sec: quick, cost: d.quick.t[b.node] + extra }
+        : null;
+    }
     function feasible(d, b) {
-      const t =
-        b.node < 0 ? Infinity : b.d / speed + d.route.t[b.node] + d.d / speed;
-      return t <= limit &&
+      const w = way(d, b);
+      return w &&
         (!o.enforceCapacity || d.capacity !== null) &&
         b.people <= d.remaining
-        ? t
-        : Infinity;
+        ? w
+        : null;
+    }
+    function put(d, i, w) {
+      const b = buildings[i];
+      d.assigned.push(i);
+      d.used += b.people;
+      if (d.capacity !== null) d.remaining -= b.people;
+      b.destination = selected.indexOf(d);
+      b.seconds = w.sec;
+      b.via = w.via;
+    }
+    function take(d) {
+      const order = [...pending]
+        .map((i) => [i, feasible(d, buildings[i])])
+        .filter((x) => x[1])
+        .sort((a, b) => a[1].sec - b[1].sec);
+      for (const [i] of order) {
+        const w = feasible(d, buildings[i]);
+        if (!w) continue;
+        put(d, i, w);
+        pending.delete(i);
+      }
     }
     function assign(d) {
       selected.push(d);
-      const order = [...pending]
-        .map((i) => [i, feasible(d, buildings[i])])
-        .filter((x) => Number.isFinite(x[1]))
-        .sort((a, b) => a[1] - b[1]);
-      for (const [i, t] of order) {
-        const b = buildings[i];
-        if (!Number.isFinite(feasible(d, b))) continue;
-        d.assigned.push(i);
-        d.used += b.people;
-        if (d.capacity !== null) d.remaining -= b.people;
-        b.destination = selected.length - 1;
-        b.seconds = t;
-        pending.delete(i);
+      take(d);
+    }
+    function greedy() {
+      while (o.mode !== "manual" && pending.size) {
+        let best = null,
+          score = 0;
+        for (const d of destinations) {
+          if (selected.includes(d)) continue;
+          const s = [...pending].reduce(
+            (n, i) => n + (feasible(d, buildings[i]) ? buildings[i].people : 0),
+            0,
+          );
+          if (s > score) {
+            best = d;
+            score = s;
+          }
+        }
+        if (!best) break;
+        assign(best);
       }
     }
     for (const d of destinations.filter((d) => d.origin === "usuario"))
       assign(d);
-    while (o.mode !== "manual" && pending.size) {
-      let best = null,
-        score = 0;
+    greedy();
+    // Primeiro os pontos são escolhidos pelos caminhos secos; quem ficou sem destino tenta o
+    // caminho mais rápido, mesmo passando pela mancha.
+    if (wet && pending.size) {
       for (const d of destinations) {
-        if (selected.includes(d)) continue;
-        const s = [...pending].reduce(
-          (n, i) =>
-            n +
-            (Number.isFinite(feasible(d, buildings[i]))
-              ? buildings[i].people
-              : 0),
-          0,
-        );
-        if (s > score) {
-          best = d;
-          score = s;
-        }
+        const q = shortest(adj, d.node, true);
+        d.quick = { s: q.s, t: q.t };
       }
-      if (!best) break;
-      assign(best);
+      for (const d of [...selected]) take(d);
+      greedy();
     }
+    // A escolha gulosa manda cada casa ao primeiro ponto escolhido que a alcança. Entre pontos sem
+    // limite de vagas, passa cada casa ao de menor custo (o caminho mais curto e mais seco).
+    const open = selected.filter((d) => d.capacity === null);
+    if (open.length > 1) {
+      for (const [i, b] of buildings.entries()) {
+        const cur = selected[b.destination];
+        if (!cur || cur.capacity !== null) continue;
+        let best = cur,
+          bw = feasible(cur, b) || { cost: Infinity };
+        for (const d of open) {
+          const w = d === cur ? null : feasible(d, b);
+          if (w && w.cost < bw.cost) {
+            best = d;
+            bw = w;
+          }
+        }
+        if (best === cur) continue;
+        cur.assigned.splice(cur.assigned.indexOf(i), 1);
+        cur.used -= b.people;
+        put(best, i, bw);
+      }
+      // pontos que ficaram sem casas saem da lista
+      const kept = selected.filter(
+        (d) => d.assigned.length || d.origin === "usuario",
+      );
+      if (kept.length < selected.length) {
+        for (const b of buildings)
+          if (b.destination != null)
+            b.destination = kept.indexOf(selected[b.destination]);
+        selected.splice(0, selected.length, ...kept);
+      }
+    }
+    for (const d of selected) {
+      if (d.assigned.some((i) => buildings[i].via === "fast"))
+        d.fast = shortest(adj, d.node, true);
+      delete d.quick;
+    }
+    // Rota que entra na mancha depois de estar fora dela (50 m seguidos secos), como numa ponte
+    // sobre o rio: fica marcada, para alguém conferir se a passagem estará aberta.
+    if (wet)
+      for (const b of buildings) {
+        if (b.destination == null) continue;
+        const d = selected[b.destination],
+          tree = b.via === "fast" && d.fast ? d.fast : d.route;
+        let n = b.node,
+          fora = !wet(b.p),
+          seco = 0,
+          molhado = 0,
+          guard = 0;
+        while (n >= 0 && tree.next[n] >= 0 && guard++ < g.nodes.length) {
+          const m = tree.next[n],
+            p = g.nodes[n],
+            q = g.nodes[m],
+            dd = distance(p, q),
+            k = Math.max(1, Math.min(100, Math.round(dd / 10)));
+          for (let i = 0; i < k; i++)
+            if (!wet(lerp(p, q, (i + 0.5) / k))) {
+              seco += dd / k;
+              if (seco >= 50) fora = true;
+            } else {
+              seco = 0;
+              if (fora) molhado += dd / k;
+            }
+          n = m;
+        }
+        b.crossesFlood = molhado >= 30;
+      }
     for (const i of pending) {
       const b = buildings[i];
       b.reason =
         b.node < 0
           ? "Sem acesso à rede após os bloqueios"
-          : destinations.some(
-                (d) => b.d / speed + d.route.t[b.node] + d.d / speed <= limit,
-              )
+          : destinations.some((d) => way(d, b))
             ? "Sem capacidade disponível ou informada"
             : "Sem destino alcançável no tempo escolhido";
     }
@@ -861,6 +1024,7 @@
         required: required.length,
         assigned: assigned.length,
         unassigned: pending.size,
+        crossing: assigned.filter((b) => b.crossesFlood).length,
         people: required.reduce((s, b) => s + b.people, 0),
         served: assigned.reduce((s, b) => s + b.people, 0),
         estimated: required.filter((b) => b.estimated).length,
@@ -873,12 +1037,13 @@
     const b = result.buildings[i];
     if (b.destination == null) return [];
     const d = result.destinations[b.destination],
+      tree = b.via === "fast" && d.fast ? d.fast : d.route,
       out = [b.p];
     let n = b.node,
       guard = 0;
     while (n >= 0 && guard++ < result.graph.nodes.length) {
       out.push(result.graph.nodes[n]);
-      n = d.route.next[n];
+      n = tree.next[n];
     }
     out.push(d.p);
     return out;

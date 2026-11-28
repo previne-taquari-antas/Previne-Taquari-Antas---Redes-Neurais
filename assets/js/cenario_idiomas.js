@@ -99,6 +99,11 @@
       "llega a un punto a tiempo",
     ],
     ["não chega no tempo", "does not reach in time", "no llega a tiempo"],
+    [
+      "chega, mas a rota passa pela mancha",
+      "reaches, but the route crosses the flood",
+      "llega, pero la ruta cruza la mancha",
+    ],
     ["ponto de encontro", "meeting point", "punto de encuentro"],
     ["bloqueio", "blockage", "bloqueo"],
     ["caminho", "route", "camino"],
@@ -303,6 +308,12 @@
       "$1 edificación(es) no llegan a ningún punto en el tiempo elegido (en rojo en el mapa). Aumente el tiempo, agregue otro punto o prevea transporte.",
     ],
     [
+      N +
+        " (edificação tem|edificações têm) a rota passando por dentro da mancha depois de estar fora dela, por exemplo numa ponte \\(em amarelo no mapa\\)\\. Confira se essa passagem estará aberta durante a retirada\\.",
+      "$1 building(s) have a route that goes back into the flood after leaving it, for example over a bridge (yellow on the map). Check that this crossing will be open during the evacuation.",
+      "$1 edificación(es) tienen la ruta pasando por dentro de la mancha después de haber salido, por ejemplo por un puente (en amarillo en el mapa). Verifique que ese paso esté abierto durante la evacuación.",
+    ],
+    [
       "Só " +
         N +
         " (edificação|edificações) na área que precisa de ponto de encontro. Confira no mapa se marcou a parte certa da cidade \\(a que inunda, com casas\\) e se a mancha azul encosta nela.",
@@ -345,6 +356,86 @@
       "Sugerido por el cálculo",
     ],
     ["Perto de (.+)", "Near $1", "Cerca de $1"],
+    [
+      "Nenhuma edificação da área fica na mancha nem a menos de " +
+        N +
+        " m dela: com o rio subindo " +
+        N +
+        " m, ninguém aqui precisa sair\\. Para outra cheia, mude quanto o rio sobe e calcule de novo\\.",
+      "No building in the area is in the flood area or less than $1 m from it: with the river rising $2 m, nobody here needs to leave. For another flood, change how much the river rises and calculate again.",
+      "Ninguna edificación del área queda en la mancha ni a menos de $1 m de ella: con el río subiendo $2 m, nadie aquí necesita salir. Para otra crecida, cambie cuánto sube el río y calcule de nuevo.",
+    ],
+    [
+      "A área tinha casas e ruas demais para o cálculo e foi reduzida para cerca de " +
+        N +
+        " km² em volta do centro\\.",
+      "The area had too many houses and streets for the calculation and was reduced to about $1 km² around its center.",
+      "El área tenía demasiadas casas y calles para el cálculo y se redujo a unos $1 km² alrededor del centro.",
+    ],
+    [
+      "Nenhum lugar seguro dentro da área marcada: ela fica toda na mancha ou a menos de " +
+        N +
+        " m dela\\. Marque uma área maior, que inclua terreno mais alto, ou confira quanto o rio sobe\\.",
+      "No safe place inside the marked area: all of it is in the flood area or less than $1 m from it. Mark a larger area that includes higher ground, or check how much the river rises.",
+      "Ningún lugar seguro dentro del área marcada: toda queda en la mancha o a menos de $1 m de ella. Marque un área más grande, que incluya terreno más alto, o revise cuánto sube el río.",
+    ],
+    [
+      "Quanto dá para confiar na mancha\\?",
+      "How far can the flood area be trusted?",
+      "¿Cuánto se puede confiar en la mancha?",
+    ],
+    [
+      "Testada na cheia de maio de 2024 em 9 cidades do vale do Taquari, contra a área atingida do Mapa Único do RS: com o rio subindo de 16 a 24 m, a mancha pegou de 67% a 98% das casas atingidas \\(8 das 9 cidades acima de 77%\\).",
+      "Tested on the May 2024 flood in 9 towns of the Taquari valley (Brazil), against the state's mapped affected area: with the river rising 16 to 24 m, the flood area caught 67% to 98% of the affected houses (above 77% in 8 of the 9 towns).",
+      "Probada en la crecida de mayo de 2024 en 9 ciudades del valle del Taquari (Brasil), contra el área afectada mapeada por el estado: con el río subiendo de 16 a 24 m, la mancha detectó del 67% al 98% de las casas afectadas (más del 77% en 8 de las 9 ciudades).",
+    ],
+    [
+      "Das casas que ela marca, de 72% a 84% foram mesmo atingidas.",
+      "Of the houses it marks, 72% to 84% were really affected.",
+      "De las casas que marca, del 72% al 84% fueron realmente afectadas.",
+    ],
+    [
+      "Não prevê a água que vem da chuva longe do rio, de diques que rompem ou de enxurradas, e é menos precisa em planícies. Um modelo de terreno do município \\(MDT\\) melhora o resultado.",
+      "It does not predict water from rain far from the river, levee breaches or flash floods, and is less precise on flat plains. A municipal terrain model (DTM) improves the result.",
+      "No predice el agua de lluvia lejos del río, de diques que se rompen o de riadas, y es menos precisa en llanuras. Un modelo de terreno del municipio (MDT) mejora el resultado.",
+    ],
+    [
+      "Baixar planilha por edificação",
+      "Download spreadsheet by building",
+      "Descargar planilla por edificación",
+    ],
+    [
+      "Baixar rotas \\(GeoJSON\\)",
+      "Download routes (GeoJSON)",
+      "Descargar rutas (GeoJSON)",
+    ],
+    [
+      "Copiar link deste cenário",
+      "Copy link to this scenario",
+      "Copiar enlace de este escenario",
+    ],
+    ["Link copiado", "Link copied", "Enlace copiado"],
+    ["Copie o link abaixo", "Copy the link below", "Copie el enlace de abajo"],
+    [
+      "O link refaz o cálculo com o mesmo lugar, a mesma área, o mesmo nível do rio e o mesmo tempo, com os dados do mapa do dia em que for aberto.",
+      "The link redoes the calculation with the same place, area, river level and time, using the map data of the day it is opened.",
+      "El enlace rehace el cálculo con el mismo lugar, la misma área, el mismo nivel del río y el mismo tiempo, con los datos del mapa del día en que se abra.",
+    ],
+    [
+      "Cenário aberto pelo link. Calculando…",
+      "Scenario opened from the link. Calculating…",
+      "Escenario abierto desde el enlace. Calculando…",
+    ],
+    [
+      "O link tem uma área inválida ou grande demais. Comece pelo passo 1.",
+      "The link has an invalid or too large area. Start with step 1.",
+      "El enlace tiene un área inválida o demasiado grande. Empiece por el paso 1.",
+    ],
+    [
+      "inundação simulada \\(rio \\+" + N + " m\\)",
+      "simulated flooding (river +$1 m)",
+      "inundación simulada (río +$1 m)",
+    ],
     [
       N + " edificaç(?:ão|ões): Sem destino alcançável no tempo escolhido",
       "$1 building(s): no meeting point reachable in the chosen time",
