@@ -1,0 +1,2947 @@
+{
+ "schema_version": "mucum_flood_input_screening_v1",
+ "generated_at_utc": "2026-11-17T01:36:12.986547Z",
+ "research_only": true,
+ "aviso": "Triagem de pesquisa. Nao altera o robo ao vivo nem constitui alerta.",
+ "criterios": {
+  "cheia_cm": 500.0,
+  "subida_cm_no_horizonte": 50.0,
+  "pico": "previsao emitida h horas antes do pico do evento",
+  "validacao": "deixa um evento inteiro de fora",
+  "baseline": "Mucum + Linha Jose Julio"
+ },
+ "limitacoes": [
+  "Chuva testada em 6 eventos (2 de 2023 + 4 de 2026); Santa Tereza e Passo Carreiro so nos 4 de 2026.",
+  "Balsa do Prata tem cobertura irregular nas cheias historicas; resultado inconclusivo.",
+  "O erro de pico e uma unica previsao por evento: leitura qualitativa."
+ ],
+ "eventos": [
+  {
+   "evento": "E19_MAY2023",
+   "pico_mucum_cm": 548.8,
+   "horas_acima_500cm": 30,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": false,
+    "balsa_do_prata": true,
+    "passo_carreiro": false,
+    "chuva": false
+   }
+  },
+  {
+   "evento": "E2026_JUL",
+   "pico_mucum_cm": 1982.2,
+   "horas_acima_500cm": 75,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": false,
+    "balsa_do_prata": true,
+    "passo_carreiro": true,
+    "chuva": false
+   }
+  },
+  {
+   "evento": "E22_SEP2023",
+   "pico_mucum_cm": 2149.3,
+   "horas_acima_500cm": 93,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": false,
+    "balsa_do_prata": true,
+    "passo_carreiro": false,
+    "chuva": true
+   }
+  },
+  {
+   "evento": "E24_NOV2023",
+   "pico_mucum_cm": 2297.5,
+   "horas_acima_500cm": 227,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": false,
+    "balsa_do_prata": true,
+    "passo_carreiro": false,
+    "chuva": true
+   }
+  },
+  {
+   "evento": "E27_MAY2024",
+   "pico_mucum_cm": 2552.5,
+   "horas_acima_500cm": 246,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": false,
+    "balsa_do_prata": true,
+    "passo_carreiro": false,
+    "chuva": false
+   }
+  },
+  {
+   "evento": "E28_JUN2024",
+   "pico_mucum_cm": 1766.2,
+   "horas_acima_500cm": 249,
+   "tem": {
+    "linha_jose_julio": false,
+    "santa_tereza": false,
+    "balsa_do_prata": false,
+    "passo_carreiro": false,
+    "chuva": false
+   }
+  },
+  {
+   "evento": "E2026_SET",
+   "pico_mucum_cm": 1538.8,
+   "horas_acima_500cm": 108,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": true,
+    "balsa_do_prata": true,
+    "passo_carreiro": true,
+    "chuva": true
+   }
+  },
+  {
+   "evento": "E2026_OUT4",
+   "pico_mucum_cm": 640.2,
+   "horas_acima_500cm": 39,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": true,
+    "balsa_do_prata": true,
+    "passo_carreiro": true,
+    "chuva": true
+   }
+  },
+  {
+   "evento": "E2026_OUT9",
+   "pico_mucum_cm": 531.8,
+   "horas_acima_500cm": 15,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": true,
+    "balsa_do_prata": true,
+    "passo_carreiro": true,
+    "chuva": true
+   }
+  },
+  {
+   "evento": "E2026_NOV",
+   "pico_mucum_cm": 952.8,
+   "horas_acima_500cm": 61,
+   "tem": {
+    "linha_jose_julio": true,
+    "santa_tereza": true,
+    "balsa_do_prata": true,
+    "passo_carreiro": true,
+    "chuva": true
+   }
+  }
+ ],
+ "resultados": [
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 24.7,
+    "mae_subida_cm": 56.2,
+    "vies_subida_cm": -31.1,
+    "erro_abs_medio_pico_cm": 59.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 19.6,
+     "E2026_OUT4": 8.7,
+     "E2026_OUT9": -19.2,
+     "E2026_SET": 20.4,
+     "E22_SEP2023": 208.1,
+     "E24_NOV2023": -78.4
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 21.2,
+    "mae_subida_cm": 44.0,
+    "vies_subida_cm": -19.0,
+    "erro_abs_medio_pico_cm": 48.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 7.2,
+     "E2026_OUT4": 5.4,
+     "E2026_OUT9": -26.4,
+     "E2026_SET": -15.8,
+     "E22_SEP2023": 201.8,
+     "E24_NOV2023": -36.6
+    }
+   },
+   "ganho_cheia_pct": 14.2,
+   "ganho_subida_pct": 21.7
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 27.0,
+    "mae_subida_cm": 63.2,
+    "vies_subida_cm": -24.1,
+    "erro_abs_medio_pico_cm": 73.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 27.0,
+     "E2026_OUT4": 4.7,
+     "E2026_OUT9": 6.1,
+     "E2026_SET": 65.9,
+     "E22_SEP2023": -254.7,
+     "E24_NOV2023": -80.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 26.1,
+    "mae_subida_cm": 60.8,
+    "vies_subida_cm": -31.8,
+    "erro_abs_medio_pico_cm": 65.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -2.7,
+     "E2026_OUT4": 1.4,
+     "E2026_OUT9": -0.7,
+     "E2026_SET": 63.2,
+     "E22_SEP2023": -307.6,
+     "E24_NOV2023": 16.0
+    }
+   },
+   "ganho_cheia_pct": 3.3,
+   "ganho_subida_pct": 3.8
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 536,
+    "n_horas_subida": 176,
+    "mae_cheia_cm": 24.0,
+    "mae_subida_cm": 53.1,
+    "vies_subida_cm": -29.9,
+    "erro_abs_medio_pico_cm": 65.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 21.5,
+     "E2026_OUT4": 46.1,
+     "E2026_OUT9": -18.7,
+     "E2026_SET": 18.4,
+     "E22_SEP2023": 215.4,
+     "E24_NOV2023": -71.0
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 536,
+    "n_horas_subida": 176,
+    "mae_cheia_cm": 22.6,
+    "mae_subida_cm": 46.4,
+    "vies_subida_cm": -23.2,
+    "erro_abs_medio_pico_cm": 49.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 18.8,
+     "E2026_OUT4": 7.8,
+     "E2026_OUT9": -21.2,
+     "E2026_SET": -27.5,
+     "E22_SEP2023": 183.1,
+     "E24_NOV2023": 38.8
+    }
+   },
+   "ganho_cheia_pct": 5.8,
+   "ganho_subida_pct": 12.6
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 536,
+    "n_horas_subida": 176,
+    "mae_cheia_cm": 27.1,
+    "mae_subida_cm": 60.0,
+    "vies_subida_cm": -20.8,
+    "erro_abs_medio_pico_cm": 81.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 44.1,
+     "E2026_OUT4": 69.9,
+     "E2026_OUT9": 13.4,
+     "E2026_SET": 55.8,
+     "E22_SEP2023": -243.7,
+     "E24_NOV2023": -60.6
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 536,
+    "n_horas_subida": 176,
+    "mae_cheia_cm": 24.6,
+    "mae_subida_cm": 53.0,
+    "vies_subida_cm": -27.6,
+    "erro_abs_medio_pico_cm": 67.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -3.8,
+     "E2026_OUT4": 13.5,
+     "E2026_OUT9": -5.3,
+     "E2026_SET": 41.4,
+     "E22_SEP2023": -274.3,
+     "E24_NOV2023": 67.3
+    }
+   },
+   "ganho_cheia_pct": 9.2,
+   "ganho_subida_pct": 11.7
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 235,
+    "n_horas_subida": 106,
+    "mae_cheia_cm": 23.0,
+    "mae_subida_cm": 40.9,
+    "vies_subida_cm": -28.3,
+    "erro_abs_medio_pico_cm": 24.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 25.6,
+     "E2026_OUT4": 21.9,
+     "E2026_OUT9": -13.1,
+     "E2026_SET": 36.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 235,
+    "n_horas_subida": 106,
+    "mae_cheia_cm": 20.6,
+    "mae_subida_cm": 32.8,
+    "vies_subida_cm": -18.4,
+    "erro_abs_medio_pico_cm": 24.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 41.2,
+     "E2026_OUT4": 42.0,
+     "E2026_OUT9": -5.1,
+     "E2026_SET": 11.2
+    }
+   },
+   "ganho_cheia_pct": 10.4,
+   "ganho_subida_pct": 19.8
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 235,
+    "n_horas_subida": 106,
+    "mae_cheia_cm": 24.0,
+    "mae_subida_cm": 37.4,
+    "vies_subida_cm": -23.3,
+    "erro_abs_medio_pico_cm": 48.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 28.7,
+     "E2026_OUT4": 62.8,
+     "E2026_OUT9": 43.4,
+     "E2026_SET": 58.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 235,
+    "n_horas_subida": 106,
+    "mae_cheia_cm": 23.0,
+    "mae_subida_cm": 33.6,
+    "vies_subida_cm": -17.0,
+    "erro_abs_medio_pico_cm": 49.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 30.0,
+     "E2026_OUT4": 65.4,
+     "E2026_OUT9": 27.2,
+     "E2026_SET": 75.2
+    }
+   },
+   "ganho_cheia_pct": 4.2,
+   "ganho_subida_pct": 10.2
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 262,
+    "n_horas_subida": 156,
+    "mae_cheia_cm": 34.8,
+    "mae_subida_cm": 54.1,
+    "vies_subida_cm": -31.6,
+    "erro_abs_medio_pico_cm": 75.5,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 11.1,
+     "E2026_NOV": -61.5,
+     "E2026_OUT4": 36.3,
+     "E2026_OUT9": 25.7,
+     "E2026_SET": 106.5,
+     "E22_SEP2023": -167.6,
+     "E24_NOV2023": -2.1,
+     "E27_MAY2024": 193.6
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 262,
+    "n_horas_subida": 156,
+    "mae_cheia_cm": 36.3,
+    "mae_subida_cm": 56.7,
+    "vies_subida_cm": -21.2,
+    "erro_abs_medio_pico_cm": 108.0,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 5.3,
+     "E2026_NOV": -73.7,
+     "E2026_OUT4": 17.5,
+     "E2026_OUT9": 11.6,
+     "E2026_SET": 106.1,
+     "E22_SEP2023": 409.1,
+     "E24_NOV2023": 22.9,
+     "E27_MAY2024": 217.9
+    }
+   },
+   "ganho_cheia_pct": -4.3,
+   "ganho_subida_pct": -4.8
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 262,
+    "n_horas_subida": 156,
+    "mae_cheia_cm": 46.7,
+    "mae_subida_cm": 59.3,
+    "vies_subida_cm": -22.0,
+    "erro_abs_medio_pico_cm": 100.1,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 45.4,
+     "E2026_NOV": -111.9,
+     "E2026_OUT4": 61.7,
+     "E2026_OUT9": 27.6,
+     "E2026_SET": 138.2,
+     "E22_SEP2023": -169.3,
+     "E24_NOV2023": -34.0,
+     "E27_MAY2024": -212.4
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 262,
+    "n_horas_subida": 156,
+    "mae_cheia_cm": 43.1,
+    "mae_subida_cm": 60.7,
+    "vies_subida_cm": -24.0,
+    "erro_abs_medio_pico_cm": 96.4,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 17.3,
+     "E2026_NOV": -106.2,
+     "E2026_OUT4": 47.9,
+     "E2026_OUT9": 26.6,
+     "E2026_SET": 103.5,
+     "E22_SEP2023": -97.2,
+     "E24_NOV2023": 158.2,
+     "E27_MAY2024": -214.1
+    }
+   },
+   "ganho_cheia_pct": 7.7,
+   "ganho_subida_pct": -2.4
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 82,
+    "mae_cheia_cm": 17.0,
+    "mae_subida_cm": 33.5,
+    "vies_subida_cm": -24.3,
+    "erro_abs_medio_pico_cm": 26.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 28.0,
+     "E2026_NOV": 30.8,
+     "E2026_OUT4": 16.9,
+     "E2026_OUT9": -12.6,
+     "E2026_SET": 43.3
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 82,
+    "mae_cheia_cm": 21.8,
+    "mae_subida_cm": 44.2,
+    "vies_subida_cm": -22.7,
+    "erro_abs_medio_pico_cm": 30.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 51.0,
+     "E2026_NOV": 36.0,
+     "E2026_OUT4": 16.4,
+     "E2026_OUT9": -30.6,
+     "E2026_SET": 18.6
+    }
+   },
+   "ganho_cheia_pct": -28.2,
+   "ganho_subida_pct": -31.9
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 82,
+    "mae_cheia_cm": 19.2,
+    "mae_subida_cm": 35.7,
+    "vies_subida_cm": -22.4,
+    "erro_abs_medio_pico_cm": 36.0,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 31.5,
+     "E2026_NOV": 12.4,
+     "E2026_OUT4": 44.9,
+     "E2026_OUT9": 29.6,
+     "E2026_SET": 61.6
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 82,
+    "mae_cheia_cm": 21.0,
+    "mae_subida_cm": 40.4,
+    "vies_subida_cm": -19.2,
+    "erro_abs_medio_pico_cm": 33.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 30.0,
+     "E2026_NOV": -15.2,
+     "E2026_OUT4": 22.2,
+     "E2026_OUT9": 2.9,
+     "E2026_SET": 98.0
+    }
+   },
+   "ganho_cheia_pct": -9.4,
+   "ganho_subida_pct": -13.2
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 209,
+    "n_horas_subida": 77,
+    "mae_cheia_cm": 31.0,
+    "mae_subida_cm": 52.8,
+    "vies_subida_cm": -38.2,
+    "erro_abs_medio_pico_cm": 11.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 20.9,
+     "E2026_OUT4": 3.7,
+     "E2026_OUT9": -7.3,
+     "E2026_SET": 13.9
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 209,
+    "n_horas_subida": 77,
+    "mae_cheia_cm": 22.8,
+    "mae_subida_cm": 40.2,
+    "vies_subida_cm": -30.4,
+    "erro_abs_medio_pico_cm": 7.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 9.6,
+     "E2026_OUT4": -4.2,
+     "E2026_OUT9": -5.0,
+     "E2026_SET": 12.3
+    }
+   },
+   "ganho_cheia_pct": 26.5,
+   "ganho_subida_pct": 23.9
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 209,
+    "n_horas_subida": 77,
+    "mae_cheia_cm": 25.3,
+    "mae_subida_cm": 48.0,
+    "vies_subida_cm": -27.9,
+    "erro_abs_medio_pico_cm": 31.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 5.2,
+     "E2026_OUT4": -6.4,
+     "E2026_OUT9": 48.3,
+     "E2026_SET": 65.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 209,
+    "n_horas_subida": 77,
+    "mae_cheia_cm": 26.2,
+    "mae_subida_cm": 47.2,
+    "vies_subida_cm": -32.0,
+    "erro_abs_medio_pico_cm": 18.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -20.9,
+     "E2026_OUT4": -7.6,
+     "E2026_OUT9": -5.5,
+     "E2026_SET": 40.9
+    }
+   },
+   "ganho_cheia_pct": -3.6,
+   "ganho_subida_pct": 1.7
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "ridge",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 187,
+    "n_horas_subida": 89,
+    "mae_cheia_cm": 32.6,
+    "mae_subida_cm": 52.8,
+    "vies_subida_cm": -25.7,
+    "erro_abs_medio_pico_cm": 68.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -79.6,
+     "E2026_OUT4": 16.7,
+     "E2026_SET": 81.8,
+     "E22_SEP2023": -155.3,
+     "E24_NOV2023": -8.8
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 187,
+    "n_horas_subida": 89,
+    "mae_cheia_cm": 34.3,
+    "mae_subida_cm": 54.3,
+    "vies_subida_cm": -4.9,
+    "erro_abs_medio_pico_cm": 120.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -77.0,
+     "E2026_OUT4": 2.8,
+     "E2026_SET": 0.0,
+     "E22_SEP2023": 302.2,
+     "E24_NOV2023": 220.9
+    }
+   },
+   "ganho_cheia_pct": -5.2,
+   "ganho_subida_pct": -2.8
+  },
+  {
+   "horizonte_h": 4,
+   "modelo": "hgb",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 187,
+    "n_horas_subida": 89,
+    "mae_cheia_cm": 41.4,
+    "mae_subida_cm": 60.5,
+    "vies_subida_cm": -19.6,
+    "erro_abs_medio_pico_cm": 95.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -64.9,
+     "E2026_OUT4": 43.7,
+     "E2026_SET": 155.2,
+     "E22_SEP2023": -152.3,
+     "E24_NOV2023": -62.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 187,
+    "n_horas_subida": 89,
+    "mae_cheia_cm": 41.3,
+    "mae_subida_cm": 54.3,
+    "vies_subida_cm": -15.8,
+    "erro_abs_medio_pico_cm": 95.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -123.9,
+     "E2026_OUT4": 38.8,
+     "E2026_SET": 128.3,
+     "E22_SEP2023": -90.1,
+     "E24_NOV2023": 95.6
+    }
+   },
+   "ganho_cheia_pct": 0.2,
+   "ganho_subida_pct": 10.2
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 74.3,
+    "mae_subida_cm": 128.9,
+    "vies_subida_cm": -80.2,
+    "erro_abs_medio_pico_cm": 122.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -50.7,
+     "E2026_OUT4": 25.7,
+     "E2026_OUT9": -44.3,
+     "E2026_SET": 219.1,
+     "E22_SEP2023": -161.6,
+     "E24_NOV2023": -236.0
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 49.4,
+    "mae_subida_cm": 82.3,
+    "vies_subida_cm": -26.1,
+    "erro_abs_medio_pico_cm": 40.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -63.2,
+     "E2026_OUT4": 5.7,
+     "E2026_OUT9": -58.3,
+     "E2026_SET": 89.3,
+     "E22_SEP2023": -10.2,
+     "E24_NOV2023": -14.0
+    }
+   },
+   "ganho_cheia_pct": 33.5,
+   "ganho_subida_pct": 36.2
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 74.2,
+    "mae_subida_cm": 141.0,
+    "vies_subida_cm": -25.8,
+    "erro_abs_medio_pico_cm": 203.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 9.3,
+     "E2026_OUT4": 7.7,
+     "E2026_OUT9": -32.6,
+     "E2026_SET": 240.3,
+     "E22_SEP2023": -864.0,
+     "E24_NOV2023": 66.8
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 82.4,
+    "mae_subida_cm": 142.4,
+    "vies_subida_cm": -35.1,
+    "erro_abs_medio_pico_cm": 304.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -193.1,
+     "E2026_OUT4": 10.5,
+     "E2026_OUT9": -24.7,
+     "E2026_SET": 271.4,
+     "E22_SEP2023": -923.9,
+     "E24_NOV2023": 405.4
+    }
+   },
+   "ganho_cheia_pct": -11.1,
+   "ganho_subida_pct": -1.0
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 551,
+    "n_horas_subida": 245,
+    "mae_cheia_cm": 70.7,
+    "mae_subida_cm": 116.4,
+    "vies_subida_cm": -72.0,
+    "erro_abs_medio_pico_cm": 119.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -49.9,
+     "E2026_OUT4": 6.1,
+     "E2026_OUT9": -42.8,
+     "E2026_SET": 215.0,
+     "E22_SEP2023": -217.7,
+     "E24_NOV2023": -186.3
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 551,
+    "n_horas_subida": 245,
+    "mae_cheia_cm": 50.3,
+    "mae_subida_cm": 83.2,
+    "vies_subida_cm": -31.7,
+    "erro_abs_medio_pico_cm": 40.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 13.7,
+     "E2026_OUT4": -62.4,
+     "E2026_OUT9": -64.1,
+     "E2026_SET": -12.4,
+     "E22_SEP2023": -52.4,
+     "E24_NOV2023": -40.6
+    }
+   },
+   "ganho_cheia_pct": 28.9,
+   "ganho_subida_pct": 28.5
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 551,
+    "n_horas_subida": 245,
+    "mae_cheia_cm": 70.6,
+    "mae_subida_cm": 122.5,
+    "vies_subida_cm": -25.5,
+    "erro_abs_medio_pico_cm": 197.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -0.3,
+     "E2026_OUT4": -20.3,
+     "E2026_OUT9": -20.8,
+     "E2026_SET": 229.9,
+     "E22_SEP2023": -844.1,
+     "E24_NOV2023": 70.6
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 551,
+    "n_horas_subida": 245,
+    "mae_cheia_cm": 71.9,
+    "mae_subida_cm": 114.6,
+    "vies_subida_cm": -23.7,
+    "erro_abs_medio_pico_cm": 269.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -208.3,
+     "E2026_OUT4": -51.1,
+     "E2026_OUT9": -12.9,
+     "E2026_SET": 268.3,
+     "E22_SEP2023": -811.7,
+     "E24_NOV2023": 262.6
+    }
+   },
+   "ganho_cheia_pct": -1.8,
+   "ganho_subida_pct": 6.4
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 248,
+    "n_horas_subida": 144,
+    "mae_cheia_cm": 67.1,
+    "mae_subida_cm": 92.3,
+    "vies_subida_cm": -64.1,
+    "erro_abs_medio_pico_cm": 52.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -105.4,
+     "E2026_OUT4": -43.4,
+     "E2026_OUT9": -33.8,
+     "E2026_SET": -28.6
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 248,
+    "n_horas_subida": 144,
+    "mae_cheia_cm": 54.0,
+    "mae_subida_cm": 76.5,
+    "vies_subida_cm": -48.9,
+    "erro_abs_medio_pico_cm": 46.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 21.7,
+     "E2026_OUT4": -62.1,
+     "E2026_OUT9": -33.1,
+     "E2026_SET": 70.6
+    }
+   },
+   "ganho_cheia_pct": 19.5,
+   "ganho_subida_pct": 17.1
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 248,
+    "n_horas_subida": 144,
+    "mae_cheia_cm": 60.5,
+    "mae_subida_cm": 77.6,
+    "vies_subida_cm": -36.1,
+    "erro_abs_medio_pico_cm": 54.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 46.9,
+     "E2026_OUT4": -24.6,
+     "E2026_OUT9": -51.2,
+     "E2026_SET": 94.8
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 248,
+    "n_horas_subida": 144,
+    "mae_cheia_cm": 61.3,
+    "mae_subida_cm": 76.9,
+    "vies_subida_cm": -37.2,
+    "erro_abs_medio_pico_cm": 49.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 51.1,
+     "E2026_OUT4": -52.5,
+     "E2026_OUT9": -9.7,
+     "E2026_SET": 84.5
+    }
+   },
+   "ganho_cheia_pct": -1.3,
+   "ganho_subida_pct": 0.9
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 287,
+    "n_horas_subida": 242,
+    "mae_cheia_cm": 108.4,
+    "mae_subida_cm": 117.3,
+    "vies_subida_cm": -63.2,
+    "erro_abs_medio_pico_cm": 293.5,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 11.9,
+     "E2026_JUL": -555.1,
+     "E2026_NOV": -25.2,
+     "E2026_OUT4": 5.4,
+     "E2026_OUT9": -36.6,
+     "E2026_SET": 261.5,
+     "E22_SEP2023": -845.6,
+     "E24_NOV2023": -244.2,
+     "E27_MAY2024": 655.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 287,
+    "n_horas_subida": 242,
+    "mae_cheia_cm": 103.9,
+    "mae_subida_cm": 105.2,
+    "vies_subida_cm": -38.2,
+    "erro_abs_medio_pico_cm": 214.9,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 91.6,
+     "E2026_JUL": -477.1,
+     "E2026_NOV": -29.0,
+     "E2026_OUT4": -22.0,
+     "E2026_OUT9": -44.4,
+     "E2026_SET": 228.3,
+     "E22_SEP2023": 366.7,
+     "E24_NOV2023": -155.2,
+     "E27_MAY2024": 519.6
+    }
+   },
+   "ganho_cheia_pct": 4.2,
+   "ganho_subida_pct": 10.3
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 287,
+    "n_horas_subida": 242,
+    "mae_cheia_cm": 117.4,
+    "mae_subida_cm": 114.3,
+    "vies_subida_cm": -38.8,
+    "erro_abs_medio_pico_cm": 268.9,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 105.1,
+     "E2026_JUL": -475.6,
+     "E2026_NOV": -129.0,
+     "E2026_OUT4": -3.7,
+     "E2026_OUT9": -52.2,
+     "E2026_SET": 439.2,
+     "E22_SEP2023": -837.4,
+     "E24_NOV2023": -113.2,
+     "E27_MAY2024": -264.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 287,
+    "n_horas_subida": 242,
+    "mae_cheia_cm": 94.6,
+    "mae_subida_cm": 98.6,
+    "vies_subida_cm": -36.7,
+    "erro_abs_medio_pico_cm": 210.8,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 44.0,
+     "E2026_JUL": -370.3,
+     "E2026_NOV": -102.5,
+     "E2026_OUT4": -4.1,
+     "E2026_OUT9": -46.5,
+     "E2026_SET": 354.0,
+     "E22_SEP2023": -702.0,
+     "E24_NOV2023": 209.2,
+     "E27_MAY2024": -64.4
+    }
+   },
+   "ganho_cheia_pct": 19.4,
+   "ganho_subida_pct": 13.7
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 222,
+    "n_horas_subida": 113,
+    "mae_cheia_cm": 53.5,
+    "mae_subida_cm": 85.0,
+    "vies_subida_cm": -60.5,
+    "erro_abs_medio_pico_cm": 45.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 50.4,
+     "E2026_NOV": -85.6,
+     "E2026_OUT4": -43.2,
+     "E2026_OUT9": -40.9,
+     "E2026_SET": 6.9
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 222,
+    "n_horas_subida": 113,
+    "mae_cheia_cm": 61.7,
+    "mae_subida_cm": 91.4,
+    "vies_subida_cm": -55.4,
+    "erro_abs_medio_pico_cm": 86.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 93.7,
+     "E2026_NOV": -164.9,
+     "E2026_OUT4": -6.4,
+     "E2026_OUT9": -71.1,
+     "E2026_SET": -97.7
+    }
+   },
+   "ganho_cheia_pct": -15.3,
+   "ganho_subida_pct": -7.5
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 222,
+    "n_horas_subida": 113,
+    "mae_cheia_cm": 52.4,
+    "mae_subida_cm": 76.3,
+    "vies_subida_cm": -51.0,
+    "erro_abs_medio_pico_cm": 80.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 13.0,
+     "E2026_NOV": -200.6,
+     "E2026_OUT4": -58.0,
+     "E2026_OUT9": -38.8,
+     "E2026_SET": 93.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 222,
+    "n_horas_subida": 113,
+    "mae_cheia_cm": 55.1,
+    "mae_subida_cm": 74.4,
+    "vies_subida_cm": -41.3,
+    "erro_abs_medio_pico_cm": 75.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 11.1,
+     "E2026_NOV": -184.3,
+     "E2026_OUT4": 43.4,
+     "E2026_OUT9": -41.1,
+     "E2026_SET": 98.6
+    }
+   },
+   "ganho_cheia_pct": -5.2,
+   "ganho_subida_pct": 2.5
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 217,
+    "n_horas_subida": 96,
+    "mae_cheia_cm": 89.2,
+    "mae_subida_cm": 121.9,
+    "vies_subida_cm": -91.5,
+    "erro_abs_medio_pico_cm": 62.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -133.1,
+     "E2026_OUT4": 6.1,
+     "E2026_OUT9": -28.7,
+     "E2026_SET": -81.0
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 217,
+    "n_horas_subida": 96,
+    "mae_cheia_cm": 66.1,
+    "mae_subida_cm": 108.8,
+    "vies_subida_cm": -70.2,
+    "erro_abs_medio_pico_cm": 73.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -99.1,
+     "E2026_OUT4": -19.2,
+     "E2026_OUT9": -26.5,
+     "E2026_SET": -150.2
+    }
+   },
+   "ganho_cheia_pct": 25.9,
+   "ganho_subida_pct": 10.7
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 217,
+    "n_horas_subida": 96,
+    "mae_cheia_cm": 67.7,
+    "mae_subida_cm": 109.6,
+    "vies_subida_cm": -62.6,
+    "erro_abs_medio_pico_cm": 61.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 42.8,
+     "E2026_OUT4": 25.2,
+     "E2026_OUT9": -92.4,
+     "E2026_SET": 85.2
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 217,
+    "n_horas_subida": 96,
+    "mae_cheia_cm": 73.8,
+    "mae_subida_cm": 116.7,
+    "vies_subida_cm": -74.9,
+    "erro_abs_medio_pico_cm": 96.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -267.6,
+     "E2026_OUT4": 1.0,
+     "E2026_OUT9": -4.2,
+     "E2026_SET": -111.6
+    }
+   },
+   "ganho_cheia_pct": -9.0,
+   "ganho_subida_pct": -6.5
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "ridge",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 193,
+    "n_horas_subida": 134,
+    "mae_cheia_cm": 121.8,
+    "mae_subida_cm": 134.5,
+    "vies_subida_cm": -29.8,
+    "erro_abs_medio_pico_cm": 255.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -57.9,
+     "E2026_OUT4": 36.8,
+     "E2026_OUT9": -7.3,
+     "E2026_SET": 573.1,
+     "E22_SEP2023": -772.8,
+     "E24_NOV2023": -84.5
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 193,
+    "n_horas_subida": 134,
+    "mae_cheia_cm": 67.0,
+    "mae_subida_cm": 90.6,
+    "vies_subida_cm": -1.0,
+    "erro_abs_medio_pico_cm": 119.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 16.7,
+     "E2026_OUT4": -13.4,
+     "E2026_OUT9": -68.6,
+     "E2026_SET": 123.8,
+     "E22_SEP2023": 338.1,
+     "E24_NOV2023": 157.3
+    }
+   },
+   "ganho_cheia_pct": 45.0,
+   "ganho_subida_pct": 32.6
+  },
+  {
+   "horizonte_h": 8,
+   "modelo": "hgb",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 193,
+    "n_horas_subida": 134,
+    "mae_cheia_cm": 127.5,
+    "mae_subida_cm": 158.9,
+    "vies_subida_cm": -16.5,
+    "erro_abs_medio_pico_cm": 276.0,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -182.2,
+     "E2026_OUT4": 98.7,
+     "E2026_OUT9": -37.0,
+     "E2026_SET": 396.1,
+     "E22_SEP2023": -826.9,
+     "E24_NOV2023": -115.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 193,
+    "n_horas_subida": 134,
+    "mae_cheia_cm": 117.3,
+    "mae_subida_cm": 129.0,
+    "vies_subida_cm": -20.6,
+    "erro_abs_medio_pico_cm": 279.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -212.1,
+     "E2026_OUT4": 56.9,
+     "E2026_OUT9": -46.0,
+     "E2026_SET": 169.9,
+     "E22_SEP2023": -718.9,
+     "E24_NOV2023": 474.6
+    }
+   },
+   "ganho_cheia_pct": 8.0,
+   "ganho_subida_pct": 18.8
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 134.6,
+    "mae_subida_cm": 217.5,
+    "vies_subida_cm": -129.2,
+    "erro_abs_medio_pico_cm": 271.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 110.4,
+     "E2026_OUT4": 5.8,
+     "E2026_OUT9": -17.1,
+     "E2026_SET": 3.6,
+     "E22_SEP2023": -1210.7,
+     "E24_NOV2023": -283.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 90.3,
+    "mae_subida_cm": 148.6,
+    "vies_subida_cm": -33.0,
+    "erro_abs_medio_pico_cm": 136.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -25.8,
+     "E2026_OUT4": -45.7,
+     "E2026_OUT9": -12.4,
+     "E2026_SET": 60.3,
+     "E22_SEP2023": -585.9,
+     "E24_NOV2023": -89.6
+    }
+   },
+   "ganho_cheia_pct": 32.9,
+   "ganho_subida_pct": 31.7
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "chuva observada media da bacia (3/6/12/24/48h)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 124.0,
+    "mae_subida_cm": 231.6,
+    "vies_subida_cm": -76.1,
+    "erro_abs_medio_pico_cm": 391.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 451.1,
+     "E2026_OUT4": -3.2,
+     "E2026_OUT9": 85.9,
+     "E2026_SET": 262.7,
+     "E22_SEP2023": -1277.4,
+     "E24_NOV2023": -267.2
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 126.9,
+    "mae_subida_cm": 214.0,
+    "vies_subida_cm": -55.8,
+    "erro_abs_medio_pico_cm": 351.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -198.5,
+     "E2026_OUT4": -25.7,
+     "E2026_OUT9": -26.2,
+     "E2026_SET": 283.4,
+     "E22_SEP2023": -1132.9,
+     "E24_NOV2023": 442.8
+    }
+   },
+   "ganho_cheia_pct": -2.3,
+   "ganho_subida_pct": 7.6
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 556,
+    "n_horas_subida": 268,
+    "mae_cheia_cm": 131.4,
+    "mae_subida_cm": 195.3,
+    "vies_subida_cm": -117.9,
+    "erro_abs_medio_pico_cm": 295.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 105.4,
+     "E2026_OUT4": -44.4,
+     "E2026_OUT9": -30.0,
+     "E2026_SET": -30.0,
+     "E22_SEP2023": -1217.7,
+     "E24_NOV2023": -346.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 556,
+    "n_horas_subida": 268,
+    "mae_cheia_cm": 87.3,
+    "mae_subida_cm": 140.4,
+    "vies_subida_cm": -29.3,
+    "erro_abs_medio_pico_cm": 143.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 36.0,
+     "E2026_OUT4": -187.4,
+     "E2026_OUT9": -15.6,
+     "E2026_SET": -140.0,
+     "E22_SEP2023": -452.1,
+     "E24_NOV2023": 28.8
+    }
+   },
+   "ganho_cheia_pct": 33.6,
+   "ganho_subida_pct": 28.1
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "chuva observada por sub-bacia (5 zonas)",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 556,
+    "n_horas_subida": 268,
+    "mae_cheia_cm": 120.6,
+    "mae_subida_cm": 189.8,
+    "vies_subida_cm": -81.1,
+    "erro_abs_medio_pico_cm": 364.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 164.8,
+     "E2026_OUT4": -65.0,
+     "E2026_OUT9": 88.7,
+     "E2026_SET": 211.1,
+     "E22_SEP2023": -1276.2,
+     "E24_NOV2023": -382.2
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 556,
+    "n_horas_subida": 268,
+    "mae_cheia_cm": 130.8,
+    "mae_subida_cm": 189.7,
+    "vies_subida_cm": -12.3,
+    "erro_abs_medio_pico_cm": 431.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -145.9,
+     "E2026_OUT4": -65.6,
+     "E2026_OUT9": -30.4,
+     "E2026_SET": 387.1,
+     "E22_SEP2023": -925.0,
+     "E24_NOV2023": 1033.9
+    }
+   },
+   "ganho_cheia_pct": -8.5,
+   "ganho_subida_pct": 0.1
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 253,
+    "n_horas_subida": 168,
+    "mae_cheia_cm": 118.9,
+    "mae_subida_cm": 133.2,
+    "vies_subida_cm": -100.0,
+    "erro_abs_medio_pico_cm": 171.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -69.0,
+     "E2026_OUT4": -105.9,
+     "E2026_OUT9": 33.2,
+     "E2026_SET": -476.9
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 253,
+    "n_horas_subida": 168,
+    "mae_cheia_cm": 88.3,
+    "mae_subida_cm": 113.3,
+    "vies_subida_cm": -76.6,
+    "erro_abs_medio_pico_cm": 116.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 75.0,
+     "E2026_OUT4": -50.5,
+     "E2026_OUT9": 35.0,
+     "E2026_SET": -305.2
+    }
+   },
+   "ganho_cheia_pct": 25.7,
+   "ganho_subida_pct": 14.9
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "nivel Santa Tereza 86472600",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 253,
+    "n_horas_subida": 168,
+    "mae_cheia_cm": 100.9,
+    "mae_subida_cm": 115.1,
+    "vies_subida_cm": -50.6,
+    "erro_abs_medio_pico_cm": 141.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -183.7,
+     "E2026_OUT4": -69.9,
+     "E2026_OUT9": 42.1,
+     "E2026_SET": -272.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 253,
+    "n_horas_subida": 168,
+    "mae_cheia_cm": 98.8,
+    "mae_subida_cm": 116.0,
+    "vies_subida_cm": -50.5,
+    "erro_abs_medio_pico_cm": 161.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -213.1,
+     "E2026_OUT4": -113.0,
+     "E2026_OUT9": 39.4,
+     "E2026_SET": -281.5
+    }
+   },
+   "ganho_cheia_pct": 2.1,
+   "ganho_subida_pct": -0.8
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 302,
+    "n_horas_subida": 295,
+    "mae_cheia_cm": 198.8,
+    "mae_subida_cm": 184.8,
+    "vies_subida_cm": -100.7,
+    "erro_abs_medio_pico_cm": 339.9,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 33.2,
+     "E2026_JUL": -918.8,
+     "E2026_NOV": 24.1,
+     "E2026_OUT4": -48.9,
+     "E2026_OUT9": -136.8,
+     "E2026_SET": -59.8,
+     "E22_SEP2023": -1204.8,
+     "E24_NOV2023": -496.2,
+     "E27_MAY2024": -136.8
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 302,
+    "n_horas_subida": 295,
+    "mae_cheia_cm": 216.2,
+    "mae_subida_cm": 180.4,
+    "vies_subida_cm": -66.6,
+    "erro_abs_medio_pico_cm": 227.3,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 225.1,
+     "E2026_JUL": -804.8,
+     "E2026_NOV": 20.9,
+     "E2026_OUT4": -40.7,
+     "E2026_OUT9": -116.0,
+     "E2026_SET": 49.9,
+     "E22_SEP2023": 396.4,
+     "E24_NOV2023": -348.4,
+     "E27_MAY2024": 43.5
+    }
+   },
+   "ganho_cheia_pct": -8.8,
+   "ganho_subida_pct": 2.4
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "Rio da Prata: Balsa do Prata 86447000",
+   "eventos": [
+    "E19_MAY2023",
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023",
+    "E27_MAY2024"
+   ],
+   "baseline": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 302,
+    "n_horas_subida": 295,
+    "mae_cheia_cm": 216.8,
+    "mae_subida_cm": 175.2,
+    "vies_subida_cm": -55.9,
+    "erro_abs_medio_pico_cm": 329.0,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 42.3,
+     "E2026_JUL": -759.0,
+     "E2026_NOV": -87.5,
+     "E2026_OUT4": -5.7,
+     "E2026_OUT9": -27.4,
+     "E2026_SET": 78.4,
+     "E22_SEP2023": -1183.9,
+     "E24_NOV2023": -143.4,
+     "E27_MAY2024": -633.3
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E19_MAY2023",
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023",
+     "E27_MAY2024"
+    ],
+    "n_horas_cheia": 302,
+    "n_horas_subida": 295,
+    "mae_cheia_cm": 195.6,
+    "mae_subida_cm": 176.6,
+    "vies_subida_cm": -43.7,
+    "erro_abs_medio_pico_cm": 300.7,
+    "erro_pico_por_evento_cm": {
+     "E19_MAY2023": 36.9,
+     "E2026_JUL": -609.2,
+     "E2026_NOV": -144.9,
+     "E2026_OUT4": -33.6,
+     "E2026_OUT9": 33.4,
+     "E2026_SET": 413.8,
+     "E22_SEP2023": -934.9,
+     "E24_NOV2023": 156.7,
+     "E27_MAY2024": -343.0
+    }
+   },
+   "ganho_cheia_pct": 9.8,
+   "ganho_subida_pct": -0.8
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 219,
+    "n_horas_subida": 129,
+    "mae_cheia_cm": 87.2,
+    "mae_subida_cm": 124.7,
+    "vies_subida_cm": -97.7,
+    "erro_abs_medio_pico_cm": 129.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 44.7,
+     "E2026_NOV": -63.0,
+     "E2026_OUT4": -101.6,
+     "E2026_OUT9": 16.9,
+     "E2026_SET": -422.2
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 219,
+    "n_horas_subida": 129,
+    "mae_cheia_cm": 105.9,
+    "mae_subida_cm": 127.3,
+    "vies_subida_cm": -83.3,
+    "erro_abs_medio_pico_cm": 181.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 109.5,
+     "E2026_NOV": 336.7,
+     "E2026_OUT4": -43.8,
+     "E2026_OUT9": -17.5,
+     "E2026_SET": -401.7
+    }
+   },
+   "ganho_cheia_pct": -21.4,
+   "ganho_subida_pct": -2.1
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "Rio Carreiro: Passo Carreiro 86500000",
+   "eventos": [
+    "E2026_JUL",
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 219,
+    "n_horas_subida": 129,
+    "mae_cheia_cm": 87.2,
+    "mae_subida_cm": 106.8,
+    "vies_subida_cm": -75.2,
+    "erro_abs_medio_pico_cm": 152.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 19.7,
+     "E2026_NOV": -347.2,
+     "E2026_OUT4": -92.8,
+     "E2026_OUT9": 23.1,
+     "E2026_SET": -279.7
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_JUL",
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 219,
+    "n_horas_subida": 129,
+    "mae_cheia_cm": 84.2,
+    "mae_subida_cm": 108.6,
+    "vies_subida_cm": -52.2,
+    "erro_abs_medio_pico_cm": 139.5,
+    "erro_pico_por_evento_cm": {
+     "E2026_JUL": 63.8,
+     "E2026_NOV": -343.2,
+     "E2026_OUT4": 3.4,
+     "E2026_OUT9": -53.2,
+     "E2026_SET": -233.7
+    }
+   },
+   "ganho_cheia_pct": 3.4,
+   "ganho_subida_pct": -1.7
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 104,
+    "mae_cheia_cm": 159.0,
+    "mae_subida_cm": 193.7,
+    "vies_subida_cm": -153.4,
+    "erro_abs_medio_pico_cm": 192.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -77.8,
+     "E2026_OUT4": 53.8,
+     "E2026_OUT9": 103.3,
+     "E2026_SET": -535.9
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 104,
+    "mae_cheia_cm": 102.7,
+    "mae_subida_cm": 152.3,
+    "vies_subida_cm": -68.5,
+    "erro_abs_medio_pico_cm": 157.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -183.4,
+     "E2026_OUT4": -1.7,
+     "E2026_OUT9": 28.7,
+     "E2026_SET": -415.5
+    }
+   },
+   "ganho_cheia_pct": 35.4,
+   "ganho_subida_pct": 21.4
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "Santa Tereza + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 104,
+    "mae_cheia_cm": 104.4,
+    "mae_subida_cm": 160.0,
+    "vies_subida_cm": -88.2,
+    "erro_abs_medio_pico_cm": 155.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -201.9,
+     "E2026_OUT4": -78.8,
+     "E2026_OUT9": 96.9,
+     "E2026_SET": -246.2
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET"
+    ],
+    "n_horas_cheia": 218,
+    "n_horas_subida": 104,
+    "mae_cheia_cm": 102.9,
+    "mae_subida_cm": 149.0,
+    "vies_subida_cm": -72.4,
+    "erro_abs_medio_pico_cm": 227.4,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -344.8,
+     "E2026_OUT4": -67.9,
+     "E2026_OUT9": -64.4,
+     "E2026_SET": -432.6
+    }
+   },
+   "ganho_cheia_pct": 1.4,
+   "ganho_subida_pct": 6.9
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "ridge",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 196,
+    "n_horas_subida": 152,
+    "mae_cheia_cm": 252.7,
+    "mae_subida_cm": 261.6,
+    "vies_subida_cm": -40.5,
+    "erro_abs_medio_pico_cm": 333.0,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 126.1,
+     "E2026_OUT4": -120.4,
+     "E2026_OUT9": -31.0,
+     "E2026_SET": 339.9,
+     "E22_SEP2023": -1144.6,
+     "E24_NOV2023": -236.0
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 196,
+    "n_horas_subida": 152,
+    "mae_cheia_cm": 95.2,
+    "mae_subida_cm": 110.9,
+    "vies_subida_cm": 2.0,
+    "erro_abs_medio_pico_cm": 138.2,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 24.7,
+     "E2026_OUT4": -144.8,
+     "E2026_OUT9": -47.7,
+     "E2026_SET": -33.8,
+     "E22_SEP2023": 285.3,
+     "E24_NOV2023": 292.7
+    }
+   },
+   "ganho_cheia_pct": 62.3,
+   "ganho_subida_pct": 57.6
+  },
+  {
+   "horizonte_h": 12,
+   "modelo": "hgb",
+   "candidato": "Balsa do Prata + chuva media",
+   "eventos": [
+    "E2026_NOV",
+    "E2026_OUT4",
+    "E2026_OUT9",
+    "E2026_SET",
+    "E22_SEP2023",
+    "E24_NOV2023"
+   ],
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 196,
+    "n_horas_subida": 152,
+    "mae_cheia_cm": 248.3,
+    "mae_subida_cm": 281.1,
+    "vies_subida_cm": -5.8,
+    "erro_abs_medio_pico_cm": 309.3,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 109.2,
+     "E2026_OUT4": -127.7,
+     "E2026_OUT9": 50.9,
+     "E2026_SET": -7.3,
+     "E22_SEP2023": -1249.5,
+     "E24_NOV2023": -311.1
+    }
+   },
+   "com_candidato": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 196,
+    "n_horas_subida": 152,
+    "mae_cheia_cm": 208.6,
+    "mae_subida_cm": 225.2,
+    "vies_subida_cm": 6.9,
+    "erro_abs_medio_pico_cm": 437.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -194.7,
+     "E2026_OUT4": -81.1,
+     "E2026_OUT9": -19.7,
+     "E2026_SET": 471.2,
+     "E22_SEP2023": -1113.7,
+     "E24_NOV2023": 741.9
+    }
+   },
+   "ganho_cheia_pct": 16.0,
+   "ganho_subida_pct": 19.9
+  }
+ ],
+ "teto_chuva_prevista": [
+  {
+   "horizonte_h": 4,
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 24.7,
+    "mae_subida_cm": 56.2,
+    "vies_subida_cm": -31.1,
+    "erro_abs_medio_pico_cm": 59.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 19.6,
+     "E2026_OUT4": 8.7,
+     "E2026_OUT9": -19.2,
+     "E2026_SET": 20.4,
+     "E22_SEP2023": 208.1,
+     "E24_NOV2023": -78.4
+    }
+   },
+   "com_chuva_observada": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 21.2,
+    "mae_subida_cm": 44.0,
+    "vies_subida_cm": -19.0,
+    "erro_abs_medio_pico_cm": 48.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 7.2,
+     "E2026_OUT4": 5.4,
+     "E2026_OUT9": -26.4,
+     "E2026_SET": -15.8,
+     "E22_SEP2023": 201.8,
+     "E24_NOV2023": -36.6
+    }
+   },
+   "com_chuva_observada_e_futura_perfeita": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 513,
+    "n_horas_subida": 157,
+    "mae_cheia_cm": 21.7,
+    "mae_subida_cm": 44.9,
+    "vies_subida_cm": -19.5,
+    "erro_abs_medio_pico_cm": 47.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 3.6,
+     "E2026_OUT4": 4.4,
+     "E2026_OUT9": -27.3,
+     "E2026_SET": -13.0,
+     "E22_SEP2023": 199.6,
+     "E24_NOV2023": -37.8
+    }
+   }
+  },
+  {
+   "horizonte_h": 8,
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 74.3,
+    "mae_subida_cm": 128.9,
+    "vies_subida_cm": -80.2,
+    "erro_abs_medio_pico_cm": 122.9,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -50.7,
+     "E2026_OUT4": 25.7,
+     "E2026_OUT9": -44.3,
+     "E2026_SET": 219.1,
+     "E22_SEP2023": -161.6,
+     "E24_NOV2023": -236.0
+    }
+   },
+   "com_chuva_observada": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 49.4,
+    "mae_subida_cm": 82.3,
+    "vies_subida_cm": -26.1,
+    "erro_abs_medio_pico_cm": 40.1,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -63.2,
+     "E2026_OUT4": 5.7,
+     "E2026_OUT9": -58.3,
+     "E2026_SET": 89.3,
+     "E22_SEP2023": -10.2,
+     "E24_NOV2023": -14.0
+    }
+   },
+   "com_chuva_observada_e_futura_perfeita": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 521,
+    "n_horas_subida": 211,
+    "mae_cheia_cm": 52.5,
+    "mae_subida_cm": 83.1,
+    "vies_subida_cm": -26.2,
+    "erro_abs_medio_pico_cm": 51.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -97.4,
+     "E2026_OUT4": -1.0,
+     "E2026_OUT9": -64.4,
+     "E2026_SET": 55.3,
+     "E22_SEP2023": -24.9,
+     "E24_NOV2023": -67.2
+    }
+   }
+  },
+  {
+   "horizonte_h": 12,
+   "baseline": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 134.6,
+    "mae_subida_cm": 217.5,
+    "vies_subida_cm": -129.2,
+    "erro_abs_medio_pico_cm": 271.8,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": 110.4,
+     "E2026_OUT4": 5.8,
+     "E2026_OUT9": -17.1,
+     "E2026_SET": 3.6,
+     "E22_SEP2023": -1210.7,
+     "E24_NOV2023": -283.1
+    }
+   },
+   "com_chuva_observada": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 90.3,
+    "mae_subida_cm": 148.6,
+    "vies_subida_cm": -33.0,
+    "erro_abs_medio_pico_cm": 136.6,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -25.8,
+     "E2026_OUT4": -45.7,
+     "E2026_OUT9": -12.4,
+     "E2026_SET": 60.3,
+     "E22_SEP2023": -585.9,
+     "E24_NOV2023": -89.6
+    }
+   },
+   "com_chuva_observada_e_futura_perfeita": {
+    "eventos": [
+     "E2026_NOV",
+     "E2026_OUT4",
+     "E2026_OUT9",
+     "E2026_SET",
+     "E22_SEP2023",
+     "E24_NOV2023"
+    ],
+    "n_horas_cheia": 522,
+    "n_horas_subida": 223,
+    "mae_cheia_cm": 92.2,
+    "mae_subida_cm": 143.3,
+    "vies_subida_cm": -20.0,
+    "erro_abs_medio_pico_cm": 159.7,
+    "erro_pico_por_evento_cm": {
+     "E2026_NOV": -116.5,
+     "E2026_OUT4": -66.3,
+     "E2026_OUT9": -78.3,
+     "E2026_SET": -64.2,
+     "E22_SEP2023": -475.2,
+     "E24_NOV2023": -157.4
+    }
+   }
+  }
+ ]
+}
